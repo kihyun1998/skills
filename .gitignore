@@ -11,3 +11,7 @@ pdf/
 __pycache__/
 *.pyc
 
+
+# Personal scratch notes, kept local
+todo.md
+copy-skill.md
