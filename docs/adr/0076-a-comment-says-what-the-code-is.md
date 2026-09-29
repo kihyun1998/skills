@@ -151,8 +151,8 @@ reported with the other findings rather than swallowed as a scope caveat.
 
 ## What narrowing can and cannot see
 
-[`scripts/decant/narrow.py`](../../scripts/decant/narrow.py) removes mechanical
-work before the repository scope. **It finds about half of what is there.** Of
+`scripts/decant/narrow.py` (deleted 2026-09-29, see below; its last version is at
+`ae75090`) removed mechanical work before the repository scope. **It finds about half of what is there.** Of
 two territories it reported clean, one held at least two real restatements: the
 map said *"ping-pong between the two controllers"*, the source said *"jump the
 master back, and so on forever"* — the same fact, zero shared phrasing. People do
@@ -170,6 +170,57 @@ differently, and a field index that counted a drive letter. Each was
 indistinguishable from a clean result. `grill-map` and `sweep` both carried the
 rule in prose, and a 3-of-3 violation rate put it in the output instead: the
 script prints its scope before its findings, and the skill's report does the same.
+
+## Why applying has its own rules, and why the script is gone (2026-09-29)
+
+The skill ended at a report — *"every write is the maintainer's"*. On justerm's
+epic #975 the maintainer handed the writes over, and 21 decant PRs (#996–#1021)
+were applied by an agent, each followed by an adversarial read. Those reads
+confirmed **111 defects**, all fixed before merge; none shipped. By the stage each
+arose in:
+
+| Stage | Found | What it was |
+|---|---|---|
+| the source comment was already false | 19 | a stale count, a removed function still cited, a wrong reference line — moved as it stood |
+| the moved text was rewritten false | 33 | widened, two claims merged, compressed until false, a cause reversed, a miscount |
+| a fact or a reason was dropped | 19 | ten short reasons in one PR alone |
+| something else still quoted the comment | 17 | a note or a doc-comment pointing at prose that had moved |
+| placed where it contradicts its neighbours | 15 | a count, a *none pinned*, a section it did not belong in |
+| a reference fact restated or unpinned | 6 | |
+| copied to the note, not cut | 1 | |
+| mechanical | 1 | doubled CRs from a scripted edit |
+
+**Every row but the first is in the moving, which the skill did not govern.** The
+first is in the reading: `DESIGN` was checked against its note and never against
+the code, so a false fact travelled into the map intact. Both now have rules —
+the code check before binning, and `## Applying it`.
+
+**The script is deleted, the maintainer's call (2026-09-29)** — they judged that
+the skill should state the rule and the agent should follow it, rather than a
+script standing in for the reading. What they were shown, and what it did not
+cover:
+
+- `narrow.py` had not been run once across the 21 PRs; the reading carried every
+  finding.
+- It read line comments only. On a TypeScript file it counted 57 of 333 comment
+  lines — every JSDoc block was invisible — and still printed a scope that looked
+  complete: the fourth run of this record's *"exited 0 having inspected nothing"*.
+- A replacement that computed the moving's defects over a diff (`ledger.py`) was
+  built and discarded unmerged. Measured before it was dropped: on #1017's decant
+  reconstructed without its pointer fixes, it found 5 of the 8 pointers left
+  dangling. The three it missed name the *symbol* rather than the file (*"the same
+  rule `wheelScrollTarget` carries"*, *"`wheelScrollTarget` states the reason"*) —
+  and one of those, in `scrollbar.test.ts`, had passed the adversarial read as well
+  and was still in justerm's master when this was written. On its first real run
+  10 of its 11 quotation hits were held copies, not quotations. **Not covered:** whether prose alone lowers the quotation misses,
+  which prose had already failed to prevent 17 times. The `## Applying it` rule
+  names the grep and forbids truncating its output, because one of those misses
+  was a truncated line.
+
+The territory order, the scope count and code drift stay as rules; the agent
+counts them. The candidate matchers (history phrases, verbatim restatement,
+repeated sentences) go without a replacement: by this record's own measurement
+they found about half, and the reading had to cover the other half regardless.
 
 ## Consequences
 

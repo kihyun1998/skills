@@ -1,6 +1,7 @@
 ---
 name: decant
-description: "Sort source comments paragraph by paragraph under one policy: a comment says what the code is, and the why, the trap, the measured value and the history move to the repo's map. Reports which paragraph is owed to which note, what the notes are missing, and what can go, then stops — every write is the maintainer's. Use when a repository that keeps a map adopts the policy, or when a file's header has grown past the point of being read."
+requires: [lens]
+description: "Sort source comments paragraph by paragraph under one policy: a comment says what the code is, and the why, the trap, the measured value and the history move to the repo's map. Reports which paragraph is owed to which note, what the notes are missing, and what can go, then stops — unless the maintainer hands it the writes, which it then carries out by moving sentences rather than rewriting them. Use when a repository that keeps a map adopts the policy, or when a file's header has grown past the point of being read."
 ---
 
 # decant — leave the one line, move the rest
@@ -88,9 +89,15 @@ they can be put to the maintainer in one batch.
 a tolerance's derivation or a measured value is `DESIGN`; the story of the bug
 that prompted it is history.
 
-## Check each `DESIGN` against its note
+## Check each `DESIGN` against the code, then against its note
 
-Open the note the verdict names and read it beside the source. There are three
+**The code first.** Every factual claim in a `DESIGN` or `CROSS` paragraph — a
+count, a caller, a value, a name, a citation, an *only* / *every* / *never* — is
+read against the code or the pinned source it describes before it is binned. A
+claim the code contradicts goes under *Contradicted*; it is never moved as it
+stands, because a false sentence moved into a note becomes the note's fact.
+
+Then open the note the verdict names and read it beside the source. There are three
 outcomes, reported apart:
 
 - **held** — the note already says it; the paragraph is a copy.
@@ -127,34 +134,24 @@ No change runs it: the rule is kept at write time by the repo's `CLAUDE.md`,
 where `grill-the-graph` put it, and a pass that checked every change would be
 undone by the next edit made outside it.
 
-It starts with `scripts/decant/narrow.py` in the skills
-repository this folder links to (resolve the link first; `--help` for usage). It
-prints, in order:
+Before the first territory, count three things and put them at the top of the
+report:
 
-1. **what it scanned** — carry this block into the report first.
-2. **the territory order** — production comment blocks per line of
-   `## Design model`, highest first; test and harness (`demo/`) blocks are
-   counted beside it and read, but do not rank. Read territories in this order, and put it in the report as
-   printed. Choosing a territory because it looks promising biases every number
-   the run produces.
-3. **refactoring targets** — territories whose every file is shared with other
-   notes.
-4. **code drift** — files that use a territory's module but its `## Code` does
-   not name, split in two: `+!` when **no note names the file at all** — it is
-   outside the map, and almost always a real omission — and `+` when another note
-   already names it, which is usually a consumer rather than a member. A TS
-   `import type` is not a use. On a `--territory` run it also lists named files
-   linked by no use to any other file the note names (`-`: a peer, or a wrong
-   entry). Run with `--territory` for the one you are about to read; its scope
-   then includes the `+!` and `+` files. **A `+!` and a `-` are settled by
-   reading before anything else**, because every later finding is scoped by that
-   list.
-5. **candidates**: history-shaped lines, comments restating their note verbatim,
-   the same sentence repeated across files.
-
-The candidates remove work; they certify nothing. The matcher sees copies, and
-people rewrite rather than copy, so a territory it calls clean still gets read.
-Measured on its first territory: 5 of the 8 history clauses reading found.
+1. **What will be read** — every territory note, and per note the source files its
+   `## Code` names, each with its number of comment blocks. Count block comments
+   (`/* … */`, JSDoc `/** … */`) as well as line comments. A scope of zero, or a
+   language whose comments you did not count, is not a clean result — say so.
+2. **The territory order** — production comment blocks per line of
+   `## Design model`, highest first; test and harness (`demo/`) blocks are counted
+   beside it and read, but do not rank. Read territories in this order. Choosing
+   a territory because it looks promising biases every number the run produces.
+3. **Code drift** — per territory, the files that import its module but its
+   `## Code` does not name. A file **no** note names is outside the map, and
+   almost always a real omission; a file another note names is usually a
+   consumer. A TS `import type` is not a use. The other direction too: a file
+   `## Code` names that no other file it names uses or is used by is a peer, or
+   a wrong entry. Settle drift by reading before anything else, because every
+   later finding is scoped by that list.
 
 **Finish each territory before starting the next.** A flaw in the method found on
 the third territory has already been copied into the first two.
@@ -174,14 +171,50 @@ In this order:
 6. **Refactoring targets** — per file: its size against its layer, how many notes
    name it, and which of those notes own nothing else. A territory with no file
    of its own is a module that exists only in prose, and the strongest case.
-7. Where narrowing ran: that it removed work and did not certify the remainder.
 
 **The pass is done when the report is written and nothing else is.** Source,
-notes and tracker are the maintainer's to change.
+notes and tracker are the maintainer's to change — unless the maintainer hands
+the writes over, and then the next section governs every one of them.
+
+## Applying it
+
+Applying carries out the report; it does not re-decide it. Nearly everything
+that goes wrong in a decant goes wrong here, in the moving, so these rules are
+stricter than the reading's.
+
+- **Move, do not rewrite.** Carry a sentence as it stands and change only what
+  the code contradicts. Where the note needs it shorter: one claim per sentence,
+  never two paragraphs joined into one; keep every qualifier the original had —
+  what exactly was measured, which cases, *only*, *permanently*; and before
+  writing *because* or *so*, check in the original which side is the cause.
+- **Account for every sentence.** Before moving a paragraph, list its sentences
+  and name where each one lands — a note, the kept line, or `DROP` with its
+  ground. The short reason is the one that goes missing.
+- **Cut in the same commit.** A sentence moved to a note and left in the source is
+  two copies, and the next edit changes one.
+- **Link a reference fact, never restate it.** A `file:line` in another project
+  belongs in the repository's pinned-reference record; the note links that row.
+  Where no row exists, read the source and add one.
+- **Read the destination section whole** after placing a sentence. A count (*three
+  callers*, *the fourth producer*), a *none* / *only* / *every*, or the sentence
+  next to it can be false now.
+- **Re-point what pointed at it.** For every removed sentence, grep the whole
+  repository for a distinctive phrase of it; and for the file's name **and the
+  commented symbol's**, read every line that says what that comment says, states,
+  records, gives or carries. Read every hit; never truncate the output. A
+  quotation of a comment that no longer exists points at nothing, and a pointer
+  by symbol is the one a file-name grep misses.
+- **Then an adversarial read** (`lens`), briefed with these shapes: compressed
+  until false, two claims merged into one, a qualifier widened, a cause reversed,
+  a reason dropped, a neighbour contradicted.
+
+What a published doc-comment may carry is the repository's rule, in its
+`CLAUDE.md`, not this skill's.
 
 ## Boundaries
 
 - **`sweep`** asks whether a change made a surface *wrong*; this asks whether a
   paragraph belongs where it sits. A paragraph can fail both.
-- **`grill-map`** owns the notes. This pass names what a note owes and stops.
+- **`grill-map`** owns the notes. This pass names what a note owes; when it
+  applies, it writes only the sentences its report moved.
 - **`assay`** reads the code; this reads what the code says about itself.
