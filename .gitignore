@@ -1,0 +1,13 @@
+# Agent worktrees created by Claude Code's worktree isolation
+.claude/worktrees/
+
+# Local scratch PDFs / image inputs (not part of any skill)
+pdf/
+
+# macOS Finder metadata
+.DS_Store
+
+# Python bytecode from the checkup script
+__pycache__/
+*.pyc
+

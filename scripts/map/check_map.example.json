@@ -1,0 +1,81 @@
+{
+  "_": "Copy to <repo>/.checkup.json and fill in. Every field is this repo's data; check_map.py holds no repo knowledge. Field notes are in SKILL.md.",
+
+  "map_dir": "docs/map",
+
+  "_path_roots": "Roots a `## Code` path may be written against, in order. A repo whose notes address crates by name (`pkg-pdu/src/x.rs`) while the tree has a `crates/` prefix needs both -- getting this wrong reports every path in the map as missing.",
+  "path_roots": [".", "crates"],
+
+  "_source_globs": "Everything a `## Code` bullet may name a symbol in. Also the file index that resolves a bare name (`walk.rs`) or a partial path (`src/selection.rs`) written in prose.",
+  "source_globs": [
+    "crates/*/src/**/*.rs",
+    "crates/*/tests/*.rs",
+    ".github/scripts/*.py"
+  ],
+
+  "_comment_globs": "Source files whose COMMENTS are scanned for cited repo paths. Leave empty to skip that check entirely; a non-empty list that matches nothing is reported as a failure, not a pass.",
+  "comment_globs": ["crates/**/*.rs"],
+  "comment_exts": [".rs", ".py", ".toml", ".yml"],
+  "cited_path_pattern": "`((?:docs|crates)/[A-Za-z0-9_./-]+\\.md)`",
+
+  "_command_words": "First words that mark a backticked token as a shell command to skip, not a path.",
+  "command_words": ["grep", "ls", "rg", "cargo", "python3", "sed"],
+
+  "_kinds": "One entry per note kind. `match` is a regex against the note's repo-relative path; `sections` is the exact heading set that kind must carry. Empty sections are load-bearing -- a note may not drop the heading to hide the hole -- so this is the schema, not a style guide.",
+  "kinds": {
+    "territory": {
+      "match": "territory/",
+      "sections": [
+        "## What it is",
+        "## Governing decisions",
+        "## Design model",
+        "## Code",
+        "## Reference behaviour",
+        "## Cross-cutting invariants",
+        "## Blast radius",
+        "## Known holes / open"
+      ]
+    },
+    "invariant": {
+      "match": "invariant/",
+      "sections": [
+        "## The fact",
+        "## Why it is cross-cutting",
+        "## Territories it holds in",
+        "## What a violation looks like",
+        "## Discovery history",
+        "## Where it will recur"
+      ]
+    }
+  },
+
+  "_aggregate": "Optional. A note starting with `marker` owns no detail, so it is exempt from the section set and must say so. Omit if this map has no aggregates.",
+  "aggregate": { "marker": "# Aggregate", "must_contain": "owns no detail" },
+
+  "_owned_value_patterns": "Values another artifact owns and a note may not restate. A decision record's status is the usual one: the copy has no gate, the record's own line does.",
+  "owned_value_patterns": [
+    {
+      "pattern": "ADR-[0-9]{4}[^.\\n]{0,120}?\\b(?:is |still |remains )(?:proposed|accepted)\\b",
+      "owner": "the decision record",
+      "say_instead": "say \"check its Status line\""
+    }
+  ],
+
+  "_reciprocity": "Optional. Every note `from` claims must claim it back, plus dangling references both ways. That direction is load-bearing: a reader lands on the territory and reads its list as a checklist, so an invariant the list omits is invisible exactly when it is needed.",
+  "_reciprocity_both_ways": "Opt-in, and off by default, because the argument above does not symmetrise. An invariant's own section is a roster of SITES, and a territory may name it as its origin or as context without being one. Turn this on only for a map whose rosters are exhaustive by design.",
+  "reciprocity": {
+    "both_ways": false,
+    "from": {
+      "dir": "invariant",
+      "section": "## Territories it holds in",
+      "link_pattern": "\\(\\.\\./territory/([a-z0-9-]+\\.md)\\)"
+    },
+    "to": {
+      "dir": "territory",
+      "section": "## Cross-cutting invariants",
+      "link_pattern": "\\(\\.\\./invariant/([a-z0-9-]+\\.md)\\)"
+    }
+  },
+
+  "skip_dirs": [".git", "node_modules", "target", "dist", "build"]
+}

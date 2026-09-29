@@ -1,2 +1,8 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Shell scripts must keep LF endings even on a Windows checkout
+*.sh text eol=lf
+
+# Git hooks are shell scripts with no extension, so the rule above misses them
+scripts/hooks/* text eol=lf

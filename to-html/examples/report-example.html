@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>주문 파이프라인 심화 리뷰 — Report mode</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          sans: ['Pretendard', 'Noto Sans KR', 'Malgun Gothic', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          serif: ['Nanum Myeongjo', 'Noto Serif KR', 'Georgia', 'serif'],
+          mono: ['JetBrains Mono', 'D2Coding', 'ui-monospace', 'monospace'],
+        },
+      },
+    },
+  };
+</script>
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+  mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+</script>
+<style>
+  .seam { stroke-dasharray: 4 4; }
+  .leak { stroke: #dc2626; }
+  .deep { background: linear-gradient(135deg, #0f172a, #1e293b); }
+</style>
+</head>
+<body class="bg-stone-50 text-slate-900 font-sans antialiased">
+
+<div class="max-w-6xl mx-auto grid lg:grid-cols-[1fr_15rem] gap-10 px-6 py-12">
+<main class="min-w-0 space-y-12">
+
+<header class="border-b border-slate-200 pb-6">
+  <h1 class="font-serif text-4xl tracking-tight">주문 파이프라인 심화 리뷰</h1>
+  <p class="mt-2 text-lg text-slate-500">Report mode 데모 — Tailwind + Mermaid, 에디토리얼 다이어그램 리포트</p>
+  <div class="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-xs uppercase tracking-wider text-slate-400">
+    <span>■ module</span><span>▦ deep module</span><span class="text-red-500">→ leakage</span>
+  </div>
+</header>
+
+<section id="sec-1" class="space-y-4 scroll-mt-8">
+  <h2 class="font-serif text-2xl tracking-tight">1. 후보 카드<span class="block w-12 h-[3px] mt-2 bg-indigo-600 rounded"></span></h2>
+  <p class="leading-relaxed">각 후보는 하나의 <code class="font-mono text-sm bg-slate-100 rounded px-1.5 py-0.5">article</code> 카드입니다. 다이어그램이 무게를 지고, 산문은 짧게.</p>
+
+  <article class="rounded-xl border border-slate-200 bg-white p-6 space-y-4" id="sec-1-1">
+    <div class="flex items-center gap-2 flex-wrap">
+      <h3 class="font-serif text-xl">주문 인테이크 파이프라인 병합</h3>
+      <span class="rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 text-xs font-semibold">Strong</span>
+      <span class="rounded-full bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 text-xs font-semibold">in-process</span>
+    </div>
+    <div class="font-mono text-sm text-slate-500">src/intake/handler.ts · validator.ts · repo.ts</div>
+    <p class="text-sm"><span class="text-xs font-bold uppercase tracking-wide text-slate-400 mr-2">Problem</span>세 개의 얕은 레이어가 각각 호출 하나만 전달한다.</p>
+    <p class="text-sm"><span class="text-xs font-bold uppercase tracking-wide text-slate-400 mr-2">Solution</span>하나의 인터페이스가 래퍼들을 흡수한다.</p>
+    <ul class="list-disc pl-5 text-sm space-y-1">
+      <li>테스트할 지점이 한 곳</li>
+      <li>얕은 래퍼 4개 삭제</li>
+    </ul>
+  </article>
+
+  <article class="rounded-xl border border-slate-200 bg-white p-6 space-y-4" id="sec-1-2">
+    <div class="flex items-center gap-2 flex-wrap">
+      <h3 class="font-serif text-xl">가격 계산 시임 정리</h3>
+      <span class="rounded-full bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 text-xs font-semibold">Worth exploring</span>
+      <span class="rounded-full bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 text-xs font-semibold">ports &amp; adapters</span>
+    </div>
+    <div class="font-mono text-sm text-slate-500">src/pricing/*.ts</div>
+    <p class="text-sm"><span class="text-xs font-bold uppercase tracking-wide text-slate-400 mr-2">Problem</span>가격 로직이 리포지토리 시임을 넘어 샌다.</p>
+  </article>
+</section>
+
+<section id="sec-2" class="space-y-4 scroll-mt-8">
+  <h2 class="font-serif text-2xl tracking-tight">2. Mermaid 그래프<span class="block w-12 h-[3px] mt-2 bg-indigo-600 rounded"></span></h2>
+  <p class="leading-relaxed">진짜 그래프 형태 — 손으로 그리기 번거로운 의존성/호출 흐름은 Mermaid로. 이게 Report mode의 존재 이유입니다.</p>
+  <div class="rounded-lg border border-slate-200 bg-white p-4">
+    <pre class="mermaid">
+flowchart LR
+  A[Handler] --> B[Validator]
+  B --> C[Repo]
+  C -.->|leak| D[PricingClient]
+  classDef leak stroke:#dc2626,stroke-width:2px;
+  class C,D leak
+    </pre>
+    <p class="mt-3 text-sm text-slate-500">가격 계산이 Repo 시임을 넘어 샌다.</p>
+  </div>
+</section>
+
+<section id="sec-3" class="space-y-4 scroll-mt-8">
+  <h2 class="font-serif text-2xl tracking-tight">3. Before / After<span class="block w-12 h-[3px] mt-2 bg-indigo-600 rounded"></span></h2>
+  <p class="leading-relaxed">Mermaid 레이아웃이 싸울 때는 손으로 만든 박스로. "After"를 하나의 두꺼운 깊은 모듈로 표현.</p>
+  <div class="grid md:grid-cols-[1fr_auto_1fr] gap-4 items-center">
+    <div class="space-y-2">
+      <div class="text-xs uppercase tracking-wider text-slate-400 text-center">Before</div>
+      <div class="rounded-lg border-2 border-slate-300 bg-white text-center p-3 text-sm">Handler</div>
+      <div class="rounded-lg border-2 border-slate-300 bg-white text-center p-3 text-sm">Validator</div>
+      <div class="rounded-lg border-2 border-red-400 bg-red-50 text-center p-3 text-sm">PricingClient <span class="block text-xs text-slate-500">시임을 넘어 샘</span></div>
+    </div>
+    <div class="text-2xl text-indigo-600 text-center md:rotate-0 rotate-90">→</div>
+    <div class="space-y-2">
+      <div class="text-xs uppercase tracking-wider text-slate-400 text-center">After</div>
+      <div class="deep rounded-lg border-2 border-slate-800 text-slate-100 text-center p-3 text-sm">Intake 모듈
+        <span class="block text-xs text-slate-400">handler · validator · repo (이제 내부)</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="sec-4" class="space-y-4 scroll-mt-8">
+  <h2 class="font-serif text-2xl tracking-tight">4. 단면도 &amp; 질량<span class="block w-12 h-[3px] mt-2 bg-indigo-600 rounded"></span></h2>
+
+  <h3 id="sec-4-1" class="font-serif text-lg scroll-mt-8">단면도</h3>
+  <div class="space-y-[3px]">
+    <div class="border-l-4 border-indigo-500 bg-slate-100 px-3 py-1 text-xs text-slate-400">Controller — 전달만</div>
+    <div class="border-l-4 border-indigo-500 bg-slate-100 px-3 py-1 text-xs text-slate-400">Service — 전달만</div>
+    <div class="border-l-4 border-indigo-500 bg-slate-100 px-3 py-1 text-xs text-slate-400">Manager — 전달만</div>
+    <div class="border-l-[6px] border-indigo-500 bg-indigo-50 px-3 py-5 text-sm font-semibold">Repository — 실제 작업</div>
+  </div>
+
+  <h3 id="sec-4-2" class="font-serif text-lg scroll-mt-8">질량 다이어그램</h3>
+  <div class="flex gap-6 items-end justify-center py-2">
+    <div class="flex flex-col items-center gap-2">
+      <div class="flex flex-col items-center gap-[3px]">
+        <div class="w-24 rounded bg-indigo-50 border border-indigo-200 text-indigo-600 text-[11px] font-semibold flex items-center justify-center" style="height:68px">interface</div>
+        <div class="w-24 rounded bg-slate-100 border border-slate-300 text-slate-500 text-[11px] font-semibold flex items-center justify-center" style="height:40px">impl</div>
+      </div>
+      <div class="text-xs uppercase tracking-wider text-slate-400">Before — 얕음</div>
+    </div>
+    <div class="flex flex-col items-center gap-2">
+      <div class="flex flex-col items-center gap-[3px]">
+        <div class="w-24 rounded bg-indigo-50 border border-indigo-200 text-indigo-600 text-[11px] font-semibold flex items-center justify-center" style="height:24px">interface</div>
+        <div class="w-24 rounded bg-slate-100 border border-slate-300 text-slate-500 text-[11px] font-semibold flex items-center justify-center" style="height:96px">impl</div>
+      </div>
+      <div class="text-xs uppercase tracking-wider text-slate-400">After — 깊음</div>
+    </div>
+  </div>
+
+  <div class="rounded-lg border-l-4 border-amber-400 bg-amber-50 p-4 text-sm">
+    <div class="font-semibold mb-1">⚠ 이 파일은 오프라인에서 렌더링되지 않음</div>
+    <p>Report mode는 Tailwind와 Mermaid를 CDN에서 가져옵니다 — 인터넷이 필요합니다. 오프라인 자체완결 파일이 필요하면 Standard mode(editorial-example.html)를 쓰세요.</p>
+  </div>
+</section>
+
+<footer class="border-t border-slate-200 pt-6 text-sm text-slate-400 text-center">
+  Generated by to-html — report mode showcase
+</footer>
+
+</main>
+
+<aside class="hidden lg:block">
+  <nav class="sticky top-8 text-sm space-y-1">
+    <div class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">목차</div>
+    <a href="#sec-1" class="block text-slate-600 hover:text-indigo-600">1. 후보 카드</a>
+    <a href="#sec-2" class="block text-slate-600 hover:text-indigo-600">2. Mermaid 그래프</a>
+    <a href="#sec-3" class="block text-slate-600 hover:text-indigo-600">3. Before / After</a>
+    <a href="#sec-4" class="block text-slate-600 hover:text-indigo-600">4. 단면도 &amp; 질량</a>
+    <a href="#sec-4-1" class="block pl-3 text-slate-400 hover:text-indigo-600">4-1. 단면도</a>
+    <a href="#sec-4-2" class="block pl-3 text-slate-400 hover:text-indigo-600">4-2. 질량</a>
+  </nav>
+</aside>
+
+</div>
+
+</body>
+</html>

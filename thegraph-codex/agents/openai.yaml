@@ -1,0 +1,7 @@
+interface:
+  display_name: "Thegraph Codex"
+  short_description: "Carry a tracked code change to verification."
+  default_prompt: "Use $thegraph-codex to take this tracked change from investigation through proportionate verification."
+
+policy:
+  allow_implicit_invocation: false

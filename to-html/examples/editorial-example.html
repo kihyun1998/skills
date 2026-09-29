@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>주문 파이프라인 심화 리뷰</title>
+<style>
+:root {
+  --bg: #f7f8fa;
+  --surface: #ffffff;
+  --surface-2: #f1f3f5;
+  --text: #1a1a1a;
+  --text-muted: #5f6b7a;
+  --text-faint: #8a95a5;
+  --border: #e3e8ef;
+  --border-strong: #cbd5e1;
+
+  --primary: #2563eb;
+  --primary-soft: #eff6ff;
+
+  --priv: #dc2626;
+  --priv-bg: #fef2f2;
+  --priv-border: #fecaca;
+
+  --pub: #059669;
+  --pub-bg: #ecfdf5;
+  --pub-border: #a7f3d0;
+
+  --cert: #7c3aed;
+  --cert-bg: #f5f3ff;
+  --cert-border: #ddd6fe;
+
+  --client: #0284c7;
+  --client-bg: #f0f9ff;
+
+  --server: #ea580c;
+  --server-bg: #fff7ed;
+
+  /* editorial accents — recommendation strength + neutral schematic */
+  --emerald: #059669;
+  --emerald-bg: #ecfdf5;
+  --emerald-border: #a7f3d0;
+
+  --amber: #d97706;
+  --amber-bg: #fffbeb;
+  --amber-border: #fde68a;
+
+  --slate: #475569;
+  --slate-bg: #f1f5f9;
+  --slate-border: #cbd5e1;
+
+  /* deep-module fill (thick, dark box) */
+  --ink-1: #0f172a;
+  --ink-2: #1e293b;
+
+  --serif: 'Nanum Myeongjo', 'Noto Serif KR', Georgia, 'Times New Roman', serif;
+
+  --warn: #d97706;
+  --warn-bg: #fffbeb;
+  --warn-border: #fde68a;
+
+  --danger: #dc2626;
+  --danger-bg: #fef2f2;
+  --danger-border: #fecaca;
+
+  --info: #2563eb;
+  --info-bg: #eff6ff;
+  --info-border: #bfdbfe;
+
+  --tip: #0d9488;
+  --tip-bg: #f0fdfa;
+  --tip-border: #99f6e4;
+
+  --code-bg: #f1f5f9;
+  --code-text: #0f172a;
+  --pre-bg: #0f172a;
+  --pre-text: #e2e8f0;
+  --pre-comment: #64748b;
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Pretendard', 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 16px;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 1fr min(820px, 100%) 280px 1fr;
+  gap: 0;
+  min-height: 100vh;
+}
+
+/* grid-row pinned on all four .layout children — without it, sparse
+   auto-placement drops main onto the row below .toc (a col 3 → col 2
+   backward step forces a new row once the TOC is present, ≥1100px). */
+main {
+  grid-column: 2;
+  grid-row: 2;
+  padding: 3rem 2rem 6rem;
+}
+
+.toc {
+  grid-column: 3;
+  grid-row: 2;
+  padding: 3rem 1.5rem;
+  position: sticky;
+  top: 0;
+  align-self: start;
+  max-height: 100vh;
+  overflow-y: auto;
+  font-size: 0.875rem;
+}
+
+.toc h2 {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  margin: 0 0 1rem;
+}
+
+.toc ol {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  border-left: 2px solid var(--border);
+}
+
+.toc li { margin: 0; }
+
+.toc a {
+  display: block;
+  padding: 0.4rem 0.875rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  border-left: 2px solid transparent;
+  margin-left: -2px;
+  transition: all 0.15s;
+}
+
+.toc a:hover {
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.toc .sub { padding-left: 1.75rem; font-size: 0.8125rem; color: var(--text-faint); }
+
+.page-header {
+  grid-column: 2 / 4;
+  grid-row: 1;
+  padding: 3rem 2rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.page-header h1 {
+  font-size: 2.25rem;
+  margin: 0 0 0.5rem;
+  letter-spacing: -0.02em;
+}
+
+.page-header .subtitle {
+  color: var(--text-muted);
+  margin: 0 0 1rem;
+  font-size: 1.0625rem;
+}
+
+.page-header .nav-links {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.page-header .nav-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.4rem 0.875rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.page-header .nav-links a:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+h2 {
+  font-size: 1.625rem;
+  margin: 3.5rem 0 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+  letter-spacing: -0.01em;
+  scroll-margin-top: 1rem;
+}
+
+h3 {
+  font-size: 1.1875rem;
+  margin: 2rem 0 0.75rem;
+  scroll-margin-top: 1rem;
+}
+
+h4 { font-size: 1rem; margin: 1.25rem 0 0.5rem; }
+
+p { margin: 0.75rem 0; }
+
+a { color: var(--primary); }
+
+strong { font-weight: 600; }
+
+code {
+  font-family: 'JetBrains Mono', 'D2Coding', 'Cascadia Mono', Consolas, monospace;
+  font-size: 0.875em;
+  background: var(--code-bg);
+  color: var(--code-text);
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
+}
+
+pre {
+  background: var(--pre-bg);
+  color: var(--pre-text);
+  padding: 1rem 1.25rem;
+  border-radius: 8px;
+  overflow-x: auto;
+  font-family: 'JetBrains Mono', 'D2Coding', 'Cascadia Mono', Consolas, monospace;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  margin: 1rem 0;
+  position: relative;
+}
+
+pre code {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  font-size: inherit;
+}
+
+pre .comment { color: var(--pre-comment); }
+pre .key { color: #93c5fd; }
+pre .val { color: #fcd34d; }
+pre .str { color: #86efac; }
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1rem 0;
+  font-size: 0.9375rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+th {
+  background: var(--surface-2);
+  text-align: left;
+  padding: 0.625rem 0.875rem;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.875rem;
+}
+
+td {
+  padding: 0.625rem 0.875rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+tr:last-child td { border-bottom: none; }
+
+tr:hover td { background: var(--surface-2); }
+
+/* Callouts */
+.callout {
+  border-left: 4px solid;
+  border-radius: 6px;
+  padding: 0.875rem 1.125rem;
+  margin: 1rem 0;
+  font-size: 0.9375rem;
+}
+
+.callout-title {
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-bottom: 0.25rem;
+}
+
+.callout p:first-child { margin-top: 0; }
+.callout p:last-child { margin-bottom: 0; }
+.callout pre { margin: 0.5rem 0; }
+
+.callout.info { background: var(--info-bg); border-color: var(--info); }
+.callout.tip { background: var(--tip-bg); border-color: var(--tip); }
+.callout.warn { background: var(--warn-bg); border-color: var(--warn); }
+.callout.danger { background: var(--danger-bg); border-color: var(--danger); }
+
+/* ──────────────── SYSTEM OVERVIEW DIAGRAM ──────────────── */
+.overview {
+  display: grid;
+  grid-template-columns: 1fr 80px 1fr;
+  gap: 0.5rem;
+  align-items: stretch;
+  margin: 2rem 0;
+}
+
+.overview-card {
+  background: var(--surface);
+  border: 2px solid var(--border-strong);
+  border-radius: 12px;
+  padding: 1.25rem;
+  position: relative;
+}
+
+.overview-card.client { border-color: var(--client); background: var(--client-bg); }
+.overview-card.server { border-color: var(--server); background: var(--server-bg); }
+
+.overview-card-title {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 0.875rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.overview-card.client .overview-card-title { color: var(--client); }
+.overview-card.server .overview-card-title { color: var(--server); }
+
+.file-list { display: flex; flex-direction: column; gap: 0.375rem; }
+
+.file-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.875rem;
+}
+
+.file-item .file-name {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.file-item .file-tag {
+  font-size: 0.6875rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 99px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.file-item.priv { border-color: var(--priv-border); background: var(--priv-bg); }
+.file-item.priv .file-tag { background: var(--priv); color: white; }
+
+.file-item.pub { border-color: var(--pub-border); background: var(--pub-bg); }
+.file-item.pub .file-tag { background: var(--pub); color: white; }
+
+.file-item.cert { border-color: var(--cert-border); background: var(--cert-bg); }
+.file-item.cert .file-tag { background: var(--cert); color: white; }
+
+.file-item.config { border-color: var(--border); background: var(--surface-2); }
+.file-item.config .file-tag { background: var(--text-muted); color: white; }
+
+.overview-flow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.overview-flow-label {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  text-align: center;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.overview-flow svg { display: block; }
+
+.overview-caption {
+  margin-top: 1.25rem;
+  padding: 1rem 1.25rem;
+  background: var(--primary-soft);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 0.9375rem;
+}
+
+/* ──────────────── STEP NUMBERS ──────────────── */
+.step-block {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.25rem 1.5rem;
+  margin: 1.25rem 0;
+}
+
+.step-block-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0 0 0.75rem;
+  font-size: 1.0625rem;
+  font-weight: 600;
+}
+
+.step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: var(--primary);
+  color: white;
+  border-radius: 50%;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* ──────────────── KEYWORD BADGES ──────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.0625rem 0.5rem;
+  border-radius: 99px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin: 0 0.125rem;
+}
+
+.badge.priv { background: var(--priv-bg); color: var(--priv); border: 1px solid var(--priv-border); }
+.badge.pub { background: var(--pub-bg); color: var(--pub); border: 1px solid var(--pub-border); }
+.badge.cert { background: var(--cert-bg); color: var(--cert); border: 1px solid var(--cert-border); }
+
+/* ──────────────── TWO COLUMN ROW ──────────────── */
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.two-col > div {
+  padding: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.two-col h4 { margin-top: 0; }
+
+/* ════════════════ EDITORIAL LAYER (opt-in via .editorial on .layout) ════════════════
+   Adopts the "editorial, not corporate-dashboard" feel: serif headings,
+   more air, restrained accent. Add class="layout editorial" to switch it on.
+   Zero extra dependencies — pure inline CSS. */
+.editorial main { padding-top: 3.5rem; }
+
+.editorial .page-header h1,
+.editorial h2,
+.editorial h3 {
+  font-family: var(--serif);
+  letter-spacing: -0.01em;
+}
+
+.editorial h2 { border-bottom: none; padding-bottom: 0; margin-top: 4rem; }
+
+.editorial h2::after {
+  content: "";
+  display: block;
+  width: 3rem;
+  height: 3px;
+  margin-top: 0.625rem;
+  background: var(--primary);
+  border-radius: 2px;
+}
+
+/* Schematic label — small, uppercase, tracked. For diagram captions and
+   module labels that should read as blueprint, not UI. */
+.schematic-label {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+}
+
+/* ──────────────── EDITORIAL PANEL / CANDIDATE CARD ──────────────── */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem 1.75rem;
+  margin: 1.5rem 0;
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+  margin-bottom: 0.75rem;
+}
+
+.panel-head h3 { margin: 0; }
+
+.panel-badges { display: flex; gap: 0.375rem; flex-wrap: wrap; }
+
+.panel .files {
+  font-family: 'JetBrains Mono', 'D2Coding', monospace;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  margin: 0.25rem 0 1rem;
+}
+
+/* one-line "Problem / Solution" label rows */
+.ps-line { margin: 0.375rem 0; }
+.ps-line .ps-key {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  margin-right: 0.5rem;
+}
+
+.wins { margin: 0.75rem 0 0; padding-left: 1.125rem; }
+.wins li { margin: 0.25rem 0; }
+
+/* ──────────────── STRENGTH BADGES (recommendation weight) ──────────────── */
+.badge.strong { background: var(--emerald-bg); color: var(--emerald); border: 1px solid var(--emerald-border); }
+.badge.explore { background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber-border); }
+.badge.speculative { background: var(--slate-bg); color: var(--slate); border: 1px solid var(--slate-border); }
+
+/* neutral tag badge (dependency category etc.) */
+.badge.tag { background: var(--surface-2); color: var(--text-muted); border: 1px solid var(--border); }
+
+/* ──────────────── DIAGRAM CARD (wraps inline SVG or a Mermaid block) ──────────────── */
+.diagram {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  margin: 1.5rem 0;
+}
+
+.diagram-caption {
+  margin-top: 0.875rem;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.diagram .mermaid { display: flex; justify-content: center; }
+
+/* ──────────────── BEFORE / AFTER (two schematic columns + arrow) ──────────────── */
+.before-after {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 1rem;
+  align-items: center;
+  margin: 1.5rem 0;
+}
+
+.ba-side { display: flex; flex-direction: column; gap: 0.5rem; }
+
+.ba-side > .schematic-label { text-align: center; }
+
+.ba-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary);
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+/* ──────────────── MODULE BOX (hand-built boxes-and-arrows) ──────────────── */
+.mod-box {
+  border: 2px solid var(--border-strong);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  background: var(--surface);
+  text-align: center;
+  font-size: 0.875rem;
+}
+
+.mod-box .mod-name { font-weight: 600; }
+.mod-box .mod-sub { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.125rem; }
+
+/* thick, dark "deep module" — internals absorbed */
+.mod-box.deep {
+  border: 3px solid var(--ink-2);
+  background: linear-gradient(135deg, var(--ink-1), var(--ink-2));
+  color: #e2e8f0;
+}
+.mod-box.deep .mod-sub { color: #94a3b8; }
+
+/* leakage — a dependency crossing a seam it shouldn't */
+.mod-box.leak { border-color: var(--danger); background: var(--danger-bg); }
+
+/* faded internals shown inside a collapsed deep module */
+.mod-box .mod-internal {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-faint);
+  opacity: 0.7;
+  margin-top: 0.25rem;
+}
+
+/* ──────────────── CROSS-SECTION (stacked layer bands) ──────────────── */
+.cross-section { display: flex; flex-direction: column; gap: 3px; margin: 1rem 0; }
+
+.layer-band {
+  border-left: 4px solid var(--primary);
+  background: var(--surface-2);
+  padding: 0.5rem 0.875rem;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+/* a thin band = a layer that does almost nothing (shallow) */
+.layer-band.thin { padding: 0.25rem 0.875rem; font-size: 0.75rem; color: var(--text-faint); }
+
+/* a thick band = the consolidated, deep responsibility */
+.layer-band.thick {
+  padding: 1.25rem 0.875rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text);
+  border-left-width: 6px;
+  background: var(--primary-soft);
+}
+
+/* ──────────────── MASS DIAGRAM (interface surface vs implementation) ──────────────── */
+.mass { display: flex; gap: 1.5rem; align-items: flex-end; justify-content: center; margin: 1rem 0; }
+
+.mass-col { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
+
+.mass-stack { display: flex; flex-direction: column; gap: 3px; align-items: center; }
+
+.mass-bar {
+  width: 96px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* interface surface — short = deep, tall = shallow. Height set inline. */
+.mass-bar.interface { background: var(--primary-soft); border: 1px solid var(--info-border); color: var(--primary); }
+/* implementation — the real work behind the interface */
+.mass-bar.impl { background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text-muted); }
+
+/* ──────────────── FOOTER ──────────────── */
+.page-footer {
+  grid-column: 2 / 4;
+  grid-row: 3;
+  margin: 4rem 2rem 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--border);
+  color: var(--text-faint);
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+@media (max-width: 1100px) {
+  .layout { grid-template-columns: 1fr min(820px, calc(100% - 2rem)) 1fr; }
+  .toc { display: none; }
+  .page-header { grid-column: 2; }
+  .page-footer { grid-column: 2; }
+}
+
+@media (max-width: 640px) {
+  main { padding: 1.5rem 1rem 4rem; }
+  .page-header { padding: 1.5rem 1rem 1rem; }
+  .page-header h1 { font-size: 1.75rem; }
+  .overview { grid-template-columns: 1fr; }
+  .overview-flow { transform: rotate(90deg); padding: 0.5rem 0; }
+  .two-col { grid-template-columns: 1fr; }
+  .before-after { grid-template-columns: 1fr; }
+  .before-after .ba-arrow { transform: rotate(90deg); }
+  .mass { gap: 1rem; }
+}
+</style>
+</head>
+<body>
+<div class="layout editorial">
+
+<header class="page-header">
+  <h1>주문 파이프라인 심화 리뷰</h1>
+  <p class="subtitle">에디토리얼 레지스터 + 손으로 그린 스키매틱 다이어그램 데모</p>
+</header>
+
+<aside class="toc">
+  <h2>목차</h2>
+  <ol>
+    <li><a href="#sec-1">1. 후보 카드</a></li>
+    <li><a href="#sec-2">2. Before / After</a></li>
+    <li><a href="#sec-3">3. 단면도 & 질량 다이어그램</a></li>
+    <li><a href="#sec-4">4. 콜아웃 & 배지</a></li>
+  </ol>
+</aside>
+
+<main>
+
+<section id="sec-1">
+<h2>1. 후보 카드</h2>
+<p>각 후보는 하나의 <code>.panel</code>입니다. 헤더에 제목과 강도/태그 배지, 그 아래 모노스페이스 파일 목록, 한 줄짜리 Problem/Solution, 그리고 짧은 Wins 목록.</p>
+
+<div class="panel" id="sec-1-1">
+  <div class="panel-head">
+    <h3>주문 인테이크 파이프라인 병합</h3>
+    <div class="panel-badges">
+      <span class="badge strong">Strong</span>
+      <span class="badge tag">in-process</span>
+    </div>
+  </div>
+  <div class="files">src/intake/handler.ts · validator.ts · repo.ts</div>
+  <div class="ps-line"><span class="ps-key">Problem</span>세 개의 얕은 레이어가 각각 호출 하나만 전달한다.</div>
+  <div class="ps-line"><span class="ps-key">Solution</span>하나의 인터페이스가 래퍼들을 흡수한다.</div>
+  <ul class="wins">
+    <li>테스트할 지점이 한 곳</li>
+    <li>얕은 래퍼 4개 삭제</li>
+    <li>버그가 한 모듈에 집중</li>
+  </ul>
+</div>
+
+<div class="panel" id="sec-1-2">
+  <div class="panel-head">
+    <h3>가격 계산 시임 정리</h3>
+    <div class="panel-badges">
+      <span class="badge explore">Worth exploring</span>
+      <span class="badge tag">ports &amp; adapters</span>
+    </div>
+  </div>
+  <div class="files">src/pricing/*.ts</div>
+  <div class="ps-line"><span class="ps-key">Problem</span>가격 로직이 리포지토리 시임을 넘어 샌다.</div>
+  <div class="ps-line"><span class="ps-key">Solution</span>어댑터 뒤로 가격 계산을 격리한다.</div>
+</div>
+</section>
+
+<section id="sec-2">
+<h2>2. Before / After</h2>
+<p>두 개의 스키매틱 컬럼과 화살표. 좁은 화면에서는 세로로 접히고 화살표가 회전합니다.</p>
+
+<div class="diagram">
+  <div class="schematic-label">호출 흐름</div>
+  <div class="before-after">
+    <div class="ba-side">
+      <div class="schematic-label">Before</div>
+      <div class="mod-box"><span class="mod-name">Handler</span></div>
+      <div class="mod-box"><span class="mod-name">Validator</span></div>
+      <div class="mod-box leak"><span class="mod-name">PricingClient</span><span class="mod-sub">시임을 넘어 샘</span></div>
+    </div>
+    <div class="ba-arrow">→</div>
+    <div class="ba-side">
+      <div class="schematic-label">After</div>
+      <div class="mod-box deep">
+        <span class="mod-name">Intake 모듈</span>
+        <span class="mod-internal">handler · validator · repo (이제 내부)</span>
+      </div>
+    </div>
+  </div>
+  <div class="diagram-caption">얕은 세 레이어가 하나의 깊은 모듈로 병합된다.</div>
+</div>
+</section>
+
+<section id="sec-3">
+<h2>3. 단면도 &amp; 질량 다이어그램</h2>
+
+<h3 id="sec-3-1">단면도</h3>
+<p>호출이 통과하는 레이어를 수평 밴드로 쌓습니다. 얇은 밴드 = 거의 아무것도 안 하는 레이어, 두꺼운 밴드 = 통합된 책임.</p>
+<div class="cross-section">
+  <div class="layer-band thin">Controller — 전달만</div>
+  <div class="layer-band thin">Service — 전달만</div>
+  <div class="layer-band thin">Manager — 전달만</div>
+  <div class="layer-band thick">Repository — 실제 작업</div>
+</div>
+
+<h3 id="sec-3-2">질량 다이어그램</h3>
+<p>모듈당 두 개의 막대: 인터페이스 표면적과 구현. 짧은 인터페이스 막대 = 깊음, 긴 인터페이스 막대 = 얕음.</p>
+<div class="mass">
+  <div class="mass-col">
+    <div class="mass-stack">
+      <div class="mass-bar interface" style="height: 68px;">interface</div>
+      <div class="mass-bar impl" style="height: 40px;">impl</div>
+    </div>
+    <div class="schematic-label">Before — 얕음</div>
+  </div>
+  <div class="mass-col">
+    <div class="mass-stack">
+      <div class="mass-bar interface" style="height: 24px;">interface</div>
+      <div class="mass-bar impl" style="height: 96px;">impl</div>
+    </div>
+    <div class="schematic-label">After — 깊음</div>
+  </div>
+</div>
+</section>
+
+<section id="sec-4">
+<h2>4. 콜아웃 &amp; 배지</h2>
+<p>기존 컴포넌트도 에디토리얼 모드에서 그대로 동작합니다. 강도 배지: <span class="badge strong">Strong</span> <span class="badge explore">Worth exploring</span> <span class="badge speculative">Speculative</span>.</p>
+
+<div class="callout tip">
+  <div class="callout-title">💡 참고</div>
+  <p>이 문서 전체는 인라인 CSS만 사용합니다 — CDN 없음, 오프라인에서 바로 열립니다.</p>
+</div>
+
+<div class="callout warn">
+  <div class="callout-title">⚠ Mermaid는 rich 모드에서만</div>
+  <p>그래프형 다이어그램이 필요하면 rich 모드에서 Mermaid CDN을 추가할 수 있지만, 그 순간 오프라인 보장이 깨집니다.</p>
+</div>
+</section>
+
+</main>
+
+<footer class="page-footer">
+  Generated by to-html — editorial showcase
+</footer>
+
+</div>
+</body>
+</html>
