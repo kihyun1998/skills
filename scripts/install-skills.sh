@@ -16,6 +16,17 @@ done
 [ "${#targets[@]}" -gt 0 ] || targets=(claude codex)
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; repo_root="$(dirname "$script_dir")"
 run() { [ "$dry_run" -eq 1 ] || "$@"; }
+# Git Bash's `ln -s` deep-copies the directory unless MSYS asks for native links, and
+# exits 0 either way; a copy then reads as a shadow on every later run. On Windows the
+# link is a junction, as install-skills.ps1 makes, and every link is checked after.
+link_dir() {
+    local target="$1" link="$2"
+    case "$(uname -s)" in
+        MINGW*|MSYS*|CYGWIN*) MSYS2_ARG_CONV_EXCL='*' cmd /c mklink /J "$(cygpath -w "$link")" "$(cygpath -w "$target")" >/dev/null ;;
+        *) ln -s "$target" "$link" ;;
+    esac
+    [ -L "$link" ] || { echo "  fail  $(basename "$link") - not a link after linking" >&2; return 1; }
+}
 compare_shadow() {
     local installed="$1/SKILL.md" source="$2/SKILL.md"
     if [ ! -f "$installed" ]; then printf 'no-skill\tholds no SKILL.md\n'; return; fi
@@ -63,13 +74,13 @@ sync_skills() {
         else
             status=$?; [ "$status" -eq 1 ] || return "$status"; continue
         fi
-        if [ -L "$link" ]; then current="$(readlink "$link")"; if [ "$current" = "$target" ]; then echo "  ok    $name - already linked"; else echo "  relink $name - was -> $current"; run rm "$link"; run ln -s "$target" "$link"; linked=$((linked + 1)); fi; continue; fi
+        if [ -L "$link" ]; then current="$(readlink "$link")"; if [ "$current" = "$target" ]; then echo "  ok    $name - already linked"; else echo "  relink $name - was -> $current"; run rm "$link"; run link_dir "$target" "$link" && linked=$((linked + 1)); fi; continue; fi
         if [ -e "$link" ]; then
             verdict="$(compare_shadow "$link" "$target")"; state="${verdict%%$'\t'*}"; detail="${verdict#*$'\t'}"; shadowed=$((shadowed + 1)); [ "$state" = identical ] || differing=$((differing + 1))
             if [ "$replace_copies" -eq 0 ]; then echo "  shadow $name - a real folder shadows the repo skill" >&2; echo "         $detail"; echo '         your edits in this repo are NOT live for this skill'; continue; fi
-            stamp="$(date -u +%Y%m%d-%H%M%S)"; backup="$backup_home/$name-$stamp"; echo "  replace $name - $detail"; echo "         moving the folder to $backup (not deleted)"; run mkdir -p "$backup_home"; run mv "$link" "$backup"; run ln -s "$target" "$link"; linked=$((linked + 1)); continue
+            stamp="$(date -u +%Y%m%d-%H%M%S)"; backup="$backup_home/$name-$stamp"; echo "  replace $name - $detail"; echo "         moving the folder to $backup (not deleted)"; run mkdir -p "$backup_home"; run mv "$link" "$backup"; run link_dir "$target" "$link" && linked=$((linked + 1)); continue
         fi
-        echo "  link  $name -> $target"; run ln -s "$target" "$link"; linked=$((linked + 1))
+        echo "  link  $name -> $target"; run link_dir "$target" "$link" && linked=$((linked + 1))
     done
     [ "$found" -eq 1 ] || { echo 'No skills found (no top-level directory contains a SKILL.md).'; return; }
     local prefix='' summary; [ "$dry_run" -eq 1 ] && prefix='[dry-run] '; summary="${prefix}Done. $linked linked/relinked, $pruned pruned"; [ "$shadowed" -gt 0 ] && [ "$replace_copies" -eq 0 ] && summary="$summary, $shadowed SHADOWED ($differing differing from the repo)"; echo "$summary in $skills_home."
