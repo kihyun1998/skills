@@ -39,7 +39,7 @@ Throughout, keep two things separate:
 - **scope** — the code you *judge and score*. Findings (or Lessons) are only ever
   about scope.
 - **context** — any other code you may *read to judge scope well*: callers,
-  callees, related files, config, `CONTEXT.md`. Read it as freely as you need —
+  callees, related files, config, `GLOSSARY.md`. Read it as freely as you need —
   it is never scored, only used to settle whether a scope finding is real. This
   scope/context split is what fixes the "narrow field of view": narrowing scope
   (e.g. to a diff) never narrows what you may read.
@@ -92,7 +92,7 @@ Whatever they pick is the **scope** (the scored target). It does not limit
 scan. The one exception is a scope the user already named, which you just
 confirm.
 
-For **security**, also read the repo's `CONTEXT.md` for domain invariants, and —
+For **security**, also read the repo's `GLOSSARY.md` for domain invariants, and —
 if the invariants needed to judge structural logic flaws are unstated — ask for
 them here (see REFERENCE → security → Domain rules).
 

@@ -89,7 +89,7 @@ in the wrong place breaks the boundary while producing no error, no failing test
 and no warning.
 
 Read three things together: the tree as it actually is, any layout rule
-`CLAUDE.md`, `CONTEXT.md` or a decision record already states, and the
+`CLAUDE.md`, `GLOSSARY.md` or a decision record already states, and the
 folder-structure reference the build names. **A stated rule beats what the tree
 merely happens to look like** — otherwise you ratify the drift instead of
 catching it. Write the answer down as concrete paths; `check-it` matches the final

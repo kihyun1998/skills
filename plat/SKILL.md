@@ -52,7 +52,7 @@ told you arrives later as rework — the imports, the module wiring, the history
    directory *contains*, not just its name.
 
 3. **Establish our own side, and say which input won.** A layout rule already
-   declared in `CLAUDE.md`, `CONTEXT.md`, or a decision record **outranks** what
+   declared in `CLAUDE.md`, `GLOSSARY.md`, or a decision record **outranks** what
    the tree merely happens to look like — otherwise the pass ratifies the drift
    it was bought to catch. Where the tree contradicts itself — the same kind of
    file living in two places, nothing declaring which is the rule — a tree cannot

@@ -35,7 +35,7 @@ plus a line of what the project is. Read it whole; there is nothing to skim.
 
 **It answers very little on purpose**, holding only what a person already knows
 and no file in the repo states. Everything else is read where it is said:
-`CLAUDE.md` for the project's identity and its seams, `CONTEXT.md` for the
+`CLAUDE.md` for the project's identity and its seams, `GLOSSARY.md` for the
 glossary, the decision records for what has already been settled. Where the file
 is absent, say so and name what you read in its place.
 

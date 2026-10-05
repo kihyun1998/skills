@@ -38,7 +38,7 @@ same time. That is not splitting material; it is the opposite.
 ### Where the files landed
 
 `make-it` wrote the home for every new or moved file down as **concrete paths**, read
-against the tree as it is, the layout rule `CLAUDE.md`, `CONTEXT.md` or a decision
+against the tree as it is, the layout rule `CLAUDE.md`, `GLOSSARY.md` or a decision
 record states, and the folder-structure reference. This is where that answer gets
 checked: list what the diff actually added or moved, and match it.
 

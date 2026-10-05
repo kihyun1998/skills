@@ -1,7 +1,7 @@
 ---
 name: grill-the-flow
 disable-model-invocation: true
-description: Onboard a repo to the `theflow` skill by interrogating the maintainer to author its `docs/agents/theflow.md` bindings doc — the project-specific values theflow reads at runtime (module/crate map, per-change-type reference routing, the mechanism/policy boundary rule, the per-layer proof methods, the behavior-describing surfaces, the gate matrix + release/downstream loop, and the war-story index). Inspects the repo first (CLAUDE.md, CONTEXT.md, manifests, directory structure, any existing bindings) and pre-fills everything derivable, then grills the maintainer one question at a time — recommending an answer for each — only on the *decisions* the code cannot answer. The target schema is not hardcoded here: it reads theflow's own "Bindings the skill expects" section, so adding a bindings field to theflow automatically widens this interrogation. Writes docs/agents/theflow.md (and a lessons.md stub if absent). Run once per repo, or again when the bindings drift. Use when a repo should adopt theflow, when theflow reports its bindings doc is missing, or when the user invokes /grill-the-flow. This authors the bindings; `theflow` then executes a change against them.
+description: Onboard a repo to the `theflow` skill by interrogating the maintainer to author its `docs/agents/theflow.md` bindings doc — the project-specific values theflow reads at runtime (module/crate map, per-change-type reference routing, the mechanism/policy boundary rule, the per-layer proof methods, the behavior-describing surfaces, the gate matrix + release/downstream loop, and the war-story index). Inspects the repo first (CLAUDE.md, GLOSSARY.md, manifests, directory structure, any existing bindings) and pre-fills everything derivable, then grills the maintainer one question at a time — recommending an answer for each — only on the *decisions* the code cannot answer. The target schema is not hardcoded here: it reads theflow's own "Bindings the skill expects" section, so adding a bindings field to theflow automatically widens this interrogation. Writes docs/agents/theflow.md (and a lessons.md stub if absent). Run once per repo, or again when the bindings drift. Use when a repo should adopt theflow, when theflow reports its bindings doc is missing, or when the user invokes /grill-the-flow. This authors the bindings; `theflow` then executes a change against them.
 ---
 
 # grill-the-flow — author a repo's theflow bindings
@@ -48,7 +48,7 @@ decision-routing habit forbids.
 Read, without asking:
 
 - **`CLAUDE.md`** — the repo's identity/invariants and any gate/convention notes.
-- **`CONTEXT.md` + `docs/adr/`** — the glossary and decision trail; the domain
+- **`GLOSSARY.md` + `docs/adr/`** — the glossary and decision trail; the domain
   vocabulary and the boundary already named.
 - **The manifest(s)** — `pubspec.yaml` / `Cargo.toml` / `package.json` etc.: the
   member/crate layout, the toolchain floor, the test/workspace membership, the

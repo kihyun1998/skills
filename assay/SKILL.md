@@ -33,7 +33,7 @@ fails here rather than inside two readers.
 
 Two sources, and the first outranks the second.
 
-**What this repo has written down** — `CLAUDE.md`, `CONTEXT.md`, a coding-standards
+**What this repo has written down** — `CLAUDE.md`, `GLOSSARY.md`, a coding-standards
 or contributing document, the decision records. A repo standard **always wins**:
 where it endorses something the baseline below would flag, the baseline is
 silent.
