@@ -1,6 +1,6 @@
 ---
 name: plat
-description: "Decides which directory owns what by reading what named peer repositories actually did — never by inventing a tree from first principles, never by copying one wholesale. Proposes a peer set for the maintainer to confirm, reads each peer's real tree rather than a write-up about one, compares on role rather than on name, and classifies every difference as adopt, deliberate divergence, or unclassified — the unclassified ones are the output. Emits two artifacts and then stops: the tree rule as concrete paths, and the divergence list with a reason each. Moves no file and edits no import. Use when establishing or auditing a repo's folder structure, directory layout, or file organisation; when deciding which directory a new file, module, or package belongs in; when a project has no tree yet; when planning a restructure or a monorepo package layout."
+description: "Decide which directory owns what by reading what named peer repositories actually did, and write the tree rule down without moving a file. Use when establishing or auditing a repo's folder structure, directory layout, or file organisation; when deciding which directory a new file, module, or package belongs in; when a project has no tree yet; when planning a restructure or a monorepo package layout."
 ---
 
 Read what the neighbours actually did, then decide which directory owns what — and write the rule down before moving anything.

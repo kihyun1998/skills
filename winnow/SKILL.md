@@ -1,7 +1,7 @@
 ---
 name: winnow
 requires: [writing-for-agents]
-description: "Cut an always-loaded agent document — CLAUDE.md, AGENTS.md, a skill body — down to what every run needs. Sorts it paragraph by paragraph into rule, detail, number, roster and history; shows that table and stops for the maintainer; on approval keeps the rules in place, moves detail behind pointers that name their trigger, replaces rosters with the command that derives them, and leaves history to version control. Then proves every rule still has a home. Use when such a document has grown past being read, or reads as a diary of its own past."
+description: "Cut an always-loaded agent document — CLAUDE.md, AGENTS.md, a skill body — down to what every run needs. Use when such a document has grown past being read, or reads as a diary of its own past."
 ---
 
 # winnow — keep the grain, let the chaff blow off

@@ -1,6 +1,6 @@
 ---
 name: blog-it
-description: "Turn what a session already worked out into a published blog post, in the author's voice, without leaving the repository in hand. Substance comes from the conversation; nothing is re-researched. One line governs it: technical content established in the session is fair to write up, while opinions and reactions belong to the author and are taken from what they actually said — where the session holds none, the gap is left or asked about, never filled. Tone notes, the site's address and its vocabulary come from the `jblog` command rather than being copied here, since prose in one repository cannot be checked against a blog in another. Drafts go to a temporary place, and source quoted from the repository in hand is approved before anything is published. Publishes Korean and English under one slug. Use when the author asks for a session's work to become a blog post."
+description: "Turn what a session already worked out into a blog post published in Korean and English, in the author's voice, without leaving the repository in hand. Use when the author asks for a session's work to become a blog post."
 ---
 
 Publish what this session already worked out, in the author's voice, from wherever you are.

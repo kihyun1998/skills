@@ -1,6 +1,6 @@
 ---
 name: logo-brand-pack
-description: Turn approved master logo artwork into a repository-ready brand asset pack. Use when a finalized logo needs transparent PNGs, SVGs, light/dark variants, project icons, favicons, README banners, social previews, or horizontal lockups; preserve the original logo geometry and identity.
+description: Turn approved master logo artwork into a repository-ready brand asset pack. Use when a finalized logo needs transparent PNGs, SVGs, light/dark variants, project icons, favicons, README banners, social previews, or horizontal lockups.
 ---
 
 # Logo Brand Pack

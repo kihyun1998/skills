@@ -1,7 +1,7 @@
 ---
 name: decant
 requires: [lens]
-description: "Sort source comments paragraph by paragraph under one policy: a comment says what the code is, and the why, the trap, the measured value and the history move to the repo's map. Reports which paragraph is owed to which note, what the notes are missing, and what can go, then stops — unless the maintainer hands it the writes, which it then carries out by moving sentences rather than rewriting them. Use when a repository that keeps a map adopts the policy, or when a file's header has grown past the point of being read."
+description: "Sort source comments so each says only what the code is, and move the why, the trap, the measured value and the history to the repo's map. Use when a repository that keeps a map adopts the policy, or when a file's header has grown past the point of being read."
 ---
 
 # decant — leave the one line, move the rest
