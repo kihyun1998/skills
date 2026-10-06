@@ -48,7 +48,7 @@ of two things, and the difference is what it does with the path:
 
 **The second kind carries no stamp**, so ① and ② are blind to it, and it is
 exactly what a person wrote *because* the build existed. Measured in the one repo
-that has done this: three hand-written check scripts (1,218 lines), a slot audit
+that has done this ([ADR-0065](../docs/adr/0065-this-repos-thegraph-build-is-retired.md)): three hand-written check scripts (1,218 lines), a slot audit
 (309), and three evaluations — **not one of them stamped, and not one of them
 under either generated directory.** A cleanup that ran only ① and ② would have
 left all seven.
