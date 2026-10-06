@@ -9,6 +9,7 @@ where it diverges and why, and which gate enforces which part.
 - [What this file is not](#what-this-file-is-not)
 - [Reading the authority](#reading-the-authority)
 - [Invocation is chosen by reach, not by length](#invocation-is-chosen-by-reach-not-by-length)
+- [A Description is a what-clause and a Use-when clause](#a-description-is-a-what-clause-and-a-use-when-clause)
 - [Deliberate divergences](#deliberate-divergences)
 - [Measured against three other catalogs, once](#measured-against-three-other-catalogs-once)
 - [Known violations, not divergences](#known-violations-not-divergences)
@@ -87,6 +88,38 @@ does produce short user-invoked skills — `grill-me` is one line calling
 `grilling` — because a name a person remembers and a method other skills call are
 split on purpose. That shape is a consequence of the rule, not the rule. An alias
 like it is legitimate here too: it costs no context and buys a name.
+
+## A Description is a what-clause and a Use-when clause
+
+A model-invoked skill's **Description** is read every session, whether the skill
+fires or not, so it carries only what selection needs: **one clause saying what
+the skill does, then a Use-when clause** saying when to reach for it. Why the
+skill works the way it does belongs in the body, which is read only when it runs.
+Content is the diagnosis and length the consequence; the median in
+[the comparison below](#measured-against-three-other-catalogs-once) is a number to
+write toward, not a limit. A user-invoked Description is never read for
+selection and is written for the person browsing slash commands.
+
+Three checks, over model-invoked skills only. Ask rather than record:
+
+```sh
+desc()  { sed -n '2,/^---$/p' "$1" | sed -n 's/^description: *//p' | sed 's/^"//; s/"$//'; }
+model() { for f in */SKILL.md; do grep -q '^disable-model-invocation: true' "$f" || echo "$f"; done; }
+
+# total and median length
+for f in $(model); do d=$(desc "$f"); echo "${#d}"; done | sort -n |
+  awk '{a[NR]=$1; s+=$1} END {print NR" skills, total "s", median "(NR%2 ? a[(NR+1)/2] : (a[NR/2]+a[NR/2+1])/2)}'
+
+# no Use-when clause
+for f in $(model); do desc "$f" | grep -qE 'Use (when|before|as|once|at|right)' || echo "no Use-when: $f"; done
+
+# argument left in the Description
+for f in $(model); do desc "$f" | grep -qw because && echo "because: $f"; done; true
+```
+
+The third check counts `because` and nothing else. `since` is left out because it
+also marks time and would fire on sentences that argue nothing. Other argument —
+a clause after a dash, a named failure pattern — is found by reading.
 
 ## Deliberate divergences
 
@@ -198,8 +231,9 @@ with a worked case of a two-stage review collapsing to one stage.
 The guidance says the opposite on the first half: L203 and L1143 ask a
 description for what the skill does **and** when to use it, and L158–163 sets
 the cap at 1,024 rather than 500. Where the two conflict, this repo follows the
-guidance — the cap is gated, and the what-**and**-when shape is why six
-descriptions gained a trigger clause rather than losing their first half.
+guidance — the what-**and**-when shape is why six descriptions gained a Use-when
+clause rather than losing their first half. The first half is kept to one clause;
+see [A Description is a what-clause and a Use-when clause](#a-description-is-a-what-clause-and-a-use-when-clause).
 
 The opposing claim is not refuted here and nothing in this repo has tested it.
 One local fact weakens it and does not settle it: a user-invoked skill's
@@ -233,8 +267,9 @@ being written, that is the number to write toward.
 - ~~*"We over-prohibit."*~~ This repo's rate of *never* is the **lowest** of the
   four.
 - ~~*"Description length is the defect."*~~ Half-right, and the half that is
-  wrong matters: the fix is **triggers only**, and shorter is the consequence
-  rather than the target. A 1,071-character description that is all routing logic
+  wrong matters: the fix is **a what-clause and a Use-when clause** with the
+  argument moved to the body, and shorter is the consequence rather than the
+  target. A 1,071-character description that is all routing logic
   is correct in content and still over the stated 1,024 maximum — so length is a
   rule violation and content is the diagnosis, and neither substitutes for the
   other.

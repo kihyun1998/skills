@@ -49,7 +49,8 @@ skill-authoring best practices — the deliberate divergences with their reasons
 and which gate enforces which part of the guidance. It deliberately does **not**
 restate the guidance: read that raw (append `.md` to the doc URL and `curl` it,
 never a summarizing fetch). It carries the invocation rule — model-invoked only
-when the model or another skill must reach it — and the numbers that still bind — how this
+when the model or another skill must reach it — the Description shape — a
+what-clause and a Use-when clause — and the numbers that still bind — how this
 catalog compares to three others, and four things measured and disproved — and
 nothing else.
 

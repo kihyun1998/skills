@@ -9,6 +9,18 @@ unit of agent capability; this repo is their single source of truth.
 A self-contained unit of agent capability — a folder containing a `SKILL.md`,
 symlinked into `~/.claude/skills` to become active.
 
+**Description**:
+The frontmatter field the model reads to decide whether to reach for a skill on
+its own. Two parts and nothing else: one clause saying what the skill does, and
+a **Use-when clause** saying when to reach for it. Why the skill works the way it
+does belongs in the body. A user-invoked skill's description is never read for
+selection, so it is written for the person browsing slash commands instead.
+
+**Use-when clause**:
+The part of a **Description** that says when the skill applies — the sentence
+that begins *"Use when"* or *"Use before"*.
+_Avoid_: Trigger (a retired term for a countable condition, below)
+
 **Declared dependency**:
 What a skill says it invokes, in a `requires:` key in its own `SKILL.md`
 frontmatter. The authoritative answer to *"what does this skill call"*, because
