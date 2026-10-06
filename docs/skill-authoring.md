@@ -8,6 +8,7 @@ where it diverges and why, and which gate enforces which part.
 
 - [What this file is not](#what-this-file-is-not)
 - [Reading the authority](#reading-the-authority)
+- [Invocation is chosen by reach, not by length](#invocation-is-chosen-by-reach-not-by-length)
 - [Deliberate divergences](#deliberate-divergences)
 - [Measured against three other catalogs, once](#measured-against-three-other-catalogs-once)
 - [Known violations, not divergences](#known-violations-not-divergences)
@@ -53,6 +54,39 @@ sentence attributed verbatim to `thegraph` that `grep` returns zero hits for —
 splice of two sentences that silently broadened the rule from three named
 categories to *"work of its kind anywhere"*. In a file whose opening argument is
 that exact wording is load-bearing, that is a self-refutation rather than a slip.
+
+## Invocation is chosen by reach, not by length
+
+Every skill is **user-invoked** (`disable-model-invocation: true` — only a person
+typing its name reaches it) or **model-invoked** (the model, another skill, or a
+person). One question decides which: **does the model, or another skill, have to
+reach this on its own?** Yes is model-invoked; no is user-invoked.
+
+Two facts make that the whole test:
+
+- **A user-invoked skill cannot reach another user-invoked skill.** Whatever it
+  delegates to must be model-invoked or it is unreachable from the step that
+  needs it — [ADR-0042](adr/0042-a-nodes-method-leaves-its-bound-stays.md)
+  extracted ten methods under exactly that constraint.
+- **The price is paid in description, not body.** A model-invoked description
+  sits in every session's listing; a user-invoked one never does.
+  [ADR-0071](adr/0071-thegraph-is-four-skills-in-order.md) states what moving six
+  skills across the line cost: about 4,000 characters, always loaded.
+
+Length is not an input. The longest skill in the catalog is user-invoked, and
+none of the user-invoked ones is a thin alias. Ask rather than count:
+
+```sh
+for f in */SKILL.md; do
+  grep -q '^disable-model-invocation: true' "$f" && echo "user   $f" || echo "model  $f"
+done
+```
+
+`mattpocock/skills` holds the same rule (`.agents/invocation.md`) and there it
+does produce short user-invoked skills — `grill-me` is one line calling
+`grilling` — because a name a person remembers and a method other skills call are
+split on purpose. That shape is a consequence of the rule, not the rule. An alias
+like it is legitimate here too: it costs no context and buys a name.
 
 ## Deliberate divergences
 
@@ -168,9 +202,9 @@ guidance — the cap is gated, and the what-**and**-when shape is why six
 descriptions gained a trigger clause rather than losing their first half.
 
 The opposing claim is not refuted here and nothing in this repo has tested it.
-One local fact weakens it and does not settle it: eleven of the twenty-two
-skills carry `disable-model-invocation: true`, so for those the description is
-never what selects the skill — it arrives with the body, not instead of it. The
+One local fact weakens it and does not settle it: a user-invoked skill's
+description is never what selects it ([Invocation](#invocation-is-chosen-by-reach-not-by-length))
+— it arrives with the body, not instead of it. The
 execution-time half of the claim survives that and remains untested.
 
 Recorded so that the next reader who finds that collection does not re-derive
