@@ -1,6 +1,6 @@
 ---
 name: sweep
-description: "No substantive change ends at the code. Every surface that describes the behaviour drifts the moment the behaviour moves, and nothing compiles the drift away — public doc-comments ship verbatim and are the last thing describing a fixed bug as a contract; a published changelog entry is never rewritten, only superseded; a decision record whose premise a change falsified is amended in that same change, because a trail only ever read becomes a museum. Reclaim rationale a later change made false. And judge the pass by what it could not see, never by its hit count: a low count means the pattern is clean or the pattern is narrow, and the number cannot tell which — so when a hit turns up, widen the pattern with the phrasing that produced it before fixing it. A newly written rule is itself a hit, and the one most often spent on its own instance: sweep the corpus for what it already covers, and for its inverse. Use once a change is otherwise complete, and after writing any rule."
+description: "Bring every surface that describes a changed behaviour — doc-comments, changelog, glossary, decision records, examples, README — back in line with it. Use once a change is otherwise complete, and after writing any rule."
 ---
 
 Find every surface that describes the behaviour, and distrust a clean-looking pass.
