@@ -122,3 +122,13 @@ to roughly 40 KB across six files, and no run loads more than the steps it takes
 Those descriptions run 550–700 characters against a 179 median in the corpus this
 repo measures itself against. Trimming them to triggers only is a separate pass
 and is not done here.
+
+> **That pass is done** ([#2](https://github.com/kihyun1998/skills/issues/2)).
+> Every model-invoked Description is now a what-clause and a Use-when clause
+> ([skill-authoring](../skill-authoring.md#a-description-is-a-what-clause-and-a-use-when-clause)),
+> with the argument left in each body, where all of it was already stated. The
+> six above went from 3,678 characters to 931; all 21 model-invoked skills from
+> 14,325 to 4,385, median 754 to 193. **Whether the model still reaches for each
+> skill when it should was not measured** — there are no evaluations
+> (ADR-0074) and no gates (ADR-0066) — so a skill that stops firing on its own
+> is the signal to watch for.
