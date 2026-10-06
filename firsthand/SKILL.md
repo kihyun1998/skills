@@ -1,6 +1,6 @@
 ---
 name: firsthand
-description: "Read the real thing before guessing at it, and never promote ignorance into fact. Fetch raw source and grep the actual lines — never a summarizing fetch, because summary drops method bodies and a handler that is there reads as absent. A feature being new never excuses skipping its mechanism layer, which the reference almost always has. Pin a runtime value with a throwaway probe and record the number; reading code is not observing what it does. Then enumerate the hidden state the real thing tracks that a first-principles model omits, and hold the exit guard: unconfirmed is a gap, not an absence — re-confirming costs one fetch, guessing wrong costs days. When a worry is cleared, record the condition the clearance holds under. Use before writing against any reference, API, or external fact."
+description: "Read the real thing before guessing at it, and never promote ignorance into fact. Use before writing against any reference, API, or external fact."
 ---
 
 Read it firsthand, enumerate what it knows that you would not have guessed, and never turn "I could not confirm it" into "it is not there".

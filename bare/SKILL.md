@@ -1,6 +1,6 @@
 ---
 name: bare
-description: "Run every gate, each one bare. A pipeline's exit status is the last command's, so a check whose result is filtered through another command always succeeds — a gate that cannot fail is not a gate. Run all of them, including the blind spots a single top-level command never reaches: members outside the workspace, host-versus-target splits, separate manifests, formatter pins, real-browser runs. A top-level \"test everything\" often does not even build the excluded members, so renames and public-path changes need their own explicit check. Never move a threshold to turn a build green — lowering a floor permits exactly that much regression, and real regressions come to rest just under it. A list that mirrors CI names its authoritative source and asserts against it rather than restating it. Use before calling a change green, and whenever a single top-level command is standing in for the whole suite."
+description: "Run every gate, bare, and never move a threshold to make one pass. Use before calling a change green, and whenever a single top-level command is standing in for the whole suite."
 ---
 
 Run every gate, bare, and never move a line to make one pass.

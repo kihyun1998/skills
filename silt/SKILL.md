@@ -1,6 +1,6 @@
 ---
 name: silt
-description: "Read a change for what will make it slow, and refuse to call anything a defect without a number. Carries a fixed baseline of shapes that cost — things registered and never released, containers that only grow, work inside a loop that belongs outside it — and for each one the cheapest way to find out whether it is real here. A shape with no number is a question, not a finding, and a number with nothing to compare it against is not a number. Reports and stops; it proposes no optimisation. Use before calling a change done, on any diff that adds state, loops, or I/O."
+description: "Read a change for what will make it slow, and refuse to call anything a defect without a number. Use before calling a change done, on any diff that adds state, loops, or I/O."
 ---
 
 # silt — what settles, and what it costs

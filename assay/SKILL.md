@@ -1,6 +1,6 @@
 ---
 name: assay
-description: "Review a change along two axes that are kept apart on purpose: does the code hold up, and does it do what was asked. The first carries this repo's documented standards plus a fixed baseline of code smells — cohesion, coupling, duplication — and opens the module the change landed in rather than judging the hunk alone. The second asks what the issue wanted and got, what it wanted and did not, and what arrived that nobody asked for. Findings are graded and never merged across axes. Use before calling a change done, or on any diff worth a second read."
+description: "Review a change along two axes that are kept apart on purpose: does the code hold up, and does it do what was asked. Use before calling a change done, or on any diff worth a second read."
 ---
 
 # assay — test what the change is made of

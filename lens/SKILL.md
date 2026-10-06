@@ -1,6 +1,6 @@
 ---
 name: lens
-description: "An adversarial read-only pass returning graded findings, not bare claims. One reader is briefed on every corpus at once — this codebase's siblings and the named prior art — because two readers split across halves buy coverage while calling it independence, and neither can then say which of two disagreeing things is wrong. Each finding is restated without naming the reference before its direction is asked, so a search index cannot become an argument for architecture; then graded CONFIRMED, UNADJUDICATED, INERT, or DELIBERATE, so the pass costs less after it finishes than while it ran. A second reader is bought with opposing stance over the same material, never by dividing it. Use before trusting an enumeration, when a spike keeps catching new gaps one probe at a time, or when a bug would cost more than a wrong number."
+description: "An adversarial read-only pass returning graded findings, not bare claims, over this codebase's siblings and the named prior art. Use before trusting an enumeration, when a spike keeps catching new gaps one probe at a time, or when a bug would cost more than a wrong number."
 ---
 
 Read everything once, adversarially, and hand back findings that are already graded.

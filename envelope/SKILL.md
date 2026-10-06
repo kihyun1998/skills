@@ -1,6 +1,6 @@
 ---
 name: envelope
-description: "Nothing reaches a tracker unasked. A deferral, a trade-off, a lens's residue, a follow-up — none of it may evaporate into a PR body or a code comment, where it is buried on merge; collect them and present them in one batch. Each carries seven columns or it is not ready: what was measured, what the prior art says, whether the tracker already owns it, the direction proposed, where it came from, what has already been done about it, and whether the plan everyone agreed on still stands. The bar is asymmetric — reproduction is the price of acting, not of declining. Dropping needs a citable ground, never a feeling. Prefer fewer, verified, currently-real items over a tracker that grows faster than the code. Use when anything has accumulated for a human to decide, and before any of it reaches a tracker."
+description: "Collect everything headed for a human — deferrals, trade-offs, follow-ups — into one batch, and give each item its disposition. Use when anything has accumulated for a human to decide, and before any of it reaches a tracker."
 ---
 
 Collect everything headed for a human into one batch, and give each item its disposition.

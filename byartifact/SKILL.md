@@ -1,6 +1,6 @@
 ---
 name: byartifact
-description: "Before filing anything, find out whether it already has a home — and search by the artifact it touches, never by the feature name, because a related issue almost never shares the same vocabulary. Search the module, the wire field, the predicate, the config key. The trigger is naming, not deciding: the moment the artifact it touches can be named, usually while reading and before any probe, search — ordering it after reproduction spends the expensive step first, and the tracker may already hold a better measurement than the one about to be taken. Four outs follow: it already exists and gets a comment, it conflicts and both links are made at once, it shares a root and becomes part of a cluster, or it is genuinely new. Use before opening any issue."
+description: "Find out whether something already has a tracker home, searching by the artifact it touches rather than the feature name. Use before opening any issue — as soon as the artifact can be named, before reproducing it."
 ---
 
 Find out whether it already has a home before you spend anything on it, and search by the artifact rather than the name.

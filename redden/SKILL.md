@@ -1,6 +1,6 @@
 ---
 name: redden
-description: "A passing test proves nothing by itself. Name which assertion can observe the change, then run three mechanical bars on it — turn the change off and confirm that assertion reddens while the baseline stays green, assert the side conditions a bug could satisfy, and swap the predicate for a plausible differently-wrong one and require red. When it stays green, classify why against the five patterns that make a test unable to fail — shared wrong model, surface ablation, vacuous window, proxy condition, self-drawn fixture — collapse them to one root, and add the cheapest assertion that closes it before any fix. Use right after writing or changing a test, a fixture, a golden, a snapshot, or a guard; when a suite is green but the bug shipped; or whenever a test was never seen failing."
+description: "Prove a test can fail before trusting that it passed, by mutating the change and watching the named assertion go red. Use right after writing or changing a test, a fixture, a golden, a snapshot, or a guard; when a suite is green but the bug shipped; or whenever a test was never seen failing."
 ---
 
 Prove the test can fail before you trust that it passed.

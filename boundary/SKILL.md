@@ -1,6 +1,6 @@
 ---
 name: boundary
-description: "Decide which layer a capability belongs to, and refuse to compensate in the wrong one. Mechanism — the hard domain step, or anything only correct with the whole state in hand — belongs in the deepest layer that can be right; policy is injected by whoever sits across the seam, so the core stays agnostic. Before asking which layer is upstream, ask whose invariant broke: a report against behaviour the core deliberately holds is a contract, and treating it as a defect deletes the contract instead of the workaround. The boundary leaks both ways — a raised floor carries down, and a changed contract falsifies rationale someone else already wrote. Use when deciding where a mechanism lives, when a consumer reports a bug, or when local code is about to be written to work around something deeper."
+description: "Decide which layer a capability belongs to, and refuse to compensate in the wrong one. Use when deciding where a mechanism lives, when a consumer reports a bug, or when local code is about to be written to work around something deeper."
 ---
 
 Put the capability in the layer that can be right, and refuse to patch it in one that cannot.

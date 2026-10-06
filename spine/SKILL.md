@@ -1,6 +1,6 @@
 ---
 name: spine
-description: "Read the cluster before the ticket. An issue is written at filing time and read at work time, and by then the context that made it obvious has decayed — so a fix reasoned from the ticket alone re-decides what a sibling already settled, which is exactly how closing one issue produces the next. Read the anchor and the siblings under it: the suspected shared root, what each sibling established, what is explicitly still open. The anchor's root is a hypothesis to test, not a fact — falsifying it is the more valuable of the two outcomes and is worth recording. An issue produced by working an earlier one gets its parent read first. Use before starting work on any tracked issue, or when a neighbour's reasoning is being re-derived."
+description: "Read the cluster before the ticket: the anchor issue and the siblings under it. Use before starting work on any tracked issue, or when a neighbour's reasoning is being re-derived."
 ---
 
 Read the neighbourhood before the ticket, because the ticket is not what was filed.
