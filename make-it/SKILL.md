@@ -1,7 +1,7 @@
 ---
 name: make-it
 requires: [tdd, redden]
-description: "Write the change. Calls `tdd` for the tests and `redden` after every one of them, because a green from a test nobody watched fail is not evidence. Holds the rhythm — typecheck and the nearby tests often, the whole suite once at the end — the rule that a comment says what the code is, with the rest sent where the repo's `CLAUDE.md` says, and the four signals that only appear while writing: the urge to patch around something deeper, a new file with no obvious home, writing against an outside reference, and a call that is the maintainer's. Use as the writing step of `thegraph`, after `read-it` has named a route."
+description: "Write the change, test-first where it compiles or runs. Use as the writing step of `thegraph`, after `read-it` has named a route."
 ---
 
 # make-it — write the change

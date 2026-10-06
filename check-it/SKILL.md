@@ -1,7 +1,7 @@
 ---
 name: check-it
 requires: [bare, lens, sweep, assay, silt, security-review, boundary]
-description: "Measure a finished change before anyone calls it done, cheapest check first. Runs the gates bare, checks that a new or moved file landed where the layout rule said, proves it against something real rather than a fake, reads the diff for shape, cost and exposure, reads the whole corpus for what is missing, and walks the surfaces that describe the behaviour. Every red and every finding is attributed against the tree without this change before it is acted on, because a failure somebody else's tree already produces is not this change's to fix — and one shape is hunted with no help from whoever wrote it: code that compensates, in the place you happen to be standing, for something wrong one step further in. Use once a change is written and before it reaches a person."
+description: "Measure a finished change before anyone calls it done, cheapest check first. Use once a change is written and before it reaches a person."
 ---
 
 # check-it — measure it before anyone calls it done

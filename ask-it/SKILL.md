@@ -1,7 +1,7 @@
 ---
 name: ask-it
 requires: [envelope, byartifact]
-description: "Put everything that has been carried in front of a person, once, and file only what they keep. Collects what the earlier steps set aside, gives each item the seven columns, and searches by the artifact before opening anything — but groups by kind first, since a thing to file, a thing to decide and a thing that belongs in another repository share no vocabulary and interleaving them makes the reader sort before answering. A follow-up is parented through the tracker's own relation in the same act as filing it; a release's obligations are the consumer tests that actually broke, named. Nothing reaches a tracker unasked. Use at the end of a change, once anything has accumulated for a person."
+description: "Put everything that has been carried in front of a person, once, and file only what they keep. Use at the end of a change, once anything has accumulated for a person."
 ---
 
 # ask-it — put it to a person, once

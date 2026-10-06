@@ -1,7 +1,7 @@
 ---
 name: read-it
 requires: [spine, firsthand]
-description: "Read the situation before touching anything, and come back with a route. Reads the issue and restates it, the cluster it belongs to, the real sources it is built against, and the hidden state a first-principles model misses — each conditional on something you check rather than weigh. Then stops and asks whether the reading is right, because a run that solves the wrong problem well passes every later check. Use as the first step of `thegraph`, or alone to size up an issue."
+description: "Read the situation before touching anything, and come back with a route. Use as the first step of `thegraph`, or alone to size up an issue."
 ---
 
 # read-it — read the situation before you touch it
