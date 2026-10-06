@@ -2,7 +2,7 @@
 name: gate
 requires: [code-review]
 disable-model-invocation: true
-description: "Acceptance Gate — judge an AFK agent's finished output against the issue it implemented and route the issue accordingly. Invoked with a single issue number; resolves the linked PR and merge-base, delegates analysis to the `code-review` skill, then produces exactly one Verdict (Pass / Rework / Respec / Escalate) plus a next action and waits for explicit approval before any GitHub mutation. Use when an AFK agent has finished a `ready-for-agent` issue and the maintainer wants to accept, bounce, respec, or escalate that work, or invokes /gate."
+description: "Acceptance Gate: judge an AFK agent's finished work against its issue and route it as Pass, Rework, Respec or Escalate. /gate <issue>."
 ---
 
 # gate — the Acceptance Gate

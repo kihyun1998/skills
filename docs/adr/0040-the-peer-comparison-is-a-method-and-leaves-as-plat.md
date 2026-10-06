@@ -99,6 +99,13 @@ extra interrupt; what holding it cost was the whole first-project case.
 - **`plat` is model-invoked.** `grill-the-graph` is user-invoked and can only
   reach siblings that carry a description, which is the same constraint that made
   `lens` and `redden` model-invoked.
+
+  > **Amended 2026-10-06.** `plat` is now user-invoked
+  > ([#9](https://github.com/kihyun1998/skills/issues/9)). The reason above no
+  > longer holds: `grill-the-graph` neither invokes nor names `plat` any more, and
+  > `plat`'s own body says *"Nothing invokes this skill; a person runs it."* Under
+  > the rule in [skill-authoring](../skill-authoring.md#invocation-is-chosen-by-reach-not-by-length),
+  > a skill nothing reaches is user-invoked.
 - **No fixtures yet.** `sift` and `grill-the-graph` carry golden fixtures and this
   does not, so nothing mechanically checks that a peer set the skill chose alone
   is refused, or that a summarized layout is rejected. The gap is recorded here

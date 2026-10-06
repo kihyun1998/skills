@@ -1,6 +1,7 @@
 ---
 name: plat
-description: "Decide which directory owns what by reading what named peer repositories actually did, and write the tree rule down without moving a file. Use when establishing or auditing a repo's folder structure, directory layout, or file organisation; when deciding which directory a new file, module, or package belongs in; when a project has no tree yet; when planning a restructure or a monorepo package layout."
+disable-model-invocation: true
+description: "Decide which directory owns what by reading what named peer repositories actually did. /plat."
 ---
 
 Read what the neighbours actually did, then decide which directory owns what — and write the rule down before moving anything.

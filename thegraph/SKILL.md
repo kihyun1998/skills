@@ -2,7 +2,7 @@
 name: thegraph
 requires: [read-it, make-it, check-it, ask-it, lens, boundary, firsthand, redden]
 disable-model-invocation: true
-description: "Take one change from an issue to done, in a codebase whose identity is a boundary — a core that stays correct by not absorbing the concerns of the things that use it. Four skills in order, with one guaranteed stop before any of them: read the situation and say what you read it to be, write it, measure it, and put what is left in front of a person. Everything else is a signal you cannot schedule — the urge to patch around something deeper, a test just written, an outside reference about to be relied on, a call that is the maintainer's. Use when taking a tracked change from intent to merge, or when invoked as /thegraph."
+description: "Take one change from an issue to done: read it, write it, measure it, and put what is left in front of a person. /thegraph."
 ---
 
 # thegraph — one change, from an issue to done

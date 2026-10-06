@@ -1,7 +1,7 @@
 ---
 name: grill-map
 disable-model-invocation: true
-description: "Author a repo's MAP — a linked note graph that answers \"if I touch this, what else moves?\" and \"what is this code derived from?\". Not a taxonomy and not a doc index: territories may overlap (many-to-many), cross-cutting invariants are their own nodes, and a broken derivation chain (decision → design → code) is left visibly blank because the blanks are the output. Measures the repo before asking anything (public-surface count, record *subject* vs *mention*, file-size distribution, forward-looking doc comments vs closed issues), drafts the territory list from the system rather than from existing artifacts, then asks only the scope and what the reading itself raises — never a prescribed list. Writes plain-markdown notes that work as an Obsidian vault (graph view) and on GitHub. Standalone — no execution-half skill. Use when a repo has ADRs/issues/specs but no one can say what depends on what, when the same invariant keeps being rediscovered one site at a time, or when the user invokes /grill-map."
+description: "Author a repo's MAP: a linked note graph of what moves when you touch something, and what each piece derives from. /grill-map."
 ---
 
 # grill-map — author a repo's MAP

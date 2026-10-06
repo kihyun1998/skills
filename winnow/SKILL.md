@@ -1,7 +1,8 @@
 ---
 name: winnow
+disable-model-invocation: true
 requires: [writing-for-agents]
-description: "Cut an always-loaded agent document — CLAUDE.md, AGENTS.md, a skill body — down to what every run needs. Use when such a document has grown past being read, or reads as a diary of its own past."
+description: "Cut an always-loaded agent document (CLAUDE.md, AGENTS.md, a skill body) down to what every run needs. /winnow."
 ---
 
 # winnow — keep the grain, let the chaff blow off

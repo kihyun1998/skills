@@ -1,7 +1,8 @@
 ---
 name: decant
+disable-model-invocation: true
 requires: [lens]
-description: "Sort source comments so each says only what the code is, and move the why, the trap, the measured value and the history to the repo's map. Use when a repository that keeps a map adopts the policy, or when a file's header has grown past the point of being read."
+description: "Sort source comments so each says only what the code is, and move the rest to the repo's map. /decant."
 ---
 
 # decant — leave the one line, move the rest

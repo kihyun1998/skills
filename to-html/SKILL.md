@@ -1,7 +1,7 @@
 ---
 name: to-html
 disable-model-invocation: true
-description: "Convert a markdown file — or documentation already in the conversation context — into one styled HTML file. Two modes. Standard mode (default) is strictly self-contained: inline CSS, zero external dependencies, opens offline in a browser — with a sticky TOC, GitHub-style callouts, an editorial serif register, and hand-built schematic diagrams (before/after, module boxes, cross-sections, mass diagrams). Report mode (opt-in) is a rich, diagram-forward register using Tailwind + Mermaid via CDN (needs internet) for graph-shaped diagrams and architecture-review-style reports. Use when the user wants to turn a guide, setup doc, reference, README, design note, review, or technical notes into a polished HTML page, asks to \"make this HTML\" / \"export to HTML\", or invokes /to-html. Not for slide decks or presentations, and not for narrative re-authoring — this skill does structural conversion of general documentation, not a rewrite."
+description: "Convert a markdown file, or documentation in the conversation, into one styled HTML file: self-contained by default, or a diagram-forward report. /to-html."
 ---
 
 # to-html

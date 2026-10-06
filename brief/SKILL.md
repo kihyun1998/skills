@@ -2,7 +2,7 @@
 name: brief
 requires: [artifact-design]
 disable-model-invocation: true
-description: "Explain the work in flight to the person paying for it, in words they can act on — what the situation is, what is about to be done, what it changes (including what it does NOT change), and what they have to decide. Publishes a one-screen Artifact with its own briefing layout; falls back to plain chat when there is no structure worth laying out. Verifies every status claim against the tracker instead of copying it out of the conversation, and marks measured facts apart from inferred ones. A view, never a source — the durable record stays in the issues and PRs. Human-invoked only: fire it with /brief, optionally /brief <issue> or /brief session."
+description: "Explain the work in flight to the person who has to decide about it, as a one-screen Artifact. /brief, /brief <issue> or /brief session."
 ---
 
 # brief — explain the work to the person who has to decide

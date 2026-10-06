@@ -1,7 +1,7 @@
 ---
 name: salvage
 disable-model-invocation: true
-description: "Remove an older `grill-the-graph` build from a repo without losing the answers a person gave it. **Three searches, and the third is what makes the list complete**: the build stamp every generated file carries, the build document's own manifest, and then the whole tree grepped for the paths those two returned — which is the only one that finds what exists *because* of the build rather than what the build wrote. Measured once: seven such files, none stamped, none under a generated directory. What a person answered is lifted into three places rather than one — the reference list into the short file the current skill writes, the seams into `CLAUDE.md`, the traps and any layout rule into the decision records — and the rest is dropped with a reason each. Use when `scripts/thegraph/` or `.claude/agents/thegraph-*` is present."
+description: "Remove an older `grill-the-graph` build from a repo without losing the answers a person gave it. /salvage, where scripts/thegraph/ or .claude/agents/thegraph-* is present."
 ---
 
 # salvage — clear an older `thegraph` build out of a repo

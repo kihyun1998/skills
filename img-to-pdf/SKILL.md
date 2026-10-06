@@ -1,7 +1,7 @@
 ---
 name: img-to-pdf
 disable-model-invocation: true
-description: "Combine a folder of images (or a list of image files) into one PDF, one image per page, in natural-sort order. By DEFAULT it produces a searchable PDF — each page is the original image with an invisible, selectable/searchable text layer from macOS Vision OCR (Korean + English). Use --image-only for a plain lossless image PDF (no OCR, no macOS dependency). Use when the user wants to turn images/photos/scans into a PDF, make a searchable/text PDF from scanned pages, OCR images into selectable text, merge JPEGs/PNGs into one document, or asks to \"이미지 PDF로 만들어줘\" / \"텍스트(검색가능) PDF로 만들어줘\"."
+description: "Combine images into one PDF, searchable by default (macOS OCR, Korean and English), or a plain image PDF with --image-only. /img-to-pdf."
 ---
 
 # img-to-pdf

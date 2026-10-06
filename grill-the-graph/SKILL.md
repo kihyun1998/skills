@@ -1,7 +1,7 @@
 ---
 name: grill-the-graph
 disable-model-invocation: true
-description: "Set a repo up for `thegraph`: record which real sources the project is built against — or that there are none yet — as one short prose file at `docs/agents/thegraph.md`. Writes that file and one rule in the repo's `CLAUDE.md` — a comment says what the code is, and where the why goes — with no generated scripts, no generated agents, no copy of anything the repo already answers. Where there is no territory map, makes its folder with a one-line hub so the rule has a destination, and leaves the notes to later edits or `grill-map`. Hands an older generated build to `salvage` instead of updating it. Use before a repo's first `thegraph` run."
+description: "Set a repo up for `thegraph` by recording the real sources it is built against in one short file. Run once, before the repo's first /thegraph."
 ---
 
 # grill-the-graph — set a repo up for `thegraph`
