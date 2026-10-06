@@ -49,6 +49,12 @@ because *"Distinct from"* is not one of the scanned dependency phrasings. It is
 recorded in [`skill-authoring.md`](../skill-authoring.md) as a known violation
 and is a separate call.
 
+> **Amended 2026-10-06.** The call was made the other way: retired prose left the
+> scan. A retired skill is frozen and installed nowhere, so a name in it is a
+> record, not an instruction, and `grill-code` naming `grill-me` is no longer a
+> violation. The rule now lives in `CLAUDE.md` and the glossary's **Dependency
+> reference**.
+
 ## What it does not touch
 
 The reports `grill-code` wrote are files in consuming repositories and are not

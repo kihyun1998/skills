@@ -39,8 +39,8 @@ in this repo are simultaneously skills and `thegraph` nodes — and because a
 phrasing matches a *claim of reference* rather than a word, so `git`, `grep` and
 `head` never fire while a name that resolves to nothing still does.
 
-Scanned in every skill's markdown, live and retired, **and in this repo's own
-scripts and hooks**. A script's error message naming a skill is an
+Scanned in every live skill's markdown **and in this repo's own scripts and
+hooks** — not in `retired/`, whose frozen prose instructs no one. A script's error message naming a skill is an
 **instruction** a reader follows now, not a record of what was once true, so a
 dead name there is simply wrong — measured: `check_map.py` told the reader to run
 the retired `checkup` skill, and nothing could see it.

@@ -283,9 +283,7 @@ being written, that is the number to write toward.
 Nothing here has been decided. Listed because an unlisted violation is
 indistinguishable from conformance.
 
-| Violation | Source | Extent |
-|---|---|---|
-| a skill named in prose that is neither in this catalog, under `retired/`, nor declared | CLAUDE.md's own rule | `retired/grill-code` names `grill-me`, which exists and is described correctly but is declared nowhere. Retiring the skill did not discharge it — the prose scan covers retired documents. The `/grill-me` alias collision this row used to carry is gone: `to-deck` advertised it while the installed `grill-me` was a different skill, and `to-deck` is retired (ADR-0059) |
+None known.
 
 ## What a gate enforced, and what nothing does
 

@@ -31,8 +31,10 @@ Two things are checked, and they are not the same question.
   it.
 - **Every skill name written in prose** must resolve — to this catalog, to
   `retired/` where the sentence acknowledges the retirement, or to a declared
-  external. Read in every skill's markdown, live and retired, **and in
-  `scripts/`**: an error message naming a skill is an instruction, not a record.
+  external. Read in every live skill's markdown **and in `scripts/`**: an error
+  message naming a skill is an instruction, not a record. A retired skill's
+  markdown is not read — it is frozen and installed nowhere, so a name in it is a
+  record too.
 
 The gap between them is deliberate: a **boundary reference** names a skill to say
 that something is *its* job, not this one's. It must resolve and must not be
