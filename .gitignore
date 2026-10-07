@@ -18,3 +18,6 @@ copy-skill.md
 
 # Type declarations the engine writes beside a mod each time it loads one
 mods/*/.claude-plugin/types/
+
+# The tsconfig the engine writes beside a mod it loads, extending the types above
+mods/*/tsconfig.json

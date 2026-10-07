@@ -1,0 +1,9 @@
+{
+  "name": "thegraph-panel",
+  "version": "0.1.0",
+  "author": {
+    "name": "Ki Hyun Park"
+  },
+  "description": "While /thegraph runs: one line above the prompt with its steps and the signals that fired, and a button that opens a checklist pane with each step's time.",
+  "types": "./types/index.d.ts"
+}

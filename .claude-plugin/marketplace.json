@@ -6,6 +6,11 @@
   },
   "plugins": [
     {
+      "name": "thegraph-panel",
+      "source": "./mods/thegraph-panel",
+      "description": "While /thegraph runs: one line above the prompt with its steps and the signals that fired, and a button that opens a checklist pane with each step's time."
+    },
+    {
       "name": "usage-band",
       "source": "./mods/usage-band",
       "description": "Two rows above the prompt: model, effort, how fast the 5-hour limit is going (%/h) and today's cost, over a context runway with the rate limits."
