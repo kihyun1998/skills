@@ -22,6 +22,10 @@ From another machine, without cloning: `/plugin install <mod> --marketplace kihy
 
 ## Adding a mod
 
+Read [`ENGINE-NOTES.md`](ENGINE-NOTES.md) first: what the engine does that its
+types do not make obvious (clicks only in fullscreen, sharing the band, panes,
+state resets, the testing kit), and the workflow both mods here were built with.
+
 1. Make `mods/<name>/`. The folder name **is** the plugin name: the install
    script refuses a `plugin.json` whose `name` differs.
 2. Give it the layout below, and at least one test.
