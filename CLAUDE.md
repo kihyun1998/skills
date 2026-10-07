@@ -6,8 +6,9 @@ Guidance for AI agents working in this repository.
 
 This repo is a personal collection of Claude Code skills. Each top-level
 directory containing a `SKILL.md` is one skill; `scripts/install-skills.ps1`
-and `scripts/install-skills.sh` link them into `~/.claude/skills`. See
-`README.md` for details.
+and `scripts/install-skills.sh` link them into `~/.claude/skills`. `mods/` holds
+Claude Code mods (hooks plugins), which are not skills and are not installed by
+those scripts. See `README.md` for details.
 
 ## Agent skills
 
@@ -64,4 +65,4 @@ Single-context: one `GLOSSARY.md` + `docs/adr/` at the repo root. See `docs/agen
 
 `docs/environment/` records global Claude Code setup that lives outside any repo
 (`~/.claude/settings.json` and friends), with the measurements behind each choice.
-Currently: `ccusage-statusline.md`.
+Currently: `usage-band.md`.

@@ -97,6 +97,16 @@ anything.
    `write-a-skill` skill, or copy `to-html/` as a template.
 2. Re-run the install script to symlink the new skill.
 
+## Mods
+
+`mods/` holds Claude Code mods — plugins of function hooks, not skills, so the
+install scripts leave them alone. Each is loaded by naming its folder in
+`CLAUDE_CODE_PLUGIN_DIRS` in the `env` block of `~/.claude/settings.json`.
+
+| Mod | What it does |
+| --- | --- |
+| [`usage-band`](mods/usage-band/) | One quiet line above the prompt: model, effort, context, 5-hour and weekly limits, burn rate and today's cost. Everything is dim until it needs attention. Replaces the ccusage statusline; see [`docs/environment/usage-band.md`](docs/environment/usage-band.md). |
+
 ## Repo layout
 
 ```
@@ -105,5 +115,6 @@ anything.
 ├── docs/agents/    config the Matt Pocock engineering skills read for this repo
 ├── CLAUDE.md       guidance auto-loaded by Claude Code when working in this repo
 ├── <skill>/        one folder per skill, each with a SKILL.md
+├── mods/           Claude Code mods (hooks plugins), loaded via CLAUDE_CODE_PLUGIN_DIRS
 └── retired/        skills no longer installed — not scanned, see retired/README.md
 ```

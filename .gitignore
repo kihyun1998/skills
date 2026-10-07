@@ -15,3 +15,6 @@ __pycache__/
 # Personal scratch notes, kept local
 todo.md
 copy-skill.md
+
+# Type declarations the engine writes beside a mod each time it loads one
+mods/*/.claude-plugin/types/
