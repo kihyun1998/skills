@@ -44,6 +44,7 @@ cite it.
 | [0077](0077-an-always-loaded-document-keeps-its-rules-and-history-leaves.md) | An always-loaded document keeps its rules, and the history leaves — `winnow` is the procedure, cut from a `CLAUDE.md` that went 933 → 234 lines and whose detail docs went 721 → 417 once dates and stories were dropped. History is asked last so a decision-bearing number survives |
 | [0078](0078-work-skills-move-to-their-own-repo.md) | Work skills move to their own repo — `nit`, `unregistered-archives`, the three paste-file retirees and their records leave for `kihyun-work-skills`, history preserved, numbers kept |
 | [0079](0079-in-a-repository-you-contribute-to-its-conventions-win.md) | In a repository you contribute to, its conventions win and setup leaves no trace — `grill-the-graph`'s contributor mode commits nothing, defers comments to upstream guidance read every run (0076 included), and a hook blocks Claude attribution on the way out |
+| [0080](0080-a-run-keeps-a-run-sheet-while-it-lasts.md) | A run keeps a run sheet while it lasts, outside the repository — amends 0071's "no run state": steps checked off, a note each step leaves the next, and what is carried, in the OS temp folder and deleted at the run's end. Twelve sessions showed steps unrecorded and a confirm asked in a question box that nothing outside the conversation saw; the built-in task list is off for current models |
 
 ### `gate` — the Acceptance Gate
 

@@ -1,5 +1,10 @@
 # ADR-0071 — `thegraph` is four skills in order, and there are no nodes
 
+> **Amended by [ADR-0080](0080-a-run-keeps-a-run-sheet-while-it-lasts.md).** A run
+> now keeps a **run sheet** while it lasts — steps checked off, a note to the next
+> step, what is carried — in the OS temp folder, deleted at the run's end. The
+> state this record removed, across runs and inside the repository, stays gone.
+
 > **The four steps were renamed.** `sounding` → [`read-it`](../../read-it/),
 > `hew` → [`make-it`](../../make-it/), `plumb` → [`check-it`](../../check-it/),
 > `docket` → [`ask-it`](../../ask-it/). **Nothing this record decided changed** —

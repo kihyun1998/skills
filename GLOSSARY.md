@@ -160,6 +160,18 @@ the work. Installed by symlinking the directory, so every repository reads the
 repository.
 _Avoid_: the skill, thegraph (ambiguous — the skill, the method, or the file)
 
+**Run sheet** (thegraph):
+What one run keeps of itself while it lasts: each step checked off as it ends, a
+note each step leaves the next (*"only docs changed — prose checks"*), and what is
+carried for a person until `ask-it` puts it in front of them. It names the issue
+it belongs to, so a later run on the same issue can find one left behind and ask
+whether to pick it up. **It lives only as long as the run**, outside any
+repository; deleting it at the end loses nothing that has not already reached a
+person. Not a record — the records stay where they were: decision records, the
+tracker, the commit.
+_Avoid_: run state (the retired sixteen-slot ledger, ADR-0071), todo, progress
+file
+
 **Build** (grill-the-graph):
 One repo's answer to what a person already knows and no file in it states —
 in practice the outside sources the project is built against, each marked what it
