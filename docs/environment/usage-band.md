@@ -28,11 +28,16 @@ script warns if the variable still names a mod.
 
 ```
 opus 5.5 medium   +18%/h $80.97/h   today $80.72
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━──────────────────────────────── 47% ctx   5h ◔ 22%  wk ◔ 27%
+ctx ━━━━━━━━━━━━━━━━──────────────────  47%    5h  ━━━━━━━━──┊───────────────────────  22%    wk  ━━━━━━━━━──────────────┊───────────  27%
 ```
 
-Two rows. The top says who is working and how fast; the bottom is a runway that
-fills with context across the band's width, the limits after it. Labels are dim
+Two rows. The top says who is working and how fast; the bottom is three gauges
+of equal length, side by side, for context, the 5-hour window and the week (a
+limit the account does not have drops its gauge, and the rest share the row).
+Each limit's gauge carries `┊`, where an even pace would have it: the share of
+its window (five hours, or seven days) already gone. A bar past the mark is
+spending faster than time passes. The engine's `resetsAt` is optional on every
+limit; a gauge whose limit comes without one has no mark. Labels are dim
 and each value has its own color: ANSI names (`green`, `cyan`, …) the terminal
 paints from its own theme, the model the Claude Code theme key `claude`. Past 80%
 a figure takes the theme's `warning` or `error` instead.
@@ -43,8 +48,8 @@ a figure takes the theme's `warning` or `error` instead.
 | `%/h` | the 5-hour window's readings (below) | error when this pace reaches the limit before the reset, warning past 80% of that pace |
 | `$/h` | `ccusage blocks --active --json --offline` → `burnRate.costPerHour` | dim beside `%/h`; it stands in, in yellow, where there is no 5-hour limit (an API key) |
 | today | `ccusage daily --json --offline --since <yesterday UTC>` → last day's `totalCost` | bold at $100 or more |
-| runway, ctx | `context.percent` | the runway's cells run teal → green → amber → red, hex colors that do not follow the theme; the number is loud past 80% |
-| 5h, wk | `rateLimits` `five_hour`, `seven_day` | 80% (warning), 90% (error); 5h adds its reset time |
+| ctx gauge | `context.percent` | each gauge's cells run teal → green → amber → red, hex colors that do not follow the theme; the number is loud past 80% |
+| 5h, wk gauges | `rateLimits` `five_hour`, `seven_day`; each `┊` from that limit's `resetsAt` | 80% (warning), 90% (error); 5h adds its reset time |
 
 ### %/h
 

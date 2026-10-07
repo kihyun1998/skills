@@ -45,12 +45,6 @@ export const FIGURE_COLOR = {
   today: 'magenta',
 } as const
 
-const PIE = ['○', '◔', '◑', '◕', '●'] as const
-
-/** A quarter-step pie for a percentage, then the number: `◕ 68%`. */
-export const pieFigure = (used: number): string =>
-  `${PIE[Math.max(0, Math.min(4, Math.round(used / 25)))]} ${used}%`
-
 export const usd = (n: number): string => `$${n.toFixed(2)}`
 
 /** `2h13m` until `resetsAt`, or null when it is unknown or past. */
@@ -165,7 +159,36 @@ export const rateLevel = (rate: number, percentUsed: number, resetsAt: string | 
   return rate > sustainable ? 'error' : rate > sustainable * 0.8 ? 'warning' : 'success'
 }
 
-// --- the context runway ----------------------------------------------------------
+/** How long each limit's window runs before it resets. */
+export const WINDOW_MS = { fiveHour: WINDOW, week: 7 * 24 * HOUR } as const
+
+/**
+ * Where a limit's bar would end at an even pace: the share of its window already
+ * gone, in percent. Null when the reset time is unknown or past.
+ */
+export const evenPace = (resetsAt: string | null, windowMs: number, now: number): number | null => {
+  if (resetsAt === null) return null
+  const left = Date.parse(resetsAt) - now
+  if (!(left > 0)) return null
+  return Math.min(100, Math.max(0, ((windowMs - left) / windowMs) * 100))
+}
+
+// --- the gauges ------------------------------------------------------------------
+
+/** What each cell of a gauge holds: used, not yet used, or the even-pace mark. */
+export type GaugeCell = 'fill' | 'empty' | 'mark'
+
+/** A gauge `width` cells long filled to `used`%, with the mark (when given) over whatever cell it lands on. */
+export const gaugeCells = (width: number, used: number, mark: number | null): GaugeCell[] => {
+  const filled = Math.round((Math.min(100, Math.max(0, used)) / 100) * width)
+  const at = mark === null ? -1 : Math.min(width - 1, Math.round((mark / 100) * width))
+  return Array.from({ length: width }, (_, i): GaugeCell => (i === at ? 'mark' : i < filled ? 'fill' : 'empty'))
+}
+
+/** The cells each of `count` gauges gets once `room` holds them and the gaps between them. */
+export const gaugeWidth = (room: number, count: number, gap: number): number =>
+  Math.floor((room - gap * (count - 1)) / count)
+
 
 const RUNWAY_STOPS = ['#56b6c2', '#98c379', '#e5c07b', '#e06c75'] as const
 

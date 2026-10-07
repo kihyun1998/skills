@@ -4,18 +4,21 @@ import type { EngineInterface, Register, SessionMeasureInput, SessionUsage } fro
 import type { Live } from '../types'
 import {
   FIGURE_COLOR,
+  WINDOW_MS,
   TODAY_LOUD_USD,
   contextUsed,
   effortColor,
   effortFromSettings,
+  evenPace,
   fiveHourRate,
+  gaugeCells,
+  gaugeWidth,
   isLoud,
   isTodayUnpriced,
   levelOf,
   modelLabel,
   parseBurn,
   parseToday,
-  pieFigure,
   rateLevel,
   recordFive,
   resetIn,
@@ -32,6 +35,10 @@ const fiveSamples = atom({ plugin: 'usage-band', key: 'fiveSamples' } as const, 
 /** Blank cells at the band's left, so its text lines up with the turn line's after `✻ `; and at its right. */
 const LEFT = 2
 const RIGHT = 1
+
+/** Cells for a gauge's label (`ctx `, `5h  `), and between two gauges. */
+const GAUGE_LABEL = 4
+const GAUGE_GAP = 4
 
 /** How often ccusage is asked between turns; each answer also redraws, so %/h decays while idle. */
 const LEDGER_MS = 120_000
@@ -178,7 +185,7 @@ export const register: Register = on => {
     return yield* next(e)
   })
 
-  // Two rows: who and how fast on top, then the context runway with the limits after it.
+  // Two rows: who and how fast on top, then a gauge each for context, the 5-hour window and the week.
   // Whatever other bands draw goes above them, so these two stay next to the prompt
   // whichever plugin's hook runs first.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
@@ -227,31 +234,36 @@ export const register: Register = on => {
       </Text>
     )
 
-    // Bottom row: the runway fills with context, then the figures it leaves room for.
-    const ctx = contextUsed(l.context)
+    // Bottom row: a gauge each for context, the 5-hour window and the week, side by side.
+    // A limit's gauge carries its even-pace mark when its reset time is known: a bar past it is spending faster than time passes.
     const seven = l.rateLimits.find(r => r.kind === 'seven_day')
     const fiveReset = five && isLoud(five.percentUsed) ? resetIn(five.resetsAt, now) : null
-    const tailText = [
-      ` ${ctx}% ctx`,
-      five ? `   5h ${pieFigure(five.percentUsed)}${fiveReset ? ` · resets ${fiveReset}` : ''}` : '',
-      seven ? `  wk ${pieFigure(seven.percentUsed)}` : '',
-    ].join('')
-    const width = Math.max(10, e.props.bodyColumns - LEFT - RIGHT - [...tailText].length)
-    const filled = Math.round((ctx / 100) * width)
-    const cells: JSX.Element[] = []
-    for (let i = 0; i < width; i++) {
-      cells.push(i < filled ? <Text color={runwayColor(i, width)}>━</Text> : <Text dimColor>─</Text>)
-    }
+    const gauges = [
+      { label: 'ctx', used: contextUsed(l.context), color: FIGURE_COLOR.context, mark: null, after: '' },
+      ...(five
+        ? [{ label: '5h', used: five.percentUsed, color: FIGURE_COLOR.fiveHour, mark: evenPace(five.resetsAt, WINDOW_MS.fiveHour, now), after: fiveReset ? ` · resets ${fiveReset}` : '' }]
+        : []),
+      ...(seven ? [{ label: 'wk', used: seven.percentUsed, color: FIGURE_COLOR.week, mark: evenPace(seven.resetsAt, WINDOW_MS.week, now), after: '' }] : []),
+    ]
+    const room = e.props.bodyColumns - LEFT - RIGHT - gauges.reduce((n, g) => n + [...g.after].length, 0)
+    const each = gaugeWidth(room, gauges.length, GAUGE_GAP)
     const bottom = (
       <Text wrap="truncate-end">
-        {cells}
-        <Text bold color={isLoud(ctx) ? levelOf(ctx) : FIGURE_COLOR.context}>{` ${ctx}%`}</Text>
-        <Text dimColor> ctx</Text>
-        {five && <Text dimColor>{'   5h '}</Text>}
-        {five && <Text bold color={isLoud(five.percentUsed) ? levelOf(five.percentUsed) : FIGURE_COLOR.fiveHour}>{pieFigure(five.percentUsed)}</Text>}
-        {fiveReset && <Text dimColor>{` · resets ${fiveReset}`}</Text>}
-        {seven && <Text dimColor>{'  wk '}</Text>}
-        {seven && <Text bold color={isLoud(seven.percentUsed) ? levelOf(seven.percentUsed) : FIGURE_COLOR.week}>{pieFigure(seven.percentUsed)}</Text>}
+        {gauges.map((g, i) => {
+          const figure = ` ${String(g.used).padStart(3)}%`
+          const cells = gaugeCells(Math.max(4, each - GAUGE_LABEL - figure.length), g.used, g.mark)
+          return (
+            <Text>
+              {i > 0 && <Text>{' '.repeat(GAUGE_GAP)}</Text>}
+              <Text dimColor>{g.label.padEnd(GAUGE_LABEL)}</Text>
+              {cells.map((c, j) =>
+                c === 'mark' ? <Text bold>┊</Text> : c === 'fill' ? <Text color={runwayColor(j, cells.length)}>━</Text> : <Text dimColor>─</Text>,
+              )}
+              <Text bold color={isLoud(g.used) ? levelOf(g.used) : g.color}>{figure}</Text>
+              {g.after !== '' && <Text dimColor>{g.after}</Text>}
+            </Text>
+          )
+        })}
       </Text>
     )
 
