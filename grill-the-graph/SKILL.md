@@ -1,10 +1,27 @@
 ---
 name: grill-the-graph
 disable-model-invocation: true
+argument-hint: "[local|own]"
 description: "Set a repo up for `thegraph` by recording the real sources it is built against in one short file. Run once, before the repo's first /thegraph."
 ---
 
 # grill-the-graph — set a repo up for `thegraph`
+
+## The mode comes first
+
+**The invocation's argument decides it**, before anything is read:
+
+| Argument | Mode |
+|---|---|
+| `local`, `oss`, `contributor` | *Contributor mode* — someone else's repository |
+| `own` | the default — the maintainer's own |
+| none | **ask it**, as the first question and alone |
+
+With no argument, put the mode to the maintainer with the tool that renders a
+question before reading anything for the build, and give §1's `viewerPermission`
+check as the recommendation — never as the answer. **Do not take the mode from
+existing files or a silent check**: a mode nobody chose is the step a run skips,
+and every later step branches on it.
 
 `thegraph` hardcodes no source names, no commands and no paths. Something has to
 record **which real sources this project is built against**. That is this skill,
@@ -193,13 +210,14 @@ Read `CLAUDE.md`, the manifests and the directory tree. Asking what an existing
 file already answers is the offloading `thegraph`'s decision-routing habit
 forbids.
 
-**Then check whose repository it is.** Ask
+**Then check whose repository it is** — where no argument named the mode, this
+is what the first question recommends. Ask
 `gh repo view --json isFork,parent,viewerPermission`; where the default
 repository is a fork, ask `viewerPermission` again of its `parent`, which is the
 repository that receives the PRs. Asked of the fork, a clone whose `origin` is
 the maintainer's fork reads `ADMIN`. `READ` or `TRIAGE` on the receiving
-repository is **contributor mode**; anything else is the default. §5 shows the
-verdict, and the maintainer can flip it — whether a team accepts commits to
+repository recommends **contributor mode**; anything else recommends the
+default. It stays a recommendation — whether a team accepts commits to
 `docs/agents/` is something a person knows and no permission says.
 
 ### 2. An older generated build goes to `salvage`, not to an update
@@ -290,17 +308,29 @@ accept no *"use judgement"*: a source nobody named is a source nobody reads, but
 
 ### 5. Show it, then write it
 
-Show the mode and what decided it, the file, the `CLAUDE.md` rule, and — where §3
+Show the mode and what chose it — the argument, or the answer to the first
+question — the file, the `CLAUDE.md` rule, and — where §3
 makes one — the map folder's path and hub stub. In contributor mode show instead
 the `CLAUDE.local.md` rule, the two `.git/info/exclude` lines, the settings
 block with the `<run>` row it chose, and the `pre-push` hook or why none was
 written. In your own repository with attribution turned off, show those last two
-as well. Get approval. Write them. In contributor mode, end by running
-`git status --short`: it must print nothing. Where a per-project memory asked
-for no Claude trailer and the pieces are now installed, name it in the closing
-report as redundant; removing it is the maintainer's call. They are short enough to read whole,
-so there is nothing to summarise and no reason to write before they have been
-read.
+as well. Get approval. Write them. They are short enough to read whole, so there
+is nothing to summarise and no reason to write before they have been read.
+
+**Then check what landed, line by line, and report each line.** In contributor
+mode, or wherever attribution was turned off:
+
+- [ ] `docs/agents/thegraph.md` exists
+- [ ] `CLAUDE.local.md` holds the contributor rule (contributor mode)
+- [ ] `.git/info/exclude` lists both (contributor mode)
+- [ ] `.claude/settings.local.json` has `attribution` and both matcher groups
+- [ ] `.git/hooks/pre-push` exists and is executable — or the reason none was
+      written
+- [ ] `git status --short` prints nothing (contributor mode)
+
+A line that fails is written now, not reported as done. Where a per-project
+memory asked for no Claude trailer and the pieces are now installed, name it in
+the closing report as redundant; removing it is the maintainer's call.
 
 ## The size is the check
 

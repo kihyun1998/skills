@@ -36,6 +36,14 @@ whose `origin` is the maintainer's fork reads `ADMIN` and gets owner mode.
 permission at all — whether a team accepts `docs/agents/` commits is something a
 person knows — so §5 shows the verdict and the maintainer can flip it.
 
+**Amended 2026-10-07: the maintainer names the mode.** In use, runs still went
+down the wrong branch: a mode inferred from `viewerPermission` in a step deep in
+the skill is a step a run can skip, and an existing setup reads as an answer.
+The mode is now the invocation's argument (`local`, `oss`, `contributor`, or
+`own`), and with none it is the first question asked, alone. `viewerPermission`
+is kept as that question's recommendation. A per-file check after writing closes
+the other way a run fell short — the right mode with a piece left unwritten.
+
 ## Why three layers
 
 The `attribution` setting stops the commit trailer and the PR footer where they
