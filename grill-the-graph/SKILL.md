@@ -11,7 +11,9 @@ record **which real sources this project is built against**. That is this skill,
 and it is very nearly the whole of it.
 
 It writes that file, one rule in `CLAUDE.md`, and — where the repo has no map —
-the map's folder and a one-line hub (§3). It touches nothing else.
+the map's folder and a one-line hub (§3). In a repository you contribute to
+rather than own, it writes the same file and a rule locally, plus an attribution
+check, and commits nothing (*Contributor mode*). It touches nothing else.
 
 ## What the build is
 
@@ -87,6 +89,97 @@ source appends it (see *The build grows*). Never fill the table to avoid an empt
 one — a row proposed without evidence and ratified by someone who had no answer
 is exactly condition 2's failure.
 
+## Contributor mode
+
+A repository whose PRs land in someone else's repository. Its own guidance and
+merged PRs decide how code and comments are written there, and nothing setup
+writes may land in it.
+[ADR-0079](../docs/adr/0079-in-a-repository-you-contribute-to-its-conventions-win.md)
+holds the reasons, including why the rule below overrides
+[ADR-0076](../docs/adr/0076-a-comment-says-what-the-code-is.md) entirely.
+
+| | Default | Contributor mode |
+|---|---|---|
+| Build file | `docs/agents/thegraph.md` | same path, listed in `.git/info/exclude` |
+| Comment rule | `CLAUDE.md`, from §3's table | `CLAUDE.local.md`, listed in `.git/info/exclude`, the text below |
+| Map | §3 makes its folder | none, and the closing report does not name `grill-map` |
+| Attribution | unchanged | `.claude/settings.local.json` and `.git/hooks/pre-push`, below |
+
+The build file keeps its path, so `read-it` and `check-it` find it unchanged. One
+clone is assumed: untracked files, `CLAUDE.local.md` included, do not follow
+`git worktree add`.
+
+**The comment rule names no file**, because upstream's guidance can arrive
+mid-run — a style guide merged between approval and rebase is one a copied list
+misses:
+
+> Comments follow this repository, not a rule written here. Before writing one,
+> find and read its contributor and style guidance, at the root and under
+> `docs/`, and the closest merged PR touching the same file, and do what they
+> do — where the why goes included. Read them again on every run; they change.
+
+**Attribution.** Three pieces, because no one of them sees everything that
+leaves. All three call `scripts/no-attribution.mjs`, the one copy of what is
+looked for; nothing written into the clone holds a copy.
+
+The **setting** stops the trailer and the PR footer where they are generated.
+The **PreToolUse hook** checks what Claude sends — commands, including those a
+shell is handed with `-c`, and GitHub MCP writes. The **`pre-push` git hook**
+checks every push, from a script, an IDE or a person at the terminal.
+
+Merge this into `.claude/settings.local.json`, keeping any keys already there.
+Claude Code keeps that file out of every repository through the global git
+excludes, so it needs no exclude line of its own. `<run>` is one `shell` and
+`command` pair, chosen by whether `bash` is on the PATH (Git Bash, on Windows):
+
+| `bash` found | `"shell"` | `"command"` |
+|---|---|---|
+| yes | `"bash"` | `node "$HOME/.claude/skills/grill-the-graph/scripts/no-attribution.mjs" \|\| exit 2` |
+| no | `"powershell"` | `node "$env:USERPROFILE\.claude\skills\grill-the-graph\scripts\no-attribution.mjs"; if ($LASTEXITCODE -ne 0) { exit 2 }` |
+
+```json
+{
+  "attribution": { "commit": "", "pr": "" },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          { "type": "command", "if": "Bash(git *)", <run> },
+          { "type": "command", "if": "Bash(gh *)", <run> },
+          { "type": "command", "if": "Bash(bash *)", <run> },
+          { "type": "command", "if": "PowerShell(git *)", <run> },
+          { "type": "command", "if": "PowerShell(gh *)", <run> },
+          { "type": "command", "if": "PowerShell(pwsh *)", <run> },
+          { "type": "command", "if": "PowerShell(powershell *)", <run> }
+        ]
+      },
+      { "matcher": "mcp__.*github.*", "hooks": [{ "type": "command", <run> }] }
+    ]
+  }
+}
+```
+
+The exit-2 tail is what makes it fail closed: a hook that exits 1, or whose
+`node` is missing, lets the command run.
+
+Write `.git/hooks/pre-push`, executable:
+
+```sh
+#!/bin/sh
+exec node "$HOME/.claude/skills/grill-the-graph/scripts/no-attribution.mjs" --pre-push "$@"
+```
+
+Git runs it through its own `sh` on every platform. A missing `node` fails the
+`exec`, and a failed hook stops the push. **Where `core.hooksPath` is set or a
+`pre-push` already exists, write nothing there and say so in §5** — the project
+runs its own hooks, and replacing one is not setup's to do.
+
+What none of the three can see: a push made with Claude Code not running and no
+git hook (`core.hooksPath` set), a PreToolUse hook that times out, which lets the
+call through, and an `ask` in a headless `-p` run, which Claude Code turns into
+a deny.
+
 ## Process
 
 ### 1. Look before you ask
@@ -94,6 +187,15 @@ is exactly condition 2's failure.
 Read `CLAUDE.md`, the manifests and the directory tree. Asking what an existing
 file already answers is the offloading `thegraph`'s decision-routing habit
 forbids.
+
+**Then check whose repository it is.** Ask
+`gh repo view --json isFork,parent,viewerPermission`; where the default
+repository is a fork, ask `viewerPermission` again of its `parent`, which is the
+repository that receives the PRs. Asked of the fork, a clone whose `origin` is
+the maintainer's fork reads `ADMIN`. `READ` or `TRIAGE` on the receiving
+repository is **contributor mode**; anything else is the default. §5 shows the
+verdict, and the maintainer can flip it — whether a team accepts commits to
+`docs/agents/` is something a person knows and no permission says.
 
 ### 2. An older generated build goes to `salvage`, not to an update
 
@@ -105,6 +207,9 @@ repo, and telling those apart is `salvage`'s job. Say what you found, point at
 `salvage`, and stop.
 
 ### 3. The map, and the comment rule
+
+In contributor mode this step is *Contributor mode*'s table instead: no map
+folder, nothing in `CLAUDE.md`.
 
 A comment is written on every edit, most of them made outside `thegraph`, so a
 pass that checks comments after the fact is undone by the next edit. The rule
@@ -173,8 +278,12 @@ accept no *"use judgement"*: a source nobody named is a source nobody reads, but
 
 ### 5. Show it, then write it
 
-Show the file, the `CLAUDE.md` rule, and — where §3 makes one — the map folder's
-path and hub stub. Get approval. Write them. They are short enough to read whole,
+Show the mode and what decided it, the file, the `CLAUDE.md` rule, and — where §3
+makes one — the map folder's path and hub stub. In contributor mode show instead
+the `CLAUDE.local.md` rule, the two `.git/info/exclude` lines, the settings
+block with the `<run>` row it chose, and the `pre-push` hook or why none was
+written. Get approval. Write them. In contributor mode, end by running
+`git status --short`: it must print nothing. They are short enough to read whole,
 so there is nothing to summarise and no reason to write before they have been
 read.
 

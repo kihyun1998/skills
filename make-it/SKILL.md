@@ -51,12 +51,16 @@ which is when they are hardest to attribute to anything.
 ## What a comment carries
 
 **A comment says what this code is.** Where the rest goes — the why, the trap,
-the measured value, the history — is written in the repo's `CLAUDE.md`, because
-comments are written on every edit and most edits never pass through here.
-`grill-the-graph` puts it there. Follow that, not a copy of it.
+the measured value, the history — is written in the repo's `CLAUDE.md`, or in
+`CLAUDE.local.md` in a repository you contribute to, because comments are written
+on every edit and most edits never pass through here. `grill-the-graph` puts it
+there. Follow that, not a copy of it — and where it defers to the repository's
+own guidance, that guidance wins over this paragraph's first sentence too.
 
-Where `CLAUDE.md` says nothing about comments, the first sentence still holds and
-the rest goes to the commit message. Say that the rule is missing, and name
+Where neither says anything about comments, the first sentence still holds and
+the rest goes to the commit message — unless the repository is one you
+contribute to rather than own, where its guidance and the closest merged PR
+touching the same file decide instead. Say that the rule is missing, and name
 `grill-the-graph`.
 
 ## Four signals that only appear here

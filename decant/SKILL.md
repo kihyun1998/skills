@@ -2,14 +2,16 @@
 name: decant
 disable-model-invocation: true
 requires: [lens]
-description: "Sort source comments so each says only what the code is, and move the rest to the repo's map. /decant."
+description: "Sort source comments so each says only what the code is and move the rest to the repo's map — or, in a repo you contribute to, hold your branch's comments to upstream's own rules. /decant."
 ---
 
 # decant — leave the one line, move the rest
 
 **It runs where the repo keeps a map.** Check that the map exists on disk. Where
 it does not, say so, name `grill-map`, and stop — there is no destination, and an
-invented one is worse than no pass.
+invented one is worse than no pass. **The exception is a repository you
+contribute to** — `CLAUDE.local.md` holds `grill-the-graph`'s contributor rule —
+and there everything below gives way to *In a repository you contribute to*.
 
 The reasons and measurements behind every rule here are in
 [ADR-0076](../docs/adr/0076-a-comment-says-what-the-code-is.md). This file holds
@@ -211,6 +213,37 @@ stricter than the reading's.
 
 What a published doc-comment may carry is the repository's rule, in its
 `CLAUDE.md`, not this skill's.
+
+## In a repository you contribute to
+
+Upstream's rules replace this skill's policy and its bins, ADR-0076's first
+sentence included
+([ADR-0079](../docs/adr/0079-in-a-repository-you-contribute-to-its-conventions-win.md)).
+There is no map, so nothing is owed to a note and nothing moves into one.
+
+- **Scope: the comments this branch adds or changes** — the diff from its merge
+  base with the branch the PR targets. Upstream's existing comments are not
+  this PR's to change. Count the files and comment blocks in that diff at the
+  top of the report; a zero is said, not passed.
+- **The policy is read this run**: upstream's contributor and style guidance, at
+  the root and under `docs/`, and the closest merged PR touching the same file.
+  Never from memory of an earlier run — that guidance changes mid-PR.
+- **One verdict per paragraph**, each naming its ground — the guidance line or
+  the PR that shows it:
+
+  | Verdict | What it is |
+  |---|---|
+  | `KEEP` | it does what upstream does |
+  | `FIX` | it breaks a rule upstream states — the fix named, carried as it stands otherwise |
+  | `MOVE` | upstream carries this elsewhere — the commit message or the PR body, named |
+  | `DROP` | upstream would not carry it anywhere |
+
+- **Where the guidance is silent and no merged PR shows the case, `KEEP`**, and
+  report the silence. Filling it with ADR-0076 is the override this mode exists
+  to stop.
+- **Applying** follows *Applying it*: move, do not rewrite; account for every
+  sentence; cut in the same commit. A `MOVE` to the PR body is carried to
+  `ask-it`, since the body is written when the PR is.
 
 ## Boundaries
 

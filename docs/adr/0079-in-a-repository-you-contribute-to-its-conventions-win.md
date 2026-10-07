@@ -36,20 +36,43 @@ whose `origin` is the maintainer's fork reads `ADMIN` and gets owner mode.
 permission at all — whether a team accepts `docs/agents/` commits is something a
 person knows — so §5 shows the verdict and the maintainer can flip it.
 
-## Why a hook, and why both layers
+## Why three layers
 
 The `attribution` setting stops the commit trailer and the PR footer where they
 are generated. It does not reach issue or PR comments, prose in a body, or a
-branch name, so a PreToolUse hook checks what leaves: `git commit`, `git push`
-(the commits in range and the branch name), `gh pr`/`gh issue` create, edit and
-comment, and `gh api`. Trailers, the generated-with footer and `claude/` branches
-are blocked; a Claude or AI mention in prose asks, because a project about AI
-makes that pattern fire on honest text. Both live in `.claude/settings.local.json`,
-which Claude Code adds to the global git excludes.
+branch name, so a PreToolUse hook checks what Claude sends — the commits and
+branch names a push carries, including the push `gh pr create` makes itself, the
+text of commits, tags, PRs, issues, releases and API writes, commands a shell is
+handed with `-c`, and GitHub MCP writes. Which commands that covers is the
+script's, not this record's. Trailers, the generated-with footer and `claude/`
+branches are blocked; a Claude or AI mention in prose asks, because a project
+about AI makes that pattern fire on honest text. Both live in
+`.claude/settings.local.json`, which Claude Code adds to the global git excludes.
 
-The hook script is one copy under `grill-the-graph/`, referenced by path, so a
-pattern fixed once is fixed in every clone. It is node, and it fails loudly when
-node is missing rather than passing unchecked.
+The PreToolUse hook sees only Claude's own tool calls, so a `pre-push` git hook
+runs the same check on every push — a script, an IDE, a person at the terminal.
+It is untracked like the rest. Where the project sets `core.hooksPath` or has
+its own `pre-push`, setup writes none: replacing a project's hooks is not its to
+do, and that clone keeps the gap.
+
+The script is one copy under `grill-the-graph/`, referenced by path, so a
+pattern fixed once is fixed in every clone. It is node, and every failure blocks:
+the hook command ends in an exit-2 tail, because a PreToolUse hook that exits 1,
+or whose `node` is missing, lets the command run. On Windows without Git Bash the
+same tail is written for PowerShell. A clone with no remote-tracking ref is
+refused rather than read whole, since then every upstream commit reads as new.
+
+What stays open: a PreToolUse hook that times out lets the call through, and in a
+headless `-p` run an ask becomes a deny.
+
+## `decant` follows upstream too
+
+In a contributor clone `decant` holds **the comments the branch adds or changes**
+to upstream's guidance and closest merged PR, with no map and no ADR-0076 bins.
+The alternatives were to stop with a reason, or to leave `decant` alone because a
+person invokes it. Stopping left the branch's own comments unchecked against the
+very guidance this record says wins; the whole tree was rejected because
+upstream's existing comments are not a contributor's PR to change.
 
 ## Considered and not taken
 
