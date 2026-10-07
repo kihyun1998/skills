@@ -1,7 +1,24 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import { focusOf, labelOf, minutes, onAnswer, onEdit, onSkill, onTurnEnd, plan, routeName, signalSummary, startRun, stateOf, stepLabel, stepMs } from './run'
+import {
+  focusOf,
+  isDone,
+  isSheetPath,
+  labelOf,
+  minutes,
+  onAnswer,
+  onEdit,
+  onSkill,
+  onTurnEnd,
+  parseSheet,
+  routeName,
+  signalSummary,
+  startRun,
+  stepLabel,
+  stepMs,
+  stepsOf,
+} from './run'
 import type { StepState } from './run'
 
 const run = atom({ plugin: 'thegraph-panel', key: 'run' } as const, null)
@@ -49,6 +66,18 @@ const togglePane = async ($: EngineInterface) => {
   const opened = await $.ui.open({ id: PANE, title: 'thegraph' })
   await update($, isPaneOpen, () => true)
   if (!opened.isPlaced) $.ui.toast(`thegraph: the pane waits (${opened.reason})`)
+}
+
+// Reads the run sheet as the model left it; one that cannot be read leaves what was there.
+const readSheet = async ($: EngineInterface, path: string) => {
+  let text: string
+  try {
+    text = await $.fs.read(path)
+  } catch {
+    return
+  }
+  const sheet = parseSheet(path, text)
+  await update($, run, r => (r === null ? r : { ...r, sheet }))
 }
 
 // The person gave the run up: the line goes, and the pane with it.
@@ -119,12 +148,18 @@ export const register: Register = on => {
     return result
   }).catch(($, e, next) => next(e))
 
-  // A file edit right after the confirm is make-it begun without its skill.
+  // A write to the run sheet is the run's own account: read it back once written.
+  // Any other file edit right after the confirm is make-it begun without its skill.
   on('tool.call', { tool: ['Edit', 'Write', 'NotebookEdit'] }, async ($, e, next) => {
-    if (e.agentId === undefined && (await read($, run)) !== null) {
-      const t = await $.clock.now()
-      await update($, run, r => (r === null ? r : onEdit(r, t)))
+    if (e.agentId !== undefined || (await read($, run)) === null) return next(e)
+    const path = 'file_path' in e ? e.file_path : undefined
+    if (path !== undefined && isSheetPath(path)) {
+      const result = await next(e)
+      await readSheet($, path)
+      return result
     }
+    const t = await $.clock.now()
+    await update($, run, r => (r === null ? r : onEdit(r, t)))
     return next(e)
   }).catch(($, e, next) => next(e))
 
@@ -144,11 +179,8 @@ export const register: Register = on => {
     const isOpen = await read($, isPaneOpen)
     const { Box, Button, Text } = $.ui.resolve(e)
     const t = Math.max(await read($, now), r.startedAt)
-    const keys = plan(r.route)
-    const dots = keys.map(key => {
-      const s = stateOf(r, key)
-      return <Text bold={LOUD[s]} color={COLOR[s]} dimColor={s === 'todo'}>{DOT[s]}</Text>
-    })
+    const steps = stepsOf(r)
+    const dots = steps.map(({ state: s }) => <Text bold={LOUD[s]} color={COLOR[s]} dimColor={s === 'todo'}>{DOT[s]}</Text>)
     const focus = focusOf(r)
     const ms = focus === null ? null : stepMs(r, focus.key, t)
     const at =
@@ -158,12 +190,12 @@ export const register: Register = on => {
           <Text dimColor>{` · ${minutes((r.doneAt ?? t) - r.startedAt)}`}</Text>
         </Text>
       ) : focus.state === 'todo' ? (
-        <Text dimColor>{`다음 ${focus.key} ${focus.index + 1}/${keys.length}`}</Text>
+        <Text dimColor>{`다음 ${focus.key} ${focus.index + 1}/${steps.length}`}</Text>
       ) : (
         <Text>
           <Text bold color={COLOR[focus.state]}>{stepLabel(focus.key, focus.state)}</Text>
           <Text dimColor>
-            {focus.state === 'run' ? ` ${focus.index + 1}/${keys.length}` : ''}
+            {focus.state === 'run' ? ` ${focus.index + 1}/${steps.length}` : ''}
             {ms === null ? '' : ` · ${minutes(ms)}`}
           </Text>
         </Text>
@@ -211,35 +243,47 @@ export const register: Register = on => {
     }
     const t = Math.max(await read($, now), r.startedAt)
     const end = r.doneAt ?? t
-    const rows = plan(r.route).map(key => {
-      const s = stateOf(r, key)
+    const notes = r.sheet?.steps ?? []
+    const rows = stepsOf(r).map(({ key, state: s }, i) => {
       const ms = stepMs(r, key, t)
+      const note = notes[i]?.note
       return (
-        <Text>
-          <Text color={COLOR[s]} bold={LOUD[s]} dimColor={s === 'todo'}>{`[${MARK[s] || ' '}] ${stepLabel(key, s).padEnd(12)}`}</Text>
-          {ms !== null && <Text dimColor={s === 'done'}>{minutes(ms).padStart(5)}</Text>}
-        </Text>
+        <Box flexDirection="column">
+          <Text>
+            <Text color={COLOR[s]} bold={LOUD[s]} dimColor={s === 'todo'}>{`[${MARK[s] || ' '}] ${stepLabel(key, s).padEnd(12)}`}</Text>
+            {ms !== null && <Text dimColor={s === 'done'}>{minutes(ms).padStart(5)}</Text>}
+          </Text>
+          {note != null && <Text dimColor wrap="wrap">{`    → ${note}`}</Text>}
+        </Box>
       )
     })
+    const route = r.sheet?.route ?? (r.route === null ? null : routeName(r.route))
+    const carried = r.sheet?.carried ?? []
     return (
       <Box flexDirection="column">
         <Text>
           <Text bold>thegraph</Text>
           {r.label !== null && <Text dimColor>{`  ${r.label}`}</Text>}
         </Text>
+        {r.sheet?.issue != null && <Text dimColor wrap="truncate-end">{r.sheet.issue}</Text>}
         <Text dimColor>{'─'.repeat(24)}</Text>
         {rows}
         <Text> </Text>
         <Text>
           <Text dimColor>route  </Text>
-          {r.route === null ? <Text dimColor>아직</Text> : <Text bold color="cyan">{routeName(r.route)}</Text>}
+          {route === null ? <Text dimColor>아직</Text> : <Text bold color="cyan">{route}</Text>}
         </Text>
         <Text>
           <Text dimColor>경과   </Text>
           <Text>{minutes(end - r.startedAt)}</Text>
-          {r.doneAt !== null && <Text color="success"> · 끝</Text>}
+          {isDone(r) && <Text color="success"> · 끝</Text>}
         </Text>
         <Text> </Text>
+        {carried.length > 0 && <Text dimColor>넘길 것</Text>}
+        {carried.map(c => (
+          <Text wrap="wrap">{`  · ${c}`}</Text>
+        ))}
+        {carried.length > 0 && <Text> </Text>}
         <Text dimColor>신호</Text>
         {r.signals.length === 0 ? (
           <Text dimColor>  없음</Text>

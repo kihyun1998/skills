@@ -2,7 +2,7 @@ import { describe, expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { CONFIRM, DECIDE, labelOf, onAnswer, onEdit, onSkill, onTurnEnd, signalSummary, startRun, stateOf } from '../hooks/run'
+import { CONFIRM, DECIDE, isSheetPath, labelOf, onAnswer, onEdit, onSkill, parseSheet, stepsOf, onTurnEnd, signalSummary, startRun, stateOf } from '../hooks/run'
 
 const MIN = 60_000
 
@@ -36,6 +36,26 @@ const start = async ($: Engine, on: On) => {
   await clock.settle()
   return clock
 }
+
+// A run sheet as thegraph's template writes it, part way through a prose run.
+const SHEET = 'C:\\Users\\u\\AppData\\Local\\Temp\\thegraph\\penterm-20261007-1542-7f3a9c2e.md'
+const sheetText = (makeIt: ' ' | '~' | 'x') => [
+  '# thegraph run sheet',
+  'issue: .scratch/settings/issues/03-row-height.md — 설정 행 높이 통일',
+  'repo: D:\\github\\penterm',
+  'route: prose',
+  '',
+  '- [x] read-it',
+  '  → make-it: 삭제 확인창은 예전처럼 둠',
+  '- [x] confirm',
+  `- [${makeIt}] make-it`,
+  '  → check-it: 문서만 바뀜, prose 검사만',
+  `- [${makeIt === 'x' ? 'x' : ' '}] check-it`,
+  `- [${makeIt === 'x' ? 'x' : ' '}] ask-it`,
+  '',
+  '## Carried',
+  '- 단축키 표 문구가 SPEC과 다름',
+].join('\n')
 
 const say = ($: Engine, text: string) => $.prompt.submit({ text, wait: false, origin: { kind: 'composer' } })
 const skill = ($: Engine, name: string) => $.skill.prompt({ skill: name, text: '' })
@@ -113,6 +133,32 @@ describe('thegraph-panel', () => {
     expect(flat(await ui.drawn())).toContain('●●○○○  다음 make-it 3/5')
     await $.tool.call({ tool: 'Edit', file_path: '/w/a.ts', old_string: 'a', new_string: 'b' })
     expect(flat(await ui.drawn())).toContain('●●◐○○  make-it 3/5')
+  })
+
+  test('a write to the run sheet is read back, and the line and pane draw from it', async ($, on) => {
+    const files = new Map<string, string>()
+    on('tool.call', { tool: 'Write' }, (_$, e) => {
+      files.set(e.file_path, e.content)
+      return { result: { type: 'create', filePath: e.file_path, content: e.content, structuredPatch: [], originalFile: null } }
+    })
+    on('fs.read', (_$, e) => ({ value: files.get(e.path) ?? '' }))
+    await start($, on)
+    const ui = await band($)
+    await say($, '/thegraph')
+    await skill($, 'thegraph')
+    await $.tool.call({ tool: 'Write', file_path: SHEET, content: sheetText('~') })
+    // make-it was never expanded; the sheet says it is under way.
+    expect(flat(await ui.drawn())).toContain('●●◐○○  make-it 3/5')
+    const pane = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS })
+    const text = flat(await pane.drawn())
+    expect(text).toContain('설정 행 높이 통일')
+    expect(text).toContain('→ check-it: 문서만 바뀜, prose 검사만')
+    expect(text).toContain('route  prose')
+    expect(text).toContain('· 단축키 표 문구가 SPEC과 다름')
+    // Every step checked off is the end, whatever the events saw.
+    await $.tool.call({ tool: 'Write', file_path: SHEET, content: sheetText('x') })
+    expect(flat(await ui.drawn())).toContain('●●●●●  끝')
+    expect(flat(await pane.drawn())).toMatch(/경과\s+\S+ · 끝/)
   })
 
   test('the band carries a button that opens and closes the checklist pane', async ($, on) => {
@@ -317,6 +363,29 @@ describe('run', () => {
     expect(onEdit(onAnswer(onTurnEnd(decision, 4), 5)!, 6).steps.some(s => s.key === 'make-it')).toBe(false)
     const checking = onSkill(onSkill(r, 'make-it', 3), 'check-it', 4)
     expect(onEdit(checking, 5)).toBe(checking)
+  })
+
+  test('a run sheet parses into steps, their notes, the route and what is carried', () => {
+    const sheet = parseSheet(SHEET, sheetText('~'))
+    expect(sheet.steps.map(s => `${s.key}:${s.mark}`)).toEqual(['read-it:done', `${CONFIRM}:done`, 'make-it:doing', 'check-it:todo', 'ask-it:todo'])
+    expect(sheet.steps[2]?.note).toBe('check-it: 문서만 바뀜, prose 검사만')
+    expect(sheet.route).toBe('prose')
+    expect(sheet.carried).toEqual(['단축키 표 문구가 SPEC과 다름'])
+    // The template's placeholder is no route yet; CRLF reads the same.
+    expect(parseSheet(SHEET, "route: <read-it's label>\r\n- [x] decide\r\n").route).toBe(null)
+    expect(parseSheet(SHEET, "route: <read-it's label>\r\n- [x] decide\r\n").steps[0]?.key).toBe(DECIDE)
+  })
+
+  test('only a file named like a run sheet is one: not thegraph/SKILL.md, not a dated note elsewhere', () => {
+    expect(isSheetPath(SHEET)).toBe(true)
+    expect(isSheetPath('/tmp/thegraph/skills-20261007-0900-0123abcd.md')).toBe(true)
+    expect(isSheetPath('D:\\github\\skills\\thegraph\\SKILL.md')).toBe(false)
+    expect(isSheetPath('/tmp/notes/penterm-20261007-1542-7f3a9c2e.md')).toBe(false)
+  })
+
+  test('the person holding the move shows on the sheet step under way', () => {
+    const run = { ...onSkill(startRun(null, 0), 'read-it', 0), sheet: parseSheet(SHEET, sheetText('~')), isWaiting: true }
+    expect(stepsOf(run).map(s => s.state)).toEqual(['done', 'done', 'wait', 'todo', 'todo'])
   })
 
   test('signals count in the order they first fired', () => {

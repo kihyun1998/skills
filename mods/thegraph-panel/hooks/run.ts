@@ -1,4 +1,4 @@
-import type { Route, Run, StepRec } from '../types'
+import type { Route, Run, Sheet, SheetStep, StepRec } from '../types'
 
 /** The stops where a person answers: after read-it, and after lens. */
 export const CONFIRM = '확인'
@@ -33,6 +33,7 @@ export const startRun = (label: string | null, now: number): Run => ({
   signals: [],
   isWaiting: false,
   doneAt: null,
+  sheet: null,
 })
 
 const openStep = (run: Run): StepRec | undefined => run.steps.find(s => s.endedAt === null)
@@ -108,19 +109,67 @@ export const stateOf = (run: Run, key: string): StepState => {
   return run.isWaiting || key === CONFIRM || key === DECIDE ? 'wait' : 'run'
 }
 
+// --- the run sheet ---------------------------------------------------------------
+
+/** A run sheet's file name: `<repo>-<yyyymmdd>-<hhmm>-<8 hex>.md` in a `thegraph` folder. */
+const SHEET_PATH = /[\\/]thegraph[\\/][^\\/]+-\d{8}-\d{4}-[0-9a-f]{8}\.md$/i
+export const isSheetPath = (path: string): boolean => SHEET_PATH.test(path)
+
+/** The sheet's keys for the two stops, drawn in the line's own words. */
+const SHEET_KEY: Record<string, string> = { confirm: CONFIRM, decide: DECIDE }
+const SHEET_MARK: Record<string, SheetStep['mark']> = { ' ': 'todo', '~': 'doing', x: 'done', X: 'done' }
+
+/** Reads a run sheet's text; lines it does not know are skipped. */
+export const parseSheet = (path: string, text: string): Sheet => {
+  const sheet: Sheet = { path, issue: null, route: null, steps: [], carried: [] }
+  let isCarried = false
+  for (const line of text.split(/\r?\n/)) {
+    const field = /^(issue|route):\s*(.*\S)\s*$/.exec(line)
+    const step = /^- \[([ ~xX])\]\s+(\S+)/.exec(line)
+    const note = /^\s+→\s*(.*\S)\s*$/.exec(line)
+    if (/^##\s/.test(line)) isCarried = /^##\s+Carried\b/i.test(line)
+    else if (isCarried && /^- /.test(line)) sheet.carried.push(line.slice(2).trim())
+    else if (field?.[1] === 'issue') sheet.issue = field[2] ?? null
+    // A template placeholder (`<read-it's label ...>`) is no route yet.
+    else if (field?.[1] === 'route') sheet.route = (field[2] ?? '').startsWith('<') ? null : (field[2] ?? null)
+    else if (step) sheet.steps.push({ key: SHEET_KEY[step[2] ?? ''] ?? step[2] ?? '', mark: SHEET_MARK[step[1] ?? ' '] ?? 'todo', note: null })
+    else if (note) {
+      const last = sheet.steps[sheet.steps.length - 1]
+      if (last) last.note = note[1] ?? null
+    }
+  }
+  return sheet
+}
+
+/** Every step's place: from the run sheet once there is one, else from the events. */
+export const stepsOf = (run: Run): { key: string; state: StepState }[] => {
+  const sheet = run.sheet
+  if (sheet === null || sheet.steps.length === 0) return plan(run.route).map(key => ({ key, state: stateOf(run, key) }))
+  const steps = sheet.steps.map(s => ({ key: s.key, state: (s.mark === 'done' ? 'done' : s.mark === 'doing' ? 'run' : 'todo') as StepState }))
+  // The sheet cannot say that the person holds the move; the events can.
+  if (run.isWaiting) {
+    const at = steps.findIndex(s => s.state === 'run')
+    const stop = steps[at >= 0 ? at : steps.findIndex(s => s.state === 'todo')]
+    if (stop) stop.state = 'wait'
+  }
+  return steps
+}
+
+/** Whether the run is over: its events said so, or every step on its sheet is checked. */
+export const isDone = (run: Run): boolean =>
+  run.doneAt !== null || (run.sheet !== null && run.sheet.steps.length > 0 && run.sheet.steps.every(s => s.mark === 'done'))
+
 /**
  * The step the line names: the one running or waiting, else the next one to do;
  * null once the run is done. `index` is its place in the plan, from 0.
  */
 export const focusOf = (run: Run): { key: string; index: number; state: StepState } | null => {
-  if (run.doneAt !== null) return null
-  const keys = plan(run.route)
-  const states = keys.map(key => stateOf(run, key))
-  const at = states.findIndex(s => s === 'run' || s === 'wait')
-  const index = at >= 0 ? at : states.indexOf('todo')
-  const key = keys[index]
-  const state = states[index]
-  return key === undefined || state === undefined ? null : { key, index, state }
+  if (isDone(run)) return null
+  const steps = stepsOf(run)
+  const at = steps.findIndex(s => s.state === 'run' || s.state === 'wait')
+  const index = at >= 0 ? at : steps.findIndex(s => s.state === 'todo')
+  const step = steps[index]
+  return step === undefined ? null : { key: step.key, index, state: step.state }
 }
 
 /** A step's name as drawn: a step that waits on the person says so. */
