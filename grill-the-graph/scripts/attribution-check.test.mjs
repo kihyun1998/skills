@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { inspect, inspectTool, inspectPrePush } from './no-attribution.mjs';
+import { inspect, inspectTool, inspectPrePush } from './attribution-check.mjs';
 
 const TRAILER = 'Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>';
 const FOOTER = '🤖 Generated with [Claude Code](https://claude.com/claude-code)';

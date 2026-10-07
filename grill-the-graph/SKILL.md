@@ -119,8 +119,9 @@ misses:
 > do — where the why goes included. Read them again on every run; they change.
 
 **Attribution.** Three pieces, because no one of them sees everything that
-leaves. All three call `scripts/no-attribution.mjs`, the one copy of what is
-looked for; nothing written into the clone holds a copy.
+leaves. The two hooks run `scripts/no-attribution.mjs`, and
+`scripts/attribution-check.mjs` beside it is the one copy of what is looked for;
+nothing written into the clone holds a copy.
 
 The **setting** stops the trailer and the PR footer where they are generated.
 The **PreToolUse hook** checks what Claude sends — commands, including those a
