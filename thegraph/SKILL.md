@@ -19,7 +19,9 @@ stays correct by *not* absorbing the concerns of the things that consume it.
 
 A run keeps one file while it lasts: its **run sheet**, in a `thegraph/` folder
 of the OS temp directory (`$TMPDIR`, `%TEMP%`), named
-`<repo>-<yyyymmdd-hhmm>-<8 random hex>.md`. It is what lets a step tell the next
+`<repo>-<yyyymmdd-hhmm>-<8 random hex>.md` — **unless this text ends by naming
+the path (`This run's run sheet: …`); then use that one**, since whatever named it
+reads the run there. It is what lets a step tell the next
 one something, and what keeps the carried items through a compaction. It is not a
 record: deleting it at the end loses nothing that has not reached a person
 ([ADR-0080](../docs/adr/0080-a-run-keeps-a-run-sheet-while-it-lasts.md)).
@@ -52,7 +54,8 @@ it. A note that would have to wait for the end is the note the next step needed.
 look in that folder for an unfinished sheet with this `repo` and this issue — by
 where it lives *or* its title, since a local issue moves when it is archived. If
 there is one, show its steps and its carried items and ask whether to continue it
-or start over; starting over deletes it.
+or start over; starting over deletes it, and continuing it under a path this text
+named moves its content there and deletes the old file.
 
 **Delete it when the run ends, after the last person has seen what it carried:**
 once `ask-it` has put the carried items in front of them, or once `check-it` is

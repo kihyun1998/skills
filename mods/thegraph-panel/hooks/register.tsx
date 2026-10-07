@@ -12,6 +12,9 @@ import {
   onSkill,
   onTurnEnd,
   parseSheet,
+  baseName,
+  sheetLine,
+  sheetPathFor,
   routeName,
   signalSummary,
   startRun,
@@ -42,11 +45,58 @@ const LOUD: Record<StepState, boolean> = { done: false, run: true, wait: true, t
 // What followed /thegraph on the prompt, waiting for the skill to expand. Lost on a reload: the run starts unlabelled.
 let pendingLabel: string | null = null
 
+// The session's folder, whose name heads each sheet's file name; and the OS temp folder, asked once.
+let cwd: string | null = null
+let tempDir: string | null | undefined
+// The sheet's modification time when it was last read, so an unchanged sheet is not read again.
+let sheetSeen = -1
+
+// No shell runs the argv: cmd answers on Windows, sh elsewhere.
+const TEMP_ASKS: readonly (readonly string[])[] = [
+  ['cmd', '/c', 'echo %TEMP%'],
+  ['sh', '-c', 'printf %s "${TMPDIR:-/tmp}"'],
+]
+
+const askTempDir = async ($: EngineInterface): Promise<string | null> => {
+  if (tempDir !== undefined) return tempDir
+  tempDir = null
+  for (const argv of TEMP_ASKS) {
+    try {
+      const r = await $.process.run(argv, { timeoutMs: 5_000 })
+      const dir = r.stdout.trim()
+      if (r.exitCode === 0 && dir !== '' && !dir.includes('%')) {
+        tempDir = dir
+        break
+      }
+    } catch {
+      // This one cannot start here; ask the next.
+    }
+  }
+  return tempDir
+}
+
+// Reads the sheet again when its file has changed since the last read.
+const checkSheet = async ($: EngineInterface) => {
+  const path = (await read($, run))?.sheetPath
+  if (path == null) return
+  let mtime: number
+  try {
+    mtime = (await $.fs.stat(path)).mtimeMs
+  } catch {
+    return
+  }
+  if (mtime === sheetSeen) return
+  sheetSeen = mtime
+  await readSheet($, path)
+}
+
 const tick = async ($: EngineInterface) => {
   const r = await read($, run)
   if (r !== null && r.doneAt === null) {
     const t = await $.clock.now()
     await update($, now, () => t)
+    // A write the tool hooks did not see (another process, a missed call) still shows within a tick.
+    await checkSheet($)
   }
 }
 
@@ -88,6 +138,7 @@ const dismiss = async ($: EngineInterface) => {
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
+    cwd = e.cwd
     const result = await next(e)
     $.clock.every(TICK_MS, () => void tick($))
     return result
@@ -117,9 +168,18 @@ export const register: Register = on => {
   on('skill.prompt', async ($, e, next) => {
     const t = await $.clock.now()
     if (e.skill === 'thegraph') {
-      await update($, run, () => startRun(pendingLabel, t))
+      // Name this run's sheet now and tell the run, so the one file is known to be ours.
+      const temp = await askTempDir($)
+      const hex = Math.floor(Math.random() * 0x100000000).toString(16).padStart(8, '0')
+      const sheetPath = temp === null ? null : sheetPathFor(temp, baseName(cwd ?? '') || 'repo', t, hex)
+      await update($, run, () => ({ ...startRun(pendingLabel, t), sheetPath }))
       pendingLabel = null
-    } else if ((await read($, run)) !== null) {
+      sheetSeen = -1
+      await update($, now, () => t)
+      const result = await next(e)
+      return sheetPath === null ? result : { ...result, text: result.text + sheetLine(sheetPath) }
+    }
+    if ((await read($, run)) !== null) {
       await update($, run, r => (r === null ? r : onSkill(r, e.skill, t)))
     }
     await update($, now, () => t)
@@ -154,13 +214,22 @@ export const register: Register = on => {
     if (e.agentId !== undefined || (await read($, run)) === null) return next(e)
     const path = 'file_path' in e ? e.file_path : undefined
     if (path !== undefined && isSheetPath(path)) {
-      const result = await next(e)
-      await readSheet($, path)
-      return result
+      // The run named its own sheet (no path was handed to it, or it kept an older one): follow it.
+      await update($, run, r => (r === null || r.sheetPath === path ? r : { ...r, sheetPath: path }))
+      sheetSeen = -1
+      return next(e)
     }
     const t = await $.clock.now()
     await update($, run, r => (r === null ? r : onEdit(r, t)))
     return next(e)
+  }).catch(($, e, next) => next(e))
+
+  // Whatever tool wrote it (Bash, Write, a script), the sheet changes only under a tool call:
+  // look at its modification time once each main-thread call has run.
+  on('tool.call', async ($, e, next) => {
+    const result = await next(e)
+    if (e.agentId === undefined) await checkSheet($)
+    return result
   }).catch(($, e, next) => next(e))
 
   // The person's close (its mark, ctrl+x x, Esc) as much as the button's.

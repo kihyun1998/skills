@@ -36,6 +36,8 @@ export type Run = {
   /** The turn ended while the run was open: the next move is the person's. */
   isWaiting: boolean
   doneAt: number | null
+  /** Where this run's sheet lives: the path this plugin named when thegraph expanded, or one the run wrote itself. */
+  sheetPath: string | null
   /** The run's own account, once it has written a run sheet; it outranks what the events suggest. */
   sheet: Sheet | null
 }

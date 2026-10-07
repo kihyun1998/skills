@@ -56,6 +56,10 @@ the why in the commit.
   numbers — penterm's are `.scratch/<feature>/issues/NN-<slug>.md` — so the first
   line names the issue as `read-it` resolved it, with its title, and a new run
   compares that rather than a name.
+- **A watcher may name it.** `thegraph-panel` adds the path to the text `/thegraph`
+  expands to, and the run writes there; without it the run names its own. Runs
+  write the sheet with the shell as often as with Write, so the watcher looks at
+  the file, not at which tool touched it.
 - **One left behind is the person's to pick up.** A new run that finds an
   unfinished sheet for the same issue shows its steps and carried items and asks
   whether to continue or start over; starting over deletes it.

@@ -33,6 +33,7 @@ export const startRun = (label: string | null, now: number): Run => ({
   signals: [],
   isWaiting: false,
   doneAt: null,
+  sheetPath: null,
   sheet: null,
 })
 
@@ -114,6 +115,25 @@ export const stateOf = (run: Run, key: string): StepState => {
 /** A run sheet's file name: `<repo>-<yyyymmdd>-<hhmm>-<8 hex>.md` in a `thegraph` folder. */
 const SHEET_PATH = /[\\/]thegraph[\\/][^\\/]+-\d{8}-\d{4}-[0-9a-f]{8}\.md$/i
 export const isSheetPath = (path: string): boolean => SHEET_PATH.test(path)
+
+/**
+ * The path a run's sheet gets: `<temp>/thegraph/<repo>-<yyyymmdd>-<hhmm>-<hex>.md`, in the
+ * temp folder's own separator, the time as the engine's clock reads it locally.
+ */
+export const sheetPathFor = (tempDir: string, repo: string, now: number, hex: string): string => {
+  const sep = tempDir.includes('\\') ? '\\' : '/'
+  const d = new Date(now)
+  const two = (n: number) => String(n).padStart(2, '0')
+  const stamp = `${d.getFullYear()}${two(d.getMonth() + 1)}${two(d.getDate())}-${two(d.getHours())}${two(d.getMinutes())}`
+  const name = repo.replace(/[^\w.-]+/g, '-') || 'repo'
+  return `${tempDir.replace(/[\\/]+$/, '')}${sep}thegraph${sep}${name}-${stamp}-${hex}.md`
+}
+
+/** The line added to thegraph's text so the run writes where this plugin watches. */
+export const sheetLine = (path: string): string => `\n\nThis run's run sheet: ${path}\n`
+
+/** The last part of a path, either separator. */
+export const baseName = (path: string): string => path.split(/[\\/]/).filter(Boolean).at(-1) ?? ''
 
 /** The sheet's keys for the two stops, drawn in the line's own words. */
 const SHEET_KEY: Record<string, string> = { confirm: CONFIRM, decide: DECIDE }

@@ -57,6 +57,22 @@ const sheetText = (makeIt: ' ' | '~' | 'x') => [
   '- 단축키 표 문구가 SPEC과 다름',
 ].join('\n')
 
+// The files a run's tools write, as fs.stat and fs.read see them: each write a newer modification time.
+// Matched by file name, since the engine resolves a path for its own OS.
+const sheetFiles = (on: On) => {
+  const files = new Map<string, { text: string; mtime: number }>()
+  let writes = 0
+  const nameOf = (path: string) => path.split(/[\\/]/).at(-1)
+  const find = (path: string) => [...files].find(([k]) => nameOf(k) === nameOf(path))?.[1]
+  on('fs.stat', (_$, e) => {
+    const f = find(e.path)
+    if (f === undefined) throw new Error(`ENOENT: ${e.path}`)
+    return { value: { kind: 'file' as const, size: f.text.length, mtimeMs: f.mtime, isLink: false } }
+  })
+  on('fs.read', (_$, e) => ({ value: find(e.path)?.text ?? '' }))
+  return { write: (path: string, text: string) => void files.set(path, { text, mtime: ++writes }) }
+}
+
 const say = ($: Engine, text: string) => $.prompt.submit({ text, wait: false, origin: { kind: 'composer' } })
 const skill = ($: Engine, name: string) => $.skill.prompt({ skill: name, text: '' })
 const endTurn = ($: Engine) =>
@@ -135,15 +151,12 @@ describe('thegraph-panel', () => {
     expect(flat(await ui.drawn())).toContain('●●◐○○  make-it 3/5')
   })
 
-  test('a write to the run sheet is read back, and the line and pane draw from it', async ($, on) => {
-    const files = new Map<string, string>()
+  test('a sheet the run names and writes itself is followed and read back, and the line and pane draw from it', async ($, on) => {
+    const fs = sheetFiles(on)
     on('tool.call', { tool: 'Write' }, (_$, e) => {
-      files.set(e.file_path, e.content)
+      fs.write(e.file_path, e.content)
       return { result: { type: 'create', filePath: e.file_path, content: e.content, structuredPatch: [], originalFile: null } }
     })
-    // By file name: the engine resolves the path for its own OS, so a Windows path reads as relative on Linux.
-    const nameOf = (path: string) => path.split(/[\\/]/).at(-1)
-    on('fs.read', (_$, e) => ({ value: [...files].find(([k]) => nameOf(k) === nameOf(e.path))?.[1] ?? '' }))
     await start($, on)
     const ui = await band($)
     await say($, '/thegraph')
@@ -161,6 +174,32 @@ describe('thegraph-panel', () => {
     await $.tool.call({ tool: 'Write', file_path: SHEET, content: sheetText('x') })
     expect(flat(await ui.drawn())).toContain('●●●●●  끝')
     expect(flat(await pane.drawn())).toMatch(/경과\s+\S+ · 끝/)
+  })
+
+  test('thegraph is told where its run sheet is, and a sheet written there by any tool is read', async ($, on) => {
+    const fs = sheetFiles(on)
+    on('process.run', () => ({ value: { exitCode: 0, stdout: '/tmp\n', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }))
+    on('tool.call', { tool: 'Bash' }, () => ({ result: { stdout: '', stderr: '', interrupted: false, isImage: false } }))
+    await start($, on)
+    const ui = await band($)
+    await say($, '/thegraph')
+    const told = (await $.skill.prompt({ skill: 'thegraph', text: 'BODY' })).text
+    const path = /This run's run sheet: (\S+)/.exec(told)?.[1] ?? ''
+    expect(told.startsWith('BODY')).toBe(true)
+    expect(isSheetPath(path)).toBe(true)
+    expect(path.startsWith('/tmp/thegraph/w-')).toBe(true)
+    // Written by the shell, as a run in bypass mode writes it; read once any tool call has run.
+    fs.write(path, sheetText('~'))
+    await $.tool.call({ tool: 'Bash', command: `sed -i 's/x/y/' ${path}` })
+    expect(flat(await ui.drawn())).toContain('●●◐○○  make-it 3/5')
+    // Another session's sheet in the same folder, newer and finished, is not this run's.
+    fs.write('/tmp/thegraph/w-20261008-0000-deadbeef.md', sheetText('x'))
+    await $.tool.call({ tool: 'Bash', command: 'true' })
+    expect(flat(await ui.drawn())).toContain('●●◐○○  make-it 3/5')
+    // The next shell write to this run's sheet is read again.
+    fs.write(path, sheetText('x'))
+    await $.tool.call({ tool: 'Bash', command: `sed -i 's/y/z/' ${path}` })
+    expect(flat(await ui.drawn())).toContain('●●●●●  끝')
   })
 
   test('the band carries a button that opens and closes the checklist pane', async ($, on) => {
