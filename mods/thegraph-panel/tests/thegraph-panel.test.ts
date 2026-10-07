@@ -141,7 +141,9 @@ describe('thegraph-panel', () => {
       files.set(e.file_path, e.content)
       return { result: { type: 'create', filePath: e.file_path, content: e.content, structuredPatch: [], originalFile: null } }
     })
-    on('fs.read', (_$, e) => ({ value: files.get(e.path) ?? '' }))
+    // By file name: the engine resolves the path for its own OS, so a Windows path reads as relative on Linux.
+    const nameOf = (path: string) => path.split(/[\\/]/).at(-1)
+    on('fs.read', (_$, e) => ({ value: [...files].find(([k]) => nameOf(k) === nameOf(e.path))?.[1] ?? '' }))
     await start($, on)
     const ui = await band($)
     await say($, '/thegraph')
