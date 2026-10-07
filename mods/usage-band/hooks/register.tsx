@@ -179,10 +179,13 @@ export const register: Register = on => {
   })
 
   // Two rows: who and how fast on top, then the context runway with the limits after it.
+  // Whatever other bands draw goes above them, so these two stay next to the prompt
+  // whichever plugin's hook runs first.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    const below = await next(e)
     const l = await read($, live)
     if (e.props.hasSurvey || l === null) {
-      return next(e)
+      return below
     }
 
     const eff = await read($, effort)
@@ -253,9 +256,12 @@ export const register: Register = on => {
     )
 
     return (
-      <Box flexDirection="column" paddingLeft={LEFT} paddingRight={RIGHT}>
-        {top}
-        {bottom}
+      <Box flexDirection="column">
+        {below}
+        <Box flexDirection="column" paddingLeft={LEFT} paddingRight={RIGHT}>
+          {top}
+          {bottom}
+        </Box>
       </Box>
     )
   })

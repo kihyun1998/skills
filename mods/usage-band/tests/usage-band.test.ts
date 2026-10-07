@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
-import type { On, SessionUsage } from 'claude-code'
+import type { On, RenderElement, SessionUsage } from 'claude-code'
 
 import {
   effortFromSettings,
@@ -52,6 +52,8 @@ type World = {
   argv: string[][]
   usageReads?: number
   settings?: Record<string, unknown>
+  /** What the bands beneath draw; nothing by default. */
+  beneath?: RenderElement
 }
 
 const start = async ($: Engine, on: On, u: SessionUsage, w: World) => {
@@ -68,6 +70,8 @@ const start = async ($: Engine, on: On, u: SessionUsage, w: World) => {
   on('turn.step', async function* (_$, e) {
     return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'end_turn' as const, usage: null }
   })
+  // Whatever the bands beneath draw; nothing by default.
+  on('ui.render', { component: 'AbovePrompt' }, (): RenderElement => w.beneath ?? { type: 'Box', props: {}, children: [] })
   on('process.run', (_$, e) => {
     w.argv.push([...e.argv])
     const stdout = e.argv.includes('blocks') ? blocksJson(w.burn) : dailyJson(w.today)
@@ -88,11 +92,14 @@ const flat = (node: unknown): string =>
       ? node.children.map(flat).join('')
       : ''
 
-// The band's rows: the outer Box's children, each flattened.
-const rows = async (ui: { drawn: () => Promise<unknown> }) => {
+// The band's own Box: the last child, under whatever the bands beneath drew.
+const own = async (ui: { drawn: () => Promise<unknown> }) => {
   const tree = (await ui.drawn()) as { children: unknown[] }
-  return tree.children.map(flat)
+  return tree.children.at(-1) as { props: Record<string, unknown>; children: unknown[] }
 }
+
+// The band's rows, each flattened.
+const rows = async (ui: { drawn: () => Promise<unknown> }) => (await own(ui)).children.map(flat)
 
 // The props of the innermost Text showing exactly `text`.
 const propsOf = async (ui: { findAll: (q: { type: string }) => Promise<{ text: string; props: Record<string, unknown> }[]> }, text: string) =>
@@ -115,12 +122,21 @@ describe('usage-band', () => {
       // Two blank cells kept at the left of the band's 140, one at the right.
       expect([...runway]).toHaveLength(137 - tail.length)
       expect(runway.match(/━/g)?.length).toBe(Math.round(0.68 * (137 - tail.length)))
-      expect((await ui.drawn()) as unknown).toMatchObject({ props: { paddingLeft: 2, paddingRight: 1 } })
+      expect((await own(ui)) as unknown).toMatchObject({ props: { paddingLeft: 2, paddingRight: 1 } })
       expect((await ui.findAll({ type: 'Text' })).find(t => t.text === '━')?.props.color).toBe('#56b6c2')
       expect((await propsOf(ui, 'opus 5.5'))?.color).toBe('claude')
       expect((await propsOf(ui, ' 68%'))?.color).toBe('green')
     })
   }
+
+  test('another band stays above the two rows, which keep next to the prompt', async ($, on) => {
+    const beneath: RenderElement = { type: 'Text', props: {}, children: ['thegraph #42'] }
+    await start($, on, usage(30, 10, 5), { burn: 10, today: 5, argv: [], beneath })
+    const ui = await mount($)
+    const tree = (await ui.drawn()) as { children: unknown[] }
+    expect(tree.children.map(flat)[0]).toBe('thegraph #42')
+    expect((await rows(ui))[0]?.startsWith('opus 5.5')).toBe(true)
+  })
 
   test('%/h is the last hour’s rise once there is 15 minutes of history', async ($, on) => {
     const clock = await start($, on, usage(20, 10, 5), { burn: 10, today: 5, argv: [] })
