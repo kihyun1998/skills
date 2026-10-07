@@ -43,6 +43,7 @@ cite it.
 | [0076](0076-a-comment-says-what-the-code-is.md) | A comment says what the code is, and the evidence for that lives here — `decant`'s measurements move out of the skill, which kept a policy against exactly that shape |
 | [0077](0077-an-always-loaded-document-keeps-its-rules-and-history-leaves.md) | An always-loaded document keeps its rules, and the history leaves — `winnow` is the procedure, cut from a `CLAUDE.md` that went 933 → 234 lines and whose detail docs went 721 → 417 once dates and stories were dropped. History is asked last so a decision-bearing number survives |
 | [0078](0078-work-skills-move-to-their-own-repo.md) | Work skills move to their own repo — `nit`, `unregistered-archives`, the three paste-file retirees and their records leave for `kihyun-work-skills`, history preserved, numbers kept |
+| [0079](0079-in-a-repository-you-contribute-to-its-conventions-win.md) | In a repository you contribute to, its conventions win and setup leaves no trace — `grill-the-graph`'s contributor mode commits nothing, defers comments to upstream guidance read every run (0076 included), and a hook blocks Claude attribution on the way out |
 
 ### `gate` — the Acceptance Gate
 

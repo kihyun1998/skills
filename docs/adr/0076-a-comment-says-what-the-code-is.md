@@ -2,6 +2,11 @@
 
 **Status:** accepted.
 
+> **Scoped by [ADR-0079](0079-in-a-repository-you-contribute-to-its-conventions-win.md).**
+> In a repository the maintainer contributes to rather than owns, that
+> repository's guidance and merged PRs govern comments, this rule's first
+> sentence included.
+
 `decant` applies one policy to source comments: **a comment says what this code
 is**, and the why, the deliberate absence, the trap, the measured value and the
 history belong to the repo's map, to version control, or to nothing. The skill

@@ -169,6 +169,15 @@ there is no rebuild and no stamp.
 _Avoid_: bindings (the input format of the retired `theflow`, gone since
 ADR-0067), config, compiled graph (there is no graph)
 
+**Contributor mode** (grill-the-graph):
+Setting a repository up for `thegraph` when its conventions are not the
+maintainer's: the repository that receives the PRs is someone else's, and its own
+guidance and merged PRs govern how code and comments are written. Setup commits
+nothing there. The other case — the maintainer's own repository — has no name; it
+is the default.
+_Avoid_: fork mode (a fork is how the change travels, not what decides the mode),
+read-only mode
+
 **Issue contract** (thegraph):
 What one **issue** is expected to supply before work starts, as against what a
 **Build** supplies about the repository. The split is the scope of the answer: the
