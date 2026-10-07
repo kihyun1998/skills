@@ -13,7 +13,9 @@ and it is very nearly the whole of it.
 It writes that file, one rule in `CLAUDE.md`, and — where the repo has no map —
 the map's folder and a one-line hub (§3). In a repository you contribute to
 rather than own, it writes the same file and a rule locally, plus an attribution
-check, and commits nothing (*Contributor mode*). It touches nothing else.
+check, and commits nothing (*Contributor mode*). In your own repository it asks
+whether Claude attribution stays, and installs the same check where it does not.
+It touches nothing else.
 
 ## What the build is
 
@@ -103,7 +105,7 @@ holds the reasons, including why the rule below overrides
 | Build file | `docs/agents/thegraph.md` | same path, listed in `.git/info/exclude` |
 | Comment rule | `CLAUDE.md`, from §3's table | `CLAUDE.local.md`, listed in `.git/info/exclude`, the text below |
 | Map | §3 makes its folder | none, and the closing report does not name `grill-map` |
-| Attribution | unchanged | `.claude/settings.local.json` and `.git/hooks/pre-push`, below |
+| Attribution | kept, unless the maintainer turns it off at §4 | always off: `.claude/settings.local.json` and `.git/hooks/pre-push`, below |
 
 The build file keeps its path, so `read-it` and `check-it` find it unchanged. One
 clone is assumed: untracked files, `CLAUDE.local.md` included, do not follow
@@ -118,8 +120,10 @@ misses:
 > `docs/`, and the closest merged PR touching the same file, and do what they
 > do — where the why goes included. Read them again on every run; they change.
 
-**Attribution.** Three pieces, because no one of them sees everything that
-leaves. The two hooks run `scripts/no-attribution.mjs`, and
+**Attribution.** Installed in every contributor clone, and in a repository of
+the maintainer's own where §4's answer turns it off — the same pieces, local
+either way, so nothing is imposed on anyone else working there. Three pieces,
+because no one of them sees everything that leaves. The two hooks run `scripts/no-attribution.mjs`, and
 `scripts/attribution-check.mjs` beside it is the one copy of what is looked for;
 nothing written into the clone holds a copy.
 
@@ -264,10 +268,17 @@ is also why it would fail the three conditions if it were written down.
 
 ### 4. Ask
 
-**One question, and recommend an answer.** The compiled draft *is* the
-recommendation — the maintainer confirms or corrects it. Ask it with the tool
-that renders a question; a list printed with *"confirm or correct"* underneath is
-a question nobody was put.
+**One question, and recommend an answer — two in the maintainer's own
+repository.** The compiled draft *is* the recommendation — the maintainer
+confirms or corrects it. Ask them together with the tool that renders a question;
+a list printed with *"confirm or correct"* underneath is a question nobody was
+put.
+
+**Claude attribution**, own repository only: keep it, the default, or turn it
+off, which installs *Contributor mode*'s Attribution pieces. Recommend from what
+can be seen — a per-project memory asking for no Claude trailer, or a history
+whose commits carry none, recommends off; a history that carries them recommends
+keep. A contributor clone is never asked: there it is always off.
 
 For the reference table, propose the sources you can see evidence for — an
 upstream named in `CLAUDE.md`, a peer repo already installed, a dependency whose
@@ -283,8 +294,11 @@ Show the mode and what decided it, the file, the `CLAUDE.md` rule, and — where
 makes one — the map folder's path and hub stub. In contributor mode show instead
 the `CLAUDE.local.md` rule, the two `.git/info/exclude` lines, the settings
 block with the `<run>` row it chose, and the `pre-push` hook or why none was
-written. Get approval. Write them. In contributor mode, end by running
-`git status --short`: it must print nothing. They are short enough to read whole,
+written. In your own repository with attribution turned off, show those last two
+as well. Get approval. Write them. In contributor mode, end by running
+`git status --short`: it must print nothing. Where a per-project memory asked
+for no Claude trailer and the pieces are now installed, name it in the closing
+report as redundant; removing it is the maintainer's call. They are short enough to read whole,
 so there is nothing to summarise and no reason to write before they have been
 read.
 
