@@ -97,6 +97,21 @@ export const stateOf = (run: Run, key: string): StepState => {
   return run.isWaiting || key === CONFIRM || key === DECIDE ? 'wait' : 'run'
 }
 
+/**
+ * The step the line names: the one running or waiting, else the next one to do;
+ * null once the run is done. `index` is its place in the plan, from 0.
+ */
+export const focusOf = (run: Run): { key: string; index: number; state: StepState } | null => {
+  if (run.doneAt !== null) return null
+  const keys = plan(run.route)
+  const states = keys.map(key => stateOf(run, key))
+  const at = states.findIndex(s => s === 'run' || s === 'wait')
+  const index = at >= 0 ? at : states.indexOf('todo')
+  const key = keys[index]
+  const state = states[index]
+  return key === undefined || state === undefined ? null : { key, index, state }
+}
+
 /** A step's name as drawn: a step that waits on the person says so. */
 export const stepLabel = (key: string, state: StepState): string => (state === 'wait' ? `${key} 대기` : key)
 

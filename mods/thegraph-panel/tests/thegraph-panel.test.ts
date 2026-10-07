@@ -70,24 +70,28 @@ describe('thegraph-panel', () => {
     await say($, '/thegraph #42 band redraw')
     await skill($, 'thegraph')
     await skill($, 'read-it')
-    expect(flat(await ui.drawn())).toContain('thegraph #42 band redraw   ◉ read-it › 확인 › make-it')
+    expect(flat(await ui.drawn())).toContain('thegraph #42 band redraw  ◉○○○○  read-it 1/5 · <1m')
 
     await clock.advance(3 * MIN)
     await endTurn($)
-    expect(flat(await ui.drawn())).toContain('✓ read-it › ◆ 확인 대기 › make-it')
+    expect(flat(await ui.drawn())).toContain('●◆○○○  확인 대기')
 
     // A slash command while it waits is not the answer.
     await say($, '/context')
-    expect(flat(await ui.drawn())).toContain('◆ 확인 대기')
+    expect(flat(await ui.drawn())).toContain('●◆○○○  확인 대기')
     await say($, '맞아, 진행해')
+    // Answered, and nothing begun yet: the line names what comes next.
+    expect(flat(await ui.drawn())).toContain('●●○○○  다음 make-it 3/5')
     await skill($, 'make-it')
     await skill($, 'redden')
     await skill($, 'redden')
     const text = flat(await ui.drawn())
-    expect(text).toContain('✓ read-it › ✓ 확인 › ◉ make-it › check-it › ask-it')
-    expect(text).toContain('⚑ redden×2')
+    expect(text).toContain('●●◉○○  make-it 3/5 · <1m   ⚑ redden×2')
     // Its line sits over the band beneath, which still draws.
     expect(text.endsWith('BELOW')).toBe(true)
+    // The clock's tick redraws the step's minutes while nothing else happens.
+    await clock.advance(12 * MIN)
+    expect(flat(await ui.drawn())).toContain('make-it 3/5 · 12m')
   })
 
   test('the band carries a button that opens and closes the checklist pane', async ($, on) => {
@@ -132,9 +136,9 @@ describe('thegraph-panel', () => {
     await skill($, 'check-it')
     await skill($, 'ask-it')
     await endTurn($)
-    expect(flat(await ui.drawn())).toContain('◆ ask-it 대기')
+    expect(flat(await ui.drawn())).toContain('●●●●◆  ask-it 대기')
     await say($, '1번만 이슈로')
-    expect(flat(await ui.drawn())).toContain('끝')
+    expect(flat(await ui.drawn())).toContain('●●●●●  끝 · ')
     await say($, '다음 거 하자')
     expect(flat(await ui.drawn())).toBe('BELOW')
   })
@@ -165,7 +169,7 @@ describe('thegraph-panel', () => {
     await say($, '진행')
     for (const s of ['make-it', 'check-it', 'lens', 'boundary']) await skill($, s)
     const text = flat(await ui.drawn())
-    expect(text).toContain('✓ make-it › ◉ check-it › ask-it')
+    expect(text).toContain('●●●◉○  check-it 4/5')
     expect(text).toContain('⚑ boundary')
     const pane = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS })
     expect(flat(await pane.drawn())).toContain('route  prose/code')
@@ -212,8 +216,11 @@ describe('thegraph-panel', () => {
         props: BAND,
         viewport: { columns: 145, rows: 40, isFullscreen },
       })
-    expect(flat(await (await at(false)).drawn())).toContain('[ ▸ 패널 ] [ × ] ctrl+x tab → g 패널 · x 치우기')
-    expect(flat(await (await at(true)).drawn())).not.toContain('ctrl+x tab')
+    expect(flat(await (await at(false)).drawn())).toContain('[ ▸ 패널 ] [ × ] ^x⇥ g·x')
+    expect(flat(await (await at(true)).drawn())).not.toContain('^x⇥')
+    // The buttons sit at the right edge, lined up with the band beneath.
+    const boxes = await (await at(true)).findAll({ type: 'Box' })
+    expect(boxes.some(b => b.props.justifyContent === 'space-between' && b.props.paddingRight === 1)).toBe(true)
   })
 })
 

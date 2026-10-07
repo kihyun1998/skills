@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import { labelOf, minutes, onAnswer, onSkill, onTurnEnd, plan, routeName, signalSummary, startRun, stateOf, stepLabel, stepMs } from './run'
+import { focusOf, labelOf, minutes, onAnswer, onSkill, onTurnEnd, plan, routeName, signalSummary, startRun, stateOf, stepLabel, stepMs } from './run'
 import type { StepState } from './run'
 
 const run = atom({ plugin: 'thegraph-panel', key: 'run' } as const, null)
@@ -9,12 +9,15 @@ const isPaneOpen = atom({ plugin: 'thegraph-panel', key: 'isPaneOpen' } as const
 const now = atom({ plugin: 'thegraph-panel', key: 'now' } as const, 0)
 
 const PANE = 'thegraph'
-/** Blank cells at the line's left, as usage-band keeps, so both line up under the turn line. */
+/** Blank cells at the line's left and right, as usage-band keeps, so both share their edges. */
 const LEFT = 2
+const RIGHT = 1
 /** A running step's minutes redraw this often while nothing else happens. */
 const TICK_MS = 30_000
 
 const MARK: Record<StepState, string> = { done: '✓', run: '◉', wait: '◆', todo: '' }
+/** The line's dot per step. */
+const DOT: Record<StepState, string> = { done: '●', run: '◉', wait: '◆', todo: '○' }
 const COLOR: Record<StepState, string | undefined> = { done: 'success', run: 'claude', wait: 'warning', todo: undefined }
 /** The step being worked on, or waited on, is drawn bold. */
 const LOUD: Record<StepState, boolean> = { done: false, run: true, wait: true, todo: false }
@@ -109,7 +112,8 @@ export const register: Register = on => {
     return next(e)
   }).catch(($, e, next) => next(e))
 
-  // One line over whatever the other bands draw: the steps, the signals, the pane's button.
+  // One line over whatever the other bands draw: a dot per step, the step at hand, the signals,
+  // and at the right edge, lined up with the band's beneath, the pane's button and ×.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const below = await next(e)
     const r = await read($, run)
@@ -117,40 +121,55 @@ export const register: Register = on => {
 
     const isOpen = await read($, isPaneOpen)
     const { Box, Button, Text } = $.ui.resolve(e)
+    const t = Math.max(await read($, now), r.startedAt)
     const keys = plan(r.route)
-    const steps = keys.map((key, i) => {
+    const dots = keys.map(key => {
       const s = stateOf(r, key)
-      const name = stepLabel(key, s)
-      return (
+      return <Text bold={LOUD[s]} color={COLOR[s]} dimColor={s === 'todo'}>{DOT[s]}</Text>
+    })
+    const focus = focusOf(r)
+    const ms = focus === null ? null : stepMs(r, focus.key, t)
+    const at =
+      focus === null ? (
         <Text>
-          {i > 0 && <Text dimColor> › </Text>}
-          <Text bold={LOUD[s]} color={COLOR[s]} dimColor={s === 'todo'}>
-            {s === 'todo' ? name : `${MARK[s]} ${name}`}
+          <Text bold color="success">끝</Text>
+          <Text dimColor>{` · ${minutes((r.doneAt ?? t) - r.startedAt)}`}</Text>
+        </Text>
+      ) : focus.state === 'todo' ? (
+        <Text dimColor>{`다음 ${focus.key} ${focus.index + 1}/${keys.length}`}</Text>
+      ) : (
+        <Text>
+          <Text bold color={COLOR[focus.state]}>{stepLabel(focus.key, focus.state)}</Text>
+          <Text dimColor>
+            {focus.state === 'run' ? ` ${focus.index + 1}/${keys.length}` : ''}
+            {ms === null ? '' : ` · ${minutes(ms)}`}
           </Text>
         </Text>
       )
-    })
     const signals = signalSummary(r)
     const line = (
-      <Box flexDirection="row" paddingLeft={LEFT}>
+      <Box flexDirection="row" justifyContent="space-between" paddingLeft={LEFT} paddingRight={RIGHT}>
         <Text wrap="truncate-end">
           <Text bold>thegraph</Text>
           {r.label !== null && <Text dimColor>{` ${r.label}`}</Text>}
-          <Text>{'   '}</Text>
-          {steps}
-          {r.doneAt !== null && <Text bold color="success">{`  끝 ${minutes(r.doneAt - r.startedAt)}`}</Text>}
-          {signals !== '' && <Text color="magenta">{`   ⚑ ${signals}`}</Text>}
           <Text>{'  '}</Text>
+          {dots}
+          <Text>{'  '}</Text>
+          {at}
+          {signals !== '' && <Text color="magenta">{`   ⚑ ${signals}`}</Text>}
         </Text>
-        <Button key="pane" variant="primary" hotkey="g" onPress={() => togglePane($)}>
-          {isOpen ? '▾ 패널 닫기' : '▸ 패널'}
-        </Button>
-        <Text> </Text>
-        <Button key="dismiss" role="dismiss" hotkey="x" dimColor onPress={() => dismiss($)}>
-          ×
-        </Button>
-        {/* The main screen reports no clicks: say which keys press them there. */}
-        {e.viewport?.isFullscreen === false && <Text dimColor> ctrl+x tab → g 패널 · x 치우기</Text>}
+        <Box flexDirection="row" flexShrink={0}>
+          <Text>{'  '}</Text>
+          <Button key="pane" variant="primary" hotkey="g" onPress={() => togglePane($)}>
+            {isOpen ? '▾ 패널 닫기' : '▸ 패널'}
+          </Button>
+          <Text> </Text>
+          <Button key="dismiss" role="dismiss" hotkey="x" dimColor onPress={() => dismiss($)}>
+            ×
+          </Button>
+          {/* The main screen reports no clicks: name the keys that press them there (ctrl+x tab focuses the band). */}
+          {e.viewport?.isFullscreen === false && <Text dimColor> ^x⇥ g·x</Text>}
+        </Box>
       </Box>
     )
     return (
