@@ -4,6 +4,6 @@
   "author": {
     "name": "Ki Hyun Park"
   },
-  "description": "One line above the prompt: model, effort, context and rate limits as pies, a burn-rate dial with its trend, and today's cost.",
+  "description": "Two rows above the prompt: model, effort, how fast the 5-hour limit is going (%/h) and today's cost, over a context runway with the rate limits.",
   "types": "./types/index.d.ts"
 }

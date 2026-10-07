@@ -20,16 +20,17 @@ export type Ledger = {
   today: number | null
 }
 
+/** One reading of the 5-hour window: when it was taken, and how much was used. */
+export type FiveSample = { at: number; percentUsed: number }
+
 declare module 'claude-code' {
   interface PluginState {
     'usage-band': {
       live: Live | null
       effort: string | null
       ledger: Ledger | null
-      /** Burn-rate readings, oldest first, the last 60 kept: what "unusually high" is measured against. */
-      burns: number[]
-      /** The burn-rate dial's frame, 0 to 3: one quarter turn per tick. */
-      spin: number
+      /** The current 5-hour window's readings, oldest first: what %/h is measured from. */
+      fiveSamples: FiveSample[]
     }
   }
 }

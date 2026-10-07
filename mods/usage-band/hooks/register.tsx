@@ -3,33 +3,37 @@ import type { EngineInterface, Register, SessionMeasureInput, SessionUsage } fro
 
 import type { Live } from '../types'
 import {
+  FIGURE_COLOR,
   TODAY_LOUD_USD,
   contextUsed,
-  DIAL,
-  FIGURE_COLOR,
-  dialDelayMs,
   effortColor,
-  isBurnHot,
+  effortFromSettings,
+  fiveHourRate,
   isLoud,
   isTodayUnpriced,
   levelOf,
   modelLabel,
   parseBurn,
-  pieFigure,
   parseToday,
+  pieFigure,
+  rateLevel,
+  recordFive,
   resetIn,
+  runwayColor,
   sinceArg,
-  trendOf,
   usd,
 } from './format'
 
 const live = atom({ plugin: 'usage-band', key: 'live' } as const, null)
 const effort = atom({ plugin: 'usage-band', key: 'effort' } as const, null)
 const ledger = atom({ plugin: 'usage-band', key: 'ledger' } as const, null)
-const burns = atom({ plugin: 'usage-band', key: 'burns' } as const, [])
-const spin = atom({ plugin: 'usage-band', key: 'spin' } as const, 0)
+const fiveSamples = atom({ plugin: 'usage-band', key: 'fiveSamples' } as const, [])
 
-/** How often ccusage is asked between turns. */
+/** Blank cells at the band's left, so its text lines up with the turn line's after `✻ `; and at its right. */
+const LEFT = 2
+const RIGHT = 1
+
+/** How often ccusage is asked between turns; each answer also redraws, so %/h decays while idle. */
 const LEDGER_MS = 120_000
 /** A turn's measurement asks again only once this long has passed since the last ask. */
 const LEDGER_GAP_MS = 30_000
@@ -54,10 +58,22 @@ const toLive = (model: string, u: Figures): Live => ({
   usd: u.cost?.usd ?? null,
 })
 
+const fiveOf = (l: Live | null) => l?.rateLimits.find(r => r.kind === 'five_hour')
+
+// Takes a reading, and adds the 5-hour window's to its history for %/h.
 const refreshLive = async ($: EngineInterface, figures?: Figures) => {
   const model = await $.session.model()
   const u = figures ?? (await $.session.usage())
-  await update($, live, () => toLive(model, u))
+  const next = toLive(model, u)
+  const previous = fiveOf(await read($, live))
+  const five = fiveOf(next)
+  if (five) {
+    const now = await $.clock.now()
+    await update($, fiveSamples, samples =>
+      recordFive(samples, five.percentUsed, five.resetsAt, previous?.resetsAt ?? five.resetsAt, now),
+    )
+  }
+  await update($, live, () => next)
 }
 
 // Module state: a reload starts these over, which costs one extra ccusage run.
@@ -89,9 +105,9 @@ const parsed = <T,>(stdout: string | null, parse: (s: string) => T): T | null =>
   }
 }
 
-const askLedger = async ($: EngineInterface) => {
+const askLedger = async ($: EngineInterface, isForced = false) => {
   const now = await $.clock.now()
-  if (isAsking || now - lastAsk < LEDGER_GAP_MS) return
+  if (isAsking || (!isForced && now - lastAsk < LEDGER_GAP_MS)) return
   isAsking = true
   lastAsk = now
   try {
@@ -99,35 +115,45 @@ const askLedger = async ($: EngineInterface) => {
       ccusage($, ['blocks', '--active', '--json', '--offline']),
       ccusage($, ['daily', '--json', '--offline', '--since', sinceArg(now)]),
     ])
-    const burn = parsed(blocks, parseBurn)
-    await update($, ledger, () => ({ burnPerHour: burn, today: parsed(daily, parseToday) }))
-    if (burn !== null) {
-      await update($, burns, prev => [...prev, burn].slice(-60))
-    }
+    await update($, ledger, () => ({ burnPerHour: parsed(blocks, parseBurn), today: parsed(daily, parseToday) }))
   } finally {
     isAsking = false
   }
 }
 
-// Turns the dial a quarter and schedules the next turn at the current burn rate's pace.
-const turnDial = async ($: EngineInterface) => {
-  const burn = (await read($, ledger))?.burnPerHour ?? 0
-  if (burn > 0) {
-    await update($, spin, frame => (frame + 1) % DIAL.length)
-  }
-  $.clock.after(burn > 0 ? dialDelayMs(burn) : 2000, () => void turnDial($))
+// Until the first request says what effort it was sent with, show what settings name.
+const seedEffort = async ($: EngineInterface) => {
+  if ((await read($, effort)) !== null) return
+  const l = await read($, live)
+  if (l === null) return
+  const fromSettings = effortFromSettings(await $.settings.read(), l.model)
+  if (fromSettings !== null) await update($, effort, () => fromSettings)
+}
+
+// Everything the band shows, read again: at start, and after /clear, /resume or /branch
+// reset $.state, which session.start does not follow.
+const fill = async ($: EngineInterface, isForced: boolean) => {
+  await refreshLive($)
+  await seedEffort($)
+  await askLedger($, isForced)
 }
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const result = await next(e)
     await refreshLive($)
+    await seedEffort($)
     // Off the start's path: ccusage takes about a second and the first prompt need not wait.
     $.clock.after(0, () => void askLedger($))
     $.clock.every(LEDGER_MS, () => void askLedger($))
-    $.clock.after(0, () => void turnDial($))
     return result
   })
+
+  on('classic.SessionStart', { source: ['clear', 'resume', 'fork'] }, async ($, e, next) => {
+    const result = await next(e)
+    await fill($, true)
+    return result
+  }).catch(($, e, next) => next(e))
 
   on('session.measure', async ($, e, next) => {
     const result = await next(e)
@@ -152,6 +178,7 @@ export const register: Register = on => {
     return yield* next(e)
   })
 
+  // Two rows: who and how fast on top, then the context runway with the limits after it.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const l = await read($, live)
     if (e.props.hasSurvey || l === null) {
@@ -160,76 +187,76 @@ export const register: Register = on => {
 
     const eff = await read($, effort)
     const led = await read($, ledger)
-    const readings = await read($, burns)
+    const samples = await read($, fiveSamples)
     const now = await $.clock.now()
-    const { Text } = $.ui.resolve(e)
+    const { Box, Text } = $.ui.resolve(e)
+    const gap = <Text>{'   '}</Text>
 
-    // Labels dim, values in their own color; past 80% a value takes the theme's warning or error.
-    const figure = (label: string, used: number, value: string, color: string, tail = '') => (
-      <Text>
-        <Text dimColor>{label} </Text>
-        <Text color={isLoud(used) ? levelOf(used) : color}>{value}</Text>
-        {tail !== '' && <Text dimColor>{tail}</Text>}
+    // Top row: model and effort, %/h of the 5-hour limit (or $/h without one), today.
+    const five = fiveOf(l)
+    const rate = five ? fiveHourRate(samples, five.percentUsed, five.resetsAt, now) : null
+    const pace =
+      five && rate !== null ? (
+        <Text>
+          <Text bold color={rateLevel(rate, five.percentUsed, five.resetsAt, now)}>{`+${Math.round(rate)}%/h`}</Text>
+          {led?.burnPerHour != null && <Text dimColor>{` ${usd(led.burnPerHour)}/h`}</Text>}
+        </Text>
+      ) : led?.burnPerHour != null ? (
+        <Text bold color={FIGURE_COLOR.burn}>{`${usd(led.burnPerHour)}/h`}</Text>
+      ) : null
+    const today =
+      led?.today == null ? null : isTodayUnpriced(led, l) ? (
+        <Text color="warning">today $0 · model not priced in ccusage</Text>
+      ) : (
+        <Text>
+          <Text dimColor>today </Text>
+          <Text bold={led.today >= TODAY_LOUD_USD} color={FIGURE_COLOR.today}>{usd(led.today)}</Text>
+        </Text>
+      )
+    const top = (
+      <Text wrap="truncate-end">
+        <Text bold color={FIGURE_COLOR.model}>{modelLabel(l.model)}</Text>
+        {eff !== null && <Text bold color={effortColor(eff)}>{` ${eff}`}</Text>}
+        {pace && gap}
+        {pace}
+        {today && gap}
+        {today}
       </Text>
     )
 
-    const parts: JSX.Element[] = [
-      <Text>
-        <Text bold color={FIGURE_COLOR.model}>{modelLabel(l.model)}</Text>
-        {eff !== null && <Text bold color={effortColor(eff)}> {eff}</Text>}
-      </Text>,
-    ]
-
+    // Bottom row: the runway fills with context, then the figures it leaves room for.
     const ctx = contextUsed(l.context)
-    parts.push(figure('context', ctx, pieFigure(ctx), FIGURE_COLOR.context))
-
-    const five = l.rateLimits.find(r => r.kind === 'five_hour')
-    if (five) {
-      const reset = isLoud(five.percentUsed) ? resetIn(five.resetsAt, now) : null
-      parts.push(figure('5h', five.percentUsed, pieFigure(five.percentUsed), FIGURE_COLOR.fiveHour, reset ? ` · resets ${reset}` : ''))
-    }
-
     const seven = l.rateLimits.find(r => r.kind === 'seven_day')
-    if (seven) {
-      parts.push(figure('week', seven.percentUsed, pieFigure(seven.percentUsed), FIGURE_COLOR.week))
+    const fiveReset = five && isLoud(five.percentUsed) ? resetIn(five.resetsAt, now) : null
+    const tailText = [
+      ` ${ctx}% ctx`,
+      five ? `   5h ${pieFigure(five.percentUsed)}${fiveReset ? ` · resets ${fiveReset}` : ''}` : '',
+      seven ? `  wk ${pieFigure(seven.percentUsed)}` : '',
+    ].join('')
+    const width = Math.max(10, e.props.bodyColumns - LEFT - RIGHT - [...tailText].length)
+    const filled = Math.round((ctx / 100) * width)
+    const cells: JSX.Element[] = []
+    for (let i = 0; i < width; i++) {
+      cells.push(i < filled ? <Text color={runwayColor(i, width)}>━</Text> : <Text dimColor>─</Text>)
     }
+    const bottom = (
+      <Text wrap="truncate-end">
+        {cells}
+        <Text bold color={isLoud(ctx) ? levelOf(ctx) : FIGURE_COLOR.context}>{` ${ctx}%`}</Text>
+        <Text dimColor> ctx</Text>
+        {five && <Text dimColor>{'   5h '}</Text>}
+        {five && <Text bold color={isLoud(five.percentUsed) ? levelOf(five.percentUsed) : FIGURE_COLOR.fiveHour}>{pieFigure(five.percentUsed)}</Text>}
+        {fiveReset && <Text dimColor>{` · resets ${fiveReset}`}</Text>}
+        {seven && <Text dimColor>{'  wk '}</Text>}
+        {seven && <Text bold color={isLoud(seven.percentUsed) ? levelOf(seven.percentUsed) : FIGURE_COLOR.week}>{pieFigure(seven.percentUsed)}</Text>}
+      </Text>
+    )
 
-    if (led?.burnPerHour != null) {
-      const rate = isBurnHot(led.burnPerHour, readings) ? 'error' : FIGURE_COLOR.burn
-      const frame = await read($, spin)
-      const trend = trendOf(readings)
-      parts.push(
-        <Text>
-          <Text bold color={rate}>{DIAL[frame % DIAL.length]}</Text>
-          <Text color={rate}>{` ${usd(led.burnPerHour)}/h`}</Text>
-          {trend && (
-            <Text bold color={trend.tone === 'up' ? 'redBright' : trend.tone === 'down' ? 'green' : undefined} dimColor={trend.tone === 'flat'}>
-              {` ${trend.arrow}`}
-            </Text>
-          )}
-        </Text>,
-      )
-    }
-
-    if (led?.today != null) {
-      parts.push(
-        isTodayUnpriced(led, l) ? (
-          <Text color="warning">today $0 · model not priced in ccusage</Text>
-        ) : (
-          <Text>
-            <Text dimColor>today </Text>
-            <Text bold={led.today >= TODAY_LOUD_USD} color={FIGURE_COLOR.today}>{usd(led.today)}</Text>
-          </Text>
-        ),
-      )
-    }
-
-    const line: JSX.Element[] = []
-    parts.forEach((p, i) => {
-      if (i > 0) line.push(<Text dimColor>{'  ·  '}</Text>)
-      line.push(p)
-    })
-
-    return <Text wrap="truncate-end">{line}</Text>
+    return (
+      <Box flexDirection="column" paddingLeft={LEFT} paddingRight={RIGHT}>
+        {top}
+        {bottom}
+      </Box>
+    )
   })
 }

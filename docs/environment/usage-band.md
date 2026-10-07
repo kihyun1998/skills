@@ -24,36 +24,64 @@ through `/reload-plugins`. It was first loaded through `CLAUDE_CODE_PLUGIN_DIRS`
 instead; that is gone, because with both a mod loads twice, and the install
 script warns if the variable still names a mod.
 
-## What the line shows
+## What the band shows
 
 ```
-opus 5.5 high  ·  context ◕ 68%  ·  5h ◑ 41%  ·  week ◔ 18%  ·  ◜ $83.67/h ↗  ·  today $59.40
+opus 5.5 medium   +18%/h $80.97/h   today $80.72
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━──────────────────────────────── 47% ctx   5h ◔ 22%  wk ◔ 27%
 ```
 
-Labels are dim; each value has its own color. Colors are ANSI names (`green`,
-`cyan`, …) so the terminal paints them from its own theme, except the model,
-which uses the Claude Code theme key `claude`. Past a threshold a value takes
-the theme's `warning` or `error` instead:
+Two rows. The top says who is working and how fast; the bottom is a runway that
+fills with context across the band's width, the limits after it. Labels are dim
+and each value has its own color: ANSI names (`green`, `cyan`, …) the terminal
+paints from its own theme, the model the Claude Code theme key `claude`. Past 80%
+a figure takes the theme's `warning` or `error` instead.
 
-| Figure | Source | Color | Loud when |
-|---|---|---|---|
-| model, effort | `$.session.model()`; the `effort` of each main-thread `turn.step` | `claude`; effort by level | — |
-| context, 5h, week | `$.session.usage()` and `session.measure` | green, cyan, blueBright | 80% (warning), 90% (error); 5h adds its reset time |
-| `$/h` | `ccusage blocks --active --json --offline` → `burnRate.costPerHour` | yellow | above 1.5× the average of the readings so far (error) |
-| today | `ccusage daily --json --offline --since <yesterday UTC>` → last day's `totalCost` | magenta | bold at $100 or more |
+| Figure | Source | Loud when |
+|---|---|---|
+| model, effort | `$.session.model()`; the `effort` of each main-thread `turn.step` | effort is always colored by level |
+| `%/h` | the 5-hour window's readings (below) | error when this pace reaches the limit before the reset, warning past 80% of that pace |
+| `$/h` | `ccusage blocks --active --json --offline` → `burnRate.costPerHour` | dim beside `%/h`; it stands in, in yellow, where there is no 5-hour limit (an API key) |
+| today | `ccusage daily --json --offline --since <yesterday UTC>` → last day's `totalCost` | bold at $100 or more |
+| runway, ctx | `context.percent` | the runway's cells run teal → green → amber → red, hex colors that do not follow the theme; the number is loud past 80% |
+| 5h, wk | `rateLimits` `five_hour`, `seven_day` | 80% (warning), 90% (error); 5h adds its reset time |
 
-Each percentage leads with a pie that steps by quarters (`○ ◔ ◑ ◕ ●`), so the
-fill reads at a glance and the number gives the exact value.
+### %/h
 
-The burn rate leads with a dial that turns a quarter per tick, one turn a second
-at $80/h — faster as the money goes, held between 8 frames a second and one
-every 2 s. Each tick redraws the band once. The arrow after it compares the last
-reading with the one before: `↑` past +15%, `↗` past +3%, `→` within ±3%, and
-mirrored down. The dial is drawn in open arcs (`◜◝◞◟`), not half discs: `◑` is
-also the 50% pie, and the two side by side read as the same thing.
+`$/h` is what the session would cost on the API, which says nothing about
+whether a subscription is about to run out. `%/h` is how fast the 5-hour limit
+is going: the rise over the last hour, measured to now, so it falls while the
+session sits idle. With under 15 minutes of history — a new session, a new
+window, after `/clear` — it is the window's average so far (percent used over
+the time since `resetsAt − 5h`), which needs no history. The readings live in
+`$.state` and start over when the window does.
+
+The verdict compares the pace with what the remaining hours allow,
+`(100 − used) ÷ hours to reset`: above it, the limit comes first.
 
 Effort is the value the request is **sent** with, after any downgrade for the
-model. It changes on the next request after `/effort`, not at the command.
+model. It changes on the next request after `/effort`, not at the command. Before
+the session's first request it shows what settings name:
+`modelSettings[<model>].effortLevel`, else `effortLevel`.
+
+`/clear`, `/resume` and `/branch` reset every `$.state` value and do not fire
+`session.start` again, so the mod fills the band again on `classic.SessionStart`
+with those sources — ccusage too, past its 30 s gap. Without that the band went
+blank until the next turn ended.
+
+## Where it draws, and where it cannot
+
+The band sits above the prompt with a blank row under it. That row is the
+prompt's own margin, not the band's: no public mod removes it, and a negative
+margin on the band made Claude Code draw nothing there. The two other places
+tried on 2026-10-07:
+
+- `PromptHint`, stacking the line over `await next(e)`: it lands under the
+  permission-mode line (`bypass permissions on …`), which is drawn apart from
+  the hint line.
+- `$.ui.status`: it lands between the prompt and the permission-mode line, where
+  the ccusage statusline was, but it takes plain text, prints ANSI color codes
+  literally, and prefixes the line with `⚠ usage-band:`.
 
 ## Why ccusage is still installed
 

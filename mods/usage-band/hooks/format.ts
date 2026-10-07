@@ -1,4 +1,4 @@
-import type { Ledger, Live } from '../types'
+import type { FiveSample, Ledger, Live } from '../types'
 
 export type Level = 'success' | 'warning' | 'error'
 
@@ -62,36 +62,16 @@ export const resetIn = (resetsAt: string | null, now: number): string | null => 
   return `${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, '0')}m`
 }
 
-/** A burn rate is loud once it runs past 1.5x the average of the readings so far. */
-export const isBurnHot = (burn: number, readings: readonly number[]): boolean => {
-  if (readings.length < 3) return false
-  const avg = readings.reduce((a, b) => a + b, 0) / readings.length
-  return avg > 0 && burn > avg * 1.5
-}
-
-/** The dial's four frames, a quarter turn each: open arcs, so no frame reads as one of the pies. */
-export const DIAL = ['◜', '◝', '◞', '◟'] as const
-
 /**
- * How long the dial waits between quarter turns: one turn a second at $80/h,
- * as fast as the money goes, held between 8 frames a second and one every 2 s.
+ * The effort settings name for a model, before any request has said what it was sent
+ * with: `modelSettings[<model>].effortLevel`, else `effortLevel`. The model id's
+ * trailing `[1m]` and the like are not part of the settings key.
  */
-export const dialDelayMs = (burnPerHour: number): number =>
-  Math.max(125, Math.min(2000, 20_000 / burnPerHour))
-
-export type Trend = { arrow: string; tone: 'up' | 'down' | 'flat'; change: number }
-
-/** The last burn reading against the one before it: ↑ past +15%, ↗ past +3%, mirrored down. */
-export const trendOf = (readings: readonly number[]): Trend | null => {
-  const last = readings.at(-1)
-  const prev = readings.at(-2)
-  if (last === undefined || prev === undefined || prev <= 0) return null
-  const change = (last - prev) / prev
-  if (change > 0.15) return { arrow: '↑', tone: 'up', change }
-  if (change > 0.03) return { arrow: '↗', tone: 'up', change }
-  if (change < -0.15) return { arrow: '↓', tone: 'down', change }
-  if (change < -0.03) return { arrow: '↘', tone: 'down', change }
-  return { arrow: '→', tone: 'flat', change }
+export const effortFromSettings = (settings: Readonly<Record<string, unknown>>, model: string): string | null => {
+  const id = model.replace(/\[.*\]$/, '')
+  const perModel = (settings.modelSettings as Record<string, { effortLevel?: unknown }> | undefined)?.[id]?.effortLevel
+  const level = perModel ?? settings.effortLevel
+  return typeof level === 'string' ? level : null
 }
 
 /** The figure today's cost is loud past. */
@@ -123,3 +103,87 @@ export const parseToday = (stdout: string): number | null => {
 /** `--since` for the daily query: yesterday in UTC, which no time zone's today precedes. */
 export const sinceArg = (now: number): string =>
   new Date(now - 86_400_000).toISOString().slice(0, 10).replaceAll('-', '')
+
+// --- the 5-hour window's pace ---------------------------------------------------
+
+const HOUR = 3_600_000
+const WINDOW = 5 * HOUR
+/** The trailing stretch %/h is measured over. */
+const TRAIL = HOUR
+/** Below this much history, the window's own average stands in for the trailing rate. */
+const MIN_SPAN = 15 * 60_000
+
+/**
+ * The window's history with one more reading: a new window (a later reset time, or
+ * a fall in use) starts it over; an unchanged reading adds nothing.
+ */
+export const recordFive = (
+  samples: readonly FiveSample[],
+  percentUsed: number,
+  resetsAt: string | null,
+  previousResetsAt: string | null,
+  now: number,
+): FiveSample[] => {
+  const last = samples.at(-1)
+  const isNewWindow = resetsAt !== previousResetsAt || (last !== undefined && percentUsed < last.percentUsed)
+  if (isNewWindow || last === undefined) return [{ at: now, percentUsed }]
+  if (last.percentUsed === percentUsed) return [...samples]
+  return [...samples.filter(x => now - x.at <= TRAIL + MIN_SPAN), { at: now, percentUsed }]
+}
+
+/**
+ * How fast the 5-hour window is being used, in percent per hour: the rise over the
+ * last hour, measured to now so an idle stretch brings it down. With under 15
+ * minutes of history it is the window's average so far, which needs no history.
+ * Null when neither can be told (no reset time, or the window only just began).
+ */
+export const fiveHourRate = (
+  samples: readonly FiveSample[],
+  percentUsed: number,
+  resetsAt: string | null,
+  now: number,
+): number | null => {
+  const base = samples.find(x => now - x.at <= TRAIL)
+  if (base !== undefined && now - base.at >= MIN_SPAN) {
+    return Math.max(0, ((percentUsed - base.percentUsed) / (now - base.at)) * HOUR)
+  }
+  if (resetsAt === null) return null
+  const elapsed = now - (Date.parse(resetsAt) - WINDOW)
+  if (Number.isNaN(elapsed) || elapsed < 10 * 60_000) return null
+  return (percentUsed / elapsed) * HOUR
+}
+
+/**
+ * Whether this pace reaches the limit before the window resets: error when it
+ * does, warning past 80% of the pace that would, success below.
+ */
+export const rateLevel = (rate: number, percentUsed: number, resetsAt: string | null, now: number): Level => {
+  if (resetsAt === null) return 'success'
+  const hoursLeft = (Date.parse(resetsAt) - now) / HOUR
+  if (!(hoursLeft > 0)) return 'success'
+  const sustainable = (100 - percentUsed) / hoursLeft
+  return rate > sustainable ? 'error' : rate > sustainable * 0.8 ? 'warning' : 'success'
+}
+
+// --- the context runway ----------------------------------------------------------
+
+const RUNWAY_STOPS = ['#56b6c2', '#98c379', '#e5c07b', '#e06c75'] as const
+
+/**
+ * The color of each filled cell of a runway `width` cells long: teal at the start
+ * through green and amber to red at the far end, so the fill's own end says how far
+ * the context has gone.
+ */
+export const runwayColor = (cell: number, width: number): string => {
+  const k = width <= 1 ? 0 : cell / (width - 1)
+  const span = RUNWAY_STOPS.length - 1
+  const seg = Math.min(span - 1, Math.floor(k * span))
+  const t = k * span - seg
+  const from = RUNWAY_STOPS[seg] ?? RUNWAY_STOPS[0]
+  const to = RUNWAY_STOPS[seg + 1] ?? RUNWAY_STOPS[0]
+  const mix = (i: number) =>
+    Math.round(parseInt(from.slice(i, i + 2), 16) + (parseInt(to.slice(i, i + 2), 16) - parseInt(from.slice(i, i + 2), 16)) * t)
+      .toString(16)
+      .padStart(2, '0')
+  return `#${mix(1)}${mix(3)}${mix(5)}`
+}

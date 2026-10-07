@@ -113,7 +113,7 @@ Adding a mod, its layout, and the check every mod passes: [`mods/README.md`](mod
 
 | Mod | What it does |
 | --- | --- |
-| [`usage-band`](mods/usage-band/) | One line above the prompt: model, effort, context and the 5-hour and weekly limits as pies with the number, a burn-rate dial that turns faster as the money goes, and today's cost. Each value has its own terminal-theme color; past 80% it takes the theme's warning or error. Replaces the ccusage statusline; see [`docs/environment/usage-band.md`](docs/environment/usage-band.md). |
+| [`usage-band`](mods/usage-band/) | Two rows above the prompt: model, effort, how fast the 5-hour limit is going (`%/h`, red when it would run out before the reset) and today's cost, over a context runway with the 5-hour and weekly limits after it. Replaces the ccusage statusline; see [`docs/environment/usage-band.md`](docs/environment/usage-band.md). |
 
 ## Repo layout
 
