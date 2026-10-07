@@ -1,7 +1,9 @@
 {
   "name": "usage-band",
   "version": "0.1.0",
-  "author": { "name": "Ki Hyun Park" },
-  "description": "One quiet line above the prompt: model, effort, context, rate limits, burn rate and today's cost; only what needs attention takes color.",
+  "author": {
+    "name": "Ki Hyun Park"
+  },
+  "description": "One line above the prompt: model, effort, context and rate limits as pies, a burn-rate dial with its trend, and today's cost.",
   "types": "./types/index.d.ts"
 }

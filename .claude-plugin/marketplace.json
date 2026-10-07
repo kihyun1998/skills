@@ -1,0 +1,14 @@
+{
+  "name": "kihyun-skills",
+  "description": "Claude Code mods (hooks plugins) from Ki Hyun Park's skills repo.",
+  "owner": {
+    "name": "Ki Hyun Park"
+  },
+  "plugins": [
+    {
+      "name": "usage-band",
+      "source": "./mods/usage-band",
+      "description": "One line above the prompt: model, effort, context and rate limits as pies, a burn-rate dial with its trend, and today's cost."
+    }
+  ]
+}

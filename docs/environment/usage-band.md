@@ -7,14 +7,22 @@ repo, so this note is the only record of why it looks the way it does.
 
 ## Current setting
 
+There is no `statusLine` key. The mod is installed at user scope from this
+repo's marketplace by `scripts/install-mods.ps1`, which leaves this in
+`~/.claude/settings.json`:
+
 ```json
-"env": {
-  "CLAUDE_CODE_PLUGIN_DIRS": "D:\\github\\skills\\mods\\usage-band"
+"enabledPlugins": { "usage-band@kihyun-skills": true },
+"extraKnownMarketplaces": {
+  "kihyun-skills": { "source": { "source": "directory", "path": "D:\\github\\skills" } }
 }
 ```
 
-There is no `statusLine` key. A second mod folder is appended with `;`, the
-Windows path-list separator.
+A directory marketplace is read in place: `claude plugin list` shows
+`Read from: D:\github\skills\mods\usage-band`, and an edit reaches a session
+through `/reload-plugins`. It was first loaded through `CLAUDE_CODE_PLUGIN_DIRS`
+instead; that is gone, because with both a mod loads twice, and the install
+script warns if the variable still names a mod.
 
 ## What the line shows
 

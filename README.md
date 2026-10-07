@@ -99,22 +99,31 @@ anything.
 
 ## Mods
 
-`mods/` holds Claude Code mods — plugins of function hooks, not skills, so the
-install scripts leave them alone. Each is loaded by naming its folder in
-`CLAUDE_CODE_PLUGIN_DIRS` in the `env` block of `~/.claude/settings.json`.
+`mods/` holds Claude Code mods — plugins of function hooks, not skills. This
+repo is also a plugin marketplace that lists them, and one script installs them
+all for every session:
+
+```powershell
+.\scripts\install-mods.ps1        # Windows; -DryRun, -Uninstall
+./scripts/install-mods.sh          # macOS / Linux / WSL / git-bash; --dry-run, --uninstall
+```
+
+From another machine, without cloning: `/plugin install <mod> --marketplace kihyun1998/skills`.
+Adding a mod, its layout, and the check every mod passes: [`mods/README.md`](mods/README.md).
 
 | Mod | What it does |
 | --- | --- |
-| [`usage-band`](mods/usage-band/) | One quiet line above the prompt: model, effort, context, 5-hour and weekly limits, burn rate and today's cost. Everything is dim until it needs attention. Replaces the ccusage statusline; see [`docs/environment/usage-band.md`](docs/environment/usage-band.md). |
+| [`usage-band`](mods/usage-band/) | One line above the prompt: model, effort, context and the 5-hour and weekly limits as pies with the number, a burn-rate dial that turns faster as the money goes, and today's cost. Each value has its own terminal-theme color; past 80% it takes the theme's warning or error. Replaces the ccusage statusline; see [`docs/environment/usage-band.md`](docs/environment/usage-band.md). |
 
 ## Repo layout
 
 ```
 .
-├── scripts/        install scripts — symlink skills into ~/.claude/skills
+├── .claude-plugin/ marketplace.json — generated from mods/ by install-mods; do not edit
+├── scripts/        install scripts — symlink skills into ~/.claude/skills, install mods
 ├── docs/agents/    config the Matt Pocock engineering skills read for this repo
 ├── CLAUDE.md       guidance auto-loaded by Claude Code when working in this repo
 ├── <skill>/        one folder per skill, each with a SKILL.md
-├── mods/           Claude Code mods (hooks plugins), loaded via CLAUDE_CODE_PLUGIN_DIRS
+├── mods/           Claude Code mods (hooks plugins), one folder each — see mods/README.md
 └── retired/        skills no longer installed — not scanned, see retired/README.md
 ```

@@ -7,8 +7,10 @@ Guidance for AI agents working in this repository.
 This repo is a personal collection of Claude Code skills. Each top-level
 directory containing a `SKILL.md` is one skill; `scripts/install-skills.ps1`
 and `scripts/install-skills.sh` link them into `~/.claude/skills`. `mods/` holds
-Claude Code mods (hooks plugins), which are not skills and are not installed by
-those scripts. See `README.md` for details.
+Claude Code mods (hooks plugins), which are not skills; `mods/README.md` holds
+their layout, the install script and the check (`node scripts/check-mods.mjs`).
+`.claude-plugin/marketplace.json` is generated from `mods/` by the install
+script — never edit it by hand. See `README.md` for details.
 
 ## Agent skills
 
