@@ -15,6 +15,50 @@ one step.
 For a codebase whose identity is a **boundary**: an engine, library or core that
 stays correct by *not* absorbing the concerns of the things that consume it.
 
+## The run sheet
+
+A run keeps one file while it lasts: its **run sheet**, in a `thegraph/` folder
+of the OS temp directory (`$TMPDIR`, `%TEMP%`), named
+`<repo>-<yyyymmdd-hhmm>-<8 random hex>.md`. It is what lets a step tell the next
+one something, and what keeps the carried items through a compaction. It is not a
+record: deleting it at the end loses nothing that has not reached a person
+([ADR-0080](../docs/adr/0080-a-run-keeps-a-run-sheet-while-it-lasts.md)).
+
+```markdown
+# thegraph run sheet
+issue: <the issue as read-it resolved it> — <its title>
+repo: <the working tree's absolute path>
+route: <read-it's label, once it names one>
+
+- [x] read-it
+  → make-it: <what the next step should know>
+- [x] confirm
+- [~] make-it
+- [ ] check-it
+- [ ] ask-it
+
+## Carried
+- <anything worth a person's attention, not acted on>
+```
+
+`[ ]` to do, `[~]` under way, `[x]` done. The steps listed are the route's: an
+open decision lists `read-it`, `confirm`, `lens`, `decide`.
+
+**Write it at every boundary, not at the end.** When a step ends, check it, write
+the line for the next step under it, and mark the next one `[~]` before calling
+it. A note that would have to wait for the end is the note the next step needed.
+
+**Make it once `read-it` has resolved the issue**, before the confirm stop. First
+look in that folder for an unfinished sheet with this `repo` and this issue — by
+where it lives *or* its title, since a local issue moves when it is archived. If
+there is one, show its steps and its carried items and ask whether to continue it
+or start over; starting over deletes it.
+
+**Delete it when the run ends, after the last person has seen what it carried:**
+once `ask-it` has put the carried items in front of them, or once `check-it` is
+done with nothing carried, or at the confirm stop for a change that ends there, or
+once the maintainer has decided an open decision.
+
 ## The order
 
 ### 1. Call `read-it`
@@ -44,6 +88,9 @@ is the maintainer's call, so it is recorded as theirs.
 
 **And the answer may be that nothing further is needed.** A change that turns out
 to be a typo ends here, said out loud. That is a result, not a skipped step.
+
+The answer is checked off on the run sheet as `confirm`, with what it changed
+written under it for the next step.
 
 ### 3. Follow the route
 
@@ -78,7 +125,7 @@ than to note them for later.
 | a test, fixture, golden or guard just written or changed | `redden` — prove it can fail before believing that it passed |
 | about to rely on an outside reference, API or fact | `firsthand` — the real source, not a summary. **Unconfirmed is a gap, not an absence** |
 | a call about naming, structure, scope or direction | **Ask.** Present the options with their consequences, and stop. A pure technical mechanism is *not* one of these — deciding it is yours, and asking hands the work back |
-| anything worth a person's attention that you are not acting on | **Carry it.** It goes out at the end, in one batch |
+| anything worth a person's attention that you are not acting on | **Carry it** — under `## Carried` on the run sheet, not in mind. It goes out at the end, in one batch |
 
 ## What holds everywhere
 
