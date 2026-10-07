@@ -2,7 +2,7 @@ import { describe, expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { CONFIRM, DECIDE, labelOf, onAnswer, onSkill, onTurnEnd, signalSummary, startRun, stateOf } from '../hooks/run'
+import { CONFIRM, DECIDE, labelOf, onAnswer, onEdit, onSkill, onTurnEnd, signalSummary, startRun, stateOf } from '../hooks/run'
 
 const MIN = 60_000
 
@@ -70,7 +70,7 @@ describe('thegraph-panel', () => {
     await say($, '/thegraph #42 band redraw')
     await skill($, 'thegraph')
     await skill($, 'read-it')
-    expect(flat(await ui.drawn())).toContain('thegraph #42 band redraw  ◉○○○○  read-it 1/5 · <1m')
+    expect(flat(await ui.drawn())).toContain('thegraph #42 band redraw  ◐○○○○  read-it 1/5 · <1m')
 
     await clock.advance(3 * MIN)
     await endTurn($)
@@ -86,12 +86,33 @@ describe('thegraph-panel', () => {
     await skill($, 'redden')
     await skill($, 'redden')
     const text = flat(await ui.drawn())
-    expect(text).toContain('●●◉○○  make-it 3/5 · <1m   ⚑ redden×2')
+    expect(text).toContain('●●◐○○  make-it 3/5 · <1m   ⚑ redden×2')
     // Its line sits over the band beneath, which still draws.
     expect(text.endsWith('BELOW')).toBe(true)
     // The clock's tick redraws the step's minutes while nothing else happens.
     await clock.advance(12 * MIN)
     expect(flat(await ui.drawn())).toContain('make-it 3/5 · 12m')
+  })
+
+  test('a confirm asked in a question box waits, and its reply answers it; an edit then begins make-it', async ($, on) => {
+    // What the line said while the question was up, then the person's reply as the engine hands it back.
+    const seen: string[] = []
+    let ui: { drawn: () => Promise<unknown> } | null = null
+    on('tool.call', { tool: 'AskUserQuestion' }, async () => {
+      if (ui) seen.push(flat(await ui.drawn()))
+      return { result: { questions: [], answers: { '맞나요?': '이대로 진행' } } }
+    })
+    on('tool.call', { tool: 'Edit' }, () => ({ result: { filePath: '/w/a.ts', oldString: 'a', newString: 'b', originalFile: 'a', structuredPatch: [], userModified: false, replaceAll: false } }))
+    await start($, on)
+    ui = await band($)
+    await say($, '/thegraph #13')
+    await skill($, 'thegraph')
+    await skill($, 'read-it')
+    await $.tool.call({ tool: 'AskUserQuestion', questions: [{ question: '맞나요?', header: '확인', options: [], multiSelect: false }] })
+    expect(seen[0]).toContain('●◆○○○  확인 대기')
+    expect(flat(await ui.drawn())).toContain('●●○○○  다음 make-it 3/5')
+    await $.tool.call({ tool: 'Edit', file_path: '/w/a.ts', old_string: 'a', new_string: 'b' })
+    expect(flat(await ui.drawn())).toContain('●●◐○○  make-it 3/5')
   })
 
   test('the band carries a button that opens and closes the checklist pane', async ($, on) => {
@@ -117,7 +138,7 @@ describe('thegraph-panel', () => {
     expect(flat(await ui.drawn())).toContain('▾ 패널 닫기')
 
     const pane = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS })
-    expect(flat(await pane.drawn())).toContain('[◉] read-it')
+    expect(flat(await pane.drawn())).toContain('[◐] read-it')
 
     await ui.press({ key: 'pane' })
     expect([...panes]).toEqual([])
@@ -169,7 +190,7 @@ describe('thegraph-panel', () => {
     await say($, '진행')
     for (const s of ['make-it', 'check-it', 'lens', 'boundary']) await skill($, s)
     const text = flat(await ui.drawn())
-    expect(text).toContain('●●●◉○  check-it 4/5')
+    expect(text).toContain('●●●◐○  check-it 4/5')
     expect(text).toContain('⚑ boundary')
     const pane = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS })
     expect(flat(await pane.drawn())).toContain('route  prose/code')
@@ -285,6 +306,17 @@ describe('run', () => {
     r = onAnswer(r, 4)!
     expect(stateOf(r, 'make-it')).toBe('run')
     expect(r.doneAt).toBe(null)
+  })
+
+  test('an edit opens make-it only right after the confirm, never during read-it, on the decision route, or later', () => {
+    let r = onSkill(startRun(null, 0), 'read-it', 0)
+    expect(onEdit(r, 1)).toBe(r)
+    r = onAnswer(onTurnEnd(r, 1), 2)!
+    expect(stateOf(onEdit(r, 3), 'make-it')).toBe('run')
+    const decision = onSkill(r, 'lens', 3)
+    expect(onEdit(onAnswer(onTurnEnd(decision, 4), 5)!, 6).steps.some(s => s.key === 'make-it')).toBe(false)
+    const checking = onSkill(onSkill(r, 'make-it', 3), 'check-it', 4)
+    expect(onEdit(checking, 5)).toBe(checking)
   })
 
   test('signals count in the order they first fired', () => {

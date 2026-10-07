@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import { focusOf, labelOf, minutes, onAnswer, onSkill, onTurnEnd, plan, routeName, signalSummary, startRun, stateOf, stepLabel, stepMs } from './run'
+import { focusOf, labelOf, minutes, onAnswer, onEdit, onSkill, onTurnEnd, plan, routeName, signalSummary, startRun, stateOf, stepLabel, stepMs } from './run'
 import type { StepState } from './run'
 
 const run = atom({ plugin: 'thegraph-panel', key: 'run' } as const, null)
@@ -15,9 +15,9 @@ const RIGHT = 1
 /** A running step's minutes redraw this often while nothing else happens. */
 const TICK_MS = 30_000
 
-const MARK: Record<StepState, string> = { done: '✓', run: '◉', wait: '◆', todo: '' }
+const MARK: Record<StepState, string> = { done: '✓', run: '◐', wait: '◆', todo: '' }
 /** The line's dot per step. */
-const DOT: Record<StepState, string> = { done: '●', run: '◉', wait: '◆', todo: '○' }
+const DOT: Record<StepState, string> = { done: '●', run: '◐', wait: '◆', todo: '○' }
 const COLOR: Record<StepState, string | undefined> = { done: 'success', run: 'claude', wait: 'warning', todo: undefined }
 /** The step being worked on, or waited on, is drawn bold. */
 const LOUD: Record<StepState, boolean> = { done: false, run: true, wait: true, todo: false }
@@ -105,6 +105,28 @@ export const register: Register = on => {
     }
     return next(e)
   })
+
+  // A question put to the person inside a turn: the confirm stop is often asked this way,
+  // and its reply is the answer no prompt would bring.
+  on('tool.call', { tool: 'AskUserQuestion' }, async ($, e, next) => {
+    if (e.agentId !== undefined || (await read($, run)) === null) return next(e)
+    const asked = await $.clock.now()
+    await update($, run, r => (r === null ? r : onTurnEnd(r, asked)))
+    const result = await next(e)
+    const t = await $.clock.now()
+    await update($, run, r => (r === null ? r : onAnswer(r, t)))
+    await update($, now, () => t)
+    return result
+  }).catch(($, e, next) => next(e))
+
+  // A file edit right after the confirm is make-it begun without its skill.
+  on('tool.call', { tool: ['Edit', 'Write', 'NotebookEdit'] }, async ($, e, next) => {
+    if (e.agentId === undefined && (await read($, run)) !== null) {
+      const t = await $.clock.now()
+      await update($, run, r => (r === null ? r : onEdit(r, t)))
+    }
+    return next(e)
+  }).catch(($, e, next) => next(e))
 
   // The person's close (its mark, ctrl+x x, Esc) as much as the button's.
   on('ui.close', async ($, e, next) => {

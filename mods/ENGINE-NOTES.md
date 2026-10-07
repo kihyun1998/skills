@@ -53,6 +53,7 @@ How each entry was found:
 | `skill.prompt` fires each time a skill is expanded, whether typed as `/name`, called through the Skill tool, or preloaded into a subagent. It carries no `agentId`, so it cannot tell who expanded the skill. | types; review of `thegraph-panel` |
 | `prompt.submit`'s `e.origin.kind` is `composer` for the person's own Enter and `bridge` for Remote Control. Notifications, schedules, peer sessions and other plugins each have their own kind. | types (`PromptOrigin`) |
 | `turn.complete` carries `agentId` for a subagent's turn and leaves it absent on the main thread. | types |
+| A question the model puts in a box (`AskUserQuestion`) neither ends the turn nor brings a `prompt.submit`: the person's reply comes back as that tool call's result. Hook `tool.call` for `AskUserQuestion` to see the person's turn and their answer. | measured (a `/thegraph` run in another session) |
 | `$` may be passed only to functions declared at the module's top level. `claude plugin validate` refuses a closure that passes it on. | validator |
 
 ## Testing kit (`claude-code/testing`)
@@ -65,6 +66,8 @@ How each entry was found:
 | The test's `$.prompt.submit` takes the full input, `origin` included. Pass `origin: { kind: 'composer' }` to act as the person. | test |
 | A drawn `Button` keeps its text in `props.label`, not in its children. | test |
 | `$.ui.mount({ ..., viewport: { columns, rows, isFullscreen } })` mounts the tree as either layout. | test |
+| The test's `$.tool.call` takes the tool's fields flat (`{ tool: 'Edit', file_path, … }`), with no `input` wrapper. A bottom `tool.call` hook answers with `{ result }`. | test |
+| The test's `$.tool.call` cannot set `agentId`, so a hook's subagent filter on `tool.call` cannot be reached from a test. | test |
 | `expect` has no `toBeCloseTo`. | test |
 
 ## Workflow

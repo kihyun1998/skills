@@ -58,7 +58,10 @@ export const onSkill = (run: Run, skill: string, now: number): Run => {
   return { ...run, route, isWaiting: false, steps: begin(run, skill, now) }
 }
 
-/** A main-thread turn ended: whatever runs now waits on the person. */
+/**
+ * The move passed to the person: a main-thread turn ended, or a question
+ * (AskUserQuestion) went up within one. Whatever runs now waits on them.
+ */
 export const onTurnEnd = (run: Run, now: number): Run => {
   if (run.doneAt !== null) return run
   const open = openStep(run)
@@ -68,7 +71,7 @@ export const onTurnEnd = (run: Run, now: number): Run => {
   return { ...run, isWaiting: true }
 }
 
-/** The person submitted a prompt. Null once a finished run has been moved on from. */
+/** The person answered: a prompt of their own, or a question's reply. Null once a finished run has been moved on from. */
 export const onAnswer = (run: Run, now: number): Run | null => {
   if (run.doneAt !== null) return null
   if (!run.isWaiting) return run
@@ -79,6 +82,14 @@ export const onAnswer = (run: Run, now: number): Run | null => {
   }
   return { ...run, isWaiting: false }
 }
+
+/**
+ * A main-thread file edit. Right after the confirm, with nothing begun, it is
+ * make-it's work started without its skill being expanded: an inference, so it
+ * only ever opens make-it there, and never on the decision route.
+ */
+export const onEdit = (run: Run, now: number): Run =>
+  run.doneAt === null && run.route !== 'decision' && isAtRoute(run) ? onSkill(run, 'make-it', now) : run
 
 export type StepState = 'done' | 'run' | 'wait' | 'todo'
 
