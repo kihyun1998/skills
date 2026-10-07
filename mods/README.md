@@ -52,7 +52,9 @@ write or change a mod uses a hot-reloading folder of its own; copy the result
 here when it is done.
 
 `node scripts/check-mods.mjs` with no names checks every mod. It is the gate for
-this folder: run it before committing a change to any mod.
+this folder: run it before committing a change to any mod. CI runs the same
+check (`.github/workflows/mods.yml`) on the Claude Code version pinned there;
+raise the pin when the mods move to a newer one.
 
 ## Mods
 

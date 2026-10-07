@@ -1,0 +1,23 @@
+name: mods
+
+# The gate for mods/: every mod validates and its tests pass, on the Claude Code
+# version the mods are written against. Raise the pin when the mods move to a new one.
+on:
+  push:
+    paths: ['mods/**', 'scripts/check-mods.mjs', '.github/workflows/mods.yml']
+  pull_request:
+    paths: ['mods/**', 'scripts/check-mods.mjs', '.github/workflows/mods.yml']
+
+env:
+  CLAUDE_CODE_VERSION: 2.1.292
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install -g @anthropic-ai/claude-code@${{ env.CLAUDE_CODE_VERSION }}
+      - run: node scripts/check-mods.mjs
