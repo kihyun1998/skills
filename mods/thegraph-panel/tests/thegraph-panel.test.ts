@@ -2,7 +2,7 @@ import { describe, expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { CONFIRM, DECIDE, addLog, isSheetPath, sheetLog, testCounts, testOf, labelOf, onAnswer, onEdit, onSkill, parseSheet, stepsOf, onTurnEnd, signalSummary, startRun, stateOf } from '../hooks/run'
+import { CONFIRM, DECIDE, addLog, heatMap, turnSummary, isSheetPath, sheetLog, testCounts, testOf, labelOf, onAnswer, onEdit, onSkill, parseSheet, stepsOf, onTurnEnd, signalSummary, startRun, stateOf } from '../hooks/run'
 
 const MIN = 60_000
 
@@ -32,6 +32,9 @@ const start = async ($: Engine, on: On) => {
   on('turn.complete', (_$, e) => ({ text: e.answer }))
   // Another plugin's band beneath this one, as usage-band would draw.
   on('ui.render', { component: 'AbovePrompt' }, () => ({ type: 'Text', props: {}, children: ['BELOW'] }))
+  // The engine's spinner and turn line, drawn from the props they were handed.
+  on('ui.render', { component: 'Spinner' }, (_$, e) => ({ type: 'Text', props: {}, children: [`${e.props.word}${e.props.suffix}`] }))
+  on('ui.render', { component: 'TurnDuration' }, (_$, e) => ({ type: 'Text', props: {}, children: [`${e.props.word} for ${e.props.durationMs}ms`] }))
   await $.session.start({ cwd: '/w', surface: 'terminal', isInteractive: true })
   await clock.settle()
   return clock
@@ -277,6 +280,35 @@ describe('thegraph-panel', () => {
     expect(flat(await pane.drawn())).toContain('[ 닫기 ]')
     await say($, '다른 일 하자')
     expect([...host.panes]).toEqual([])
+  })
+
+  test("the spinner and each turn's closing line carry where the run is and what the turn did", async ($, on) => {
+    await start($, on)
+    await say($, '/thegraph')
+    await skill($, 'thegraph')
+    await skill($, 'read-it')
+    const spinner = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Spinner', props: { word: 'Sauteing', message: null, suffix: '…', mode: 'thinking' } })
+    expect(flat(await spinner.drawn())).toBe('Sauteing… · thegraph read-it 1/5')
+    await endTurn($)
+    // The closing line of that turn (durationMs 1), and one from before the run, untouched.
+    const line = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'TurnDuration', props: { word: 'Baked', durationMs: 1 } })
+    expect(flat(await line.drawn())).toBe('Baked for 1ms · thegraph read-it')
+    const other = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'TurnDuration', props: { word: 'Baked', durationMs: 999 } })
+    expect(flat(await other.drawn())).toBe('Baked for 999ms')
+  })
+
+  test('the pane draws the heat map, then only the newest lines', async ($, on) => {
+    await start($, on)
+    await say($, '/thegraph')
+    await skill($, 'thegraph')
+    for (const sk of ['read-it', 'redden', 'firsthand', 'boundary', 'redden', 'firsthand', 'boundary', 'redden']) await skill($, sk)
+    const pane = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS })
+    const text = flat(await pane.drawn())
+    expect(text).toContain('✎ 수정')
+    expect(text).toContain('⚑ 신호')
+    // Nine lines logged; the oldest three are left to the map.
+    expect(text).not.toContain('▸ read-it')
+    expect((text.match(/⚑ (redden|firsthand|boundary)/g) ?? []).length).toBe(6)
   })
 
   test('the band carries a button that opens and closes the checklist pane', async ($, on) => {
@@ -528,6 +560,34 @@ describe('run', () => {
     expect(lines.map(l => l.kind)).toEqual(['note', 'step', 'note', 'carry'])
     const again = sheetLog(first, parseSheet(SHEET, sheetText('x')), 9)
     expect(again.map(l => `${l.kind}:${l.text}`)).toEqual(['end:끝'])
+  })
+
+  test('the heat map: a column a minute, its step on top, a failed test red, scaled once the run outgrows it', () => {
+    const MIN = 60_000
+    const log = [
+      { at: 0, kind: 'step' as const, text: 'read-it', detail: null },
+      { at: 2 * MIN, kind: 'step' as const, text: 'make-it', detail: null },
+      { at: 2 * MIN + 1, kind: 'edit' as const, text: 'a.ts', detail: null },
+      { at: 2 * MIN + 2, kind: 'edit' as const, text: 'b.ts', detail: null },
+      { at: 3 * MIN, kind: 'test' as const, text: 'vitest', detail: '1 fail', isOk: false },
+    ]
+    const map = heatMap(log, 0, 4 * MIN, 40)
+    expect(map.minutes).toBe(4)
+    expect(map.steps.map(c => c.color)).toEqual(['cyan', 'cyan', 'claude', 'claude'])
+    expect(map.rows[0]?.map(c => c.ch).join('')).toBe('··█·')
+    expect(map.rows[1]?.[3]).toEqual({ ch: '■', color: 'error' })
+    // Forty minutes in a pane of ten columns: four minutes a column.
+    expect(heatMap(log, 0, 40 * MIN, 10).rows[0]?.map(c => c.ch).join('')).toBe('█·········')
+  })
+
+  test("a turn's summary counts only what the turn did", () => {
+    const log = [
+      { at: 1, kind: 'edit' as const, text: 'old.ts', detail: null },
+      { at: 10, kind: 'edit' as const, text: 'a.ts', detail: null },
+      { at: 11, kind: 'test' as const, text: 'vitest', detail: '48 pass', isOk: true },
+      { at: 12, kind: 'ask' as const, text: 'q?', detail: 'yes' },
+    ]
+    expect(turnSummary(log, 5, 'make-it').map(s => s.text).join('')).toBe(' · thegraph make-it  ✎1  ✓ 48 pass  ◆1')
   })
 
   test('signals count in the order they first fired', () => {

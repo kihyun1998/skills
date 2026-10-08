@@ -4,6 +4,6 @@
   "author": {
     "name": "Ki Hyun Park"
   },
-  "description": "While /thegraph runs: one line above the prompt with its steps and the signals that fired, and a button that opens a pane with the run's log: steps, questions and their answers, files written, tests run, signals and what is carried.",
+  "description": "While /thegraph runs: one line above the prompt with its steps and the signals that fired, and a button that opens a pane with a minute-by-minute heat map of the run over its latest log lines; the spinner and each turn's closing line carry the step and what the turn did.",
   "types": "./types/index.d.ts"
 }

@@ -1,4 +1,4 @@
-import type { LogEntry, Route, Run, Sheet, SheetStep, StepRec } from '../types'
+import type { LogEntry, Route, Run, Seg, Sheet, SheetStep, StepRec } from '../types'
 
 /** The stops where a person answers: after read-it, and after lens. */
 export const CONFIRM = '확인'
@@ -199,6 +199,71 @@ export const testCounts = (output: string): string | null => {
   const fail = /(\d+)\s+fail(?:ed|ing|ures?)?\b/i.exec(output)?.[1]
   const parts = [pass === undefined ? null : `${pass} pass`, fail === undefined || fail === '0' ? null : `${fail} fail`].filter(p => p !== null)
   return parts.length === 0 ? null : parts.join(' · ')
+}
+
+// --- the heat map ------------------------------------------------------------------
+
+/** Each step's colour on the heat map's top row. */
+const STEP_COLOR: Record<string, string> = {
+  'read-it': 'cyan', [CONFIRM]: 'warning', 'make-it': 'claude', 'check-it': 'success', 'ask-it': 'magenta', lens: 'blue', [DECIDE]: 'warning',
+}
+
+/** The heat map's rows below the steps: what is counted, its label, its colour. */
+export const HEAT_ROWS: readonly { kind: LogEntry['kind']; label: string; color: string }[] = [
+  { kind: 'edit', label: '✎ 수정', color: 'blue' },
+  { kind: 'test', label: '✓ 테스트', color: 'success' },
+  { kind: 'ask', label: '◆ 질문', color: 'warning' },
+  { kind: 'signal', label: '⚑ 신호', color: 'magenta' },
+  { kind: 'note', label: '→ 메모', color: 'gray' },
+]
+
+/** One cell: its character and colour; null colour draws it dim. */
+export type HeatCell = { ch: string; color: string | null }
+
+/**
+ * The heat map: a row for the step under way at each column, then one row per kind
+ * of event. A column is a minute while the run fits `cols`, else an even share of it.
+ */
+export const heatMap = (log: readonly LogEntry[], startedAt: number, now: number, cols: number): { minutes: number; steps: HeatCell[]; rows: HeatCell[][] } => {
+  const span = Math.max(1, Math.ceil((now - startedAt) / 60_000))
+  const width = Math.max(1, Math.min(cols, span))
+  const per = (span * 60_000) / width
+  const colOf = (at: number) => Math.min(width - 1, Math.max(0, Math.floor((at - startedAt) / per)))
+  const stepLog = log.filter(l => l.kind === 'step')
+  const steps = Array.from({ length: width }, (_, i): HeatCell => {
+    const t = startedAt + (i + 1) * per - 1
+    const step = stepLog.findLast(l => l.at <= t)
+    return step ? { ch: '▀', color: STEP_COLOR[step.text] ?? 'white' } : { ch: '▁', color: null }
+  })
+  const rows = HEAT_ROWS.map(({ kind, color }) => {
+    const hits = Array.from({ length: width }, () => [] as LogEntry[])
+    for (const l of log) if (l.kind === kind) hits[colOf(l.at)]?.push(l)
+    return hits.map((h): HeatCell => {
+      if (h.length === 0) return { ch: '·', color: null }
+      // A failed test reddens its minute.
+      const c = kind === 'test' && h.some(l => l.isOk === false) ? 'error' : color
+      return { ch: h.length > 1 ? '█' : '■', color: c }
+    })
+  })
+  return { minutes: span, steps, rows }
+}
+
+// --- the conversation's lines ------------------------------------------------------------
+
+/** What a stretch of the log did, as the turn's closing line carries it: the step, then counts. */
+export const turnSummary = (log: readonly LogEntry[], since: number, step: string | null): Seg[] => {
+  const part = log.filter(l => l.at >= since)
+  const edits = part.filter(l => l.kind === 'edit').length
+  const test = part.findLast(l => l.kind === 'test')
+  const asks = part.filter(l => l.kind === 'ask').length
+  const signals = part.filter(l => l.kind === 'signal').length
+  const segs: Seg[] = [{ text: ' · thegraph ', color: null }]
+  if (step !== null) segs.push({ text: step, color: STEP_COLOR[step] ?? null })
+  if (edits > 0) segs.push({ text: `  ✎${edits}`, color: 'blue' })
+  if (test) segs.push({ text: `  ${test.isOk ? '✓' : '✗'}${test.detail === null ? '' : ` ${test.detail}`}`, color: test.isOk ? 'success' : 'error' })
+  if (asks > 0) segs.push({ text: `  ◆${asks}`, color: 'warning' })
+  if (signals > 0) segs.push({ text: `  ⚑${signals}`, color: 'magenta' })
+  return segs
 }
 
 /** Every step's place: from the run sheet once there is one, else from the events. */

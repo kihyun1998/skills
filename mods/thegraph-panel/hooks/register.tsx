@@ -12,6 +12,9 @@ import {
   onSkill,
   onTurnEnd,
   parseSheet,
+  HEAT_ROWS,
+  heatMap,
+  turnSummary,
   addLog,
   sheetLog,
   testCounts,
@@ -31,6 +34,7 @@ import type { StepState } from './run'
 const run = atom({ plugin: 'thegraph-panel', key: 'run' } as const, null)
 const isPaneOpen = atom({ plugin: 'thegraph-panel', key: 'isPaneOpen' } as const, false)
 const now = atom({ plugin: 'thegraph-panel', key: 'now' } as const, 0)
+const turnLines = atom({ plugin: 'thegraph-panel', key: 'turnLines' } as const, {})
 
 const PANE = 'thegraph'
 /** Blank cells at the line's left and right, as usage-band keeps, so both share their edges. */
@@ -45,6 +49,14 @@ const DOT: Record<StepState, string> = { done: '●', run: '◐', wait: '◆', t
 const COLOR: Record<StepState, string | undefined> = { done: 'success', run: 'claude', wait: 'warning', todo: undefined }
 /** The step being worked on, or waited on, is drawn bold. */
 const LOUD: Record<StepState, boolean> = { done: false, run: true, wait: true, todo: false }
+
+/** The pane shows this many of the newest log lines under the heat map. */
+const RECENT = 6
+/** Turn lines kept, the oldest dropped first. */
+const TURN_LINES_MAX = 200
+
+// When the last main-thread turn ended: a turn's summary counts what the log gained since.
+let lastTurnEnd = 0
 
 // What followed /thegraph on the prompt, waiting for the skill to expand. Lost on a reload: the run starts unlabelled.
 let pendingLabel: string | null = null
@@ -225,12 +237,47 @@ export const register: Register = on => {
   })
 
   on('turn.complete', async ($, e, next) => {
-    if (e.agentId === undefined && !e.isAborted && (await read($, run)) !== null) {
+    const r = await read($, run)
+    if (e.agentId === undefined && !e.isAborted && r !== null) {
       const t = await $.clock.now()
-      await update($, run, r => (r === null ? r : onTurnEnd(r, t)))
+      const since = Math.max(lastTurnEnd, r.startedAt)
+      const focus = focusOf(r)
+      const step = focus?.key ?? r.log.findLast(l => l.kind === 'step')?.text ?? null
+      const line = turnSummary(r.log, since, step)
+      const key = String(e.durationMs)
+      await update($, turnLines, lines => Object.fromEntries([...Object.entries(lines), [key, line]].slice(-TURN_LINES_MAX)))
+      lastTurnEnd = t
+      await update($, run, r2 => (r2 === null ? r2 : onTurnEnd(r2, t)))
       await update($, now, () => t)
     }
     return next(e)
+  })
+
+  // While the run works, the spinner says where it is: `… · thegraph make-it 3/5 · ✎5`.
+  on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
+    const r = await read($, run)
+    const focus = r === null ? null : focusOf(r)
+    if (r === null || focus === null) return next(e)
+    const total = stepsOf(r).length
+    const edits = r.log.filter(l => l.kind === 'edit' && l.at >= Math.max(lastTurnEnd, r.startedAt)).length
+    const tail = `… · thegraph ${stepLabel(focus.key, focus.state)} ${focus.index + 1}/${total}${edits > 0 ? ` · ✎${edits}` : ''}`
+    return next({ ...e, props: { ...e.props, suffix: tail } })
+  })
+
+  // A turn's closing line keeps what that turn did, beside the engine's own words.
+  on('ui.render', { component: 'TurnDuration' }, async ($, e, next) => {
+    const line = (await read($, turnLines))[String(e.props.durationMs)]
+    if (line === undefined) return next(e)
+    const { Box, Text } = $.ui.resolve(e)
+    const theirs = await next(e)
+    return (
+      <Box flexDirection="row">
+        {theirs}
+        <Text dimColor={false}>
+          {line.map(seg => (seg.color === null ? <Text dimColor>{seg.text}</Text> : <Text color={seg.color}>{seg.text}</Text>))}
+        </Text>
+      </Box>
+    )
   })
 
   // A question put to the person inside a turn: the confirm stop is often asked this way,
@@ -398,7 +445,35 @@ export const register: Register = on => {
     }
     const t = Math.max(await read($, now), r.startedAt)
     const route = r.sheet?.route ?? (r.route === null ? null : routeName(r.route))
-    const lines = r.log.map(l => {
+    // The heat map: a column a minute (or an even share once the run outgrows the pane).
+    const LABEL = 9
+    const map = heatMap(r.log, r.startedAt, Math.max(t, r.doneAt ?? 0), Math.max(8, Math.min(60, e.props.bodyColumns - LABEL)))
+    // Neighbouring cells of one colour draw as one Text.
+    const runs = (cells: { ch: string; color: string | null }[]) => {
+      const out: { text: string; color: string | null }[] = []
+      for (const cell of cells) {
+        const last = out[out.length - 1]
+        if (last && last.color === cell.color) last.text += cell.ch
+        else out.push({ text: cell.ch, color: cell.color })
+      }
+      return out.map(run => (run.color === null ? <Text dimColor>{run.text}</Text> : <Text color={run.color}>{run.text}</Text>))
+    }
+    const heat = (
+      <Box flexDirection="column">
+        <Text wrap="truncate-end">
+          <Text dimColor>{'단계'.padEnd(LABEL - 2)}</Text>
+          {runs(map.steps)}
+        </Text>
+        {HEAT_ROWS.map((row, i) => (
+          <Text wrap="truncate-end">
+            <Text dimColor>{row.label.padEnd(LABEL - 2)}</Text>
+            {runs(map.rows[i] ?? [])}
+          </Text>
+        ))}
+        <Text dimColor>{`${' '.repeat(LABEL - 2)}0${' '.repeat(Math.max(1, map.steps.length - 4))}${map.minutes}m`}</Text>
+      </Box>
+    )
+    const lines = r.log.slice(-RECENT).map(l => {
       const at = `+${String(Math.floor((l.at - r.startedAt) / 60_000)).padStart(2)}m `
       return (
         <Text wrap="wrap">
@@ -441,6 +516,8 @@ export const register: Register = on => {
         </Box>
         {r.sheet?.issue != null && <Text dimColor wrap="wrap">{r.sheet.issue}</Text>}
         <Text dimColor>{'─'.repeat(Math.max(8, Math.min(40, e.props.bodyColumns)))}</Text>
+        {heat}
+        <Text> </Text>
         {lines.length === 0 ? <Text dimColor>아직 기록이 없어요.</Text> : lines}
       </Box>
     )

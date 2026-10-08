@@ -40,6 +40,9 @@ export type LogEntry = {
   isOk?: boolean
 }
 
+/** A piece of a line drawn in one colour: a theme key or a colour name, or none for the default. */
+export type Seg = { text: string; color: string | null }
+
 /** One /thegraph run, as its skill calls and the turns between them showed it. */
 export type Run = {
   /** What followed `/thegraph` on the prompt (an issue number), or null. */
@@ -66,6 +69,11 @@ declare module 'claude-code' {
       isPaneOpen: boolean
       /** The clock as last ticked, so a running step's minutes redraw while idle. */
       now: number
+      /**
+       * What each turn of the run did, keyed by the turn's duration in milliseconds:
+       * the closing line carries no other mark of which turn it closes.
+       */
+      turnLines: Record<string, Seg[]>
     }
   }
 }
