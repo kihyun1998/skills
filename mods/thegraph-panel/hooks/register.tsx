@@ -299,7 +299,7 @@ export const register: Register = on => {
       for (const q of questions) {
         const i = log.findLastIndex(l => l.kind === 'ask' && l.text === q && l.detail === null)
         const entry = log[i]
-        if (entry) log[i] = { ...entry, detail: answers[q] ?? '답 없음' }
+        if (entry) log[i] = { ...entry, detail: answers[q] ?? 'no answer' }
       }
       return onAnswer({ ...r, log }, t)
     })
@@ -373,11 +373,11 @@ export const register: Register = on => {
     const at =
       focus === null ? (
         <Text>
-          <Text bold color="success">끝</Text>
+          <Text bold color="success">done</Text>
           <Text dimColor>{` · ${minutes((r.doneAt ?? t) - r.startedAt)}`}</Text>
         </Text>
       ) : focus.state === 'todo' ? (
-        <Text dimColor>{`다음 ${focus.key} ${focus.index + 1}/${steps.length}`}</Text>
+        <Text dimColor>{`next ${focus.key} ${focus.index + 1}/${steps.length}`}</Text>
       ) : (
         <Text>
           <Text bold color={COLOR[focus.state]}>{stepLabel(focus.key, focus.state)}</Text>
@@ -402,7 +402,7 @@ export const register: Register = on => {
         <Box flexDirection="row" flexShrink={0}>
           <Text>{'  '}</Text>
           <Button key="pane" variant="primary" hotkey="g" onPress={() => togglePane($)}>
-            {isOpen ? '▾ 패널 닫기' : '▸ 패널'}
+            {isOpen ? '▾ close pane' : '▸ pane'}
           </Button>
           <Text> </Text>
           <Button key="dismiss" role="dismiss" hotkey="x" dimColor onPress={() => dismiss($)}>
@@ -430,7 +430,7 @@ export const register: Register = on => {
       <Box flexDirection="row" flexShrink={0}>
         <Text> </Text>
         <Button key="close" role="dismiss" hotkey="q" dimColor onPress={() => shutPane($)}>
-          닫기
+          close
         </Button>
         {e.viewport?.isFullscreen === false && <Text dimColor> ^x x</Text>}
       </Box>
@@ -461,7 +461,7 @@ export const register: Register = on => {
     const heat = (
       <Box flexDirection="column">
         <Text wrap="truncate-end">
-          <Text dimColor>{'단계'.padEnd(LABEL - 2)}</Text>
+          <Text dimColor>{'steps'.padEnd(LABEL - 2)}</Text>
           {runs(map.steps)}
         </Text>
         {HEAT_ROWS.map((row, i) => (
@@ -483,7 +483,7 @@ export const register: Register = on => {
             <Text>
               <Text color="warning">◆ </Text>
               <Text>{l.text}</Text>
-              {l.detail === null ? <Text color="warning">  …대기</Text> : <Text dimColor> → </Text>}
+              {l.detail === null ? <Text color="warning">  …waiting</Text> : <Text dimColor> → </Text>}
               {l.detail !== null && <Text bold>{l.detail}</Text>}
             </Text>
           )}
@@ -498,7 +498,7 @@ export const register: Register = on => {
           {l.kind === 'signal' && <Text color="magenta">{`⚑ ${l.text}`}</Text>}
           {l.kind === 'note' && <Text dimColor>{`→ ${l.text}`}</Text>}
           {l.kind === 'carry' && <Text color="cyan">{`↗ ${l.text}`}</Text>}
-          {l.kind === 'end' && <Text bold color="success">✓ 끝</Text>}
+          {l.kind === 'end' && <Text bold color="success">✓ done</Text>}
         </Text>
       )
     })
@@ -510,7 +510,7 @@ export const register: Register = on => {
             {r.label !== null && <Text dimColor>{` ${r.label}`}</Text>}
             {route !== null && <Text color="cyan">{` · ${route}`}</Text>}
             <Text dimColor>{` · ${minutes((r.doneAt ?? t) - r.startedAt)}`}</Text>
-            {isDone(r) && <Text color="success"> · 끝</Text>}
+            {isDone(r) && <Text color="success"> · done</Text>}
           </Text>
           {close}
         </Box>
@@ -518,7 +518,7 @@ export const register: Register = on => {
         <Text dimColor>{'─'.repeat(Math.max(8, Math.min(40, e.props.bodyColumns)))}</Text>
         {heat}
         <Text> </Text>
-        {lines.length === 0 ? <Text dimColor>아직 기록이 없어요.</Text> : lines}
+        {lines.length === 0 ? <Text dimColor>Nothing logged yet.</Text> : lines}
       </Box>
     )
   })

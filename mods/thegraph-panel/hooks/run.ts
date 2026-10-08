@@ -1,8 +1,8 @@
 import type { LogEntry, Route, Run, Seg, Sheet, SheetStep, StepRec } from '../types'
 
 /** The stops where a person answers: after read-it, and after lens. */
-export const CONFIRM = '확인'
-export const DECIDE = '결정'
+export const CONFIRM = 'confirm'
+export const DECIDE = 'decide'
 
 /** Skills that are steps of the order; anything else thegraph calls is ignored. */
 const STEP_SKILLS = ['read-it', 'lens', 'make-it', 'check-it', 'ask-it']
@@ -92,7 +92,7 @@ export const onAnswer = (run: Run, now: number): Run | null => {
   const open = openStep(run)
   if (open?.key === CONFIRM) return { ...run, isWaiting: false, steps: closeAll(run.steps, now) }
   if (open?.key === DECIDE || open?.key === 'ask-it') {
-    return logged({ ...run, isWaiting: false, steps: closeAll(run.steps, now), doneAt: now }, now, 'end', '끝')
+    return logged({ ...run, isWaiting: false, steps: closeAll(run.steps, now), doneAt: now }, now, 'end', 'done')
   }
   return { ...run, isWaiting: false }
 }
@@ -185,7 +185,7 @@ export const sheetLog = (before: Sheet | null, after: Sheet, at: number): LogEnt
   const carried = new Set(before?.carried ?? [])
   for (const item of after.carried) if (!carried.has(item)) out.push({ at, kind: 'carry', text: item, detail: null })
   const isEnd = (sheet: Sheet | null) => sheet !== null && sheet.steps.length > 0 && sheet.steps.every(s => s.mark === 'done')
-  if (isEnd(after) && !isEnd(before)) out.push({ at, kind: 'end', text: '끝', detail: null })
+  if (isEnd(after) && !isEnd(before)) out.push({ at, kind: 'end', text: 'done', detail: null })
   return out
 }
 
@@ -210,11 +210,11 @@ const STEP_COLOR: Record<string, string> = {
 
 /** The heat map's rows below the steps: what is counted, its label, its colour. */
 export const HEAT_ROWS: readonly { kind: LogEntry['kind']; label: string; color: string }[] = [
-  { kind: 'edit', label: '✎ 수정', color: 'blue' },
-  { kind: 'test', label: '✓ 테스트', color: 'success' },
-  { kind: 'ask', label: '◆ 질문', color: 'warning' },
-  { kind: 'signal', label: '⚑ 신호', color: 'magenta' },
-  { kind: 'note', label: '→ 메모', color: 'gray' },
+  { kind: 'edit', label: '✎ edits', color: 'blue' },
+  { kind: 'test', label: '✓ tests', color: 'success' },
+  { kind: 'ask', label: '◆ asks', color: 'warning' },
+  { kind: 'signal', label: '⚑ signals', color: 'magenta' },
+  { kind: 'note', label: '→ notes', color: 'gray' },
 ]
 
 /** One cell: its character and colour; null colour draws it dim. */
@@ -298,7 +298,7 @@ export const focusOf = (run: Run): { key: string; index: number; state: StepStat
 }
 
 /** A step's name as drawn: a step that waits on the person says so. */
-export const stepLabel = (key: string, state: StepState): string => (state === 'wait' ? `${key} 대기` : key)
+export const stepLabel = (key: string, state: StepState): string => (state === 'wait' ? `${key} · waiting` : key)
 
 /** Milliseconds a step took, or has taken so far, over every time it ran. */
 export const stepMs = (run: Run, key: string, now: number): number | null => {

@@ -130,14 +130,14 @@ describe('thegraph-panel', () => {
 
     await clock.advance(3 * MIN)
     await endTurn($)
-    expect(flat(await ui.drawn())).toContain('●◆○○○  확인 대기')
+    expect(flat(await ui.drawn())).toContain('●◆○○○  confirm · waiting')
 
     // A slash command while it waits is not the answer.
     await say($, '/context')
-    expect(flat(await ui.drawn())).toContain('●◆○○○  확인 대기')
+    expect(flat(await ui.drawn())).toContain('●◆○○○  confirm · waiting')
     await say($, '맞아, 진행해')
     // Answered, and nothing begun yet: the line names what comes next.
-    expect(flat(await ui.drawn())).toContain('●●○○○  다음 make-it 3/5')
+    expect(flat(await ui.drawn())).toContain('●●○○○  next make-it 3/5')
     await skill($, 'make-it')
     await skill($, 'redden')
     await skill($, 'redden')
@@ -165,8 +165,8 @@ describe('thegraph-panel', () => {
     await skill($, 'thegraph')
     await skill($, 'read-it')
     await $.tool.call({ tool: 'AskUserQuestion', questions: [{ question: '맞나요?', header: '확인', options: [], multiSelect: false }] })
-    expect(seen[0]).toContain('●◆○○○  확인 대기')
-    expect(flat(await ui.drawn())).toContain('●●○○○  다음 make-it 3/5')
+    expect(seen[0]).toContain('●◆○○○  confirm · waiting')
+    expect(flat(await ui.drawn())).toContain('●●○○○  next make-it 3/5')
     await $.tool.call({ tool: 'Edit', file_path: '/w/a.ts', old_string: 'a', new_string: 'b' })
     expect(flat(await ui.drawn())).toContain('●●◐○○  make-it 3/5')
     const pane = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS })
@@ -221,8 +221,8 @@ describe('thegraph-panel', () => {
     expect(text).toContain('↗ 단축키 표 문구가 SPEC과 다름')
     // Every step checked off is the end, whatever the events saw.
     await $.tool.call({ tool: 'Write', file_path: SHEET, content: sheetText('x') })
-    expect(flat(await ui.drawn())).toContain('●●●●●  끝')
-    expect(flat(await pane.drawn())).toMatch(/thegraph · prose · \S+ · 끝/)
+    expect(flat(await ui.drawn())).toContain('●●●●●  done')
+    expect(flat(await pane.drawn())).toMatch(/thegraph · prose · \S+ · done/)
   })
 
   test('thegraph is told where its run sheet is, and a sheet written there by any tool is read', async ($, on) => {
@@ -248,7 +248,7 @@ describe('thegraph-panel', () => {
     // The next shell write to this run's sheet is read again.
     fs.write(path, sheetText('x'))
     await $.tool.call({ tool: 'Bash', command: `sed -i 's/y/z/' ${path}` })
-    expect(flat(await ui.drawn())).toContain('●●●●●  끝')
+    expect(flat(await ui.drawn())).toContain('●●●●●  done')
   })
 
   test('the pane closes itself: its own button, Esc, and the keys named on the main screen', async ($, on) => {
@@ -264,10 +264,10 @@ describe('thegraph-panel', () => {
       plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS,
       viewport: { columns: 145, rows: 40, isFullscreen: false },
     })
-    expect(flat(await pane.drawn())).toContain('[ 닫기 ] ^x x')
+    expect(flat(await pane.drawn())).toContain('[ close ] ^x x')
     await pane.press({ key: 'close' })
     expect([...host.panes]).toEqual([])
-    expect(flat(await ui.drawn())).toContain('▸ 패널')
+    expect(flat(await ui.drawn())).toContain('▸ pane')
   })
 
   test('a pane left open with no run says so, offers its close, and goes at the next prompt', async ($, on) => {
@@ -277,7 +277,7 @@ describe('thegraph-panel', () => {
     host.panes.add('thegraph')
     const pane = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS })
     expect(flat(await pane.drawn())).toContain('thegraph is not running.')
-    expect(flat(await pane.drawn())).toContain('[ 닫기 ]')
+    expect(flat(await pane.drawn())).toContain('[ close ]')
     await say($, '다른 일 하자')
     expect([...host.panes]).toEqual([])
   })
@@ -304,8 +304,8 @@ describe('thegraph-panel', () => {
     for (const sk of ['read-it', 'redden', 'firsthand', 'boundary', 'redden', 'firsthand', 'boundary', 'redden']) await skill($, sk)
     const pane = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS })
     const text = flat(await pane.drawn())
-    expect(text).toContain('✎ 수정')
-    expect(text).toContain('⚑ 신호')
+    expect(text).toContain('✎ edits')
+    expect(text).toContain('⚑ signals')
     // Nine lines logged; the oldest three are left to the map.
     expect(text).not.toContain('▸ read-it')
     expect((text.match(/⚑ (redden|firsthand|boundary)/g) ?? []).length).toBe(6)
@@ -327,18 +327,18 @@ describe('thegraph-panel', () => {
     await skill($, 'thegraph')
     await skill($, 'read-it')
     const ui = await band($)
-    expect(flat(await ui.drawn())).toContain('▸ 패널')
+    expect(flat(await ui.drawn())).toContain('▸ pane')
 
     await ui.press({ key: 'pane' })
     expect([...panes]).toEqual(['thegraph'])
-    expect(flat(await ui.drawn())).toContain('▾ 패널 닫기')
+    expect(flat(await ui.drawn())).toContain('▾ close pane')
 
     const pane = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS })
     expect(flat(await pane.drawn())).toContain('▸ read-it')
 
     await ui.press({ key: 'pane' })
     expect([...panes]).toEqual([])
-    expect(flat(await ui.drawn())).toContain('▸ 패널')
+    expect(flat(await ui.drawn())).toContain('▸ pane')
   })
 
   test('a finished run stays until the next prompt, then the line goes', async ($, on) => {
@@ -353,9 +353,9 @@ describe('thegraph-panel', () => {
     await skill($, 'check-it')
     await skill($, 'ask-it')
     await endTurn($)
-    expect(flat(await ui.drawn())).toContain('●●●●◆  ask-it 대기')
+    expect(flat(await ui.drawn())).toContain('●●●●◆  ask-it · waiting')
     await say($, '1번만 이슈로')
-    expect(flat(await ui.drawn())).toContain('●●●●●  끝 · ')
+    expect(flat(await ui.drawn())).toContain('●●●●●  done · ')
     await say($, '다음 거 하자')
     expect(flat(await ui.drawn())).toBe('BELOW')
   })
@@ -371,7 +371,7 @@ describe('thegraph-panel', () => {
     await skill($, 'ask-it')
     await endTurn($)
     await say($, '그거만')
-    expect(flat(await ui.drawn())).toContain('끝')
+    expect(flat(await ui.drawn())).toContain('done')
     await say($, '/context')
     expect(flat(await ui.drawn())).toBe('BELOW')
   })
@@ -433,7 +433,7 @@ describe('thegraph-panel', () => {
         props: BAND,
         viewport: { columns: 145, rows: 40, isFullscreen },
       })
-    expect(flat(await (await at(false)).drawn())).toContain('[ ▸ 패널 ] [ × ] ^x⇥ g·x')
+    expect(flat(await (await at(false)).drawn())).toContain('[ ▸ pane ] [ × ] ^x⇥ g·x')
     expect(flat(await (await at(true)).drawn())).not.toContain('^x⇥')
     // The buttons sit at the right edge, lined up with the band beneath.
     const boxes = await (await at(true)).findAll({ type: 'Box' })
@@ -559,7 +559,7 @@ describe('run', () => {
     const lines = sheetLog(null, first, 5)
     expect(lines.map(l => l.kind)).toEqual(['note', 'step', 'note', 'carry'])
     const again = sheetLog(first, parseSheet(SHEET, sheetText('x')), 9)
-    expect(again.map(l => `${l.kind}:${l.text}`)).toEqual(['end:끝'])
+    expect(again.map(l => `${l.kind}:${l.text}`)).toEqual(['end:done'])
   })
 
   test('the heat map: a column a minute, its step on top, a failed test red, scaled once the run outgrows it', () => {
