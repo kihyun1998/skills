@@ -40,8 +40,8 @@ export type LogEntry = {
   isOk?: boolean
 }
 
-/** A piece of a line drawn in one colour: a theme key or a colour name, or none for the default. */
-export type Seg = { text: string; color: string | null }
+/** A piece of a line drawn in one colour (a theme key or a colour name, or none for the default), bold or dim. */
+export type Seg = { text: string; color: string | null; bold?: boolean; dim?: boolean }
 
 /** One /thegraph run, as its skill calls and the turns between them showed it. */
 export type Run = {

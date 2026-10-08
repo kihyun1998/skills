@@ -12,8 +12,10 @@ import {
   onSkill,
   onTurnEnd,
   parseSheet,
-  HEAT_ROWS,
-  heatMap,
+  STEP_COLOR,
+  gantt,
+  stepAt,
+  trail,
   turnSummary,
   addLog,
   sheetLog,
@@ -23,13 +25,10 @@ import {
   sheetLine,
   sheetPathFor,
   routeName,
-  signalSummary,
   startRun,
   stepLabel,
-  stepMs,
   stepsOf,
 } from './run'
-import type { StepState } from './run'
 
 const run = atom({ plugin: 'thegraph-panel', key: 'run' } as const, null)
 const isPaneOpen = atom({ plugin: 'thegraph-panel', key: 'isPaneOpen' } as const, false)
@@ -43,15 +42,9 @@ const RIGHT = 1
 /** A running step's minutes redraw this often while nothing else happens. */
 const TICK_MS = 30_000
 
-const MARK: Record<StepState, string> = { done: '✓', run: '◐', wait: '◆', todo: '' }
-/** The line's dot per step. */
-const DOT: Record<StepState, string> = { done: '●', run: '◐', wait: '◆', todo: '○' }
-const COLOR: Record<StepState, string | undefined> = { done: 'success', run: 'claude', wait: 'warning', todo: undefined }
-/** The step being worked on, or waited on, is drawn bold. */
-const LOUD: Record<StepState, boolean> = { done: false, run: true, wait: true, todo: false }
+/** Cells for a step's name: before its gantt bar, and in the log's step column. */
+const STEP_CELLS = 10
 
-/** The pane shows this many of the newest log lines under the heat map. */
-const RECENT = 6
 /** Turn lines kept, the oldest dropped first. */
 const TURN_LINES_MAX = 200
 
@@ -356,8 +349,9 @@ export const register: Register = on => {
     return next(e)
   }).catch(($, e, next) => next(e))
 
-  // One line over whatever the other bands draw: a dot per step, the step at hand, the signals,
-  // and at the right edge, lined up with the band's beneath, the pane's button and ×.
+  // One line over whatever the other bands draw: the steps in order, each marked, the time in
+  // the one at hand, a failed last test and the signals; and at the right edge, lined up with
+  // the band's beneath, the pane's button and ×.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const below = await next(e)
     const r = await read($, run)
@@ -366,38 +360,14 @@ export const register: Register = on => {
     const isOpen = await read($, isPaneOpen)
     const { Box, Button, Text } = $.ui.resolve(e)
     const t = Math.max(await read($, now), r.startedAt)
-    const steps = stepsOf(r)
-    const dots = steps.map(({ state: s }) => <Text bold={LOUD[s]} color={COLOR[s]} dimColor={s === 'todo'}>{DOT[s]}</Text>)
-    const focus = focusOf(r)
-    const ms = focus === null ? null : stepMs(r, focus.key, t)
-    const at =
-      focus === null ? (
-        <Text>
-          <Text bold color="success">done</Text>
-          <Text dimColor>{` · ${minutes((r.doneAt ?? t) - r.startedAt)}`}</Text>
-        </Text>
-      ) : focus.state === 'todo' ? (
-        <Text dimColor>{`next ${focus.key} ${focus.index + 1}/${steps.length}`}</Text>
-      ) : (
-        <Text>
-          <Text bold color={COLOR[focus.state]}>{stepLabel(focus.key, focus.state)}</Text>
-          <Text dimColor>
-            {focus.state === 'run' ? ` ${focus.index + 1}/${steps.length}` : ''}
-            {ms === null ? '' : ` · ${minutes(ms)}`}
-          </Text>
-        </Text>
-      )
-    const signals = signalSummary(r)
+    const segs = trail(r, t)
     const line = (
       <Box flexDirection="row" justifyContent="space-between" paddingLeft={LEFT} paddingRight={RIGHT}>
         <Text wrap="truncate-end">
           <Text bold>thegraph</Text>
           {r.label !== null && <Text dimColor>{` ${r.label}`}</Text>}
           <Text>{'  '}</Text>
-          {dots}
-          <Text>{'  '}</Text>
-          {at}
-          {signals !== '' && <Text color="magenta">{`   ⚑ ${signals}`}</Text>}
+          {segs.map(g => <Text color={g.color ?? undefined} bold={g.bold} dimColor={g.dim}>{g.text}</Text>)}
         </Text>
         <Box flexDirection="row" flexShrink={0}>
           <Text>{'  '}</Text>
@@ -421,7 +391,7 @@ export const register: Register = on => {
     )
   })
 
-  // The log: a header, then what happened, oldest first, the engine following its end.
+  // The pane: a header, a gantt of the steps, then the log as a table, oldest first, opened at its end.
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Button, Text } = $.ui.resolve(e)
     const r = await read($, run)
@@ -445,39 +415,26 @@ export const register: Register = on => {
     }
     const t = Math.max(await read($, now), r.startedAt)
     const route = r.sheet?.route ?? (r.route === null ? null : routeName(r.route))
-    // The heat map: a column a minute (or an even share once the run outgrows the pane).
-    const LABEL = 9
-    const map = heatMap(r.log, r.startedAt, Math.max(t, r.doneAt ?? 0), Math.max(8, Math.min(60, e.props.bodyColumns - LABEL)))
-    // Neighbouring cells of one colour draw as one Text.
-    const runs = (cells: { ch: string; color: string | null }[]) => {
-      const out: { text: string; color: string | null }[] = []
-      for (const cell of cells) {
-        const last = out[out.length - 1]
-        if (last && last.color === cell.color) last.text += cell.ch
-        else out.push({ text: cell.ch, color: cell.color })
-      }
-      return out.map(run => (run.color === null ? <Text dimColor>{run.text}</Text> : <Text color={run.color}>{run.text}</Text>))
-    }
-    const heat = (
-      <Box flexDirection="column">
-        <Text wrap="truncate-end">
-          <Text dimColor>{'steps'.padEnd(LABEL - 2)}</Text>
-          {runs(map.steps)}
-        </Text>
-        {HEAT_ROWS.map((row, i) => (
-          <Text wrap="truncate-end">
-            <Text dimColor>{row.label.padEnd(LABEL - 2)}</Text>
-            {runs(map.rows[i] ?? [])}
-          </Text>
-        ))}
-        <Text dimColor>{`${' '.repeat(LABEL - 2)}0${' '.repeat(Math.max(1, map.steps.length - 4))}${map.minutes}m`}</Text>
-      </Box>
-    )
-    const lines = r.log.slice(-RECENT).map(l => {
+    // The gantt: a row per step, the run's time across, filled wherever that step ran.
+    const end = Math.max(t, r.doneAt ?? 0)
+    const bars = gantt(r, end, Math.max(8, Math.min(48, e.props.bodyColumns - STEP_CELLS - 5))).map(g => (
+      <Text wrap="truncate-end">
+        <Text bold={g.state === 'run' || g.state === 'wait'} dimColor={g.state === 'todo'}>{g.key.padEnd(STEP_CELLS)}</Text>
+        {g.cells.map(c => (c ? <Text color={STEP_COLOR[g.key] ?? 'white'}>█</Text> : <Text dimColor>·</Text>))}
+        <Text dimColor>{` ${g.ms === null ? '–' : minutes(g.ms)}`.padStart(5)}</Text>
+      </Text>
+    ))
+    const lines = r.log.map((l, i) => {
       const at = `+${String(Math.floor((l.at - r.startedAt) / 60_000)).padStart(2)}m `
+      const step = stepAt(r, l.at)
+      const prev = r.log[i - 1]
+      const isFirst = prev === undefined || stepAt(r, prev.at) !== step
       return (
         <Text wrap="wrap">
           <Text dimColor>{at}</Text>
+          {isFirst && step !== null
+            ? <Text color={STEP_COLOR[step.split(' ')[0] ?? ''] ?? undefined}>{step.padEnd(STEP_CELLS + 1)}</Text>
+            : <Text dimColor>{(step === null ? '' : '│').padEnd(STEP_CELLS + 1)}</Text>}
           {l.kind === 'step' && <Text bold>{`▸ ${l.text}`}</Text>}
           {l.kind === 'ask' && (
             <Text>
@@ -516,8 +473,9 @@ export const register: Register = on => {
         </Box>
         {r.sheet?.issue != null && <Text dimColor wrap="wrap">{r.sheet.issue}</Text>}
         <Text dimColor>{'─'.repeat(Math.max(8, Math.min(40, e.props.bodyColumns)))}</Text>
-        {heat}
+        {bars}
         <Text> </Text>
+        <Text dimColor>{`time ${'step'.padEnd(STEP_CELLS + 1)}what`}</Text>
         {lines.length === 0 ? <Text dimColor>Nothing logged yet.</Text> : lines}
       </Box>
     )

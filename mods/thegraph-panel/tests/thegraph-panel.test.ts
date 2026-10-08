@@ -2,7 +2,7 @@ import { describe, expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { CONFIRM, DECIDE, addLog, heatMap, turnSummary, isSheetPath, sheetLog, testCounts, testOf, labelOf, onAnswer, onEdit, onSkill, parseSheet, stepsOf, onTurnEnd, signalSummary, startRun, stateOf } from '../hooks/run'
+import { CONFIRM, DECIDE, addLog, gantt, stepAt, trail, turnSummary, isSheetPath, sheetLog, testCounts, testOf, labelOf, onAnswer, onEdit, onSkill, parseSheet, stepsOf, onTurnEnd, signalSummary, startRun, stateOf } from '../hooks/run'
 
 const MIN = 60_000
 
@@ -126,28 +126,29 @@ describe('thegraph-panel', () => {
     await say($, '/thegraph #42 band redraw')
     await skill($, 'thegraph')
     await skill($, 'read-it')
-    expect(flat(await ui.drawn())).toContain('thegraph #42 band redraw  ◐○○○○  read-it 1/5 · <1m')
+    expect(flat(await ui.drawn())).toContain('thegraph #42 band redraw  read-it ◐ › confirm › make-it › check-it › ask-it · <1m')
 
     await clock.advance(3 * MIN)
     await endTurn($)
-    expect(flat(await ui.drawn())).toContain('●◆○○○  confirm · waiting')
+    expect(flat(await ui.drawn())).toContain('read-it ✓ › confirm ◆ › make-it')
 
     // A slash command while it waits is not the answer.
     await say($, '/context')
-    expect(flat(await ui.drawn())).toContain('●◆○○○  confirm · waiting')
+    expect(flat(await ui.drawn())).toContain('read-it ✓ › confirm ◆ › make-it')
     await say($, '맞아, 진행해')
-    // Answered, and nothing begun yet: the line names what comes next.
-    expect(flat(await ui.drawn())).toContain('●●○○○  next make-it 3/5')
+    // Answered, and nothing begun yet: nothing runs, so no step is marked under way.
+    expect(flat(await ui.drawn())).toContain('confirm ✓ › make-it › check-it')
+    expect(flat(await ui.drawn())).not.toContain('◐')
     await skill($, 'make-it')
     await skill($, 'redden')
     await skill($, 'redden')
     const text = flat(await ui.drawn())
-    expect(text).toContain('●●◐○○  make-it 3/5 · <1m   ⚑ redden×2')
+    expect(text).toContain('make-it ◐ › check-it › ask-it · <1m   ⚑2')
     // Its line sits over the band beneath, which still draws.
     expect(text.endsWith('BELOW')).toBe(true)
     // The clock's tick redraws the step's minutes while nothing else happens.
     await clock.advance(12 * MIN)
-    expect(flat(await ui.drawn())).toContain('make-it 3/5 · 12m')
+    expect(flat(await ui.drawn())).toContain('ask-it · 12m')
   })
 
   test('a confirm asked in a question box waits, and its reply answers it; an edit then begins make-it', async ($, on) => {
@@ -165,10 +166,10 @@ describe('thegraph-panel', () => {
     await skill($, 'thegraph')
     await skill($, 'read-it')
     await $.tool.call({ tool: 'AskUserQuestion', questions: [{ question: '맞나요?', header: '확인', options: [], multiSelect: false }] })
-    expect(seen[0]).toContain('●◆○○○  confirm · waiting')
-    expect(flat(await ui.drawn())).toContain('●●○○○  next make-it 3/5')
+    expect(seen[0]).toContain('read-it ✓ › confirm ◆ › make-it')
+    expect(flat(await ui.drawn())).toContain('confirm ✓ › make-it › check-it')
     await $.tool.call({ tool: 'Edit', file_path: '/w/a.ts', old_string: 'a', new_string: 'b' })
-    expect(flat(await ui.drawn())).toContain('●●◐○○  make-it 3/5')
+    expect(flat(await ui.drawn())).toContain('make-it ◐ › check-it')
     const pane = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS })
     const log = flat(await pane.drawn())
     expect(log).toContain('◆ 맞나요? → 이대로 진행')
@@ -212,7 +213,7 @@ describe('thegraph-panel', () => {
     await skill($, 'thegraph')
     await $.tool.call({ tool: 'Write', file_path: SHEET, content: sheetText('~') })
     // make-it was never expanded; the sheet says it is under way.
-    expect(flat(await ui.drawn())).toContain('●●◐○○  make-it 3/5')
+    expect(flat(await ui.drawn())).toContain('make-it ◐ › check-it')
     const pane = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS })
     const text = flat(await pane.drawn())
     expect(text).toContain('설정 행 높이 통일')
@@ -221,7 +222,7 @@ describe('thegraph-panel', () => {
     expect(text).toContain('↗ 단축키 표 문구가 SPEC과 다름')
     // Every step checked off is the end, whatever the events saw.
     await $.tool.call({ tool: 'Write', file_path: SHEET, content: sheetText('x') })
-    expect(flat(await ui.drawn())).toContain('●●●●●  done')
+    expect(flat(await ui.drawn())).toContain('ask-it ✓  done')
     expect(flat(await pane.drawn())).toMatch(/thegraph · prose · \S+ · done/)
   })
 
@@ -240,15 +241,15 @@ describe('thegraph-panel', () => {
     // Written by the shell, as a run in bypass mode writes it; read once any tool call has run.
     fs.write(path, sheetText('~'))
     await $.tool.call({ tool: 'Bash', command: `sed -i 's/x/y/' ${path}` })
-    expect(flat(await ui.drawn())).toContain('●●◐○○  make-it 3/5')
+    expect(flat(await ui.drawn())).toContain('make-it ◐ › check-it')
     // Another session's sheet in the same folder, newer and finished, is not this run's.
     fs.write('/tmp/thegraph/w-20261008-0000-deadbeef.md', sheetText('x'))
     await $.tool.call({ tool: 'Bash', command: 'true' })
-    expect(flat(await ui.drawn())).toContain('●●◐○○  make-it 3/5')
+    expect(flat(await ui.drawn())).toContain('make-it ◐ › check-it')
     // The next shell write to this run's sheet is read again.
     fs.write(path, sheetText('x'))
     await $.tool.call({ tool: 'Bash', command: `sed -i 's/y/z/' ${path}` })
-    expect(flat(await ui.drawn())).toContain('●●●●●  done')
+    expect(flat(await ui.drawn())).toContain('ask-it ✓  done')
   })
 
   test('the pane closes itself: its own button, Esc, and the keys named on the main screen', async ($, on) => {
@@ -297,18 +298,22 @@ describe('thegraph-panel', () => {
     expect(flat(await other.drawn())).toBe('Baked for 999ms')
   })
 
-  test('the pane draws the heat map, then only the newest lines', async ($, on) => {
+  test('the pane draws a bar per step over the run, then the whole log as a table', async ($, on) => {
     await start($, on)
     await say($, '/thegraph')
     await skill($, 'thegraph')
     for (const sk of ['read-it', 'redden', 'firsthand', 'boundary', 'redden', 'firsthand', 'boundary', 'redden']) await skill($, sk)
     const pane = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS })
     const text = flat(await pane.drawn())
-    expect(text).toContain('✎ edits')
-    expect(text).toContain('⚑ signals')
-    // Nine lines logged; the oldest three are left to the map.
-    expect(text).not.toContain('▸ read-it')
-    expect((text.match(/⚑ (redden|firsthand|boundary)/g) ?? []).length).toBe(6)
+    // read-it has run the whole time so far; nothing else has begun.
+    expect(text).toMatch(/read-it +█+ +<1m/)
+    expect(text).toMatch(/make-it +·+ +–/)
+    expect(text).toContain('time step       what')
+    // The step names its first row; the rows under it carry a rule.
+    expect(text).toContain('read-it    ▸ read-it')
+    expect(text).toContain('│          ⚑ redden')
+    // Nine lines logged, every one of them drawn.
+    expect((text.match(/⚑ (redden|firsthand|boundary)/g) ?? []).length).toBe(7)
   })
 
   test('the band carries a button that opens and closes the checklist pane', async ($, on) => {
@@ -353,9 +358,9 @@ describe('thegraph-panel', () => {
     await skill($, 'check-it')
     await skill($, 'ask-it')
     await endTurn($)
-    expect(flat(await ui.drawn())).toContain('●●●●◆  ask-it · waiting')
+    expect(flat(await ui.drawn())).toContain('check-it ✓ › ask-it ◆')
     await say($, '1번만 이슈로')
-    expect(flat(await ui.drawn())).toContain('●●●●●  done · ')
+    expect(flat(await ui.drawn())).toContain('ask-it ✓  done · ')
     await say($, '다음 거 하자')
     expect(flat(await ui.drawn())).toBe('BELOW')
   })
@@ -386,8 +391,8 @@ describe('thegraph-panel', () => {
     await say($, '진행')
     for (const s of ['make-it', 'check-it', 'lens', 'boundary']) await skill($, s)
     const text = flat(await ui.drawn())
-    expect(text).toContain('●●●◐○  check-it 4/5')
-    expect(text).toContain('⚑ boundary')
+    expect(text).toContain('check-it ◐ › ask-it')
+    expect(text).toContain('⚑1')
     const pane = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS })
     expect(flat(await pane.drawn())).toContain('thegraph · prose/code')
   })
@@ -562,22 +567,50 @@ describe('run', () => {
     expect(again.map(l => `${l.kind}:${l.text}`)).toEqual(['end:done'])
   })
 
-  test('the heat map: a column a minute, its step on top, a failed test red, scaled once the run outgrows it', () => {
+  test('the gantt: a row per step, a cell wherever it ran, a step run twice in two stretches', () => {
     const MIN = 60_000
-    const log = [
-      { at: 0, kind: 'step' as const, text: 'read-it', detail: null },
-      { at: 2 * MIN, kind: 'step' as const, text: 'make-it', detail: null },
-      { at: 2 * MIN + 1, kind: 'edit' as const, text: 'a.ts', detail: null },
-      { at: 2 * MIN + 2, kind: 'edit' as const, text: 'b.ts', detail: null },
-      { at: 3 * MIN, kind: 'test' as const, text: 'vitest', detail: '1 fail', isOk: false },
-    ]
-    const map = heatMap(log, 0, 4 * MIN, 40)
-    expect(map.minutes).toBe(4)
-    expect(map.steps.map(c => c.color)).toEqual(['cyan', 'cyan', 'claude', 'claude'])
-    expect(map.rows[0]?.map(c => c.ch).join('')).toBe('··█·')
-    expect(map.rows[1]?.[3]).toEqual({ ch: '■', color: 'error' })
-    // Forty minutes in a pane of ten columns: four minutes a column.
-    expect(heatMap(log, 0, 40 * MIN, 10).rows[0]?.map(c => c.ch).join('')).toBe('█·········')
+    let r = startRun(null, 0)
+    r = onSkill(r, 'read-it', 0)
+    r = onTurnEnd(r, 2 * MIN)
+    r = onAnswer(r, 3 * MIN) ?? r
+    r = onSkill(r, 'make-it', 3 * MIN)
+    r = onSkill(r, 'check-it', 6 * MIN)
+    r = onSkill(r, 'make-it', 8 * MIN)
+    const rows = gantt(r, 10 * MIN, 10)
+    const bar = (key: string) => rows.find(x => x.key === key)?.cells.map(c => (c ? '█' : '·')).join('')
+    expect(bar('read-it')).toBe('██········')
+    expect(bar('confirm')).toBe('··█·······')
+    expect(bar('make-it')).toBe('···███··██')
+    expect(bar('check-it')).toBe('······██··')
+    expect(bar('ask-it')).toBe('··········')
+    expect(rows.find(x => x.key === 'make-it')?.ms).toBe(5 * MIN)
+    expect(rows.find(x => x.key === 'ask-it')?.ms).toBe(null)
+    // Forty minutes in ten cells: the one-minute confirm still fills the cell it fell in.
+    const scaled = gantt(r, 40 * MIN, 10)
+    expect(scaled.find(x => x.key === 'confirm')?.cells.map(c => (c ? '█' : '·')).join('')).toBe('█·········')
+    // A moment of the run names its step, and the second time round says so.
+    expect(stepAt(r, 1 * MIN)).toBe('read-it')
+    expect(stepAt(r, 4 * MIN)).toBe('make-it')
+    expect(stepAt(r, 9 * MIN)).toBe('make-it #2')
+  })
+
+  test('the trail: each step and its mark, a step run twice counted, the time in the step, a red last test, the signals', () => {
+    const MIN = 60_000
+    let r = startRun(null, 0)
+    r = onSkill(r, 'read-it', 0)
+    r = onTurnEnd(r, 2 * MIN)
+    r = onAnswer(r, 3 * MIN) ?? r
+    r = onSkill(r, 'make-it', 3 * MIN)
+    r = onSkill(r, 'check-it', 6 * MIN)
+    r = onSkill(r, 'make-it', 8 * MIN)
+    r = onSkill(r, 'redden', 9 * MIN)
+    const text = (run: typeof r) => trail(run, 10 * MIN).map(x => x.text).join('')
+    expect(text(r)).toBe('read-it ✓ › confirm ✓ › make-it×2 ◐ › check-it › ask-it · 5m   ⚑1')
+    // Only the last test speaks: red while it failed, gone once one passes.
+    r = addLog(r, { at: 9 * MIN, kind: 'test', text: 'vitest', detail: '1 fail', isOk: false })
+    expect(text(r)).toBe('read-it ✓ › confirm ✓ › make-it×2 ◐ › check-it › ask-it · 5m   ✗ 1 fail  ⚑1')
+    r = addLog(r, { at: 9 * MIN + 1, kind: 'test', text: 'vitest', detail: '2 pass', isOk: true })
+    expect(text(r)).toBe('read-it ✓ › confirm ✓ › make-it×2 ◐ › check-it › ask-it · 5m   ⚑1')
   })
 
   test("a turn's summary counts only what the turn did", () => {

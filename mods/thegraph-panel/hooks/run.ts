@@ -201,51 +201,68 @@ export const testCounts = (output: string): string | null => {
   return parts.length === 0 ? null : parts.join(' · ')
 }
 
-// --- the heat map ------------------------------------------------------------------
+// --- the trail and the gantt -----------------------------------------------------------
 
-/** Each step's colour on the heat map's top row. */
-const STEP_COLOR: Record<string, string> = {
+/** Each step's colour: its bar on the gantt, its name in a turn's closing line. */
+export const STEP_COLOR: Record<string, string> = {
   'read-it': 'cyan', [CONFIRM]: 'warning', 'make-it': 'claude', 'check-it': 'success', 'ask-it': 'magenta', lens: 'blue', [DECIDE]: 'warning',
 }
 
-/** The heat map's rows below the steps: what is counted, its label, its colour. */
-export const HEAT_ROWS: readonly { kind: LogEntry['kind']; label: string; color: string }[] = [
-  { kind: 'edit', label: '✎ edits', color: 'blue' },
-  { kind: 'test', label: '✓ tests', color: 'success' },
-  { kind: 'ask', label: '◆ asks', color: 'warning' },
-  { kind: 'signal', label: '⚑ signals', color: 'magenta' },
-  { kind: 'note', label: '→ notes', color: 'gray' },
-]
-
-/** One cell: its character and colour; null colour draws it dim. */
-export type HeatCell = { ch: string; color: string | null }
+const TRAIL_MARK: Record<StepState, string> = { done: ' ✓', run: ' ◐', wait: ' ◆', todo: '' }
+const TRAIL_COLOR: Record<StepState, string | null> = { done: 'success', run: 'claude', wait: 'warning', todo: null }
 
 /**
- * The heat map: a row for the step under way at each column, then one row per kind
- * of event. A column is a minute while the run fits `cols`, else an even share of it.
+ * The band's line after the run's name: every step in order with its mark, `×2` on one
+ * begun twice, the time in the step at hand (or `done` and the whole run's), then the last
+ * test when it failed and the count of signals.
  */
-export const heatMap = (log: readonly LogEntry[], startedAt: number, now: number, cols: number): { minutes: number; steps: HeatCell[]; rows: HeatCell[][] } => {
-  const span = Math.max(1, Math.ceil((now - startedAt) / 60_000))
-  const width = Math.max(1, Math.min(cols, span))
-  const per = (span * 60_000) / width
-  const colOf = (at: number) => Math.min(width - 1, Math.max(0, Math.floor((at - startedAt) / per)))
-  const stepLog = log.filter(l => l.kind === 'step')
-  const steps = Array.from({ length: width }, (_, i): HeatCell => {
-    const t = startedAt + (i + 1) * per - 1
-    const step = stepLog.findLast(l => l.at <= t)
-    return step ? { ch: '▀', color: STEP_COLOR[step.text] ?? 'white' } : { ch: '▁', color: null }
+export const trail = (run: Run, now: number): Seg[] => {
+  const segs: Seg[] = []
+  stepsOf(run).forEach(({ key, state }, i) => {
+    if (i > 0) segs.push({ text: ' › ', color: null, dim: true })
+    const n = run.steps.filter(s => s.key === key).length
+    segs.push({ text: `${key}${n > 1 ? `×${n}` : ''}${TRAIL_MARK[state]}`, color: TRAIL_COLOR[state], bold: state === 'run' || state === 'wait', dim: state === 'todo' })
   })
-  const rows = HEAT_ROWS.map(({ kind, color }) => {
-    const hits = Array.from({ length: width }, () => [] as LogEntry[])
-    for (const l of log) if (l.kind === kind) hits[colOf(l.at)]?.push(l)
-    return hits.map((h): HeatCell => {
-      if (h.length === 0) return { ch: '·', color: null }
-      // A failed test reddens its minute.
-      const c = kind === 'test' && h.some(l => l.isOk === false) ? 'error' : color
-      return { ch: h.length > 1 ? '█' : '■', color: c }
+  const focus = focusOf(run)
+  if (focus === null) {
+    segs.push({ text: '  done', color: 'success', bold: true }, { text: ` · ${minutes((run.doneAt ?? now) - run.startedAt)}`, color: null, dim: true })
+  } else if (focus.state !== 'todo') {
+    const ms = stepMs(run, focus.key, now)
+    if (ms !== null) segs.push({ text: ` · ${minutes(ms)}`, color: null, dim: true })
+  }
+  const tail: Seg[] = []
+  const test = run.log.findLast(l => l.kind === 'test')
+  if (test?.isOk === false) tail.push({ text: `✗${test.detail === null ? '' : ` ${test.detail}`}`, color: 'error' })
+  if (run.signals.length > 0) tail.push({ text: `⚑${run.signals.length}`, color: 'magenta' })
+  tail.forEach((t, i) => segs.push({ ...t, text: `${i === 0 ? '   ' : '  '}${t.text}` }))
+  return segs
+}
+
+/**
+ * The gantt: a row per step in the plan, `width` cells across the run from its start to
+ * `now`, a cell filled wherever that step ran; a step begun twice fills two stretches.
+ * `ms` is its time over every run, null for one not begun.
+ */
+export const gantt = (run: Run, now: number, width: number): { key: string; state: StepState; cells: boolean[]; ms: number | null }[] => {
+  const end = Math.max(now, run.startedAt + 1)
+  const per = (end - run.startedAt) / width
+  return stepsOf(run).map(({ key, state }) => {
+    const recs = run.steps.filter(s => s.key === key)
+    const cells = Array.from({ length: width }, (_, i) => {
+      const from = run.startedAt + i * per
+      return recs.some(s => s.startedAt < from + per && (s.endedAt ?? end) > from)
     })
+    return { key, state, cells, ms: stepMs(run, key, end) }
   })
-  return { minutes: span, steps, rows }
+}
+
+/** The step a moment of the run fell in, `#2` on its second time round; null before any. */
+export const stepAt = (run: Run, at: number): string | null => {
+  const i = run.steps.findLastIndex(s => s.startedAt <= at)
+  const rec = run.steps[i]
+  if (rec === undefined) return null
+  const round = run.steps.slice(0, i + 1).filter(s => s.key === rec.key).length
+  return round > 1 ? `${rec.key} #${round}` : rec.key
 }
 
 // --- the conversation's lines ------------------------------------------------------------
