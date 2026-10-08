@@ -113,7 +113,7 @@ Adding a mod, its layout, and the check every mod passes: [`mods/README.md`](mod
 
 | Mod | What it does |
 | --- | --- |
-| [`usage-band`](mods/usage-band/) | Two rows above the prompt: model, effort, how fast the 5-hour limit is going (`%/h`, red when it would run out before the reset) today's cost and the prompt cache's hit rate (the time the limit runs out, in place of `%/h`, when that comes before the reset), over three gauges: context, the 5-hour window and the week, each limit marked where an even pace would be. Replaces the ccusage statusline; see [`docs/environment/usage-band.md`](docs/environment/usage-band.md). |
+| [`usage-band`](mods/usage-band/) | Two rows above the prompt in three divided columns, each a head over its gauge: context (model, effort, the prompt cache's hit rate), the 5-hour window (`%/h`, or when it runs out if before the reset, and its reset) and the week (with today's cost and `$/h`). Quiet until something needs saying: colour only for a limit past 80%, a pace that runs out, a cold cache, a heavy day. Replaces the ccusage statusline; see [`docs/environment/usage-band.md`](docs/environment/usage-band.md). |
 
 ## Repo layout
 

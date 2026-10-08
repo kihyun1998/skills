@@ -11,7 +11,6 @@ import {
   clockOf,
   TODAY_LOUD_USD,
   contextUsed,
-  effortColor,
   effortFromSettings,
   evenPace,
   fiveHourRate,
@@ -25,9 +24,7 @@ import {
   parseToday,
   rateLevel,
   recordFive,
-  resetIn,
   runsOutAt,
-  runwayColor,
   sinceArg,
   usd,
 } from './format'
@@ -42,9 +39,9 @@ const cacheReadings = atom({ plugin: 'usage-band', key: 'cacheReadings' } as con
 const LEFT = 2
 const RIGHT = 1
 
-/** Cells for a gauge's label (`ctx `, `5h  `), and between two gauges. */
+/** Cells for a gauge's label (`ctx `, `5h  `), and the divider between two columns. */
 const GAUGE_LABEL = 4
-const GAUGE_GAP = 4
+const DIVIDER = '  │  '
 
 /** How often ccusage is asked between turns; each answer also redraws, so %/h decays while idle. */
 const LEDGER_MS = 120_000
@@ -198,9 +195,11 @@ export const register: Register = on => {
     return result
   })
 
-  // Two rows: who and how fast on top, then a gauge each for context, the 5-hour window and the week.
-  // Whatever other bands draw goes above them, so these two stay next to the prompt
-  // whichever plugin's hook runs first.
+  // Three columns, divided, each a head over its gauge: context (the model, its effort, the cache),
+  // the 5-hour window (its pace or when it runs out, and its reset), and the week with the money.
+  // Quiet until something needs saying: colour is kept for a limit past 80%, a pace that runs
+  // out, a cold cache and a heavy day.
+  // Whatever other bands draw goes above, so these rows stay next to the prompt whichever hook runs first.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const below = await next(e)
     const l = await read($, live)
@@ -213,84 +212,82 @@ export const register: Register = on => {
     const samples = await read($, fiveSamples)
     const now = await $.clock.now()
     const { Box, Text } = $.ui.resolve(e)
-    const gap = <Text>{'   '}</Text>
 
-    // Top row: model and effort, %/h of the 5-hour limit (or $/h without one), today.
+    // A piece of a row: its text and how it is drawn.
+    type Seg = { text: string; color?: string; bold?: boolean; dim?: boolean }
+    const draw = (segs: Seg[]) => segs.map(g => <Text color={g.color} bold={g.bold} dimColor={g.dim}>{g.text}</Text>)
+    const width = (segs: Seg[]) => segs.reduce((n, g) => n + [...g.text].length, 0)
+    // A column's head, cut or padded to the gauge's width so the dividers line up.
+    const fit = (segs: Seg[], n: number): Seg[] => {
+      const out: Seg[] = []
+      let used = 0
+      for (const g of segs) {
+        const take = [...g.text].slice(0, Math.max(0, n - used)).join('')
+        if (take !== '') out.push({ ...g, text: take })
+        used += [...take].length
+      }
+      return used < n ? [...out, { text: ' '.repeat(n - used) }] : out
+    }
+    const dot: Seg = { text: ' · ', dim: true }
+
+    // The heads.
+    const hit = cacheHit(await read($, cacheReadings))
+    const contextHead: Seg[] = [
+      { text: modelLabel(l.model), color: FIGURE_COLOR.model, bold: true },
+      ...(eff !== null ? [{ text: ` ${eff}`, dim: true }] : []),
+      ...(hit !== null ? [dot, { text: 'cache ', dim: true }, { text: `${hit}%`, color: hit >= 80 ? undefined : cacheLevel(hit) }] : []),
+    ]
     const five = fiveOf(l)
     const rate = five ? fiveHourRate(samples, five.percentUsed, five.resetsAt, now) : null
     const outAt = five && rate !== null ? runsOutAt(rate, five.percentUsed, five.resetsAt, now) : null
-    const pace =
-      five && rate !== null && outAt !== null && five.resetsAt !== null ? (
-        // At this pace the limit runs out before the reset: say when, and when it comes back.
-        <Text>
-          <Text bold color="error">{`${clockOf(outAt)} 바닥`}</Text>
-          <Text dimColor>{` · 리셋 ${clockOf(Date.parse(five.resetsAt))}`}</Text>
-        </Text>
-      ) : five && rate !== null ? (
-        <Text>
-          <Text bold color={rateLevel(rate, five.percentUsed, five.resetsAt, now)}>{`+${Math.round(rate)}%/h`}</Text>
-          {led?.burnPerHour != null && <Text dimColor>{` ${usd(led.burnPerHour)}/h`}</Text>}
-        </Text>
-      ) : led?.burnPerHour != null ? (
-        <Text bold color={FIGURE_COLOR.burn}>{`${usd(led.burnPerHour)}/h`}</Text>
-      ) : null
-    const today =
-      led?.today == null ? null : isTodayUnpriced(led, l) ? (
-        <Text color="warning">today $0 · model not priced in ccusage</Text>
-      ) : (
-        <Text>
-          <Text dimColor>today </Text>
-          <Text bold={led.today >= TODAY_LOUD_USD} color={FIGURE_COLOR.today}>{usd(led.today)}</Text>
-        </Text>
-      )
-    const hit = cacheHit(await read($, cacheReadings))
-    const cache =
-      hit === null ? null : (
-        <Text>
-          <Text dimColor>캐시 </Text>
-          <Text color={cacheLevel(hit)}>{`${hit}%`}</Text>
-        </Text>
-      )
+    const reset: Seg[] = five?.resetsAt != null ? [dot, { text: `resets ${clockOf(Date.parse(five.resetsAt))}`, dim: true }] : []
+    const fiveHead: Seg[] | null =
+      five === undefined ? null
+      : outAt !== null ? [{ text: `out at ${clockOf(outAt)}`, color: 'error', bold: true }, ...reset]
+      : rate !== null ? [{ text: `+${Math.round(rate)}%/h`, bold: true, ...(() => { const lv = rateLevel(rate, five.percentUsed, five.resetsAt, now); return lv === 'success' ? {} : { color: lv } })() }, ...reset]
+      : reset.slice(1)
+    const moneyHead: Seg[] = [
+      ...(led?.today == null ? []
+        : isTodayUnpriced(led, l) ? [{ text: 'today $0 · model not priced in ccusage', color: 'warning' }]
+        : [{ text: 'today ', dim: true }, { text: usd(led.today), ...(led.today >= TODAY_LOUD_USD ? { color: 'warning', bold: true } : {}) }]),
+      ...(led?.burnPerHour != null ? [...(led.today == null ? [] : [dot]), { text: `${usd(led.burnPerHour)}/h`, dim: five !== undefined }] : []),
+    ]
+
+    // The gauges, each limit's carrying its even-pace mark when its reset time is known.
+    const seven = l.rateLimits.find(r => r.kind === 'seven_day')
+    const gauges = [
+      { label: 'ctx', used: contextUsed(l.context), mark: null as number | null, head: contextHead },
+      ...(five ? [{ label: '5h', used: five.percentUsed, mark: evenPace(five.resetsAt, WINDOW_MS.fiveHour, now), head: fiveHead ?? [] }] : []),
+      ...(seven ? [{ label: 'wk', used: seven.percentUsed, mark: evenPace(seven.resetsAt, WINDOW_MS.week, now), head: [] as Seg[] }] : []),
+    ]
+    // The money goes over the week; without one, after the last head.
+    const last = gauges[gauges.length - 1]
+    if (last) last.head = last.label === 'wk' ? moneyHead : moneyHead.length === 0 ? last.head : [...last.head, ...(width(last.head) > 0 ? [dot] : []), ...moneyHead]
+
+    const each = gaugeWidth(e.props.bodyColumns - LEFT - RIGHT, gauges.length, DIVIDER.length)
+    const divider = <Text dimColor>{DIVIDER}</Text>
     const top = (
       <Text wrap="truncate-end">
-        <Text bold color={FIGURE_COLOR.model}>{modelLabel(l.model)}</Text>
-        {eff !== null && <Text bold color={effortColor(eff)}>{` ${eff}`}</Text>}
-        {pace && gap}
-        {pace}
-        {today && gap}
-        {today}
-        {cache && gap}
-        {cache}
+        {gauges.map((g, i) => (
+          <Text>
+            {i > 0 && divider}
+            {draw(fit(g.head, each))}
+          </Text>
+        ))}
       </Text>
     )
-
-    // Bottom row: a gauge each for context, the 5-hour window and the week, side by side.
-    // A limit's gauge carries its even-pace mark when its reset time is known: a bar past it is spending faster than time passes.
-    const seven = l.rateLimits.find(r => r.kind === 'seven_day')
-    const fiveReset = five && isLoud(five.percentUsed) ? resetIn(five.resetsAt, now) : null
-    const gauges = [
-      { label: 'ctx', used: contextUsed(l.context), color: FIGURE_COLOR.context, mark: null, after: '' },
-      ...(five
-        ? [{ label: '5h', used: five.percentUsed, color: FIGURE_COLOR.fiveHour, mark: evenPace(five.resetsAt, WINDOW_MS.fiveHour, now), after: fiveReset ? ` · resets ${fiveReset}` : '' }]
-        : []),
-      ...(seven ? [{ label: 'wk', used: seven.percentUsed, color: FIGURE_COLOR.week, mark: evenPace(seven.resetsAt, WINDOW_MS.week, now), after: '' }] : []),
-    ]
-    const room = e.props.bodyColumns - LEFT - RIGHT - gauges.reduce((n, g) => n + [...g.after].length, 0)
-    const each = gaugeWidth(room, gauges.length, GAUGE_GAP)
     const bottom = (
       <Text wrap="truncate-end">
         {gauges.map((g, i) => {
           const figure = ` ${String(g.used).padStart(3)}%`
           const cells = gaugeCells(Math.max(4, each - GAUGE_LABEL - figure.length), g.used, g.mark)
+          const loud = isLoud(g.used) ? levelOf(g.used) : undefined
           return (
             <Text>
-              {i > 0 && <Text>{' '.repeat(GAUGE_GAP)}</Text>}
+              {i > 0 && divider}
               <Text dimColor>{g.label.padEnd(GAUGE_LABEL)}</Text>
-              {cells.map((c, j) =>
-                c === 'mark' ? <Text bold>┊</Text> : c === 'fill' ? <Text color={runwayColor(j, cells.length)}>━</Text> : <Text dimColor>─</Text>,
-              )}
-              <Text bold color={isLoud(g.used) ? levelOf(g.used) : g.color}>{figure}</Text>
-              {g.after !== '' && <Text dimColor>{g.after}</Text>}
+              {cells.map(c => (c === 'mark' ? <Text bold>┊</Text> : c === 'fill' ? <Text color={loud}>━</Text> : <Text dimColor>─</Text>))}
+              <Text bold color={loud}>{figure}</Text>
             </Text>
           )
         })}

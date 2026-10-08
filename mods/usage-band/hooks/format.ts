@@ -24,37 +24,10 @@ export const modelLabel = (id: string): string => {
   return `${m[1]} ${m[2]}${m[3] ? `.${m[3]}` : ''}`
 }
 
-// ANSI color names, not hex: the terminal paints them from its own palette, so the band follows its theme.
-const EFFORT_COLOR: Record<string, string> = {
-  low: 'gray',
-  medium: 'blueBright',
-  high: 'magentaBright',
-  xhigh: 'redBright',
-  max: 'red',
-}
-
-export const effortColor = (effort: string): string => EFFORT_COLOR[effort] ?? 'whiteBright'
-
-/** Each figure's own color while it is quiet; past 80% the theme's warning and error take over. */
-export const FIGURE_COLOR = {
-  model: 'claude',
-  context: 'green',
-  fiveHour: 'cyan',
-  week: 'blueBright',
-  burn: 'yellow',
-  today: 'magenta',
-} as const
+/** The one colour the band keeps while quiet: the model's, from the Claude Code theme. */
+export const FIGURE_COLOR = { model: 'claude' } as const
 
 export const usd = (n: number): string => `$${n.toFixed(2)}`
-
-/** `2h13m` until `resetsAt`, or null when it is unknown or past. */
-export const resetIn = (resetsAt: string | null, now: number): string | null => {
-  if (resetsAt === null) return null
-  const at = Date.parse(resetsAt)
-  if (Number.isNaN(at) || at <= now) return null
-  const mins = Math.ceil((at - now) / 60_000)
-  return `${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, '0')}m`
-}
 
 /**
  * The effort settings name for a model, before any request has said what it was sent
@@ -222,24 +195,3 @@ export const gaugeCells = (width: number, used: number, mark: number | null): Ga
 export const gaugeWidth = (room: number, count: number, gap: number): number =>
   Math.floor((room - gap * (count - 1)) / count)
 
-
-const RUNWAY_STOPS = ['#56b6c2', '#98c379', '#e5c07b', '#e06c75'] as const
-
-/**
- * The color of each filled cell of a runway `width` cells long: teal at the start
- * through green and amber to red at the far end, so the fill's own end says how far
- * the context has gone.
- */
-export const runwayColor = (cell: number, width: number): string => {
-  const k = width <= 1 ? 0 : cell / (width - 1)
-  const span = RUNWAY_STOPS.length - 1
-  const seg = Math.min(span - 1, Math.floor(k * span))
-  const t = k * span - seg
-  const from = RUNWAY_STOPS[seg] ?? RUNWAY_STOPS[0]
-  const to = RUNWAY_STOPS[seg + 1] ?? RUNWAY_STOPS[0]
-  const mix = (i: number) =>
-    Math.round(parseInt(from.slice(i, i + 2), 16) + (parseInt(to.slice(i, i + 2), 16) - parseInt(from.slice(i, i + 2), 16)) * t)
-      .toString(16)
-      .padStart(2, '0')
-  return `#${mix(1)}${mix(3)}${mix(5)}`
-}

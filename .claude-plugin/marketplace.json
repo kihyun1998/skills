@@ -13,7 +13,7 @@
     {
       "name": "usage-band",
       "source": "./mods/usage-band",
-      "description": "Two rows above the prompt: model, effort, how fast the 5-hour limit is going (%/h) today's cost and the cache hit rate (or when the limit runs out, if before the reset), over gauges for context, the 5-hour window and the week, each limit marked where an even pace would be."
+      "description": "Two rows above the prompt in three divided columns: context with the model, effort and cache hit rate; the 5-hour window with its pace (or when it runs out) and reset; the week with today's cost. Colour only when something needs saying."
     }
   ]
 }

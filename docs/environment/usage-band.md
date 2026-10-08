@@ -27,31 +27,40 @@ script warns if the variable still names a mod.
 ## What the band shows
 
 ```
-opus 5.5 medium   +18%/h $80.97/h   today $80.72
-ctx ━━━━━━━━━━━━━━━━──────────────────  47%    5h  ━━━━━━━━──┊───────────────────────  22%    wk  ━━━━━━━━━──────────────┊───────────  27%
+opus 5.5 high · cache 93%                   │  +15%/h · resets 18:20                      │  today $59.40 · $83.67/h
+ctx ━━━━━━━━━━━━━━━━━━━━━━───────────  68%  │  5h  ━━━━━━━━━━━━━━────┊──────────────  41%  │  wk  ━━━━━━─────────────────┊─────────  18%
 ```
 
-Two rows. The top says who is working and how fast; the bottom is three gauges
-of equal length, side by side, for context, the 5-hour window and the week (a
-limit the account does not have drops its gauge, and the rest share the row).
-Each limit's gauge carries `┊`, where an even pace would have it: the share of
-its window (five hours, or seven days) already gone. A bar past the mark is
-spending faster than time passes. The engine's `resetsAt` is optional on every
-limit; a gauge whose limit comes without one has no mark. Labels are dim
-and each value has its own color: ANSI names (`green`, `cyan`, …) the terminal
-paints from its own theme, the model the Claude Code theme key `claude`. Past 80%
-a figure takes the theme's `warning` or `error` instead.
+Three columns, a dim `│` between them, each a head over its gauge: context (the
+model, its effort and the prompt cache), the 5-hour window (its pace, or when it
+runs out, and its reset), and the week with the money. The heads are cut or padded
+to their gauge's width, so a head that grows (the forecast) never pushes the next
+column. A limit the account does not have drops its column; the money then goes
+after the last head.
 
-| Figure | Source | Loud when |
-|---|---|---|
-| model, effort | `$.session.model()`; the `effort` of each main-thread `turn.step` | effort is always colored by level |
-| `%/h` | the 5-hour window's readings (below) | error when this pace reaches the limit before the reset, warning past 80% of that pace |
-| `$/h` | `ccusage blocks --active --json --offline` → `burnRate.costPerHour` | dim beside `%/h`; it stands in, in yellow, where there is no 5-hour limit (an API key) |
-| today | `ccusage daily --json --offline --since <yesterday UTC>` → last day's `totalCost` | bold at $100 or more |
-| `HH:MM 바닥 · 리셋 HH:MM` | `%/h` and the 5-hour window's `resetsAt` | in place of `%/h`, in error, only when this pace runs the limit out before the reset |
-| 캐시 | each main-thread request's `usage` (`turn.step`): cache read ÷ (read + written + uncached), over the last 10 | green from 80%, amber from 50%, red below; a subagent's requests are left out |
-| ctx gauge | `context.percent` | each gauge's cells run teal → green → amber → red, hex colors that do not follow the theme; the number is loud past 80% |
-| 5h, wk gauges | `rateLimits` `five_hour`, `seven_day`; each `┊` from that limit's `resetsAt` | 80% (warning), 90% (error); 5h adds its reset time |
+Each limit's gauge carries `┊`, where an even pace would have it: the share of its
+window (five hours, or seven days) already gone. A bar past the mark is spending
+faster than time passes. The engine's `resetsAt` is optional on every limit; a
+gauge whose limit comes without one has no mark.
+
+**Quiet until something needs saying.** Labels are dim, figures and fills take the
+terminal's own colour, and only the model keeps one (the Claude Code theme key
+`claude`). Colour is kept for trouble, so it reads as trouble: a gauge past 80%
+takes the theme's `warning`, past 90% `error`, fill and figure both; a pace that
+runs out before the reset, a cache below 80%, a day over $100. The words are
+English, and so are the gauge labels: a Korean word is two cells wide and would
+shift the bars.
+
+| Figure | Column | Source | Coloured when |
+|---|---|---|---|
+| model, effort | context | `$.session.model()`; the `effort` of each main-thread `turn.step` | the model always (`claude`); effort is dim |
+| `cache N%` | context | each main-thread request's `usage` (`turn.step`): cache read ÷ (read + written + uncached), over the last 10; a subagent's requests are left out | amber below 80%, red below 50% |
+| `+N%/h` | 5-hour | the 5-hour window's readings (below) | warning past 80% of the pace that would run out, error at it |
+| `out at HH:MM` | 5-hour | `%/h` and the window's `resetsAt` | in place of `%/h`, in error, only when this pace runs the limit out before the reset |
+| `resets HH:MM` | 5-hour | the window's `resetsAt`, in the engine's local time | never; dim |
+| `today $N` | week | `ccusage daily --json --offline --since <yesterday UTC>` → last day's `totalCost` | warning, bold, at $100 or more |
+| `$N/h` | week | `ccusage blocks --active --json --offline` → `burnRate.costPerHour` | never; dim beside a 5-hour pace, plain where there is none (an API key) |
+| ctx, 5h, wk gauges | — | `context.percent`; `rateLimits` `five_hour`, `seven_day`; each `┊` from that limit's `resetsAt` | 80% (warning), 90% (error) |
 
 ### %/h
 

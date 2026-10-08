@@ -17,8 +17,6 @@ import {
   parseToday,
   rateLevel,
   recordFive,
-  resetIn,
-  runwayColor,
   sinceArg,
 } from '../hooks/format'
 
@@ -101,6 +99,9 @@ const flat = (node: unknown): string =>
       ? node.children.map(flat).join('')
       : ''
 
+// The divider between two columns.
+const DIV = '  │  '
+
 // The band's own Box: the last child, under whatever the bands beneath drew.
 const own = async (ui: { drawn: () => Promise<unknown> }) => {
   const tree = (await ui.drawn()) as { children: unknown[] }
@@ -123,31 +124,33 @@ describe('usage-band', () => {
       await start($, on, usage(68, 41, 18), { burn: 83.67, today: 59.4, argv: [] })
       const ui = await mount($, surface)
       const [top, bottom] = await rows(ui)
+      // Two blank cells kept at the left of the band's 140 and one at the right leave 137: three columns
+      // of 42 with a 5-cell divider between, each gauge a 4-cell label, a 33-cell bar and a 5-cell figure.
       // 41% over the 2h47m the window has run: 14.7%/h.
-      expect(top).toBe('opus 5.5   +15%/h $83.67/h   today $59.40')
-      // Two blank cells kept at the left of the band's 140 and one at the right leave 137:
-      // three gauges of 43 with four between, each a 4-cell label, a 34-cell bar and a 5-cell figure.
-      const [ctx, five, week] = (bottom ?? '').split('    ')
-      expect([ctx, five, week].map(g => [...(g ?? '')].length)).toEqual([43, 43, 43])
+      const resets = clockOf(Date.parse(RESETS_AT))
+      expect(top).toBe(['opus 5.5', `+15%/h · resets ${resets}`, 'today $59.40 · $83.67/h'].map(h => h.padEnd(42)).join(DIV))
+      const [ctx, five, week] = (bottom ?? '').split(DIV)
+      expect([ctx, five, week].map(g => [...(g ?? '')].length)).toEqual([42, 42, 42])
       expect(ctx?.startsWith('ctx ')).toBe(true)
       expect(ctx?.endsWith('  68%')).toBe(true)
-      expect(ctx?.match(/━/g)?.length).toBe(Math.round(0.68 * 34))
+      expect(ctx?.match(/━/g)?.length).toBe(Math.round(0.68 * 33))
       expect(five?.startsWith('5h  ')).toBe(true)
       expect(week).toMatch(/^wk {2}.* {2}18%$/)
       expect((await own(ui)) as unknown).toMatchObject({ props: { paddingLeft: 2, paddingRight: 1 } })
-      expect((await ui.findAll({ type: 'Text' })).find(t => t.text === '━')?.props.color).toBe('#56b6c2')
+      // Quiet while nothing is past 80%: the fill and the figure take the terminal's own colour.
+      expect((await ui.findAll({ type: 'Text' })).find(t => t.text === '━')?.props.color).toBe(undefined)
       expect((await propsOf(ui, 'opus 5.5'))?.color).toBe('claude')
-      expect((await propsOf(ui, '  68%'))?.color).toBe('green')
+      expect((await propsOf(ui, '  68%'))?.color).toBe(undefined)
     })
   }
 
   test('the 5-hour gauge marks where an even pace would have it', async ($, on) => {
     await start($, on, usage(68, 41, 18), { burn: 10, today: 5, argv: [] })
     const ui = await mount($)
-    const five = (await rows(ui))[1]?.split('    ')[1] ?? ''
-    // 2h47m of the window gone is 55.7%: cell 19 of the 34, past the 14 that 41% fills.
-    const bar = [...five].slice(4, 4 + 34)
-    expect(bar.indexOf('┊')).toBe(19)
+    const five = (await rows(ui))[1]?.split(DIV)[1] ?? ''
+    // 2h47m of the window gone is 55.7%: cell 18 of the 33, past the 14 that 41% fills.
+    const bar = [...five].slice(4, 4 + 33)
+    expect(bar.indexOf('┊')).toBe(18)
     expect(bar.filter(c => c === '━')).toHaveLength(14)
     // The week here comes with no reset time, so its gauge has none.
     expect((await rows(ui))[1]?.match(/┊/g)).toHaveLength(1)
@@ -159,7 +162,7 @@ describe('usage-band', () => {
     const week = { kind: 'seven_day', percentUsed: 18, resetsAt: new Date(48 * HOUR).toISOString() }
     await start($, on, { ...u, rateLimits: [u.rateLimits[0]!, week] }, { burn: 10, today: 5, argv: [] })
     const ui = await mount($)
-    const bar = [...((await rows(ui))[1]?.split('    ')[2] ?? '')].slice(4, 4 + 34)
+    const bar = [...((await rows(ui))[1]?.split(DIV)[2] ?? '')].slice(4, 4 + 33)
     expect(bar.indexOf('┊')).toBe(24)
     expect((await rows(ui))[1]?.match(/┊/g)).toHaveLength(2)
   })
@@ -199,12 +202,12 @@ describe('usage-band', () => {
     await clock.advance(20 * MIN)
     await measure($, usage(21, 80, 5))
     const out = clockOf(20 * MIN + (20 / 90) * HOUR)
-    expect((await propsOf(ui, `${out} 바닥`))?.color).toBe('error')
-    expect((await rows(ui))[0]).toContain(`${out} 바닥 · 리셋 ${clockOf(Date.parse(RESETS_AT))}`)
+    expect((await propsOf(ui, `out at ${out}`))?.color).toBe('error')
+    expect((await rows(ui))[0]).toContain(`out at ${out} · resets ${clockOf(Date.parse(RESETS_AT))}`)
     expect((await rows(ui))[0]).not.toContain('%/h')
   })
 
-  test('the cache hit rate shows after today, over the latest main-thread requests', async ($, on) => {
+  test('the cache hit rate shows beside the model, over the latest main-thread requests', async ($, on) => {
     const world: World = { burn: 5, today: 3, argv: [], stepUsage: { input_tokens: 2_000, output_tokens: 500, cache_read_input_tokens: 93_000, cache_creation_input_tokens: 5_000 } }
     await start($, on, usage(20, 5, 5), world)
     const step = async (agentId?: string) => {
@@ -217,29 +220,32 @@ describe('usage-band', () => {
     world.stepUsage = { input_tokens: 100_000, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }
     await step('subagent-1')
     const ui = await mount($)
-    expect((await rows(ui))[0]).toMatch(/today \$3\.00 {3}캐시 93%$/)
-    expect((await propsOf(ui, '93%'))?.color).toBe('success')
+    // In the context column, after the model; quiet at 80% and above.
+    expect((await rows(ui))[0]).toMatch(/^opus 5\.5 high · cache 93% /)
+    expect((await propsOf(ui, '93%'))?.color).toBe(undefined)
   })
 
   test('without a 5-hour limit (an API key) the band shows $/h in its place', async ($, on) => {
     await start($, on, { ...usage(20, 0, 0), rateLimits: [] }, { burn: 42.5, today: 5, argv: [] })
     const ui = await mount($)
     const [top, bottom] = await rows(ui)
-    expect(top).toBe('opus 5.5   $42.50/h   today $5.00')
-    // Context alone takes the whole row.
+    // Context alone takes the whole row, the money after the model in its head.
+    expect(top).toBe('opus 5.5 · today $5.00 · $42.50/h'.padEnd(137))
     expect(bottom).toMatch(/^ctx .* {2}20%$/)
     expect([...(bottom ?? '')]).toHaveLength(137)
-    expect((await propsOf(ui, '$42.50/h'))?.color).toBe('yellow')
+    // With no %/h beside it, $/h is not dimmed.
+    expect((await propsOf(ui, '$42.50/h'))?.dimColor).not.toBe(true)
   })
 
-  test('figures past 80% take a level color, and the 5h reset appears', async ($, on) => {
+  test('only figures past 80% take a colour, the level\'s', async ($, on) => {
     await start($, on, usage(30, 10, 5), { burn: 20, today: 10, argv: [] })
     const ui = await mount($)
     await measure($, usage(93, 85, 50))
-    expect((await rows(ui))[1]).toContain('  85% · resets 2h13m')
     expect((await propsOf(ui, '  93%'))?.color).toBe('error')
     expect((await propsOf(ui, '  85%'))?.color).toBe('warning')
-    expect((await propsOf(ui, '  50%'))?.color).toBe('blueBright')
+    expect((await propsOf(ui, '  50%'))?.color).toBe(undefined)
+    // The fill of a loud gauge takes its level too.
+    expect((await ui.findAll({ type: 'Text' })).filter(t => t.text === '━').map(t => t.props.color)).toContain('error')
   })
 
   test('the effort a main-thread request is sent with shows after the model', async ($, on) => {
@@ -363,12 +369,6 @@ describe('format', () => {
     expect(rateLevel(99, 50, null, 0)).toBe('success')
   })
 
-  test('runway colors run teal to red', () => {
-    expect(runwayColor(0, 10)).toBe('#56b6c2')
-    expect(runwayColor(9, 10)).toBe('#e06c75')
-    expect(runwayColor(0, 1)).toBe('#56b6c2')
-  })
-
   test('effort from settings: per model first, then the global level', () => {
     const settings = { effortLevel: 'low', modelSettings: { 'claude-opus-5-5': { effortLevel: 'medium' } } }
     expect(effortFromSettings(settings, 'claude-opus-5-5')).toBe('medium')
@@ -377,12 +377,11 @@ describe('format', () => {
     expect(effortFromSettings({}, 'claude-opus-5-5')).toBe(null)
   })
 
-  test('ccusage output and reset times', () => {
+  test('ccusage output', () => {
     expect(parseBurn(blocksJson(83.67))).toBe(83.67)
     expect(parseBurn(JSON.stringify({ blocks: [] }))).toBe(null)
     expect(parseToday(dailyJson(59.4))).toBe(59.4)
     expect(parseToday(JSON.stringify({ daily: [] }))).toBe(null)
     expect(sinceArg(Date.parse('2026-10-07T03:00:00Z'))).toBe('20261006')
-    expect(resetIn(new Date(HOUR + 5 * MIN).toISOString(), 0)).toBe('1h05m')
   })
 })
