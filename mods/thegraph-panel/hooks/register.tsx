@@ -112,12 +112,34 @@ const closePane = async ($: EngineInterface) => {
   }
 }
 
+// Closes the pane whatever this plugin remembers: after /clear its state is gone and the pane is not.
+const shutPane = async ($: EngineInterface) => {
+  try {
+    await $.ui.close({ id: PANE })
+  } catch {
+    // Not open; nothing to close.
+  }
+  await update($, isPaneOpen, () => false)
+}
+
+// A pane open with no run behind it, as /clear or /resume leaves one, is closed.
+const shutOrphanPane = async ($: EngineInterface) => {
+  if ((await read($, run)) !== null) return
+  let isOpen = false
+  try {
+    isOpen = (await $.ui.panes()).some(p => p.id === PANE)
+  } catch {
+    return
+  }
+  if (isOpen) await shutPane($)
+}
+
 const togglePane = async ($: EngineInterface) => {
   if (await read($, isPaneOpen)) {
     await closePane($)
     return
   }
-  const opened = await $.ui.open({ id: PANE, title: 'thegraph' })
+  const opened = await $.ui.open({ id: PANE, title: 'thegraph', closeOnEscape: true })
   await update($, isPaneOpen, () => true)
   try {
     await $.ui.scroll({ in: PANE, to: 'end' })
@@ -166,6 +188,7 @@ export const register: Register = on => {
       if (label !== null) {
         pendingLabel = label
       } else {
+        await shutOrphanPane($)
         const t = await $.clock.now()
         const before = await read($, run)
         // A slash command (/reload-plugins, /context) answers nothing, though it does move on from a finished run.
@@ -353,10 +376,25 @@ export const register: Register = on => {
 
   // The log: a header, then what happened, oldest first, the engine following its end.
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const { Box, Text } = $.ui.resolve(e)
+    const { Box, Button, Text } = $.ui.resolve(e)
     const r = await read($, run)
+    // The pane's own way out: the band's button goes with the run, and /clear takes the run.
+    const close = (
+      <Box flexDirection="row" flexShrink={0}>
+        <Text> </Text>
+        <Button key="close" role="dismiss" hotkey="q" dimColor onPress={() => shutPane($)}>
+          닫기
+        </Button>
+        {e.viewport?.isFullscreen === false && <Text dimColor> ^x x</Text>}
+      </Box>
+    )
     if (r === null) {
-      return <Text dimColor>thegraph is not running.</Text>
+      return (
+        <Box flexDirection="row" justifyContent="space-between">
+          <Text dimColor>thegraph is not running.</Text>
+          {close}
+        </Box>
+      )
     }
     const t = Math.max(await read($, now), r.startedAt)
     const route = r.sheet?.route ?? (r.route === null ? null : routeName(r.route))
@@ -391,13 +429,16 @@ export const register: Register = on => {
     })
     return (
       <Box flexDirection="column">
-        <Text>
-          <Text bold>thegraph</Text>
-          {r.label !== null && <Text dimColor>{` ${r.label}`}</Text>}
-          {route !== null && <Text color="cyan">{` · ${route}`}</Text>}
-          <Text dimColor>{` · ${minutes((r.doneAt ?? t) - r.startedAt)}`}</Text>
-          {isDone(r) && <Text color="success"> · 끝</Text>}
-        </Text>
+        <Box flexDirection="row" justifyContent="space-between">
+          <Text wrap="truncate-end">
+            <Text bold>thegraph</Text>
+            {r.label !== null && <Text dimColor>{` ${r.label}`}</Text>}
+            {route !== null && <Text color="cyan">{` · ${route}`}</Text>}
+            <Text dimColor>{` · ${minutes((r.doneAt ?? t) - r.startedAt)}`}</Text>
+            {isDone(r) && <Text color="success"> · 끝</Text>}
+          </Text>
+          {close}
+        </Box>
         {r.sheet?.issue != null && <Text dimColor wrap="wrap">{r.sheet.issue}</Text>}
         <Text dimColor>{'─'.repeat(Math.max(8, Math.min(40, e.props.bodyColumns)))}</Text>
         {lines.length === 0 ? <Text dimColor>아직 기록이 없어요.</Text> : lines}

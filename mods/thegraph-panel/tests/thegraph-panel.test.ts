@@ -73,6 +73,23 @@ const sheetFiles = (on: On) => {
   return { write: (path: string, text: string) => void files.set(path, { text, mtime: ++writes }) }
 }
 
+// The surface's panes, as the engine keeps them: open, close and list, and how the last one was opened.
+const paneHost = (on: On) => {
+  const panes = new Set<string>()
+  const opened: { closeOnEscape?: true }[] = []
+  on('ui.open', (_$, e) => {
+    panes.add(e.id)
+    opened.push({ closeOnEscape: e.closeOnEscape })
+    return { value: { isPlaced: true as const } }
+  })
+  on('ui.close', (_$, e) => {
+    panes.delete(e.id)
+    return { value: undefined }
+  })
+  on('ui.panes', () => ({ value: [...panes].map(id => ({ id, title: id, isShown: true, isFocused: false, isPlaced: true })) }))
+  return { panes, opened }
+}
+
 const say = ($: Engine, text: string) => $.prompt.submit({ text, wait: false, origin: { kind: 'composer' } })
 const skill = ($: Engine, name: string) => $.skill.prompt({ skill: name, text: '' })
 const endTurn = ($: Engine) =>
@@ -229,6 +246,37 @@ describe('thegraph-panel', () => {
     fs.write(path, sheetText('x'))
     await $.tool.call({ tool: 'Bash', command: `sed -i 's/y/z/' ${path}` })
     expect(flat(await ui.drawn())).toContain('●●●●●  끝')
+  })
+
+  test('the pane closes itself: its own button, Esc, and the keys named on the main screen', async ($, on) => {
+    const host = paneHost(on)
+    await start($, on)
+    await say($, '/thegraph')
+    await skill($, 'thegraph')
+    await skill($, 'read-it')
+    const ui = await band($)
+    await ui.press({ key: 'pane' })
+    expect(host.opened.at(-1)?.closeOnEscape).toBe(true)
+    const pane = await $.ui.mount({
+      plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS,
+      viewport: { columns: 145, rows: 40, isFullscreen: false },
+    })
+    expect(flat(await pane.drawn())).toContain('[ 닫기 ] ^x x')
+    await pane.press({ key: 'close' })
+    expect([...host.panes]).toEqual([])
+    expect(flat(await ui.drawn())).toContain('▸ 패널')
+  })
+
+  test('a pane left open with no run says so, offers its close, and goes at the next prompt', async ($, on) => {
+    const host = paneHost(on)
+    await start($, on)
+    // As /clear leaves it: the engine's pane open, this plugin's run gone.
+    host.panes.add('thegraph')
+    const pane = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS })
+    expect(flat(await pane.drawn())).toContain('thegraph is not running.')
+    expect(flat(await pane.drawn())).toContain('[ 닫기 ]')
+    await say($, '다른 일 하자')
+    expect([...host.panes]).toEqual([])
   })
 
   test('the band carries a button that opens and closes the checklist pane', async ($, on) => {
