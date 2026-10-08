@@ -1,4 +1,4 @@
-import type { Route, Run, Sheet, SheetStep, StepRec } from '../types'
+import type { LogEntry, Route, Run, Sheet, SheetStep, StepRec } from '../types'
 
 /** The stops where a person answers: after read-it, and after lens. */
 export const CONFIRM = '확인'
@@ -35,7 +35,19 @@ export const startRun = (label: string | null, now: number): Run => ({
   doneAt: null,
   sheetPath: null,
   sheet: null,
+  log: [],
 })
+
+/** The log keeps this many lines, the oldest dropped first. */
+const LOG_MAX = 300
+
+/** Adds a line to the log; a step already the last one begun is not logged again. */
+export const addLog = (run: Run, entry: LogEntry): Run => {
+  if (entry.kind === 'step' && run.log.findLast(l => l.kind === 'step')?.text === entry.text) return run
+  return { ...run, log: [...run.log, entry].slice(-LOG_MAX) }
+}
+
+const logged = (run: Run, at: number, kind: LogEntry['kind'], text: string): Run => addLog(run, { at, kind, text, detail: null })
 
 const openStep = (run: Run): StepRec | undefined => run.steps.find(s => s.endedAt === null)
 const closeAll = (steps: StepRec[], now: number) => steps.map(s => (s.endedAt === null ? { ...s, endedAt: now } : s))
@@ -47,17 +59,17 @@ const isAtRoute = (run: Run) => openStep(run) === undefined && run.steps.at(-1)?
 /** A skill was expanded while the run is open. */
 export const onSkill = (run: Run, skill: string, now: number): Run => {
   if (run.doneAt !== null) return run
-  if (SIGNAL_SKILLS.includes(skill)) return { ...run, signals: [...run.signals, { skill, at: now }] }
+  if (SIGNAL_SKILLS.includes(skill)) return logged({ ...run, signals: [...run.signals, { skill, at: now }] }, now, 'signal', skill)
   if (!STEP_SKILLS.includes(skill)) return run
   if (skill === 'lens') {
     // check-it runs lens on every change: only a lens at the route is the open-decision step.
     if (run.route === 'decision' || (run.route === null && isAtRoute(run))) {
-      return { ...run, route: 'decision', isWaiting: false, steps: begin(run, skill, now) }
+      return logged({ ...run, route: 'decision', isWaiting: false, steps: begin(run, skill, now) }, now, 'step', skill)
     }
     return run
   }
   const route: Route | null = skill === 'read-it' ? run.route : (run.route ?? 'build')
-  return { ...run, route, isWaiting: false, steps: begin(run, skill, now) }
+  return logged({ ...run, route, isWaiting: false, steps: begin(run, skill, now) }, now, 'step', skill)
 }
 
 /**
@@ -67,8 +79,8 @@ export const onSkill = (run: Run, skill: string, now: number): Run => {
 export const onTurnEnd = (run: Run, now: number): Run => {
   if (run.doneAt !== null) return run
   const open = openStep(run)
-  if (open?.key === 'read-it') return { ...run, isWaiting: true, steps: begin(run, CONFIRM, now) }
-  if (open?.key === 'lens') return { ...run, isWaiting: true, steps: begin(run, DECIDE, now) }
+  if (open?.key === 'read-it') return logged({ ...run, isWaiting: true, steps: begin(run, CONFIRM, now) }, now, 'step', CONFIRM)
+  if (open?.key === 'lens') return logged({ ...run, isWaiting: true, steps: begin(run, DECIDE, now) }, now, 'step', DECIDE)
   // Anything else, a trivial end after the confirm included, is the person's to say: the run waits, and × ends it.
   return { ...run, isWaiting: true }
 }
@@ -80,7 +92,7 @@ export const onAnswer = (run: Run, now: number): Run | null => {
   const open = openStep(run)
   if (open?.key === CONFIRM) return { ...run, isWaiting: false, steps: closeAll(run.steps, now) }
   if (open?.key === DECIDE || open?.key === 'ask-it') {
-    return { ...run, isWaiting: false, steps: closeAll(run.steps, now), doneAt: now }
+    return logged({ ...run, isWaiting: false, steps: closeAll(run.steps, now), doneAt: now }, now, 'end', '끝')
   }
   return { ...run, isWaiting: false }
 }
@@ -159,6 +171,34 @@ export const parseSheet = (path: string, text: string): Sheet => {
     }
   }
   return sheet
+}
+
+/** The lines a newer reading of the sheet adds: steps begun, notes written, items carried, the end. */
+export const sheetLog = (before: Sheet | null, after: Sheet, at: number): LogEntry[] => {
+  const out: LogEntry[] = []
+  const was = new Map((before?.steps ?? []).map(s => [s.key, s]))
+  for (const step of after.steps) {
+    const old = was.get(step.key)
+    if (step.mark === 'doing' && old?.mark !== 'doing') out.push({ at, kind: 'step', text: step.key, detail: null })
+    if (step.note !== null && step.note !== old?.note) out.push({ at, kind: 'note', text: step.note, detail: null })
+  }
+  const carried = new Set(before?.carried ?? [])
+  for (const item of after.carried) if (!carried.has(item)) out.push({ at, kind: 'carry', text: item, detail: null })
+  const isEnd = (sheet: Sheet | null) => sheet !== null && sheet.steps.length > 0 && sheet.steps.every(s => s.mark === 'done')
+  if (isEnd(after) && !isEnd(before)) out.push({ at, kind: 'end', text: '끝', detail: null })
+  return out
+}
+
+/** The test runner a shell command calls, by name; null for any other command. */
+const TEST_RUNNER = /\b(vitest|jest|pytest|cargo test|go test|bun test|deno test|(?:npm|pnpm|yarn)(?: run)? test|claude plugin test|check-mods|flutter test|dotnet test|gradle test|mvn test)\b/
+export const testOf = (command: string): string | null => TEST_RUNNER.exec(command)?.[1] ?? null
+
+/** `48 pass · 2 fail`, from what a runner printed; null when it printed neither count. */
+export const testCounts = (output: string): string | null => {
+  const pass = /(\d+)\s+pass(?:ed|ing)?\b/i.exec(output)?.[1]
+  const fail = /(\d+)\s+fail(?:ed|ing|ures?)?\b/i.exec(output)?.[1]
+  const parts = [pass === undefined ? null : `${pass} pass`, fail === undefined || fail === '0' ? null : `${fail} fail`].filter(p => p !== null)
+  return parts.length === 0 ? null : parts.join(' · ')
 }
 
 /** Every step's place: from the run sheet once there is one, else from the events. */

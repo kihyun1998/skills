@@ -12,6 +12,10 @@ import {
   onSkill,
   onTurnEnd,
   parseSheet,
+  addLog,
+  sheetLog,
+  testCounts,
+  testOf,
   baseName,
   sheetLine,
   sheetPathFor,
@@ -115,8 +119,18 @@ const togglePane = async ($: EngineInterface) => {
   }
   const opened = await $.ui.open({ id: PANE, title: 'thegraph' })
   await update($, isPaneOpen, () => true)
+  try {
+    await $.ui.scroll({ in: PANE, to: 'end' })
+  } catch {
+    // Nothing drawn yet to scroll; the pane opens at its top.
+  }
   if (!opened.isPlaced) $.ui.toast(`thegraph: the pane waits (${opened.reason})`)
 }
+
+// A field of a tool's result, which reaches this module untyped.
+const field = (value: unknown, key: string): unknown =>
+  value !== null && typeof value === 'object' && key in value ? (value as Record<string, unknown>)[key] : undefined
+const resultOf = (result: object): unknown => ('result' in result ? result.result : undefined)
 
 // Reads the run sheet as the model left it; one that cannot be read leaves what was there.
 const readSheet = async ($: EngineInterface, path: string) => {
@@ -127,7 +141,8 @@ const readSheet = async ($: EngineInterface, path: string) => {
     return
   }
   const sheet = parseSheet(path, text)
-  await update($, run, r => (r === null ? r : { ...r, sheet }))
+  const t = await $.clock.now()
+  await update($, run, r => (r === null ? r : sheetLog(r.sheet, sheet, t).reduce(addLog, { ...r, sheet })))
 }
 
 // The person gave the run up: the line goes, and the pane with it.
@@ -200,10 +215,24 @@ export const register: Register = on => {
   on('tool.call', { tool: 'AskUserQuestion' }, async ($, e, next) => {
     if (e.agentId !== undefined || (await read($, run)) === null) return next(e)
     const asked = await $.clock.now()
-    await update($, run, r => (r === null ? r : onTurnEnd(r, asked)))
+    const questions = e.questions.map(q => q.question)
+    await update($, run, r =>
+      r === null ? r : questions.reduce((acc, q) => addLog(acc, { at: asked, kind: 'ask', text: q, detail: null }), onTurnEnd(r, asked)),
+    )
     const result = await next(e)
     const t = await $.clock.now()
-    await update($, run, r => (r === null ? r : onAnswer(r, t)))
+    const answers = (field(resultOf(result), 'answers') ?? {}) as Record<string, string>
+    await update($, run, r => {
+      if (r === null) return r
+      // Each question's line, newest first, gets its answer; one left unanswered says so.
+      const log = [...r.log]
+      for (const q of questions) {
+        const i = log.findLastIndex(l => l.kind === 'ask' && l.text === q && l.detail === null)
+        const entry = log[i]
+        if (entry) log[i] = { ...entry, detail: answers[q] ?? '답 없음' }
+      }
+      return onAnswer({ ...r, log }, t)
+    })
     await update($, now, () => t)
     return result
   }).catch(($, e, next) => next(e))
@@ -221,7 +250,26 @@ export const register: Register = on => {
     }
     const t = await $.clock.now()
     await update($, run, r => (r === null ? r : onEdit(r, t)))
-    return next(e)
+    const result = await next(e)
+    if (path !== undefined && !('deny' in result && result.deny !== undefined)) {
+      const isNew = field(resultOf(result), 'type') === 'create'
+      const name = path.split(/[\\/]/).filter(Boolean).at(-1) ?? path
+      await update($, run, r => (r === null ? r : addLog(r, { at: t, kind: 'edit', text: name, detail: null, isOk: isNew })))
+    }
+    return result
+  }).catch(($, e, next) => next(e))
+
+  // A shell command that runs tests: its result goes in the log, with the counts it printed.
+  on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
+    const runner = testOf(e.command)
+    if (e.agentId !== undefined || runner === null || (await read($, run)) === null) return next(e)
+    const result = await next(e)
+    const t = await $.clock.now()
+    const done = resultOf(result)
+    const out = `${String(field(done, 'stdout') ?? '')}\n${String(field(done, 'stderr') ?? '')}`
+    const isOk = done !== undefined && !('isError' in result && result.isError === true) && field(done, 'interrupted') !== true
+    await update($, run, r => (r === null ? r : addLog(r, { at: t, kind: 'test', text: runner, detail: testCounts(out), isOk })))
+    return result
   }).catch(($, e, next) => next(e))
 
   // Whatever tool wrote it (Bash, Write, a script), the sheet changes only under a tool call:
@@ -303,7 +351,7 @@ export const register: Register = on => {
     )
   })
 
-  // The checklist: each step with its minutes, the route, and the signals as they fired.
+  // The log: a header, then what happened, oldest first, the engine following its end.
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Text } = $.ui.resolve(e)
     const r = await read($, run)
@@ -311,59 +359,48 @@ export const register: Register = on => {
       return <Text dimColor>thegraph is not running.</Text>
     }
     const t = Math.max(await read($, now), r.startedAt)
-    const end = r.doneAt ?? t
-    const notes = r.sheet?.steps ?? []
-    const rows = stepsOf(r).map(({ key, state: s }, i) => {
-      const ms = stepMs(r, key, t)
-      const note = notes[i]?.note
+    const route = r.sheet?.route ?? (r.route === null ? null : routeName(r.route))
+    const lines = r.log.map(l => {
+      const at = `+${String(Math.floor((l.at - r.startedAt) / 60_000)).padStart(2)}m `
       return (
-        <Box flexDirection="column">
-          <Text>
-            <Text color={COLOR[s]} bold={LOUD[s]} dimColor={s === 'todo'}>{`[${MARK[s] || ' '}] ${stepLabel(key, s).padEnd(12)}`}</Text>
-            {ms !== null && <Text dimColor={s === 'done'}>{minutes(ms).padStart(5)}</Text>}
-          </Text>
-          {note != null && <Text dimColor wrap="wrap">{`    → ${note}`}</Text>}
-        </Box>
+        <Text wrap="wrap">
+          <Text dimColor>{at}</Text>
+          {l.kind === 'step' && <Text bold>{`▸ ${l.text}`}</Text>}
+          {l.kind === 'ask' && (
+            <Text>
+              <Text color="warning">◆ </Text>
+              <Text>{l.text}</Text>
+              {l.detail === null ? <Text color="warning">  …대기</Text> : <Text dimColor> → </Text>}
+              {l.detail !== null && <Text bold>{l.detail}</Text>}
+            </Text>
+          )}
+          {l.kind === 'edit' && <Text color="blue">{`${l.isOk ? '+' : '✎'} ${l.text}`}</Text>}
+          {l.kind === 'test' && (
+            <Text>
+              <Text color={l.isOk ? 'success' : 'error'}>{l.isOk ? '✓ ' : '✗ '}</Text>
+              <Text>{l.text}</Text>
+              {l.detail !== null && <Text dimColor>{` ${l.detail}`}</Text>}
+            </Text>
+          )}
+          {l.kind === 'signal' && <Text color="magenta">{`⚑ ${l.text}`}</Text>}
+          {l.kind === 'note' && <Text dimColor>{`→ ${l.text}`}</Text>}
+          {l.kind === 'carry' && <Text color="cyan">{`↗ ${l.text}`}</Text>}
+          {l.kind === 'end' && <Text bold color="success">✓ 끝</Text>}
+        </Text>
       )
     })
-    const route = r.sheet?.route ?? (r.route === null ? null : routeName(r.route))
-    const carried = r.sheet?.carried ?? []
     return (
       <Box flexDirection="column">
         <Text>
           <Text bold>thegraph</Text>
-          {r.label !== null && <Text dimColor>{`  ${r.label}`}</Text>}
-        </Text>
-        {r.sheet?.issue != null && <Text dimColor wrap="truncate-end">{r.sheet.issue}</Text>}
-        <Text dimColor>{'─'.repeat(24)}</Text>
-        {rows}
-        <Text> </Text>
-        <Text>
-          <Text dimColor>route  </Text>
-          {route === null ? <Text dimColor>아직</Text> : <Text bold color="cyan">{route}</Text>}
-        </Text>
-        <Text>
-          <Text dimColor>경과   </Text>
-          <Text>{minutes(end - r.startedAt)}</Text>
+          {r.label !== null && <Text dimColor>{` ${r.label}`}</Text>}
+          {route !== null && <Text color="cyan">{` · ${route}`}</Text>}
+          <Text dimColor>{` · ${minutes((r.doneAt ?? t) - r.startedAt)}`}</Text>
           {isDone(r) && <Text color="success"> · 끝</Text>}
         </Text>
-        <Text> </Text>
-        {carried.length > 0 && <Text dimColor>넘길 것</Text>}
-        {carried.map(c => (
-          <Text wrap="wrap">{`  · ${c}`}</Text>
-        ))}
-        {carried.length > 0 && <Text> </Text>}
-        <Text dimColor>신호</Text>
-        {r.signals.length === 0 ? (
-          <Text dimColor>  없음</Text>
-        ) : (
-          r.signals.map(s => (
-            <Text>
-              <Text dimColor>{`  +${minutes(s.at - r.startedAt).padEnd(4)} `}</Text>
-              <Text color="magenta">{`⚑ ${s.skill}`}</Text>
-            </Text>
-          ))
-        )}
+        {r.sheet?.issue != null && <Text dimColor wrap="wrap">{r.sheet.issue}</Text>}
+        <Text dimColor>{'─'.repeat(Math.max(8, Math.min(40, e.props.bodyColumns)))}</Text>
+        {lines.length === 0 ? <Text dimColor>아직 기록이 없어요.</Text> : lines}
       </Box>
     )
   })

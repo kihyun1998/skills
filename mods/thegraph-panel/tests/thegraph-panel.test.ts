@@ -2,7 +2,7 @@ import { describe, expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { CONFIRM, DECIDE, isSheetPath, labelOf, onAnswer, onEdit, onSkill, parseSheet, stepsOf, onTurnEnd, signalSummary, startRun, stateOf } from '../hooks/run'
+import { CONFIRM, DECIDE, addLog, isSheetPath, sheetLog, testCounts, testOf, labelOf, onAnswer, onEdit, onSkill, parseSheet, stepsOf, onTurnEnd, signalSummary, startRun, stateOf } from '../hooks/run'
 
 const MIN = 60_000
 
@@ -149,6 +149,35 @@ describe('thegraph-panel', () => {
     expect(flat(await ui.drawn())).toContain('●●○○○  다음 make-it 3/5')
     await $.tool.call({ tool: 'Edit', file_path: '/w/a.ts', old_string: 'a', new_string: 'b' })
     expect(flat(await ui.drawn())).toContain('●●◐○○  make-it 3/5')
+    const pane = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS })
+    const log = flat(await pane.drawn())
+    expect(log).toContain('◆ 맞나요? → 이대로 진행')
+    expect(log).toContain('✎ a.ts')
+    // Oldest first: the question comes before the step it let begin.
+    expect(log.indexOf('◆ 맞나요?')).toBeLessThan(log.indexOf('▸ make-it'))
+  })
+
+  test('a test run in the shell goes in the log with its counts, passed or failed', async ($, on) => {
+    let isError = false
+    on('tool.call', { tool: 'Bash' }, () => {
+      const result = { stdout: isError ? 'Tests  2 failed | 46 passed' : 'Tests  48 passed', stderr: '', interrupted: false }
+      // A failing command comes back marked as an error; a passing one is not marked at all.
+      return isError ? { result, isError: true as const } : { result }
+    })
+    await start($, on)
+    await say($, '/thegraph')
+    await skill($, 'thegraph')
+    await skill($, 'read-it')
+    await $.tool.call({ tool: 'Bash', command: 'npx vitest run src/settings' })
+    isError = true
+    await $.tool.call({ tool: 'Bash', command: 'npx vitest run src/settings' })
+    // Not a test: not in the log.
+    await $.tool.call({ tool: 'Bash', command: 'git status' })
+    const pane = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS })
+    const log = flat(await pane.drawn())
+    expect(log).toContain('✓ vitest 48 pass')
+    expect(log).toContain('✗ vitest 46 pass · 2 fail')
+    expect(log).not.toContain('git status')
   })
 
   test('a sheet the run names and writes itself is followed and read back, and the line and pane draw from it', async ($, on) => {
@@ -168,12 +197,12 @@ describe('thegraph-panel', () => {
     const text = flat(await pane.drawn())
     expect(text).toContain('설정 행 높이 통일')
     expect(text).toContain('→ check-it: 문서만 바뀜, prose 검사만')
-    expect(text).toContain('route  prose')
-    expect(text).toContain('· 단축키 표 문구가 SPEC과 다름')
+    expect(text).toContain('thegraph · prose')
+    expect(text).toContain('↗ 단축키 표 문구가 SPEC과 다름')
     // Every step checked off is the end, whatever the events saw.
     await $.tool.call({ tool: 'Write', file_path: SHEET, content: sheetText('x') })
     expect(flat(await ui.drawn())).toContain('●●●●●  끝')
-    expect(flat(await pane.drawn())).toMatch(/경과\s+\S+ · 끝/)
+    expect(flat(await pane.drawn())).toMatch(/thegraph · prose · \S+ · 끝/)
   })
 
   test('thegraph is told where its run sheet is, and a sheet written there by any tool is read', async ($, on) => {
@@ -225,7 +254,7 @@ describe('thegraph-panel', () => {
     expect(flat(await ui.drawn())).toContain('▾ 패널 닫기')
 
     const pane = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS })
-    expect(flat(await pane.drawn())).toContain('[◐] read-it')
+    expect(flat(await pane.drawn())).toContain('▸ read-it')
 
     await ui.press({ key: 'pane' })
     expect([...panes]).toEqual([])
@@ -280,7 +309,7 @@ describe('thegraph-panel', () => {
     expect(text).toContain('●●●◐○  check-it 4/5')
     expect(text).toContain('⚑ boundary')
     const pane = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS })
-    expect(flat(await pane.drawn())).toContain('route  prose/code')
+    expect(flat(await pane.drawn())).toContain('thegraph · prose/code')
   })
 
   test('× gives a run up: the line goes and its pane closes', async ($, on) => {
@@ -427,6 +456,30 @@ describe('run', () => {
   test('the person holding the move shows on the sheet step under way', () => {
     const run = { ...onSkill(startRun(null, 0), 'read-it', 0), sheet: parseSheet(SHEET, sheetText('~')), isWaiting: true }
     expect(stepsOf(run).map(s => s.state)).toEqual(['done', 'done', 'wait', 'todo', 'todo'])
+  })
+
+  test('a test runner is told from other commands, and its counts read from what it printed', () => {
+    expect(testOf('npx vitest run src')).toBe('vitest')
+    expect(testOf('cd x && cargo test -p a')).toBe('cargo test')
+    expect(testOf('claude plugin test thegraph-panel')).toBe('claude plugin test')
+    expect(testOf('git status')).toBe(null)
+    expect(testCounts(' 21 pass\n 0 fail')).toBe('21 pass')
+    expect(testCounts('test result: FAILED. 3 passed; 1 failed')).toBe('3 pass · 1 fail')
+    expect(testCounts('done')).toBe(null)
+  })
+
+  test('the log keeps a step once, however many sources say it began', () => {
+    let r = onSkill(startRun(null, 0), 'read-it', 0)
+    r = addLog(r, { at: 1, kind: 'step', text: 'read-it', detail: null })
+    expect(r.log.filter(l => l.kind === 'step').map(l => l.text)).toEqual(['read-it'])
+  })
+
+  test('a newer reading of the sheet logs only what it added', () => {
+    const first = parseSheet(SHEET, sheetText('~'))
+    const lines = sheetLog(null, first, 5)
+    expect(lines.map(l => l.kind)).toEqual(['note', 'step', 'note', 'carry'])
+    const again = sheetLog(first, parseSheet(SHEET, sheetText('x')), 9)
+    expect(again.map(l => `${l.kind}:${l.text}`)).toEqual(['end:끝'])
   })
 
   test('signals count in the order they first fired', () => {

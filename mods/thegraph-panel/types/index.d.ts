@@ -25,6 +25,21 @@ export type Sheet = {
   carried: string[]
 }
 
+/**
+ * One line of the run's log, in the order it happened: a step begun, a question and
+ * its answer, a file written, a test run, a signal, a note to the next step, an item
+ * carried, the end.
+ */
+export type LogEntry = {
+  at: number
+  kind: 'step' | 'ask' | 'edit' | 'test' | 'signal' | 'note' | 'carry' | 'end'
+  text: string
+  /** The answer to a question, a test's counts; null while a question waits. */
+  detail: string | null
+  /** A test that passed, a file the write created. */
+  isOk?: boolean
+}
+
 /** One /thegraph run, as its skill calls and the turns between them showed it. */
 export type Run = {
   /** What followed `/thegraph` on the prompt (an issue number), or null. */
@@ -40,6 +55,8 @@ export type Run = {
   sheetPath: string | null
   /** The run's own account, once it has written a run sheet; it outranks what the events suggest. */
   sheet: Sheet | null
+  /** What happened, oldest first; the pane draws it. */
+  log: LogEntry[]
 }
 
 declare module 'claude-code' {

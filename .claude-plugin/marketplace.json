@@ -8,7 +8,7 @@
     {
       "name": "thegraph-panel",
       "source": "./mods/thegraph-panel",
-      "description": "While /thegraph runs: one line above the prompt with its steps and the signals that fired, and a button that opens a checklist pane with each step's time."
+      "description": "While /thegraph runs: one line above the prompt with its steps and the signals that fired, and a button that opens a pane with the run's log: steps, questions and their answers, files written, tests run, signals and what is carried."
     },
     {
       "name": "usage-band",
