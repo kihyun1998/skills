@@ -172,6 +172,16 @@ export const register: Register = on => {
     return result
   })
 
+  // A compaction empties the window, which no measurement reports until the next response.
+  // A precompute leaves the conversation as it is, and a subagent's compacts only its own.
+  on('session.compact', async ($, e, next) => {
+    const result = await next(e)
+    if (result.skip === undefined && e.trigger !== 'precompute' && e.agentId === undefined) {
+      await refreshLive($)
+    }
+    return result
+  })
+
   on('classic.PostModelSwitch', async ($, e, next) => {
     await update($, live, prev => (prev === null ? null : { ...prev, model: e.to_model }))
     return next(e)

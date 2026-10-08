@@ -85,6 +85,14 @@ the session's first request it shows what settings name:
 with those sources — ccusage too, past its 30 s gap. Without that the band went
 blank until the next turn ended.
 
+A compaction empties the context window, but the engine reports no fill for it
+until the next response, so no measurement follows. The mod reads the usage
+again once `session.compact` stands and the gauge drops to 0% at once; without
+that it kept the pre-compaction figure until the next turn ended. A `precompute`
+and a subagent's compaction leave the main conversation as it was, and are
+skipped. 0% is an underestimate: the summary and the system prompt are back in
+the window by the next response.
+
 ## Where it draws, and where it cannot
 
 The band sits above the prompt with a blank row under it. That row is the

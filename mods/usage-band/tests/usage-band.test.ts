@@ -73,6 +73,7 @@ const start = async ($: Engine, on: On, u: SessionUsage, w: World) => {
   on('settings.read', () => ({ value: w.settings ?? {} }))
   on('classic.SessionStart', () => ({}))
   on('session.measure', (_$, e) => ({ changed: e.changed }))
+  on('session.compact', () => ({ messages: [SUMMARY] }))
   on('turn.step', async function* (_$, e) {
     const usage = w.stepUsage ? { ...w.stepUsage, model: 'claude-opus-5-5' } : null
     return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'end_turn' as const, usage }
@@ -88,6 +89,9 @@ const start = async ($: Engine, on: On, u: SessionUsage, w: World) => {
   await clock.settle()
   return clock
 }
+
+// What a compaction leaves: its summary.
+const SUMMARY = { role: 'user' as const, text: 'summary', toolUses: [] }
 
 const measure = ($: Engine, u: SessionUsage) => $.session.measure({ ...u, changed: ['context', 'rateLimits'] })
 
@@ -282,6 +286,22 @@ describe('usage-band', () => {
     expect(w.usageReads).toBe(reads + 3)
     expect(w.argv.length).toBe(runs + 6)
     expect((await rows(ui))[0]).toMatch(/^opus 5\.5 max {3}/)
+  })
+
+  test('a compaction of the main conversation empties the context gauge at once', async ($, on) => {
+    const u = usage(68, 5, 5)
+    await start($, on, u, { burn: 10, today: 5, argv: [] })
+    const ui = await mount($)
+    const ctx = async () => (await rows(ui))[1]?.split(DIV)[0] ?? ''
+    expect(await ctx()).toMatch(/ {2}68%$/)
+    // The engine reports no fill for a just-compacted window until its next response.
+    u.context = { window: 200_000 }
+    // A precompute and a subagent's compaction leave the main conversation as it was.
+    await $.session.compact({ trigger: 'precompute', messages: [SUMMARY] })
+    await $.session.compact({ trigger: 'auto', agentId: 'a1', messages: [SUMMARY] })
+    expect(await ctx()).toMatch(/ {2}68%$/)
+    await $.session.compact({ trigger: 'manual', messages: [SUMMARY] })
+    expect(await ctx()).toMatch(/ {3}0%$/)
   })
 
   test('ccusage runs offline, and a turn asks again only after the gap', async ($, on) => {
