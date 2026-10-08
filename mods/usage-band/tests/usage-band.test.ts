@@ -6,6 +6,7 @@ import {
   budgetLevel,
   cacheHit,
   dayOf,
+  dayStartOf,
   daysLeft,
   midnightOf,
   nextDayStart,
@@ -206,7 +207,7 @@ describe('usage-band', () => {
     const u = usage(20, 41, 18)
     const resetsAt = new Date(48 * HOUR).toISOString()
     // An earlier session today saw the week at 10%; this one starts at 18%.
-    const store = { weekStart: { day: dayOf(0), used: 10, lastUsed: 18, resetsAt } }
+    const store = { dayStart: { day: dayOf(0), used: 10, lastUsed: 18, resetsAt } }
     await start($, on, { ...u, rateLimits: [u.rateLimits[0]!, { kind: 'seven_day', percentUsed: 18, resetsAt }] }, { burn: 10, today: 5, argv: [], store })
     const ui = await mount($)
     const budget = Math.round(90 / daysLeft(resetsAt, 0))
@@ -216,7 +217,7 @@ describe('usage-band', () => {
   test('a day’s start from another day is not today’s', async ($, on) => {
     const u = usage(20, 41, 18)
     const resetsAt = new Date(48 * HOUR).toISOString()
-    const store = { weekStart: { day: dayOf(-2 * DAY), used: 10, lastUsed: 10, resetsAt } }
+    const store = { dayStart: { day: dayOf(-2 * DAY), used: 10, lastUsed: 10, resetsAt } }
     await start($, on, { ...u, rateLimits: [u.rateLimits[0]!, { kind: 'seven_day', percentUsed: 18, resetsAt }] }, { burn: 10, today: 5, argv: [], store })
     const ui = await mount($)
     expect(((await rows(ui))[0] ?? '').split(DIV)[2]).toContain('today 0% of ')
@@ -239,7 +240,7 @@ describe('usage-band', () => {
   test('a day carried on from the last reading of the day before is exact: no estimate, no ~', async ($, on) => {
     const u = usage(20, 41, 30)
     const resetsAt = new Date(48 * HOUR).toISOString()
-    const store = { weekStart: { day: dayOf(-DAY), used: 20, lastUsed: 30, resetsAt } }
+    const store = { dayStart: { day: dayOf(-DAY), used: 20, lastUsed: 30, resetsAt } }
     const w: World = { burn: 10, today: 5, argv: [], tally: { window: 100, today: 40 }, store }
     await start($, on, { ...u, rateLimits: [u.rateLimits[0]!, { kind: 'seven_day', percentUsed: 30, resetsAt }] }, w)
     const ui = await mount($)
@@ -258,7 +259,17 @@ describe('usage-band', () => {
   test('a start kept by the first version, with no last reading, is read as none: the day is estimated', async ($, on) => {
     const u = usage(20, 41, 30)
     const resetsAt = new Date(48 * HOUR).toISOString()
-    const store = { weekStart: { day: dayOf(0), used: 30, resetsAt } }
+    const store = { dayStart: { day: dayOf(0), used: 30, resetsAt } }
+    const w: World = { burn: 10, today: 5, argv: [], tally: { window: 100, today: 40 }, store }
+    await start($, on, { ...u, rateLimits: [u.rateLimits[0]!, { kind: 'seven_day', percentUsed: 30, resetsAt }] }, w)
+    const ui = await mount($)
+    expect(((await rows(ui))[0] ?? '').split(DIV)[2]).toContain('today ~12% of ')
+  })
+
+  test('what the first version kept under weekStart is never read: the day is estimated', async ($, on) => {
+    const u = usage(20, 41, 30)
+    const resetsAt = new Date(48 * HOUR).toISOString()
+    const store = { weekStart: { day: dayOf(0), used: 30, lastUsed: 30, resetsAt } }
     const w: World = { burn: 10, today: 5, argv: [], tally: { window: 100, today: 40 }, store }
     await start($, on, { ...u, rateLimits: [u.rateLimits[0]!, { kind: 'seven_day', percentUsed: 30, resetsAt }] }, w)
     const ui = await mount($)
@@ -506,6 +517,15 @@ describe('format', () => {
     // A new week, or a fall in use.
     expect(nextDayStart(later.start, 30, new Date(wed + 12 * DAY).toISOString(), wed + 20 * HOUR).isGap).toBe(true)
     expect(nextDayStart(later.start, 2, reset, wed + 20 * HOUR)).toMatchObject({ start: { used: 2 }, isGap: true })
+  })
+
+  test('a kept day start: read whole, and one with no last reading (the first version’s) read as none', () => {
+    const resetsAt = '2026-10-10T01:00:00.000Z'
+    expect(dayStartOf({ day: '2026-10-08', used: 73, lastUsed: 74, resetsAt })).toEqual({ day: '2026-10-08', used: 73, lastUsed: 74, resetsAt })
+    expect(dayStartOf({ day: '2026-10-08', used: 60, lastUsed: 74, resetsAt, isEstimated: true })?.isEstimated).toBe(true)
+    expect(dayStartOf({ day: '2026-10-08', used: 73, resetsAt })).toBe(null)
+    expect(dayStartOf(null)).toBe(null)
+    expect(dayStartOf('2026-10-08')).toBe(null)
   })
 
   test('days left count today and the reset’s own day; the budget splits what was left at the day’s start', () => {

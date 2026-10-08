@@ -158,6 +158,23 @@ export const dayOf = (at: number): string => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+/**
+ * A day's start as kept, in $.state or $.store; null for anything else, a start from the
+ * first version (no last reading, so it cannot say whether use went unseen) included.
+ */
+export const dayStartOf = (v: unknown): DayStart | null => {
+  if (v === null || typeof v !== 'object') return null
+  const o = v as Record<string, unknown>
+  if (typeof o.day !== 'string' || typeof o.used !== 'number' || typeof o.lastUsed !== 'number') return null
+  return {
+    day: o.day,
+    used: o.used,
+    lastUsed: o.lastUsed,
+    resetsAt: typeof o.resetsAt === 'string' ? o.resetsAt : null,
+    ...(o.isEstimated === true ? { isEstimated: true } : {}),
+  }
+}
+
 /** The engine's local midnight that began the day `at` falls in. */
 export const midnightOf = (at: number): number => {
   const d = new Date(at)

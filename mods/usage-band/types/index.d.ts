@@ -43,8 +43,8 @@ declare module 'claude-code' {
       fiveSamples: FiveSample[]
       /** The latest main-thread requests' prompt tokens, oldest first: what the cache hit rate is taken over. */
       cacheReadings: CacheReading[]
-      /** Where today began for the week, mirrored in $.store so /clear and a reload keep it. */
-      weekStart: DayStart | null
+      /** Where today began for the week, mirrored in $.store so /clear and a new session keep it. */
+      dayStart: DayStart | null
     }
   }
 }

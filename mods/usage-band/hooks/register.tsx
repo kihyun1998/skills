@@ -21,6 +21,7 @@ import {
   levelOf,
   paceLevel,
   paceOf,
+  dayStartOf,
   estimateStart,
   midnightOf,
   modelLabel,
@@ -40,10 +41,11 @@ const effort = atom({ plugin: 'usage-band', key: 'effort' } as const, null)
 const ledger = atom({ plugin: 'usage-band', key: 'ledger' } as const, null)
 const fiveSamples = atom({ plugin: 'usage-band', key: 'fiveSamples' } as const, [])
 const cacheReadings = atom({ plugin: 'usage-band', key: 'cacheReadings' } as const, [])
-const weekStart = atom({ plugin: 'usage-band', key: 'weekStart' } as const, null)
+// Named dayStart since the first version's weekStart, which may hold a start taken with no estimate: never read.
+const weekStart = atom({ plugin: 'usage-band', key: 'dayStart' } as const, null)
 
-/** The $.store key weekStart is mirrored under. */
-const WEEK_START = 'weekStart'
+/** The $.store key the day's start is mirrored under. */
+const WEEK_START = 'dayStart'
 
 /** Blank cells at the band's left, so its text lines up with the turn line's after `✻ `; and at its right. */
 const LEFT = 2
@@ -96,7 +98,8 @@ const refreshLive = async ($: EngineInterface, figures?: Figures) => {
   }
   const seven = next.rateLimits.find(r => r.kind === 'seven_day')
   if (seven) {
-    const before = await read($, weekStart)
+    // A start the first version left in $.state (a reload keeps it) is read as none, as in $.store.
+    const before = dayStartOf(await read($, weekStart))
     const { start, isGap } = nextDayStart(before, seven.percentUsed, seven.resetsAt, now)
     if (start !== before) await keepWeekStart($, start)
     // Off the reading's path: the logs take a couple of seconds.
@@ -141,25 +144,12 @@ const estimateToday = async ($: EngineInterface, start: DayStart) => {
   }
 }
 
-// One kept without its last reading (the first version kept none) cannot say whether use went unseen: read as none.
-const isDayStart = (v: unknown): v is DayStart =>
-  v !== null && typeof v === 'object' && typeof (v as DayStart).day === 'string' && typeof (v as DayStart).used === 'number' &&
-  typeof (v as DayStart).lastUsed === 'number'
-
 // Where today began, as kept across sessions: read before the first reading so it is not taken again.
 const loadWeekStart = async ($: EngineInterface) => {
-  if ((await read($, weekStart)) !== null) return
+  if (dayStartOf(await read($, weekStart)) !== null) return
   try {
-    const kept = await $.store.get(WEEK_START)
-    if (isDayStart(kept)) {
-      await update($, weekStart, () => ({
-        day: kept.day,
-        used: kept.used,
-        lastUsed: kept.lastUsed,
-        resetsAt: kept.resetsAt ?? null,
-        ...(kept.isEstimated === true ? { isEstimated: true } : {}),
-      }))
-    }
+    const kept = dayStartOf(await $.store.get(WEEK_START))
+    if (kept !== null) await update($, weekStart, () => kept)
   } catch {
     // Nothing kept; the first reading starts it.
   }
