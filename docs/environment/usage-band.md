@@ -107,12 +107,27 @@ reset's own day each counted whole: `(100 − used at today's start) ÷ days lef
 It is fixed for the day, so it does not creep up while nothing is used. Using
 less leaves more for each day after; using more, less: past it, the head says
 what tomorrow is left with. The `percentUsed` is the account's, so another
-machine's use counts toward what is left; only its share of *today* is missed
-when it came before this machine's first reading of the day.
+machine's use counts toward what is left.
 
 Where today began is the first reading of the day (a new day, a new reset time
 or a fall in use takes it again), kept in `$.state` for drawing and in
-`$.store` so a `/clear` or a new session the same day keeps today's budget.
+`$.store` so a `/clear` or a new session the same day keeps today's budget,
+with the last reading seen since. That first reading is exact when it carries
+on from the last one seen the day before, in the same week. When it does not —
+the first day the mod runs, a new week, use on another machine before this one's
+first reading — some of what the week has used may be today's, and no reading
+saw it: the first day showed `today 0%` with half the day spent.
+
+On such a day the mod estimates today's start from this machine's transcripts,
+as ccusage reads them: `scripts/tally.mjs` weighs each response's tokens (cache
+reads cheap, output dear, every model alike) since the week began and since
+today began, and today takes that share of the week's use. The head marks it,
+`today ~12% of 16%`. It runs once a gap appears, off the reading's path, through
+`node`: a hooks module may read no file over 4 MiB, and a week of transcripts
+here was 663 MB in 158 files, read in 2.1 s (measured 2026-10-08). Without
+`node`, or with no logs, today counts from the first reading, unmarked. It is
+this machine's share of the week, so it misjudges today when another machine
+did much of the week's work; the week's total is the account's either way.
 
 Effort is the value the request is **sent** with, after any downgrade for the
 model. It changes on the next request after `/effort`, not at the command. Before

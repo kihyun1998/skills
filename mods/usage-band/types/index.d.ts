@@ -23,8 +23,12 @@ export type Ledger = {
 /** One main-thread request's prompt, as the API reported it: what the cache served, what it wrote, what neither. */
 export type CacheReading = { read: number; written: number; uncached: number }
 
-/** Where today began for the week: the day, the week's use then, and the reset it counted to. */
-export type DayStart = { day: string; used: number; resetsAt: string | null }
+/**
+ * Where today began for the week: the day, the week's use then (estimated from this machine's
+ * logs when use went unseen before the day's first reading), the last reading seen since, and
+ * the reset it counted to.
+ */
+export type DayStart = { day: string; used: number; lastUsed: number; resetsAt: string | null; isEstimated?: boolean }
 
 /** One reading of the 5-hour window: when it was taken, and how much was used. */
 export type FiveSample = { at: number; percentUsed: number }

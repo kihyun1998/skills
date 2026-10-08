@@ -21,6 +21,8 @@ import {
   levelOf,
   paceLevel,
   paceOf,
+  estimateStart,
+  midnightOf,
   modelLabel,
   nextDayStart,
   parseBurn,
@@ -95,28 +97,69 @@ const refreshLive = async ($: EngineInterface, figures?: Figures) => {
   const seven = next.rateLimits.find(r => r.kind === 'seven_day')
   if (seven) {
     const before = await read($, weekStart)
-    const after = nextDayStart(before, seven.percentUsed, seven.resetsAt, now)
-    if (after !== before) {
-      await update($, weekStart, () => after)
-      try {
-        await $.store.set(WEEK_START, after)
-      } catch {
-        // Kept for this session only; the next day's first reading starts it again.
-      }
-    }
+    const { start, isGap } = nextDayStart(before, seven.percentUsed, seven.resetsAt, now)
+    if (start !== before) await keepWeekStart($, start)
+    // Off the reading's path: the logs take a couple of seconds.
+    if (isGap && start.resetsAt !== null) $.clock.after(0, () => void estimateToday($, start))
   }
   await update($, live, () => next)
 }
 
+const keepWeekStart = async ($: EngineInterface, start: DayStart) => {
+  await update($, weekStart, () => start)
+  try {
+    await $.store.set(WEEK_START, start)
+  } catch {
+    // Kept for this session only; the next day's first reading starts it again.
+  }
+}
+
+// No shell runs the argv: node.exe starts as it is, and cmd finds it where PATH alone does not.
+const NODE: readonly (readonly string[])[] = [['node'], ['cmd', '/c', 'node']]
+
+// Today's start when use went unseen before it: this machine's logs say what share of the
+// week's tokens fell today. Unread, today counts from the first reading.
+const estimateToday = async ($: EngineInterface, start: DayStart) => {
+  const weekBegan = Date.parse(start.resetsAt ?? '') - WINDOW_MS.week
+  const todayBegan = Math.max(midnightOf(await $.clock.now()), weekBegan)
+  const script = `${$.plugin.root}/scripts/tally.mjs`
+  for (const l of NODE) {
+    let tally: { window: number; today: number } | null = null
+    try {
+      const r = await $.process.run([...l, script, String(weekBegan), String(todayBegan)], { timeoutMs: 60_000 })
+      if (r.exitCode === 0) tally = parsed(r.stdout, s => JSON.parse(s) as { window: number; today: number })
+      else continue
+    } catch {
+      continue
+    }
+    const current = await read($, weekStart)
+    // Only the start it was asked for, and only once.
+    if (tally === null || current === null || current.day !== start.day || current.resetsAt !== start.resetsAt || current.isEstimated) return
+    const estimated = estimateStart(current, current.lastUsed, tally)
+    if (estimated !== null) await keepWeekStart($, estimated)
+    return
+  }
+}
+
+// One kept without its last reading (the first version kept none) cannot say whether use went unseen: read as none.
 const isDayStart = (v: unknown): v is DayStart =>
-  v !== null && typeof v === 'object' && typeof (v as DayStart).day === 'string' && typeof (v as DayStart).used === 'number'
+  v !== null && typeof v === 'object' && typeof (v as DayStart).day === 'string' && typeof (v as DayStart).used === 'number' &&
+  typeof (v as DayStart).lastUsed === 'number'
 
 // Where today began, as kept across sessions: read before the first reading so it is not taken again.
 const loadWeekStart = async ($: EngineInterface) => {
   if ((await read($, weekStart)) !== null) return
   try {
     const kept = await $.store.get(WEEK_START)
-    if (isDayStart(kept)) await update($, weekStart, () => ({ day: kept.day, used: kept.used, resetsAt: kept.resetsAt ?? null }))
+    if (isDayStart(kept)) {
+      await update($, weekStart, () => ({
+        day: kept.day,
+        used: kept.used,
+        lastUsed: kept.lastUsed,
+        resetsAt: kept.resetsAt ?? null,
+        ...(kept.isEstimated === true ? { isEstimated: true } : {}),
+      }))
+    }
   } catch {
     // Nothing kept; the first reading starts it.
   }
@@ -307,7 +350,7 @@ export const register: Register = on => {
     const seven = l.rateLimits.find(r => r.kind === 'seven_day')
     const start = await read($, weekStart)
     const budget = seven && start !== null ? weekBudget(start, seven.percentUsed, seven.resetsAt, now) : null
-    const weekSegs: Seg[] = budget === null || !seven ? [] : weekHead(budget, seven.percentUsed).map(h => (
+    const weekSegs: Seg[] = budget === null || !seven ? [] : weekHead(budget, seven.percentUsed, start?.isEstimated === true).map(h => (
       h.level === null ? { text: h.text, dim: true } : { text: h.text, bold: true, ...(h.level === 'success' ? {} : { color: h.level }) }
     ))
     const weekLead = weekSegs.flatMap((g, i) => (i === 0 ? [g] : [dot, g]))

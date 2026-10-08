@@ -158,23 +158,41 @@ export const dayOf = (at: number): string => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+/** The engine's local midnight that began the day `at` falls in. */
+export const midnightOf = (at: number): number => {
+  const d = new Date(at)
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+}
+
 /**
- * Where today began for the week: kept through the day, taken again from this reading on
- * a new day, a new week (another reset time), or a fall in use. The first reading of the
- * day stands in for midnight's, which no machine may have seen.
+ * Where today began for the week, and whether use went unseen before it. Kept through the
+ * day (its last reading moving on); on a new day, a new week (another reset time) or a fall
+ * in use, taken again from this reading. That is exact when it carries on from the last
+ * reading seen in the same week; otherwise use came that no reading saw, some of it
+ * perhaps today's: a gap, for an estimate to fill.
  */
-export const nextDayStart = (prev: DayStart | null, used: number, resetsAt: string | null, now: number): DayStart => {
+export const nextDayStart = (prev: DayStart | null, used: number, resetsAt: string | null, now: number): { start: DayStart; isGap: boolean } => {
   const day = dayOf(now)
-  if (prev !== null && prev.day === day && prev.resetsAt === resetsAt && used >= prev.used) return prev
-  return { day, used, resetsAt }
+  const isSameWeek = prev !== null && prev.resetsAt === resetsAt && used >= prev.used
+  if (prev !== null && isSameWeek && prev.day === day) {
+    return { start: used === prev.lastUsed ? prev : { ...prev, lastUsed: used }, isGap: false }
+  }
+  return { start: { day, used, lastUsed: used, resetsAt }, isGap: !(isSameWeek && prev?.lastUsed === used) }
+}
+
+/**
+ * Today's start estimated from this machine's logs: of the week's use so far, the share
+ * today's tokens are of the week's. Null when the week's tokens are none.
+ */
+export const estimateStart = (start: DayStart, used: number, tally: { window: number; today: number }): DayStart | null => {
+  if (!(tally.window > 0)) return null
+  const today = used * Math.min(1, Math.max(0, tally.today / tally.window))
+  return { ...start, used: used - today, isEstimated: true }
 }
 
 /** Days from today to the reset, today and the reset's own day each counted whole. */
-export const daysLeft = (resetsAt: string, now: number): number => {
-  const d = new Date(now)
-  const midnight = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
-  return Math.max(1, Math.ceil((Date.parse(resetsAt) - midnight) / DAY))
-}
+export const daysLeft = (resetsAt: string, now: number): number =>
+  Math.max(1, Math.ceil((Date.parse(resetsAt) - midnightOf(now)) / DAY))
 
 /** Today's share of what the week had left when today began, and what today has used of it. */
 export type Budget = {
@@ -208,14 +226,15 @@ export const budgetLevel = (today: number, budget: number): Level =>
   today > budget ? 'error' : today > budget * 0.8 ? 'warning' : 'success'
 
 /**
- * The week's head: `today 9% of 16%`, then once past it what tomorrow is left with; once a
- * day's share is under 1%, what is left over how many days; nothing once the week is spent.
+ * The week's head: `today 9% of 16%` (`~9%` when today's start was estimated), then once
+ * past it what tomorrow is left with; once a day's share is under 1%, what is left over
+ * how many days; nothing once the week is spent.
  */
-export const weekHead = (b: Budget, used: number): { text: string; level: Level | null }[] => {
+export const weekHead = (b: Budget, used: number, isEstimated = false): { text: string; level: Level | null }[] => {
   if (used >= 100) return []
   if (b.budget < 1) return [{ text: `${Math.round(100 - used)}% left for ${b.daysLeft}d`, level: 'warning' }]
   const head: { text: string; level: Level | null }[] = [
-    { text: `today ${Math.round(b.today)}% of ${Math.round(b.budget)}%`, level: budgetLevel(b.today, b.budget) },
+    { text: `today ${isEstimated ? '~' : ''}${Math.round(b.today)}% of ${Math.round(b.budget)}%`, level: budgetLevel(b.today, b.budget) },
   ]
   if (b.today > b.budget && b.tomorrow !== null) head.push({ text: `tomorrow ${Math.round(b.tomorrow)}%`, level: null })
   return head

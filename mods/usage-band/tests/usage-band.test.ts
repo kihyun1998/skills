@@ -7,6 +7,7 @@ import {
   cacheHit,
   dayOf,
   daysLeft,
+  midnightOf,
   nextDayStart,
   weekBudget,
   weekHead,
@@ -66,6 +67,8 @@ type World = {
   settings?: Record<string, unknown>
   /** What each main-thread request reports of its prompt; none by default. */
   stepUsage?: { input_tokens: number; output_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number }
+  /** What the log tally answers: this machine's tokens since the week began and since today began; it fails when absent. */
+  tally?: { window: number; today: number }
   /** What $.store holds when the session starts, as an earlier one left it. */
   store?: Record<string, unknown>
   /** What the bands beneath draw; nothing by default. */
@@ -93,6 +96,10 @@ const start = async ($: Engine, on: On, u: SessionUsage, w: World) => {
   on('ui.render', { component: 'AbovePrompt' }, (): RenderElement => w.beneath ?? { type: 'Box', props: {}, children: [] })
   on('process.run', (_$, e) => {
     w.argv.push([...e.argv])
+    if (e.argv.some(a => a.endsWith('tally.mjs'))) {
+      const out = w.tally === undefined ? null : JSON.stringify(w.tally)
+      return { value: { exitCode: out === null ? 1 : 0, stdout: out ?? '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+    }
     const stdout = e.argv.includes('blocks') ? blocksJson(w.burn) : dailyJson(w.today)
     return { value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
@@ -199,7 +206,7 @@ describe('usage-band', () => {
     const u = usage(20, 41, 18)
     const resetsAt = new Date(48 * HOUR).toISOString()
     // An earlier session today saw the week at 10%; this one starts at 18%.
-    const store = { weekStart: { day: dayOf(0), used: 10, resetsAt } }
+    const store = { weekStart: { day: dayOf(0), used: 10, lastUsed: 18, resetsAt } }
     await start($, on, { ...u, rateLimits: [u.rateLimits[0]!, { kind: 'seven_day', percentUsed: 18, resetsAt }] }, { burn: 10, today: 5, argv: [], store })
     const ui = await mount($)
     const budget = Math.round(90 / daysLeft(resetsAt, 0))
@@ -209,10 +216,53 @@ describe('usage-band', () => {
   test('a day’s start from another day is not today’s', async ($, on) => {
     const u = usage(20, 41, 18)
     const resetsAt = new Date(48 * HOUR).toISOString()
-    const store = { weekStart: { day: dayOf(-2 * DAY), used: 10, resetsAt } }
+    const store = { weekStart: { day: dayOf(-2 * DAY), used: 10, lastUsed: 10, resetsAt } }
     await start($, on, { ...u, rateLimits: [u.rateLimits[0]!, { kind: 'seven_day', percentUsed: 18, resetsAt }] }, { burn: 10, today: 5, argv: [], store })
     const ui = await mount($)
     expect(((await rows(ui))[0] ?? '').split(DIV)[2]).toContain('today 0% of ')
+  })
+
+  test('on a day whose start came late (the first day, say), today is estimated from this machine’s logs, marked ~', async ($, on) => {
+    const u = usage(20, 41, 30)
+    const resetsAt = new Date(48 * HOUR).toISOString()
+    const w: World = { burn: 10, today: 5, argv: [], tally: { window: 100, today: 40 } }
+    await start($, on, { ...u, rateLimits: [u.rateLimits[0]!, { kind: 'seven_day', percentUsed: 30, resetsAt }] }, w)
+    const ui = await mount($)
+    // 40% of the week's tokens fell today: 12 of its 30%, so today began at 18%.
+    const budget = Math.round(82 / daysLeft(resetsAt, 0))
+    expect(((await rows(ui))[0] ?? '').split(DIV)[2]).toContain(`today ~12% of ${budget}%`)
+    // Asked for the week since it began and today since midnight, or since the week began if later.
+    const run = w.argv.find(a => a.some(x => x.endsWith('tally.mjs')))
+    expect(run?.slice(-2)).toEqual([String(Date.parse(resetsAt) - 7 * DAY), String(Math.max(midnightOf(0), Date.parse(resetsAt) - 7 * DAY))])
+  })
+
+  test('a day carried on from the last reading of the day before is exact: no estimate, no ~', async ($, on) => {
+    const u = usage(20, 41, 30)
+    const resetsAt = new Date(48 * HOUR).toISOString()
+    const store = { weekStart: { day: dayOf(-DAY), used: 20, lastUsed: 30, resetsAt } }
+    const w: World = { burn: 10, today: 5, argv: [], tally: { window: 100, today: 40 }, store }
+    await start($, on, { ...u, rateLimits: [u.rateLimits[0]!, { kind: 'seven_day', percentUsed: 30, resetsAt }] }, w)
+    const ui = await mount($)
+    expect(((await rows(ui))[0] ?? '').split(DIV)[2]).toContain(`today 0% of ${Math.round(70 / daysLeft(resetsAt, 0))}%`)
+    expect(w.argv.some(a => a.some(x => x.endsWith('tally.mjs')))).toBe(false)
+  })
+
+  test('when the logs cannot be read, today counts from the first reading, unmarked', async ($, on) => {
+    const u = usage(20, 41, 30)
+    const resetsAt = new Date(48 * HOUR).toISOString()
+    await start($, on, { ...u, rateLimits: [u.rateLimits[0]!, { kind: 'seven_day', percentUsed: 30, resetsAt }] }, { burn: 10, today: 5, argv: [] })
+    const ui = await mount($)
+    expect(((await rows(ui))[0] ?? '').split(DIV)[2]).toContain(`today 0% of ${Math.round(70 / daysLeft(resetsAt, 0))}%`)
+  })
+
+  test('a start kept by the first version, with no last reading, is read as none: the day is estimated', async ($, on) => {
+    const u = usage(20, 41, 30)
+    const resetsAt = new Date(48 * HOUR).toISOString()
+    const store = { weekStart: { day: dayOf(0), used: 30, resetsAt } }
+    const w: World = { burn: 10, today: 5, argv: [], tally: { window: 100, today: 40 }, store }
+    await start($, on, { ...u, rateLimits: [u.rateLimits[0]!, { kind: 'seven_day', percentUsed: 30, resetsAt }] }, w)
+    const ui = await mount($)
+    expect(((await rows(ui))[0] ?? '').split(DIV)[2]).toContain('today ~12% of ')
   })
 
   test('another band stays above the two rows, which keep next to the prompt', async ($, on) => {
@@ -440,15 +490,22 @@ describe('format', () => {
     expect(paceLevel(101)).toBe('error')
   })
 
-  test('the day’s start: kept through the day, taken again on a new day, a new week, or a fall in use', () => {
+  test('the day’s start: kept through the day; a new day carried on from the last reading is exact, one past it is a gap', () => {
     const wed = new Date(2026, 9, 7).getTime()
     const reset = new Date(wed + 5 * DAY).toISOString()
+    // Nothing before it: the first day, a gap.
     const first = nextDayStart(null, 20, reset, wed + 9 * HOUR)
-    expect(first.used).toBe(20)
-    expect(nextDayStart(first, 30, reset, wed + 20 * HOUR)).toBe(first)
-    expect(nextDayStart(first, 30, reset, wed + DAY + HOUR).used).toBe(30)
-    expect(nextDayStart(first, 30, new Date(wed + 12 * DAY).toISOString(), wed + 20 * HOUR).used).toBe(30)
-    expect(nextDayStart(first, 2, reset, wed + 20 * HOUR).used).toBe(2)
+    expect(first).toMatchObject({ start: { used: 20, lastUsed: 20 }, isGap: true })
+    const later = nextDayStart(first.start, 30, reset, wed + 20 * HOUR)
+    expect(later).toMatchObject({ start: { used: 20, lastUsed: 30 }, isGap: false })
+    expect(nextDayStart(later.start, 30, reset, wed + 20 * HOUR).start).toBe(later.start)
+    // The next day, at the reading last seen: nothing went unseen.
+    expect(nextDayStart(later.start, 30, reset, wed + DAY + HOUR)).toMatchObject({ start: { used: 30 }, isGap: false })
+    // Past it: use no reading saw, some of it perhaps today's.
+    expect(nextDayStart(later.start, 34, reset, wed + DAY + HOUR)).toMatchObject({ start: { used: 34 }, isGap: true })
+    // A new week, or a fall in use.
+    expect(nextDayStart(later.start, 30, new Date(wed + 12 * DAY).toISOString(), wed + 20 * HOUR).isGap).toBe(true)
+    expect(nextDayStart(later.start, 2, reset, wed + 20 * HOUR)).toMatchObject({ start: { used: 2 }, isGap: true })
   })
 
   test('days left count today and the reset’s own day; the budget splits what was left at the day’s start', () => {
@@ -457,7 +514,7 @@ describe('format', () => {
     expect(daysLeft(new Date(wed + 5 * DAY + 9 * HOUR).toISOString(), at)).toBe(6)
     expect(daysLeft(new Date(wed + 2 * DAY).toISOString(), at)).toBe(2)
     expect(daysLeft(new Date(wed + 11 * HOUR).toISOString(), at)).toBe(1)
-    const start = { day: '2026-10-07', used: 20, resetsAt: new Date(wed + 4 * DAY).toISOString() }
+    const start = { day: '2026-10-07', used: 20, lastUsed: 20, resetsAt: new Date(wed + 4 * DAY).toISOString() }
     const b = weekBudget(start, 30, start.resetsAt, at)
     expect(b).toMatchObject({ budget: 20, today: 10, mark: 40, daysLeft: 4 })
     expect(Math.round((b?.tomorrow ?? 0) * 100)).toBe(2333)
@@ -474,6 +531,7 @@ describe('format', () => {
     // The last day: past it, there is no tomorrow to name.
     expect(text(weekHead({ today: 21, budget: 16, tomorrow: null, daysLeft: 1, mark: 30 }, 38))).toBe('today 21% of 16%')
     expect(text(weekHead({ today: 0, budget: 0.4, tomorrow: 0.4, daysLeft: 5, mark: 99 }, 98))).toBe('2% left for 5d')
+    expect(text(weekHead({ today: 12, budget: 16.4, tomorrow: 14, daysLeft: 5, mark: 30 }, 26, true))).toBe('today ~12% of 16%')
     expect(text(weekHead({ today: 3, budget: 2, tomorrow: null, daysLeft: 1, mark: 100 }, 100))).toBe('')
   })
 
