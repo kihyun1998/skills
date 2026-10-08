@@ -32,6 +32,7 @@ export const startRun = (label: string | null, now: number): Run => ({
   steps: [],
   signals: [],
   isWaiting: false,
+  isDismissed: false,
   doneAt: null,
   sheetPath: null,
   sheet: null,
@@ -88,6 +89,8 @@ export const onTurnEnd = (run: Run, now: number): Run => {
 /** The person answered: a prompt of their own, or a question's reply. Null once a finished run has been moved on from. */
 export const onAnswer = (run: Run, now: number): Run | null => {
   if (run.doneAt !== null) return null
+  // After a question put away, the person's words take the step up again: no stop closes, nothing ends.
+  if (run.isDismissed) return { ...run, isWaiting: false, isDismissed: false }
   if (!run.isWaiting) return run
   const open = openStep(run)
   if (open?.key === CONFIRM) return { ...run, isWaiting: false, steps: closeAll(run.steps, now) }
@@ -96,6 +99,9 @@ export const onAnswer = (run: Run, now: number): Run | null => {
   }
   return { ...run, isWaiting: false }
 }
+
+/** A question box put away with nothing answered: the run still waits on the person, and is not answered. */
+export const onDismiss = (run: Run): Run => (run.doneAt !== null ? run : { ...run, isWaiting: true, isDismissed: true })
 
 /**
  * A main-thread file edit. Right after the confirm, with nothing begun, it is

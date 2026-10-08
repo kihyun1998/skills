@@ -53,6 +53,11 @@ export type Run = {
   signals: SignalRec[]
   /** The turn ended while the run was open: the next move is the person's. */
   isWaiting: boolean
+  /**
+   * A question box was put away (Esc) with nothing answered: what the person types
+   * next takes the run up again rather than answering, and so never ends it.
+   */
+  isDismissed: boolean
   doneAt: number | null
   /** Where this run's sheet lives: the path this plugin named when thegraph expanded, or one the run wrote itself. */
   sheetPath: string | null

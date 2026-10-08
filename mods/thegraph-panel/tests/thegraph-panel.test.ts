@@ -365,6 +365,86 @@ describe('thegraph-panel', () => {
     expect(flat(await ui.drawn())).toBe('BELOW')
   })
 
+  test('a question put away with Esc is no answer: the run waits, and what is typed next takes it up again', async ($, on) => {
+    let isEsc = true
+    on('tool.call', { tool: 'AskUserQuestion' }, () =>
+      isEsc ? { deny: 'The user dismissed the question.' } : { result: { questions: [], answers: { '이슈로 남길까요?': '1번만' } } })
+    await start($, on)
+    const ui = await band($)
+    await say($, '/thegraph')
+    await skill($, 'thegraph')
+    await skill($, 'read-it')
+    await endTurn($)
+    await say($, 'ok')
+    for (const s of ['make-it', 'check-it', 'ask-it']) await skill($, s)
+    const ask = () => $.tool.call({ tool: 'AskUserQuestion', questions: [{ question: '이슈로 남길까요?', header: '정리', options: [], multiSelect: false }] })
+    await ask()
+    expect(flat(await ui.drawn())).toContain('check-it ✓ › ask-it ◆')
+    expect(flat(await ui.drawn())).not.toContain('done')
+    // What is typed after the Esc is not the answer to the question put away: ask-it goes on.
+    await say($, '아 잘못 눌렀어, 다시 물어봐')
+    expect(flat(await ui.drawn())).toContain('check-it ✓ › ask-it ◐')
+    const pane = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS })
+    expect(flat(await pane.drawn())).toContain('◆ 이슈로 남길까요? → dismissed')
+    // Asked again and answered, it ends.
+    isEsc = false
+    await ask()
+    expect(flat(await ui.drawn())).toContain('ask-it ✓  done')
+  })
+
+  test('an answer typed after an Esc ends the run one prompt later, at the end of the turn it began', async ($, on) => {
+    on('tool.call', { tool: 'AskUserQuestion' }, () => ({ deny: 'The user dismissed the question.' }))
+    await start($, on)
+    const ui = await band($)
+    await say($, '/thegraph')
+    await skill($, 'thegraph')
+    await skill($, 'read-it')
+    await endTurn($)
+    await say($, 'ok')
+    for (const s of ['make-it', 'check-it', 'ask-it']) await skill($, s)
+    await $.tool.call({ tool: 'AskUserQuestion', questions: [{ question: '이슈로 남길까요?', header: '정리', options: [], multiSelect: false }] })
+    // The real answer, typed instead of picked: taken as the run going on, not yet its end.
+    await say($, '1번만 이슈로')
+    expect(flat(await ui.drawn())).toContain('ask-it ◐')
+    // ask-it files it and its turn ends; the move is the person's, and whatever they say next ends it.
+    await endTurn($)
+    expect(flat(await ui.drawn())).toContain('ask-it ◆')
+    await say($, '고마워')
+    expect(flat(await ui.drawn())).toContain('ask-it ✓  done')
+  })
+
+  test('a second /thegraph starts clean, whatever the first left: open, waiting, a box put away', async ($, on) => {
+    on('tool.call', { tool: 'AskUserQuestion' }, () => ({ deny: 'The user dismissed the question.' }))
+    await start($, on)
+    const ui = await band($)
+    await say($, '/thegraph #1')
+    await skill($, 'thegraph')
+    await skill($, 'read-it')
+    await endTurn($)
+    await say($, 'ok')
+    for (const s of ['make-it', 'redden', 'check-it', 'ask-it']) await skill($, s)
+    await $.tool.call({ tool: 'AskUserQuestion', questions: [{ question: '이슈로?', header: '정리', options: [], multiSelect: false }] })
+    expect(flat(await ui.drawn())).toContain('thegraph #1')
+    // The next run's prompt answers nothing of the first; its skill replaces the first whole.
+    await say($, '/thegraph #2')
+    expect(flat(await ui.drawn())).toContain('thegraph #1')
+    await skill($, 'thegraph')
+    await skill($, 'read-it')
+    const line = flat(await ui.drawn())
+    expect(line).toContain('thegraph #2  read-it ◐ › confirm › make-it › check-it › ask-it')
+    expect(line).not.toContain('⚑')
+    const pane = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS })
+    expect(flat(await pane.drawn())).not.toContain('이슈로?')
+    // And the second runs to its end as any run does.
+    await endTurn($)
+    await say($, '진행')
+    await skill($, 'ask-it')
+    await endTurn($)
+    await say($, '끝')
+    expect(flat(await ui.drawn())).toContain('thegraph #2')
+    expect(flat(await ui.drawn())).toContain('ask-it ✓  done')
+  })
+
   test('a slash command moves on from a finished run too', async ($, on) => {
     await start($, on)
     const ui = await band($)

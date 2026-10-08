@@ -8,6 +8,7 @@ import {
   labelOf,
   minutes,
   onAnswer,
+  onDismiss,
   onEdit,
   onSkill,
   onTurnEnd,
@@ -285,6 +286,9 @@ export const register: Register = on => {
     const result = await next(e)
     const t = await $.clock.now()
     const answers = (field(resultOf(result), 'answers') ?? {}) as Record<string, string>
+    // Esc puts the box away with nothing answered, however the engine words it (a deny, an error,
+    // no answers): no answer at all, and the run is not taken as answered.
+    const isDismissed = !questions.some(q => answers[q] !== undefined)
     await update($, run, r => {
       if (r === null) return r
       // Each question's line, newest first, gets its answer; one left unanswered says so.
@@ -292,9 +296,9 @@ export const register: Register = on => {
       for (const q of questions) {
         const i = log.findLastIndex(l => l.kind === 'ask' && l.text === q && l.detail === null)
         const entry = log[i]
-        if (entry) log[i] = { ...entry, detail: answers[q] ?? 'no answer' }
+        if (entry) log[i] = { ...entry, detail: isDismissed ? 'dismissed' : (answers[q] ?? 'no answer') }
       }
-      return onAnswer({ ...r, log }, t)
+      return isDismissed ? onDismiss({ ...r, log }) : onAnswer({ ...r, log }, t)
     })
     await update($, now, () => t)
     return result
