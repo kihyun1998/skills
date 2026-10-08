@@ -27,14 +27,14 @@ script warns if the variable still names a mod.
 ## What the band shows
 
 ```
-opus 5.5 high · cache 93%                   │  74% pace · resets 18:20                    │  today 9% of 16% · $59.40 · $83.67/h
-ctx ━━━━━━━━━━━━━━━━━━━━━━───────────  68%  │  5h  ━━━━━━━━━━━━━━────┊──────────────  41%  │  wk  ━━━━━━─────────────────┊─────────  18%
+opus 5.5 high · cache 93%                   │  74% pace · resets 18:20                    │  13.7%/day · today $59.40 · $83.67/h
+ctx ━━━━━━━━━━━━━━━━━━━━━━───────────  68%  │  5h  ━━━━━━━━━━━━━━────┊──────────────  41%  │  wk  ━━━━━━───────────────────────────  18%
 ```
 
 Three columns, a dim `│` between them, each a head over its gauge: context (the
 model, its effort and the prompt cache), the 5-hour window (its pace, when it
-runs out if it will, and its reset), and the week (today against today's budget)
-with the money. The heads are cut or padded
+runs out if it will, and its reset), and the week (what it has left for each of
+its days) with the money. The heads are cut or padded
 to their gauge's width, so a head that grows (the forecast) never pushes the next
 column. A limit the account does not have drops its column; the money then goes
 after the last head.
@@ -44,16 +44,19 @@ window already gone. A bar past the mark is spending faster than time passes. Th
 head says the same as a number, the **pace**: the share used over the share gone,
 `41% ÷ 55.7% = 74% pace`. 100% runs out exactly at the reset, above it sooner.
 
-The week's `┊` is where **today's budget** runs out instead, and its head says how
-much of it today has used: `today 9% of 16%`. A bar past the mark has spent more
-today than today's share. The engine's `resetsAt` is optional on every limit; a
-gauge whose limit comes without one has no mark.
+The week's gauge has no mark. Its head says what the week has left for each day
+to the reset, `13.7%/day` (below). The engine's `resetsAt` is optional on every
+limit; a gauge whose limit comes without one has no mark, and a week without one
+no share.
 
 **Quiet until something needs saying.** Labels are dim, figures and fills take the
 terminal's own colour, and only the model keeps one (the Claude Code theme key
 `claude`). Colour is kept for trouble, so it reads as trouble: a gauge past 80%
 takes the theme's `warning`, past 90% `error`, fill and figure both; a pace past 80%
-(warning) or past 100% (error), a forecast that runs out before the reset, a cache below 80%, a day over $100. The words are
+(warning) or past 100% (error), a forecast that runs out before the reset, a cache below 80%, a day over $100, a week short of
+its days. One colour is good news, and only one: the week's share is green
+(`success`) while a day's share or more is to spare, because that is the point of
+it, how much is left. The words are
 English, and so are the gauge labels: a Korean word is two cells wide and would
 shift the bars.
 
@@ -62,12 +65,12 @@ shift the bars.
 | model, effort | context | `$.session.model()`; the `effort` of each main-thread `turn.step` | the model always (`claude`); effort is dim |
 | `cache N%` | context | each main-thread request's `usage` (`turn.step`): cache read ÷ (read + written + uncached), over the last 10; a subagent's requests are left out | amber below 80%, red below 50% |
 | `N% pace` | 5-hour | `percentUsed` ÷ the share of the window gone, from its `resetsAt` | warning past 80%, error past 100% |
-| `today N% of M%` | week | today's use against today's budget (below); `tomorrow N%` after it once past it, `N% left for Nd` once a day's share is under 1% | warning past 80% of the budget, error past it |
+| `N%/day` | week | what the week has left over the days to the reset, today counted whole (below); none once it is spent | judged with today's use taken out of the days after: green from a day's share (14.3%), quiet down to 80% of it, warning down to half, error below |
 | `out at HH:MM` | 5-hour | the last hour's rate (below) and the window's `resetsAt` | in error, after the pace, only when that rate runs the limit out before the reset |
 | `resets HH:MM` | 5-hour | the window's `resetsAt`, in the engine's local time | never; dim |
-| `$N` (`today $N` with no week) | week | `ccusage daily --json --offline --since <yesterday UTC>` → last day's `totalCost` | warning, bold, at $100 or more |
+| `today $N` | week | `ccusage daily --json --offline --since <yesterday UTC>` → last day's `totalCost` | warning, bold, at $100 or more |
 | `$N/h` | week | `ccusage blocks --active --json --offline` → `burnRate.costPerHour` | never; dim beside a 5-hour pace, plain where there is none (an API key) |
-| ctx, 5h, wk gauges | — | `context.percent`; `rateLimits` `five_hour`, `seven_day`; the 5-hour `┊` at the even pace, the week's where today's budget runs out | 80% (warning), 90% (error) |
+| ctx, 5h, wk gauges | — | `context.percent`; `rateLimits` `five_hour`, `seven_day`; the 5-hour `┊` at the even pace; the week's has none | 80% (warning), 90% (error) |
 
 ### Pace, and the last hour's rate
 
@@ -90,44 +93,47 @@ the time since `resetsAt − 5h`), which needs no history. The readings live in
 itself is no longer drawn: `+13%/h` said how fast, but not whether that was a
 lot, which is what the pace answers.
 
-### The week's day budget
+### The week's daily share
 
 An even pace suits five hours, which pass while one works. It does not suit a
 week, which holds nights and the days one does not work: by Wednesday night an
 even pace allows 43% of the week, though this machine's own history (`ccusage
 blocks`, 4.4 weeks, measured 2026-10-08) had spent 65% by then on weekdays alone,
-so the week read as easy early and grew easier with every idle hour. Learning
-that shape was weighed and left: ccusage's cost is a proxy for the limit, reads
-one machine only, and the limit's own readings, kept by the mod, would be one
-machine's view of when the account's use happened.
+so the week read as easy early and grew easier with every idle hour.
 
-The day budget assumes nothing about when one works. Today's share is what the
-week had left when today began, over the days to the reset, today and the
-reset's own day each counted whole: `(100 − used at today's start) ÷ days left`.
-It is fixed for the day, so it does not creep up while nothing is used. Using
-less leaves more for each day after; using more, less: past it, the head says
-what tomorrow is left with. The `percentUsed` is the account's, so another
-machine's use counts toward what is left.
+The head splits what the week has left over the days to the reset, today
+counted whole: `(100 − used) ÷ days left`. A day runs 24 hours from the reset's
+time of day, so a week that resets Saturday 10:00 has seven days from 10:00 to
+10:00. At a day's start that is the share the day gets, spread again over what
+is left: 30% used on the first day leaves the second `70 ÷ 6 = 11.7%/day`. Within
+a day the figure falls as the day is used, and at the next day's start it rises,
+one day fewer to split over.
 
-Where today began is the first reading of the day (a new day, a new reset time
-or a fall in use takes it again), kept in `$.state` for drawing and in
-`$.store` so a `/clear` or a new session the same day keeps today's budget,
-with the last reading seen since. That first reading is exact when it carries
-on from the last one seen the day before, in the same week. When it does not —
-the first day the mod runs, a new week, use on another machine before this one's
-first reading — some of what the week has used may be today's, and no reading
-saw it: the first day showed `today 0%` with half the day spent.
+It needs only the account's `percentUsed`, the reset time and the clock, so every
+machine shows the same and nothing is kept. The first version, a **day budget**
+(`today 9% of 16%`, the week's use at the day's start over the days left), needed
+that use at the day's start, which only a machine running then had seen: after a
+morning on Windows the Mac had to guess it from its own transcripts, which held
+none of the morning. It was replaced on 2026-10-08, with its store and the log
+tally behind the guess.
 
-On such a day the mod estimates today's start from this machine's transcripts,
-as ccusage reads them: `scripts/tally.mjs` weighs each response's tokens (cache
-reads cheap, output dear, every model alike) since the week began and since
-today began, and today takes that share of the week's use. The head marks it,
-`today ~12% of 16%`. It runs once a gap appears, off the reading's path, through
-`node`: a hooks module may read no file over 4 MiB, and a week of transcripts
-here was 663 MB in 158 files, read in 2.1 s (measured 2026-10-08). Without
-`node`, or with no logs, today counts from the first reading, unmarked. It is
-this machine's share of the week, so it misjudges today when another machine
-did much of the week's work; the week's total is the account's either way.
+The colour is not judged on the figure shown, which falls through any day that is
+used, on plan or not: using a fresh day's 14.3% shows 12.2%, and an afternoon on
+plan would read amber. It is judged on the same split with today's use taken out
+of the days after, `(100 − used) ÷ (days left − 1)` (on the last day, what is
+left): green from a day's share, `100 ÷ 7 = 14.3%`, quiet down to 80% of it,
+warning down to half, error below. Green means the week has used no more than a
+day's share for each day begun, so a day starts green and a day that uses its
+share goes quiet.
+
+Weighed and left, as HTML prototypes on 2026-10-08:
+
+- **Against Claude Code's own warning.** Claude Code 2.1.294 warns on the week at
+  25% used within 15% of it, 50% within 35%, 75% within 60%. Used over that line
+  drops at each step with nothing used (98% to 65% in an hour), repeats the
+  gauge past 60%, and through those points smoothed reads 300% on the first day.
+- **A ledger.** A day's share each day, what is left carried over: an overspent
+  day falls on the next one alone instead of spreading over the rest.
 
 Effort is the value the request is **sent** with, after any downgrade for the
 model. It changes on the next request after `/effort`, not at the command. Before

@@ -3,15 +3,10 @@ import type { Engine } from 'claude-code/testing'
 import type { On, RenderElement, SessionUsage } from 'claude-code'
 
 import {
-  budgetLevel,
+  DAY_SHARE,
   cacheHit,
-  dayOf,
-  dayStartOf,
-  daysLeft,
-  midnightOf,
-  nextDayStart,
-  weekBudget,
-  weekHead,
+  dailyShare,
+  shareLevel,
   clockOf,
   runsOutAt,
   effortFromSettings,
@@ -68,17 +63,12 @@ type World = {
   settings?: Record<string, unknown>
   /** What each main-thread request reports of its prompt; none by default. */
   stepUsage?: { input_tokens: number; output_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number }
-  /** What the log tally answers: this machine's tokens since the week began and since today began; it fails when absent. */
-  tally?: { window: number; today: number }
-  /** What $.store holds when the session starts, as an earlier one left it. */
-  store?: Record<string, unknown>
   /** What the bands beneath draw; nothing by default. */
   beneath?: RenderElement
 }
 
 const start = async ($: Engine, on: On, u: SessionUsage, w: World) => {
   const clock = mock.clock(on)
-  mock.store(on, w.store)
   on('session.start', (_$, e) => ({ cwd: e.cwd }))
   on('session.model', () => ({ value: 'claude-opus-5-5' }))
   on('session.usage', () => {
@@ -97,10 +87,6 @@ const start = async ($: Engine, on: On, u: SessionUsage, w: World) => {
   on('ui.render', { component: 'AbovePrompt' }, (): RenderElement => w.beneath ?? { type: 'Box', props: {}, children: [] })
   on('process.run', (_$, e) => {
     w.argv.push([...e.argv])
-    if (e.argv.some(a => a.endsWith('tally.mjs'))) {
-      const out = w.tally === undefined ? null : JSON.stringify(w.tally)
-      return { value: { exitCode: out === null ? 1 : 0, stdout: out ?? '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
-    }
     const stdout = e.argv.includes('blocks') ? blocksJson(w.burn) : dailyJson(w.today)
     return { value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
@@ -179,101 +165,54 @@ describe('usage-band', () => {
     expect((await rows(ui))[1]?.match(/┊/g)).toHaveLength(1)
   })
 
-  test('the week shows today’s budget: what was left at the day’s start over the days to the reset', async ($, on) => {
-    const u = usage(20, 41, 18)
-    const resetsAt = new Date(48 * HOUR).toISOString()
-    const withWeek = (used: number): SessionUsage => ({ ...u, rateLimits: [u.rateLimits[0]!, { kind: 'seven_day', percentUsed: used, resetsAt }] })
-    await start($, on, withWeek(18), { burn: 10, today: 5, argv: [] })
+  // The week resets 5d3h after the mocked clock's 0: six days left, today counted whole.
+  const WEEK_RESETS_AT = new Date(5 * DAY + 3 * HOUR).toISOString()
+  const withWeek = (used: number): SessionUsage => {
+    const u = usage(20, 41, used)
+    return { ...u, rateLimits: [u.rateLimits[0]!, { kind: 'seven_day', percentUsed: used, resetsAt: WEEK_RESETS_AT }] }
+  }
+  const weekHead = async (ui: Awaited<ReturnType<typeof mount>>) => ((await rows(ui))[0] ?? '').split(DIV)[2] ?? ''
+
+  test('the week leads with what it has left over the days left, today counted whole, then the money', async ($, on) => {
+    await start($, on, withWeek(30), { burn: 10, today: 5, argv: [] })
     const ui = await mount($)
-    const days = daysLeft(resetsAt, 0)
-    const budget = 82 / days
-    const wk = async () => ((await rows(ui))[0] ?? '').split(DIV)[2] ?? ''
-    // The money follows, its "today" said once.
-    expect((await wk()).startsWith(`today 0% of ${Math.round(budget)}% · $5.00 · $10.00/h`)).toBe(true)
-    expect((await propsOf(ui, `today 0% of ${Math.round(budget)}%`))?.color).toBe(undefined)
-    // The week's gauge marks where today's budget runs out; no pace is drawn for the week.
-    const bar = [...((await rows(ui))[1]?.split(DIV)[2] ?? '')].slice(4, 4 + 33)
-    expect(bar.indexOf('┊')).toBe(Math.min(32, Math.round(((18 + budget) / 100) * 33)))
-    expect(await wk()).not.toContain('pace')
-    // Past it: red, and what tomorrow is left with.
-    const over = 18 + Math.ceil(budget) + 3
-    await measure($, withWeek(over))
-    const text = `today ${over - 18}% of ${Math.round(budget)}%`
-    expect(await wk()).toContain(`${text} · tomorrow ${Math.round((100 - over) / (days - 1))}%`)
-    expect((await propsOf(ui, text))?.color).toBe('error')
+    // 70% left over six days.
+    expect((await weekHead(ui)).startsWith('11.7%/day · today $5.00 · $10.00/h')).toBe(true)
+    // The week's gauge has no mark, and no pace is drawn for it.
+    expect((await rows(ui))[1]?.split(DIV)[2]).not.toContain('┊')
+    expect(await weekHead(ui)).not.toContain('pace')
   })
 
-  test('where today began, kept by an earlier session, is taken up by the next: the budget does not move within the day', async ($, on) => {
-    const u = usage(20, 41, 18)
-    const resetsAt = new Date(48 * HOUR).toISOString()
-    // An earlier session today saw the week at 10%; this one starts at 18%.
-    const store = { dayStart: { day: dayOf(0), used: 10, lastUsed: 18, resetsAt } }
-    await start($, on, { ...u, rateLimits: [u.rateLimits[0]!, { kind: 'seven_day', percentUsed: 18, resetsAt }] }, { burn: 10, today: 5, argv: [], store })
+  test('a new day, 24 hours on from the reset\'s time of day, splits what is left over one day fewer', async ($, on) => {
+    const clock = await start($, on, withWeek(30), { burn: 10, today: 5, argv: [] })
     const ui = await mount($)
-    const budget = Math.round(90 / daysLeft(resetsAt, 0))
-    expect(((await rows(ui))[0] ?? '').split(DIV)[2]).toContain(`today 8% of ${budget}%`)
+    await clock.advance(3 * HOUR - MIN)
+    await measure($, withWeek(30))
+    expect((await weekHead(ui)).startsWith('11.7%/day')).toBe(true)
+    await clock.advance(MIN)
+    await measure($, withWeek(30))
+    expect((await weekHead(ui)).startsWith('14.0%/day')).toBe(true)
   })
 
-  test('a day’s start from another day is not today’s', async ($, on) => {
-    const u = usage(20, 41, 18)
-    const resetsAt = new Date(48 * HOUR).toISOString()
-    const store = { dayStart: { day: dayOf(-2 * DAY), used: 10, lastUsed: 10, resetsAt } }
-    await start($, on, { ...u, rateLimits: [u.rateLimits[0]!, { kind: 'seven_day', percentUsed: 18, resetsAt }] }, { burn: 10, today: 5, argv: [], store })
+  test('the colour is judged with today\'s use taken out of the days after: green with a day\'s share to spare, red far below it', async ($, on) => {
+    await start($, on, withWeek(20), { burn: 10, today: 5, argv: [] })
     const ui = await mount($)
-    expect(((await rows(ui))[0] ?? '').split(DIV)[2]).toContain('today 0% of ')
+    // 80 over the five days after today is 16: a day's share and more.
+    expect((await propsOf(ui, '13.3%/day'))?.color).toBe('success')
+    // 70 over five is 14: under a day's share, over 80% of it.
+    await measure($, withWeek(30))
+    expect((await propsOf(ui, '11.7%/day'))?.color).toBe(undefined)
+    // 50 over five is 10, 30 over five is 6.
+    await measure($, withWeek(50))
+    expect((await propsOf(ui, '8.3%/day'))?.color).toBe('warning')
+    await measure($, withWeek(70))
+    expect((await propsOf(ui, '5.0%/day'))?.color).toBe('error')
   })
 
-  test('on a day whose start came late (the first day, say), today is estimated from this machine’s logs, marked ~', async ($, on) => {
-    const u = usage(20, 41, 30)
-    const resetsAt = new Date(48 * HOUR).toISOString()
-    const w: World = { burn: 10, today: 5, argv: [], tally: { window: 100, today: 40 } }
-    await start($, on, { ...u, rateLimits: [u.rateLimits[0]!, { kind: 'seven_day', percentUsed: 30, resetsAt }] }, w)
+  test('a spent week says nothing over its gauge but the money', async ($, on) => {
+    await start($, on, withWeek(100), { burn: 10, today: 5, argv: [] })
     const ui = await mount($)
-    // 40% of the week's tokens fell today: 12 of its 30%, so today began at 18%.
-    const budget = Math.round(82 / daysLeft(resetsAt, 0))
-    expect(((await rows(ui))[0] ?? '').split(DIV)[2]).toContain(`today ~12% of ${budget}%`)
-    // Asked for the week since it began and today since midnight, or since the week began if later.
-    const run = w.argv.find(a => a.some(x => x.endsWith('tally.mjs')))
-    expect(run?.slice(-2)).toEqual([String(Date.parse(resetsAt) - 7 * DAY), String(Math.max(midnightOf(0), Date.parse(resetsAt) - 7 * DAY))])
-  })
-
-  test('a day carried on from the last reading of the day before is exact: no estimate, no ~', async ($, on) => {
-    const u = usage(20, 41, 30)
-    const resetsAt = new Date(48 * HOUR).toISOString()
-    const store = { dayStart: { day: dayOf(-DAY), used: 20, lastUsed: 30, resetsAt } }
-    const w: World = { burn: 10, today: 5, argv: [], tally: { window: 100, today: 40 }, store }
-    await start($, on, { ...u, rateLimits: [u.rateLimits[0]!, { kind: 'seven_day', percentUsed: 30, resetsAt }] }, w)
-    const ui = await mount($)
-    expect(((await rows(ui))[0] ?? '').split(DIV)[2]).toContain(`today 0% of ${Math.round(70 / daysLeft(resetsAt, 0))}%`)
-    expect(w.argv.some(a => a.some(x => x.endsWith('tally.mjs')))).toBe(false)
-  })
-
-  test('when the logs cannot be read, today counts from the first reading, unmarked', async ($, on) => {
-    const u = usage(20, 41, 30)
-    const resetsAt = new Date(48 * HOUR).toISOString()
-    await start($, on, { ...u, rateLimits: [u.rateLimits[0]!, { kind: 'seven_day', percentUsed: 30, resetsAt }] }, { burn: 10, today: 5, argv: [] })
-    const ui = await mount($)
-    expect(((await rows(ui))[0] ?? '').split(DIV)[2]).toContain(`today 0% of ${Math.round(70 / daysLeft(resetsAt, 0))}%`)
-  })
-
-  test('a start kept by the first version, with no last reading, is read as none: the day is estimated', async ($, on) => {
-    const u = usage(20, 41, 30)
-    const resetsAt = new Date(48 * HOUR).toISOString()
-    const store = { dayStart: { day: dayOf(0), used: 30, resetsAt } }
-    const w: World = { burn: 10, today: 5, argv: [], tally: { window: 100, today: 40 }, store }
-    await start($, on, { ...u, rateLimits: [u.rateLimits[0]!, { kind: 'seven_day', percentUsed: 30, resetsAt }] }, w)
-    const ui = await mount($)
-    expect(((await rows(ui))[0] ?? '').split(DIV)[2]).toContain('today ~12% of ')
-  })
-
-  test('what the first version kept under weekStart is never read: the day is estimated', async ($, on) => {
-    const u = usage(20, 41, 30)
-    const resetsAt = new Date(48 * HOUR).toISOString()
-    const store = { weekStart: { day: dayOf(0), used: 30, lastUsed: 30, resetsAt } }
-    const w: World = { burn: 10, today: 5, argv: [], tally: { window: 100, today: 40 }, store }
-    await start($, on, { ...u, rateLimits: [u.rateLimits[0]!, { kind: 'seven_day', percentUsed: 30, resetsAt }] }, w)
-    const ui = await mount($)
-    expect(((await rows(ui))[0] ?? '').split(DIV)[2]).toContain('today ~12% of ')
+    expect((await weekHead(ui)).startsWith('today $5.00 · $10.00/h')).toBe(true)
   })
 
   test('another band stays above the two rows, which keep next to the prompt', async ($, on) => {
@@ -501,58 +440,28 @@ describe('format', () => {
     expect(paceLevel(101)).toBe('error')
   })
 
-  test('the day’s start: kept through the day; a new day carried on from the last reading is exact, one past it is a gap', () => {
-    const wed = new Date(2026, 9, 7).getTime()
-    const reset = new Date(wed + 5 * DAY).toISOString()
-    // Nothing before it: the first day, a gap.
-    const first = nextDayStart(null, 20, reset, wed + 9 * HOUR)
-    expect(first).toMatchObject({ start: { used: 20, lastUsed: 20 }, isGap: true })
-    const later = nextDayStart(first.start, 30, reset, wed + 20 * HOUR)
-    expect(later).toMatchObject({ start: { used: 20, lastUsed: 30 }, isGap: false })
-    expect(nextDayStart(later.start, 30, reset, wed + 20 * HOUR).start).toBe(later.start)
-    // The next day, at the reading last seen: nothing went unseen.
-    expect(nextDayStart(later.start, 30, reset, wed + DAY + HOUR)).toMatchObject({ start: { used: 30 }, isGap: false })
-    // Past it: use no reading saw, some of it perhaps today's.
-    expect(nextDayStart(later.start, 34, reset, wed + DAY + HOUR)).toMatchObject({ start: { used: 34 }, isGap: true })
-    // A new week, or a fall in use.
-    expect(nextDayStart(later.start, 30, new Date(wed + 12 * DAY).toISOString(), wed + 20 * HOUR).isGap).toBe(true)
-    expect(nextDayStart(later.start, 2, reset, wed + 20 * HOUR)).toMatchObject({ start: { used: 2 }, isGap: true })
+  test('the daily share: what is left over the days to the reset, today counted whole', () => {
+    const at = (h: number) => new Date(h * HOUR).toISOString()
+    expect(dailyShare(30, at(5 * 24 + 3), 0)).toEqual({ daysLeft: 6, perDay: 70 / 6, basis: 14 })
+    // A day runs 24 hours from the reset's time of day: exactly five days left is five.
+    expect(dailyShare(30, at(5 * 24), 0)?.daysLeft).toBe(5)
+    expect(dailyShare(30, at(5 * 24), -1)?.daysLeft).toBe(6)
+    // The last day: what is left is today's, and the colour is judged on it.
+    expect(dailyShare(90, at(3), 0)).toEqual({ daysLeft: 1, perDay: 10, basis: 10 })
+    // Never more than a week's days; nothing to say with no reset time, or one past.
+    expect(dailyShare(0, at(9 * 24), 0)?.daysLeft).toBe(7)
+    expect(dailyShare(30, null, 0)).toBe(null)
+    expect(dailyShare(30, at(0), 0)).toBe(null)
   })
 
-  test('a kept day start: read whole, and one with no last reading (the first version’s) read as none', () => {
-    const resetsAt = '2026-10-10T01:00:00.000Z'
-    expect(dayStartOf({ day: '2026-10-08', used: 73, lastUsed: 74, resetsAt })).toEqual({ day: '2026-10-08', used: 73, lastUsed: 74, resetsAt })
-    expect(dayStartOf({ day: '2026-10-08', used: 60, lastUsed: 74, resetsAt, isEstimated: true })?.isEstimated).toBe(true)
-    expect(dayStartOf({ day: '2026-10-08', used: 73, resetsAt })).toBe(null)
-    expect(dayStartOf(null)).toBe(null)
-    expect(dayStartOf('2026-10-08')).toBe(null)
-  })
-
-  test('days left count today and the reset’s own day; the budget splits what was left at the day’s start', () => {
-    const wed = new Date(2026, 9, 7).getTime()
-    const at = wed + 10 * HOUR
-    expect(daysLeft(new Date(wed + 5 * DAY + 9 * HOUR).toISOString(), at)).toBe(6)
-    expect(daysLeft(new Date(wed + 2 * DAY).toISOString(), at)).toBe(2)
-    expect(daysLeft(new Date(wed + 11 * HOUR).toISOString(), at)).toBe(1)
-    const start = { day: '2026-10-07', used: 20, lastUsed: 20, resetsAt: new Date(wed + 4 * DAY).toISOString() }
-    const b = weekBudget(start, 30, start.resetsAt, at)
-    expect(b).toMatchObject({ budget: 20, today: 10, mark: 40, daysLeft: 4 })
-    expect(Math.round((b?.tomorrow ?? 0) * 100)).toBe(2333)
-    expect(weekBudget(start, 30, null, at)).toBe(null)
-  })
-
-  test('the week’s head: today against its budget, tomorrow once past it, what is left once a day’s share is under 1%', () => {
-    expect(budgetLevel(12, 16)).toBe('success')
-    expect(budgetLevel(13, 16)).toBe('warning')
-    expect(budgetLevel(17, 16)).toBe('error')
-    const text = (h: ReturnType<typeof weekHead>) => h.map(x => x.text).join(' · ')
-    expect(text(weekHead({ today: 9, budget: 16.4, tomorrow: 14, daysLeft: 5, mark: 30 }, 26))).toBe('today 9% of 16%')
-    expect(text(weekHead({ today: 21, budget: 16.4, tomorrow: 12.6, daysLeft: 5, mark: 30 }, 38))).toBe('today 21% of 16% · tomorrow 13%')
-    // The last day: past it, there is no tomorrow to name.
-    expect(text(weekHead({ today: 21, budget: 16, tomorrow: null, daysLeft: 1, mark: 30 }, 38))).toBe('today 21% of 16%')
-    expect(text(weekHead({ today: 0, budget: 0.4, tomorrow: 0.4, daysLeft: 5, mark: 99 }, 98))).toBe('2% left for 5d')
-    expect(text(weekHead({ today: 12, budget: 16.4, tomorrow: 14, daysLeft: 5, mark: 30 }, 26, true))).toBe('today ~12% of 16%')
-    expect(text(weekHead({ today: 3, budget: 2, tomorrow: null, daysLeft: 1, mark: 100 }, 100))).toBe('')
+  test('the share\'s colour: green from a day\'s share, quiet down to 80% of it, amber down to half, red below', () => {
+    expect(DAY_SHARE).toBe(100 / 7)
+    expect(shareLevel(DAY_SHARE)).toBe('success')
+    expect(shareLevel(14)).toBe(null)
+    expect(shareLevel(DAY_SHARE * 0.8)).toBe(null)
+    expect(shareLevel(11.4)).toBe('warning')
+    expect(shareLevel(DAY_SHARE * 0.5)).toBe('warning')
+    expect(shareLevel(7.1)).toBe('error')
   })
 
   test('effort from settings: per model first, then the global level', () => {

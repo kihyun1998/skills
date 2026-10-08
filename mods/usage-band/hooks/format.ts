@@ -1,4 +1,4 @@
-import type { DayStart, FiveSample, Ledger, Live } from '../types'
+import type { FiveSample, Ledger, Live } from '../types'
 
 export type Level = 'success' | 'warning' | 'error'
 
@@ -148,114 +148,47 @@ export const paceOf = (percentUsed: number, resetsAt: string | null, windowMs: n
 /** A pace's colour: past 80% warns, past 100% (out before the reset) is red, below that it stays quiet. */
 export const paceLevel = (pace: number): Level => (pace > 100 ? 'error' : pace > 80 ? 'warning' : 'success')
 
-// --- the week's day budget ---------------------------------------------------------
+// --- the week's daily share --------------------------------------------------------
 
 const DAY = 24 * HOUR
+const WEEK_DAYS = 7
 
-/** The engine's local date, `2026-10-08`: the day a budget belongs to. */
-export const dayOf = (at: number): string => {
-  const d = new Date(at)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
+/** An even day's share of the week, in percent: what each day would get were nothing used yet. */
+export const DAY_SHARE = 100 / WEEK_DAYS
 
-/**
- * A day's start as kept, in $.state or $.store; null for anything else, a start from the
- * first version (no last reading, so it cannot say whether use went unseen) included.
- */
-export const dayStartOf = (v: unknown): DayStart | null => {
-  if (v === null || typeof v !== 'object') return null
-  const o = v as Record<string, unknown>
-  if (typeof o.day !== 'string' || typeof o.used !== 'number' || typeof o.lastUsed !== 'number') return null
-  return {
-    day: o.day,
-    used: o.used,
-    lastUsed: o.lastUsed,
-    resetsAt: typeof o.resetsAt === 'string' ? o.resetsAt : null,
-    ...(o.isEstimated === true ? { isEstimated: true } : {}),
-  }
-}
-
-/** The engine's local midnight that began the day `at` falls in. */
-export const midnightOf = (at: number): number => {
-  const d = new Date(at)
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
-}
-
-/**
- * Where today began for the week, and whether use went unseen before it. Kept through the
- * day (its last reading moving on); on a new day, a new week (another reset time) or a fall
- * in use, taken again from this reading. That is exact when it carries on from the last
- * reading seen in the same week; otherwise use came that no reading saw, some of it
- * perhaps today's: a gap, for an estimate to fill.
- */
-export const nextDayStart = (prev: DayStart | null, used: number, resetsAt: string | null, now: number): { start: DayStart; isGap: boolean } => {
-  const day = dayOf(now)
-  const isSameWeek = prev !== null && prev.resetsAt === resetsAt && used >= prev.used
-  if (prev !== null && isSameWeek && prev.day === day) {
-    return { start: used === prev.lastUsed ? prev : { ...prev, lastUsed: used }, isGap: false }
-  }
-  return { start: { day, used, lastUsed: used, resetsAt }, isGap: !(isSameWeek && prev?.lastUsed === used) }
-}
-
-/**
- * Today's start estimated from this machine's logs: of the week's use so far, the share
- * today's tokens are of the week's. Null when the week's tokens are none.
- */
-export const estimateStart = (start: DayStart, used: number, tally: { window: number; today: number }): DayStart | null => {
-  if (!(tally.window > 0)) return null
-  const today = used * Math.min(1, Math.max(0, tally.today / tally.window))
-  return { ...start, used: used - today, isEstimated: true }
-}
-
-/** Days from today to the reset, today and the reset's own day each counted whole. */
-export const daysLeft = (resetsAt: string, now: number): number =>
-  Math.max(1, Math.ceil((Date.parse(resetsAt) - midnightOf(now)) / DAY))
-
-/** Today's share of what the week had left when today began, and what today has used of it. */
-export type Budget = {
-  /** Percent of the week used since today began. */
-  today: number
-  /** Percent of the week today may use: what was left at its start over the days to the reset. */
-  budget: number
-  /** Tomorrow's share of what is left now; null on the reset's own day. */
-  tomorrow: number | null
+/** What the week has left for each of its days. */
+export type DailyShare = {
+  /** Days to the reset, today counted whole: a day runs 24 hours from the reset's time of day. */
   daysLeft: number
-  /** Where today's budget runs out on the week's gauge. */
-  mark: number
+  /** What is left over the days left, in percent of the week a day. */
+  perDay: number
+  /**
+   * What the colour is judged on: the same split with today's use already taken out of the
+   * days after, so a day that has used its share stays at it; on the last day, what is left.
+   */
+  basis: number
 }
-
-/** Null when the reset time is unknown or past. */
-export const weekBudget = (start: DayStart, used: number, resetsAt: string | null, now: number): Budget | null => {
-  if (resetsAt === null || !(Date.parse(resetsAt) > now)) return null
-  const days = daysLeft(resetsAt, now)
-  const budget = (100 - start.used) / days
-  return {
-    today: used - start.used,
-    budget,
-    tomorrow: days > 1 ? (100 - used) / (days - 1) : null,
-    daysLeft: days,
-    mark: Math.min(100, start.used + budget),
-  }
-}
-
-/** Today against its budget: past 80% of it warns, past it is red. */
-export const budgetLevel = (today: number, budget: number): Level =>
-  today > budget ? 'error' : today > budget * 0.8 ? 'warning' : 'success'
 
 /**
- * The week's head: `today 9% of 16%` (`~9%` when today's start was estimated), then once
- * past it what tomorrow is left with; once a day's share is under 1%, what is left over
- * how many days; nothing once the week is spent.
+ * What is left of the week over the days left in it, today counted whole. Only the account's
+ * use, the reset time and now go in, so every machine shows the same and nothing is kept.
+ * Null when the reset time is unknown or past.
  */
-export const weekHead = (b: Budget, used: number, isEstimated = false): { text: string; level: Level | null }[] => {
-  if (used >= 100) return []
-  if (b.budget < 1) return [{ text: `${Math.round(100 - used)}% left for ${b.daysLeft}d`, level: 'warning' }]
-  const head: { text: string; level: Level | null }[] = [
-    { text: `today ${isEstimated ? '~' : ''}${Math.round(b.today)}% of ${Math.round(b.budget)}%`, level: budgetLevel(b.today, b.budget) },
-  ]
-  if (b.today > b.budget && b.tomorrow !== null) head.push({ text: `tomorrow ${Math.round(b.tomorrow)}%`, level: null })
-  return head
+export const dailyShare = (percentUsed: number, resetsAt: string | null, now: number): DailyShare | null => {
+  if (resetsAt === null) return null
+  const left = Date.parse(resetsAt) - now
+  if (!(left > 0)) return null
+  const daysLeft = Math.min(WEEK_DAYS, Math.ceil(left / DAY))
+  const rest = Math.max(0, 100 - percentUsed)
+  return { daysLeft, perDay: rest / daysLeft, basis: daysLeft > 1 ? rest / (daysLeft - 1) : rest }
 }
+
+/**
+ * A day's share or more to spare is green: the one colour that says there is plenty. Down to
+ * 80% of it the figure stays quiet, down to half it warns, below that it is red.
+ */
+export const shareLevel = (basis: number): Level | null =>
+  basis >= DAY_SHARE - 1e-9 ? 'success' : basis >= DAY_SHARE * 0.8 ? null : basis >= DAY_SHARE * 0.5 ? 'warning' : 'error'
 
 // --- the forecast and the cache -----------------------------------------------------
 

@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, SessionMeasureInput, SessionUsage } from 'claude-code'
 
-import type { DayStart, Live } from '../types'
+import type { Live } from '../types'
 import {
   CACHE_READINGS,
   FIGURE_COLOR,
@@ -21,19 +21,15 @@ import {
   levelOf,
   paceLevel,
   paceOf,
-  dayStartOf,
-  estimateStart,
-  midnightOf,
+  dailyShare,
   modelLabel,
-  nextDayStart,
   parseBurn,
   parseToday,
   recordFive,
   runsOutAt,
+  shareLevel,
   sinceArg,
   usd,
-  weekBudget,
-  weekHead,
 } from './format'
 
 const live = atom({ plugin: 'usage-band', key: 'live' } as const, null)
@@ -41,11 +37,6 @@ const effort = atom({ plugin: 'usage-band', key: 'effort' } as const, null)
 const ledger = atom({ plugin: 'usage-band', key: 'ledger' } as const, null)
 const fiveSamples = atom({ plugin: 'usage-band', key: 'fiveSamples' } as const, [])
 const cacheReadings = atom({ plugin: 'usage-band', key: 'cacheReadings' } as const, [])
-// Named dayStart since the first version's weekStart, which may hold a start taken with no estimate: never read.
-const weekStart = atom({ plugin: 'usage-band', key: 'dayStart' } as const, null)
-
-/** The $.store key the day's start is mirrored under. */
-const WEEK_START = 'dayStart'
 
 /** Blank cells at the band's left, so its text lines up with the turn line's after `✻ `; and at its right. */
 const LEFT = 2
@@ -82,8 +73,7 @@ const toLive = (model: string, u: Figures): Live => ({
 
 const fiveOf = (l: Live | null) => l?.rateLimits.find(r => r.kind === 'five_hour')
 
-// Takes a reading: the 5-hour window's goes in its history for the forecast, and the
-// week's moves where today began for it when a new day or week has come.
+// Takes a reading: the 5-hour window's goes in its history for the forecast.
 const refreshLive = async ($: EngineInterface, figures?: Figures) => {
   const model = await $.session.model()
   const u = figures ?? (await $.session.usage())
@@ -96,63 +86,7 @@ const refreshLive = async ($: EngineInterface, figures?: Figures) => {
       recordFive(samples, five.percentUsed, five.resetsAt, previous?.resetsAt ?? five.resetsAt, now),
     )
   }
-  const seven = next.rateLimits.find(r => r.kind === 'seven_day')
-  if (seven) {
-    // A start the first version left in $.state (a reload keeps it) is read as none, as in $.store.
-    const before = dayStartOf(await read($, weekStart))
-    const { start, isGap } = nextDayStart(before, seven.percentUsed, seven.resetsAt, now)
-    if (start !== before) await keepWeekStart($, start)
-    // Off the reading's path: the logs take a couple of seconds.
-    if (isGap && start.resetsAt !== null) $.clock.after(0, () => void estimateToday($, start))
-  }
   await update($, live, () => next)
-}
-
-const keepWeekStart = async ($: EngineInterface, start: DayStart) => {
-  await update($, weekStart, () => start)
-  try {
-    await $.store.set(WEEK_START, start)
-  } catch {
-    // Kept for this session only; the next day's first reading starts it again.
-  }
-}
-
-// No shell runs the argv: node.exe starts as it is, and cmd finds it where PATH alone does not.
-const NODE: readonly (readonly string[])[] = [['node'], ['cmd', '/c', 'node']]
-
-// Today's start when use went unseen before it: this machine's logs say what share of the
-// week's tokens fell today. Unread, today counts from the first reading.
-const estimateToday = async ($: EngineInterface, start: DayStart) => {
-  const weekBegan = Date.parse(start.resetsAt ?? '') - WINDOW_MS.week
-  const todayBegan = Math.max(midnightOf(await $.clock.now()), weekBegan)
-  const script = `${$.plugin.root}/scripts/tally.mjs`
-  for (const l of NODE) {
-    let tally: { window: number; today: number } | null = null
-    try {
-      const r = await $.process.run([...l, script, String(weekBegan), String(todayBegan)], { timeoutMs: 60_000 })
-      if (r.exitCode === 0) tally = parsed(r.stdout, s => JSON.parse(s) as { window: number; today: number })
-      else continue
-    } catch {
-      continue
-    }
-    const current = await read($, weekStart)
-    // Only the start it was asked for, and only once.
-    if (tally === null || current === null || current.day !== start.day || current.resetsAt !== start.resetsAt || current.isEstimated) return
-    const estimated = estimateStart(current, current.lastUsed, tally)
-    if (estimated !== null) await keepWeekStart($, estimated)
-    return
-  }
-}
-
-// Where today began, as kept across sessions: read before the first reading so it is not taken again.
-const loadWeekStart = async ($: EngineInterface) => {
-  if (dayStartOf(await read($, weekStart)) !== null) return
-  try {
-    const kept = dayStartOf(await $.store.get(WEEK_START))
-    if (kept !== null) await update($, weekStart, () => kept)
-  } catch {
-    // Nothing kept; the first reading starts it.
-  }
 }
 
 // Module state: a reload starts these over, which costs one extra ccusage run.
@@ -212,7 +146,6 @@ const seedEffort = async ($: EngineInterface) => {
 // Everything the band shows, read again: at start, and after /clear, /resume or /branch
 // reset $.state, which session.start does not follow.
 const fill = async ($: EngineInterface, isForced: boolean) => {
-  await loadWeekStart($)
   await refreshLive($)
   await seedEffort($)
   await askLedger($, isForced)
@@ -221,7 +154,6 @@ const fill = async ($: EngineInterface, isForced: boolean) => {
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const result = await next(e)
-    await loadWeekStart($)
     await refreshLive($)
     await seedEffort($)
     // Off the start's path: ccusage takes about a second and the first prompt need not wait.
@@ -279,7 +211,8 @@ export const register: Register = on => {
   // Three columns, divided, each a head over its gauge: context (the model, its effort, the cache),
   // the 5-hour window (its pace or when it runs out, and its reset), and the week with the money.
   // Quiet until something needs saying: colour is kept for a limit past 80%, a pace that runs
-  // out, a cold cache and a heavy day.
+  // out, a cold cache, a heavy day, and a week with less than a day's share to spare — or, the
+  // one colour for good news, a day's share or more.
   // Whatever other bands draw goes above, so these rows stay next to the prompt whichever hook runs first.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const below = await next(e)
@@ -336,30 +269,25 @@ export const register: Register = on => {
           outAt !== null ? [{ text: `out at ${clockOf(outAt)}`, color: 'error', bold: true }] : [],
           five.resetsAt != null ? [{ text: `resets ${clockOf(Date.parse(five.resetsAt))}`, dim: true }] : [],
         )
-    // The week: today against its share of what was left when today began.
+    // The week: what it has left over the days left, today counted whole.
     const seven = l.rateLimits.find(r => r.kind === 'seven_day')
-    const start = await read($, weekStart)
-    const budget = seven && start !== null ? weekBudget(start, seven.percentUsed, seven.resetsAt, now) : null
-    const weekSegs: Seg[] = budget === null || !seven ? [] : weekHead(budget, seven.percentUsed, start?.isEstimated === true).map(h => (
-      h.level === null ? { text: h.text, dim: true } : { text: h.text, bold: true, ...(h.level === 'success' ? {} : { color: h.level }) }
-    ))
-    const weekLead = weekSegs.flatMap((g, i) => (i === 0 ? [g] : [dot, g]))
-    // After the week's "today", the money's goes without saying.
-    const sayToday = weekLead.length === 0
+    const share = seven && seven.percentUsed < 100 ? dailyShare(seven.percentUsed, seven.resetsAt, now) : null
+    const shareLv = share === null ? null : shareLevel(share.basis)
+    const weekLead: Seg[] = share === null ? [] : [{ text: `${share.perDay.toFixed(1)}%/day`, bold: true, ...(shareLv === null ? {} : { color: shareLv }) }]
     const moneyHead: Seg[] = [
       ...(led?.today == null ? []
         : isTodayUnpriced(led, l) ? [{ text: 'today $0 · model not priced in ccusage', color: 'warning' }]
-        : [...(sayToday ? [{ text: 'today ', dim: true }] : []), { text: usd(led.today), ...(led.today >= TODAY_LOUD_USD ? { color: 'warning', bold: true } : {}) }]),
+        : [{ text: 'today ', dim: true }, { text: usd(led.today), ...(led.today >= TODAY_LOUD_USD ? { color: 'warning', bold: true } : {}) }]),
       ...(led?.burnPerHour != null ? [...(led.today == null ? [] : [dot]), { text: `${usd(led.burnPerHour)}/h`, dim: five !== undefined }] : []),
     ]
 
-    // The gauges: the 5-hour one marked where an even pace would have it, the week's where today's budget runs out.
+    // The gauges: the 5-hour one marked where an even pace would have it; the week's has no mark.
     const gauges = [
       { label: 'ctx', used: contextUsed(l.context), mark: null as number | null, head: contextHead },
       ...(five ? [{ label: '5h', used: five.percentUsed, mark: evenPace(five.resetsAt, WINDOW_MS.fiveHour, now), head: fiveHead ?? [] }] : []),
-      ...(seven ? [{ label: 'wk', used: seven.percentUsed, mark: budget?.mark ?? null, head: weekLead }] : []),
+      ...(seven ? [{ label: 'wk', used: seven.percentUsed, mark: null, head: weekLead }] : []),
     ]
-    // The money goes after the last head: the week's pace, or whatever column comes last.
+    // The money goes after the last head: the week's share, or whatever column comes last.
     const last = gauges[gauges.length - 1]
     if (last) last.head = join(last.head, moneyHead)
 
