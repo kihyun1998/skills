@@ -4,6 +4,6 @@
   "author": {
     "name": "Ki Hyun Park"
   },
-  "description": "Two rows above the prompt in three divided columns: context with the model, effort and cache hit rate; the 5-hour window with its pace (or when it runs out) and reset; the week with today's cost. Colour only when something needs saying.",
+  "description": "Two rows above the prompt in three divided columns: context with the model, effort and cache hit rate; the 5-hour window with its pace (used over the window gone), when it runs out if it will, and its reset; the week with its pace and today's cost. Colour only when something needs saying.",
   "types": "./types/index.d.ts"
 }

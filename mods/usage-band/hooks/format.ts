@@ -120,18 +120,6 @@ export const fiveHourRate = (
   return (percentUsed / elapsed) * HOUR
 }
 
-/**
- * Whether this pace reaches the limit before the window resets: error when it
- * does, warning past 80% of the pace that would, success below.
- */
-export const rateLevel = (rate: number, percentUsed: number, resetsAt: string | null, now: number): Level => {
-  if (resetsAt === null) return 'success'
-  const hoursLeft = (Date.parse(resetsAt) - now) / HOUR
-  if (!(hoursLeft > 0)) return 'success'
-  const sustainable = (100 - percentUsed) / hoursLeft
-  return rate > sustainable ? 'error' : rate > sustainable * 0.8 ? 'warning' : 'success'
-}
-
 /** How long each limit's window runs before it resets. */
 export const WINDOW_MS = { fiveHour: WINDOW, week: 7 * 24 * HOUR } as const
 
@@ -145,6 +133,20 @@ export const evenPace = (resetsAt: string | null, windowMs: number, now: number)
   if (!(left > 0)) return null
   return Math.min(100, Math.max(0, ((windowMs - left) / windowMs) * 100))
 }
+
+/**
+ * A limit's pace: the share used over the share of its window gone, in percent. 100 runs
+ * out exactly at the reset, above it sooner. Null at the window's very start (nothing gone
+ * to divide by) and when the reset time is unknown or past.
+ */
+export const paceOf = (percentUsed: number, resetsAt: string | null, windowMs: number, now: number): number | null => {
+  const gone = evenPace(resetsAt, windowMs, now)
+  if (gone === null || gone === 0) return null
+  return Math.round((percentUsed / gone) * 100)
+}
+
+/** A pace's colour: past 80% warns, past 100% (out before the reset) is red, below that it stays quiet. */
+export const paceLevel = (pace: number): Level => (pace > 100 ? 'error' : pace > 80 ? 'warning' : 'success')
 
 // --- the forecast and the cache -----------------------------------------------------
 

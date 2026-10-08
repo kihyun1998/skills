@@ -19,10 +19,11 @@ import {
   isLoud,
   isTodayUnpriced,
   levelOf,
+  paceLevel,
+  paceOf,
   modelLabel,
   parseBurn,
   parseToday,
-  rateLevel,
   recordFive,
   runsOutAt,
   sinceArg,
@@ -226,7 +227,6 @@ export const register: Register = on => {
     // A piece of a row: its text and how it is drawn.
     type Seg = { text: string; color?: string; bold?: boolean; dim?: boolean }
     const draw = (segs: Seg[]) => segs.map(g => <Text color={g.color} bold={g.bold} dimColor={g.dim}>{g.text}</Text>)
-    const width = (segs: Seg[]) => segs.reduce((n, g) => n + [...g.text].length, 0)
     // A column's head, cut or padded to the gauge's width so the dividers line up.
     const fit = (segs: Seg[], n: number): Seg[] => {
       const out: Seg[] = []
@@ -250,12 +250,22 @@ export const register: Register = on => {
     const five = fiveOf(l)
     const rate = five ? fiveHourRate(samples, five.percentUsed, five.resetsAt, now) : null
     const outAt = five && rate !== null ? runsOutAt(rate, five.percentUsed, five.resetsAt, now) : null
-    const reset: Seg[] = five?.resetsAt != null ? [dot, { text: `resets ${clockOf(Date.parse(five.resetsAt))}`, dim: true }] : []
+    // Pieces of a head, a dot between those that say something.
+    const join = (...parts: Seg[][]): Seg[] => parts.filter(p => p.length > 0).flatMap((p, i) => (i === 0 ? p : [dot, ...p]))
+    // A limit's pace leads its head: the share used over the share of its window gone, quiet up to 80%.
+    const pace = (used: number, resetsAt: string | null, windowMs: number): Seg[] => {
+      const p = paceOf(used, resetsAt, windowMs, now)
+      if (p === null) return []
+      const lv = paceLevel(p)
+      return [{ text: `${p}% pace`, bold: true, ...(lv === 'success' ? {} : { color: lv }) }]
+    }
     const fiveHead: Seg[] | null =
       five === undefined ? null
-      : outAt !== null ? [{ text: `out at ${clockOf(outAt)}`, color: 'error', bold: true }, ...reset]
-      : rate !== null ? [{ text: `+${Math.round(rate)}%/h`, bold: true, ...(() => { const lv = rateLevel(rate, five.percentUsed, five.resetsAt, now); return lv === 'success' ? {} : { color: lv } })() }, ...reset]
-      : reset.slice(1)
+      : join(
+          pace(five.percentUsed, five.resetsAt, WINDOW_MS.fiveHour),
+          outAt !== null ? [{ text: `out at ${clockOf(outAt)}`, color: 'error', bold: true }] : [],
+          five.resetsAt != null ? [{ text: `resets ${clockOf(Date.parse(five.resetsAt))}`, dim: true }] : [],
+        )
     const moneyHead: Seg[] = [
       ...(led?.today == null ? []
         : isTodayUnpriced(led, l) ? [{ text: 'today $0 · model not priced in ccusage', color: 'warning' }]
@@ -268,11 +278,11 @@ export const register: Register = on => {
     const gauges = [
       { label: 'ctx', used: contextUsed(l.context), mark: null as number | null, head: contextHead },
       ...(five ? [{ label: '5h', used: five.percentUsed, mark: evenPace(five.resetsAt, WINDOW_MS.fiveHour, now), head: fiveHead ?? [] }] : []),
-      ...(seven ? [{ label: 'wk', used: seven.percentUsed, mark: evenPace(seven.resetsAt, WINDOW_MS.week, now), head: [] as Seg[] }] : []),
+      ...(seven ? [{ label: 'wk', used: seven.percentUsed, mark: evenPace(seven.resetsAt, WINDOW_MS.week, now), head: pace(seven.percentUsed, seven.resetsAt, WINDOW_MS.week) }] : []),
     ]
-    // The money goes over the week; without one, after the last head.
+    // The money goes after the last head: the week's pace, or whatever column comes last.
     const last = gauges[gauges.length - 1]
-    if (last) last.head = last.label === 'wk' ? moneyHead : moneyHead.length === 0 ? last.head : [...last.head, ...(width(last.head) > 0 ? [dot] : []), ...moneyHead]
+    if (last) last.head = join(last.head, moneyHead)
 
     const each = gaugeWidth(e.props.bodyColumns - LEFT - RIGHT, gauges.length, DIVIDER.length)
     const divider = <Text dimColor>{DIVIDER}</Text>

@@ -15,7 +15,8 @@ import {
   modelLabel,
   parseBurn,
   parseToday,
-  rateLevel,
+  paceLevel,
+  paceOf,
   recordFive,
   sinceArg,
 } from '../hooks/format'
@@ -130,9 +131,9 @@ describe('usage-band', () => {
       const [top, bottom] = await rows(ui)
       // Two blank cells kept at the left of the band's 140 and one at the right leave 137: three columns
       // of 42 with a 5-cell divider between, each gauge a 4-cell label, a 33-cell bar and a 5-cell figure.
-      // 41% over the 2h47m the window has run: 14.7%/h.
+      // 41% used with 2h47m of the 5h gone (55.7%): a 74% pace. The week here has no reset time, so no pace.
       const resets = clockOf(Date.parse(RESETS_AT))
-      expect(top).toBe(['opus 5.5', `+15%/h · resets ${resets}`, 'today $59.40 · $83.67/h'].map(h => h.padEnd(42)).join(DIV))
+      expect(top).toBe(['opus 5.5', `74% pace · resets ${resets}`, 'today $59.40 · $83.67/h'].map(h => h.padEnd(42)).join(DIV))
       const [ctx, five, week] = (bottom ?? '').split(DIV)
       expect([ctx, five, week].map(g => [...(g ?? '')].length)).toEqual([42, 42, 42])
       expect(ctx?.startsWith('ctx ')).toBe(true)
@@ -180,26 +181,30 @@ describe('usage-band', () => {
     expect((await rows(ui))[0]?.startsWith('opus 5.5')).toBe(true)
   })
 
-  test('%/h is the last hour’s rise once there is 15 minutes of history', async ($, on) => {
-    const clock = await start($, on, usage(20, 10, 5), { burn: 10, today: 5, argv: [] })
+  test('each limit leads with its pace: the share used over the share of its window gone', async ($, on) => {
+    const u = usage(20, 41, 18)
+    // Two days before the weekly reset: 5 of its 7 days gone, 71.4%; 18% used is a 25% pace.
+    const week = { kind: 'seven_day', percentUsed: 18, resetsAt: new Date(48 * HOUR).toISOString() }
+    await start($, on, { ...u, rateLimits: [u.rateLimits[0]!, week] }, { burn: 10, today: 5, argv: [] })
     const ui = await mount($)
-    await clock.advance(20 * MIN)
-    await measure($, usage(21, 20, 5))
-    // 10 points in 20 minutes.
-    expect((await rows(ui))[0]).toContain('+30%/h')
+    const [, five, wk] = ((await rows(ui))[0] ?? '').split(DIV)
+    expect(five?.startsWith('74% pace · resets ')).toBe(true)
+    expect(wk?.startsWith('25% pace · today $5.00')).toBe(true)
+    // %/h no longer shows; under 80% the pace takes no colour.
+    expect((await rows(ui))[0]).not.toContain('%/h')
+    expect((await propsOf(ui, '74% pace'))?.color).toBe(undefined)
   })
 
-  test('%/h falls while the session sits idle', async ($, on) => {
-    const clock = await start($, on, usage(20, 10, 5), { burn: 10, today: 5, argv: [] })
+  test('a pace past 80% warns, and past 100% is red', async ($, on) => {
+    await start($, on, usage(20, 50, 5), { burn: 10, today: 5, argv: [] })
     const ui = await mount($)
-    await clock.advance(20 * MIN)
-    await measure($, usage(21, 20, 5))
-    await clock.advance(20 * MIN)
-    // Still 10 points, now over 40 minutes; the ccusage timer redrew the band meanwhile.
-    expect((await rows(ui))[0]).toContain('+15%/h')
+    // 50% over 55.7% gone is 90%; 60% is 108%.
+    expect((await propsOf(ui, '90% pace'))?.color).toBe('warning')
+    await measure($, usage(20, 60, 5))
+    expect((await propsOf(ui, '108% pace'))?.color).toBe('error')
   })
 
-  test('a pace that runs the limit out before the reset says when, in place of %/h', async ($, on) => {
+  test('a last hour that runs the limit out before the reset says when, after the pace', async ($, on) => {
     const clock = await start($, on, usage(20, 50, 5), { burn: 10, today: 5, argv: [] })
     const ui = await mount($)
     // 50% left over 2h13m holds 22.6%/h. 30 points in 20 minutes is 90%/h: the last 20% go in 13m20s.
@@ -207,7 +212,8 @@ describe('usage-band', () => {
     await measure($, usage(21, 80, 5))
     const out = clockOf(20 * MIN + (20 / 90) * HOUR)
     expect((await propsOf(ui, `out at ${out}`))?.color).toBe('error')
-    expect((await rows(ui))[0]).toContain(`out at ${out} · resets ${clockOf(Date.parse(RESETS_AT))}`)
+    // 80% with 3h07m gone (62.3%) is a 128% pace; the forecast follows it.
+    expect((await rows(ui))[0]).toContain(`128% pace · out at ${out} · resets ${clockOf(Date.parse(RESETS_AT))}`)
     expect((await rows(ui))[0]).not.toContain('%/h')
   })
 
@@ -381,12 +387,18 @@ describe('format', () => {
     expect(fiveHourRate([], 1, new Date(5 * HOUR - 5 * MIN).toISOString(), 0)).toBe(null)
   })
 
-  test('rate level: red when the pace beats what the remaining hours allow', () => {
-    const reset = new Date(2 * HOUR).toISOString() // 50% left over 2 h holds 25%/h
-    expect(rateLevel(26, 50, reset, 0)).toBe('error')
-    expect(rateLevel(21, 50, reset, 0)).toBe('warning')
-    expect(rateLevel(19, 50, reset, 0)).toBe('success')
-    expect(rateLevel(99, 50, null, 0)).toBe('success')
+  test('pace: the share used over the share of the window gone; null at its very start or with no reset time', () => {
+    // Two of five hours left: 60% gone.
+    expect(paceOf(45, new Date(2 * HOUR).toISOString(), WINDOW_MS.fiveHour, 0)).toBe(75)
+    expect(paceOf(18, new Date(48 * HOUR).toISOString(), WINDOW_MS.week, 0)).toBe(25)
+    // A minute in, 3% used: shown, however high.
+    expect(paceOf(3, new Date(5 * HOUR - MIN).toISOString(), WINDOW_MS.fiveHour, 0)).toBe(900)
+    expect(paceOf(0, new Date(5 * HOUR).toISOString(), WINDOW_MS.fiveHour, 0)).toBe(null)
+    expect(paceOf(10, null, WINDOW_MS.fiveHour, 0)).toBe(null)
+    expect(paceLevel(80)).toBe('success')
+    expect(paceLevel(81)).toBe('warning')
+    expect(paceLevel(100)).toBe('warning')
+    expect(paceLevel(101)).toBe('error')
   })
 
   test('effort from settings: per model first, then the global level', () => {

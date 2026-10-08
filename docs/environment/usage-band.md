@@ -27,27 +27,29 @@ script warns if the variable still names a mod.
 ## What the band shows
 
 ```
-opus 5.5 high · cache 93%                   │  +15%/h · resets 18:20                      │  today $59.40 · $83.67/h
+opus 5.5 high · cache 93%                   │  74% pace · resets 18:20                    │  25% pace · today $59.40 · $83.67/h
 ctx ━━━━━━━━━━━━━━━━━━━━━━───────────  68%  │  5h  ━━━━━━━━━━━━━━────┊──────────────  41%  │  wk  ━━━━━━─────────────────┊─────────  18%
 ```
 
 Three columns, a dim `│` between them, each a head over its gauge: context (the
-model, its effort and the prompt cache), the 5-hour window (its pace, or when it
-runs out, and its reset), and the week with the money. The heads are cut or padded
+model, its effort and the prompt cache), the 5-hour window (its pace, when it
+runs out if it will, and its reset), and the week (its pace) with the money. The heads are cut or padded
 to their gauge's width, so a head that grows (the forecast) never pushes the next
 column. A limit the account does not have drops its column; the money then goes
 after the last head.
 
 Each limit's gauge carries `┊`, where an even pace would have it: the share of its
 window (five hours, or seven days) already gone. A bar past the mark is spending
-faster than time passes. The engine's `resetsAt` is optional on every limit; a
+faster than time passes. The head says the same as a number, the limit's **pace**:
+the share used over the share gone, `41% ÷ 55.7% = 74% pace`. 100% runs out
+exactly at the reset, above it sooner. The engine's `resetsAt` is optional on every limit; a
 gauge whose limit comes without one has no mark.
 
 **Quiet until something needs saying.** Labels are dim, figures and fills take the
 terminal's own colour, and only the model keeps one (the Claude Code theme key
 `claude`). Colour is kept for trouble, so it reads as trouble: a gauge past 80%
-takes the theme's `warning`, past 90% `error`, fill and figure both; a pace that
-runs out before the reset, a cache below 80%, a day over $100. The words are
+takes the theme's `warning`, past 90% `error`, fill and figure both; a pace past 80%
+(warning) or past 100% (error), a forecast that runs out before the reset, a cache below 80%, a day over $100. The words are
 English, and so are the gauge labels: a Korean word is two cells wide and would
 shift the bars.
 
@@ -55,25 +57,33 @@ shift the bars.
 |---|---|---|---|
 | model, effort | context | `$.session.model()`; the `effort` of each main-thread `turn.step` | the model always (`claude`); effort is dim |
 | `cache N%` | context | each main-thread request's `usage` (`turn.step`): cache read ÷ (read + written + uncached), over the last 10; a subagent's requests are left out | amber below 80%, red below 50% |
-| `+N%/h` | 5-hour | the 5-hour window's readings (below) | warning past 80% of the pace that would run out, error at it |
-| `out at HH:MM` | 5-hour | `%/h` and the window's `resetsAt` | in place of `%/h`, in error, only when this pace runs the limit out before the reset |
+| `N% pace` | 5-hour, week | the limit's `percentUsed` ÷ the share of its window gone, from its `resetsAt` | warning past 80%, error past 100% |
+| `out at HH:MM` | 5-hour | the last hour's rate (below) and the window's `resetsAt` | in error, after the pace, only when that rate runs the limit out before the reset |
 | `resets HH:MM` | 5-hour | the window's `resetsAt`, in the engine's local time | never; dim |
 | `today $N` | week | `ccusage daily --json --offline --since <yesterday UTC>` → last day's `totalCost` | warning, bold, at $100 or more |
 | `$N/h` | week | `ccusage blocks --active --json --offline` → `burnRate.costPerHour` | never; dim beside a 5-hour pace, plain where there is none (an API key) |
 | ctx, 5h, wk gauges | — | `context.percent`; `rateLimits` `five_hour`, `seven_day`; each `┊` from that limit's `resetsAt` | 80% (warning), 90% (error) |
 
-### %/h
+### Pace, and the last hour's rate
 
 `$/h` is what the session would cost on the API, which says nothing about
-whether a subscription is about to run out. `%/h` is how fast the 5-hour limit
-is going: the rise over the last hour, measured to now, so it falls while the
+whether a subscription is about to run out. The pace says it for both limits,
+from what the engine reports alone: it is the window's average, so it needs no
+history and moves slowly. It shows from the window's first minute, when it can
+read very high (3% one minute in is a 900% pace); only at the very instant a
+window starts, with nothing gone to divide by, and with no `resetsAt`, is there
+none.
+
+The forecast wants what the average hides, a burst: it runs on the 5-hour
+limit's rate over the last hour, measured to now, so it falls while the
 session sits idle. With under 15 minutes of history — a new session, a new
 window, after `/clear` — it is the window's average so far (percent used over
 the time since `resetsAt − 5h`), which needs no history. The readings live in
 `$.state` and start over when the window does.
 
-The verdict compares the pace with what the remaining hours allow,
-`(100 − used) ÷ hours to reset`: above it, the limit comes first.
+`out at` shows when that rate, held, reaches 100% before the reset. The rate
+itself is no longer drawn: `+13%/h` said how fast, but not whether that was a
+lot, which is what the pace answers.
 
 Effort is the value the request is **sent** with, after any downgrade for the
 model. It changes on the next request after `/effort`, not at the command. Before
