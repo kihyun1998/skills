@@ -27,22 +27,26 @@ script warns if the variable still names a mod.
 ## What the band shows
 
 ```
-opus 5.5 high · cache 93%                   │  74% pace · resets 18:20                    │  25% pace · today $59.40 · $83.67/h
+opus 5.5 high · cache 93%                   │  74% pace · resets 18:20                    │  today 9% of 16% · $59.40 · $83.67/h
 ctx ━━━━━━━━━━━━━━━━━━━━━━───────────  68%  │  5h  ━━━━━━━━━━━━━━────┊──────────────  41%  │  wk  ━━━━━━─────────────────┊─────────  18%
 ```
 
 Three columns, a dim `│` between them, each a head over its gauge: context (the
 model, its effort and the prompt cache), the 5-hour window (its pace, when it
-runs out if it will, and its reset), and the week (its pace) with the money. The heads are cut or padded
+runs out if it will, and its reset), and the week (today against today's budget)
+with the money. The heads are cut or padded
 to their gauge's width, so a head that grows (the forecast) never pushes the next
 column. A limit the account does not have drops its column; the money then goes
 after the last head.
 
-Each limit's gauge carries `┊`, where an even pace would have it: the share of its
-window (five hours, or seven days) already gone. A bar past the mark is spending
-faster than time passes. The head says the same as a number, the limit's **pace**:
-the share used over the share gone, `41% ÷ 55.7% = 74% pace`. 100% runs out
-exactly at the reset, above it sooner. The engine's `resetsAt` is optional on every limit; a
+The 5-hour gauge carries `┊` where an even pace would have it: the share of the
+window already gone. A bar past the mark is spending faster than time passes. The
+head says the same as a number, the **pace**: the share used over the share gone,
+`41% ÷ 55.7% = 74% pace`. 100% runs out exactly at the reset, above it sooner.
+
+The week's `┊` is where **today's budget** runs out instead, and its head says how
+much of it today has used: `today 9% of 16%`. A bar past the mark has spent more
+today than today's share. The engine's `resetsAt` is optional on every limit; a
 gauge whose limit comes without one has no mark.
 
 **Quiet until something needs saying.** Labels are dim, figures and fills take the
@@ -57,18 +61,19 @@ shift the bars.
 |---|---|---|---|
 | model, effort | context | `$.session.model()`; the `effort` of each main-thread `turn.step` | the model always (`claude`); effort is dim |
 | `cache N%` | context | each main-thread request's `usage` (`turn.step`): cache read ÷ (read + written + uncached), over the last 10; a subagent's requests are left out | amber below 80%, red below 50% |
-| `N% pace` | 5-hour, week | the limit's `percentUsed` ÷ the share of its window gone, from its `resetsAt` | warning past 80%, error past 100% |
+| `N% pace` | 5-hour | `percentUsed` ÷ the share of the window gone, from its `resetsAt` | warning past 80%, error past 100% |
+| `today N% of M%` | week | today's use against today's budget (below); `tomorrow N%` after it once past it, `N% left for Nd` once a day's share is under 1% | warning past 80% of the budget, error past it |
 | `out at HH:MM` | 5-hour | the last hour's rate (below) and the window's `resetsAt` | in error, after the pace, only when that rate runs the limit out before the reset |
 | `resets HH:MM` | 5-hour | the window's `resetsAt`, in the engine's local time | never; dim |
-| `today $N` | week | `ccusage daily --json --offline --since <yesterday UTC>` → last day's `totalCost` | warning, bold, at $100 or more |
+| `$N` (`today $N` with no week) | week | `ccusage daily --json --offline --since <yesterday UTC>` → last day's `totalCost` | warning, bold, at $100 or more |
 | `$N/h` | week | `ccusage blocks --active --json --offline` → `burnRate.costPerHour` | never; dim beside a 5-hour pace, plain where there is none (an API key) |
-| ctx, 5h, wk gauges | — | `context.percent`; `rateLimits` `five_hour`, `seven_day`; each `┊` from that limit's `resetsAt` | 80% (warning), 90% (error) |
+| ctx, 5h, wk gauges | — | `context.percent`; `rateLimits` `five_hour`, `seven_day`; the 5-hour `┊` at the even pace, the week's where today's budget runs out | 80% (warning), 90% (error) |
 
 ### Pace, and the last hour's rate
 
 `$/h` is what the session would cost on the API, which says nothing about
-whether a subscription is about to run out. The pace says it for both limits,
-from what the engine reports alone: it is the window's average, so it needs no
+whether a subscription is about to run out. The pace says it for the 5-hour
+limit, from what the engine reports alone: it is the window's average, so it needs no
 history and moves slowly. It shows from the window's first minute, when it can
 read very high (3% one minute in is a 900% pace); only at the very instant a
 window starts, with nothing gone to divide by, and with no `resetsAt`, is there
@@ -84,6 +89,30 @@ the time since `resetsAt − 5h`), which needs no history. The readings live in
 `out at` shows when that rate, held, reaches 100% before the reset. The rate
 itself is no longer drawn: `+13%/h` said how fast, but not whether that was a
 lot, which is what the pace answers.
+
+### The week's day budget
+
+An even pace suits five hours, which pass while one works. It does not suit a
+week, which holds nights and the days one does not work: by Wednesday night an
+even pace allows 43% of the week, though this machine's own history (`ccusage
+blocks`, 4.4 weeks, measured 2026-10-08) had spent 65% by then on weekdays alone,
+so the week read as easy early and grew easier with every idle hour. Learning
+that shape was weighed and left: ccusage's cost is a proxy for the limit, reads
+one machine only, and the limit's own readings, kept by the mod, would be one
+machine's view of when the account's use happened.
+
+The day budget assumes nothing about when one works. Today's share is what the
+week had left when today began, over the days to the reset, today and the
+reset's own day each counted whole: `(100 − used at today's start) ÷ days left`.
+It is fixed for the day, so it does not creep up while nothing is used. Using
+less leaves more for each day after; using more, less: past it, the head says
+what tomorrow is left with. The `percentUsed` is the account's, so another
+machine's use counts toward what is left; only its share of *today* is missed
+when it came before this machine's first reading of the day.
+
+Where today began is the first reading of the day (a new day, a new reset time
+or a fall in use takes it again), kept in `$.state` for drawing and in
+`$.store` so a `/clear` or a new session the same day keeps today's budget.
 
 Effort is the value the request is **sent** with, after any downgrade for the
 model. It changes on the next request after `/effort`, not at the command. Before

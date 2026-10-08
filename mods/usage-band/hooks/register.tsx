@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, SessionMeasureInput, SessionUsage } from 'claude-code'
 
-import type { Live } from '../types'
+import type { DayStart, Live } from '../types'
 import {
   CACHE_READINGS,
   FIGURE_COLOR,
@@ -22,12 +22,15 @@ import {
   paceLevel,
   paceOf,
   modelLabel,
+  nextDayStart,
   parseBurn,
   parseToday,
   recordFive,
   runsOutAt,
   sinceArg,
   usd,
+  weekBudget,
+  weekHead,
 } from './format'
 
 const live = atom({ plugin: 'usage-band', key: 'live' } as const, null)
@@ -35,6 +38,10 @@ const effort = atom({ plugin: 'usage-band', key: 'effort' } as const, null)
 const ledger = atom({ plugin: 'usage-band', key: 'ledger' } as const, null)
 const fiveSamples = atom({ plugin: 'usage-band', key: 'fiveSamples' } as const, [])
 const cacheReadings = atom({ plugin: 'usage-band', key: 'cacheReadings' } as const, [])
+const weekStart = atom({ plugin: 'usage-band', key: 'weekStart' } as const, null)
+
+/** The $.store key weekStart is mirrored under. */
+const WEEK_START = 'weekStart'
 
 /** Blank cells at the band's left, so its text lines up with the turn line's after `✻ `; and at its right. */
 const LEFT = 2
@@ -71,20 +78,48 @@ const toLive = (model: string, u: Figures): Live => ({
 
 const fiveOf = (l: Live | null) => l?.rateLimits.find(r => r.kind === 'five_hour')
 
-// Takes a reading, and adds the 5-hour window's to its history for %/h.
+// Takes a reading: the 5-hour window's goes in its history for the forecast, and the
+// week's moves where today began for it when a new day or week has come.
 const refreshLive = async ($: EngineInterface, figures?: Figures) => {
   const model = await $.session.model()
   const u = figures ?? (await $.session.usage())
   const next = toLive(model, u)
   const previous = fiveOf(await read($, live))
   const five = fiveOf(next)
+  const now = await $.clock.now()
   if (five) {
-    const now = await $.clock.now()
     await update($, fiveSamples, samples =>
       recordFive(samples, five.percentUsed, five.resetsAt, previous?.resetsAt ?? five.resetsAt, now),
     )
   }
+  const seven = next.rateLimits.find(r => r.kind === 'seven_day')
+  if (seven) {
+    const before = await read($, weekStart)
+    const after = nextDayStart(before, seven.percentUsed, seven.resetsAt, now)
+    if (after !== before) {
+      await update($, weekStart, () => after)
+      try {
+        await $.store.set(WEEK_START, after)
+      } catch {
+        // Kept for this session only; the next day's first reading starts it again.
+      }
+    }
+  }
   await update($, live, () => next)
+}
+
+const isDayStart = (v: unknown): v is DayStart =>
+  v !== null && typeof v === 'object' && typeof (v as DayStart).day === 'string' && typeof (v as DayStart).used === 'number'
+
+// Where today began, as kept across sessions: read before the first reading so it is not taken again.
+const loadWeekStart = async ($: EngineInterface) => {
+  if ((await read($, weekStart)) !== null) return
+  try {
+    const kept = await $.store.get(WEEK_START)
+    if (isDayStart(kept)) await update($, weekStart, () => ({ day: kept.day, used: kept.used, resetsAt: kept.resetsAt ?? null }))
+  } catch {
+    // Nothing kept; the first reading starts it.
+  }
 }
 
 // Module state: a reload starts these over, which costs one extra ccusage run.
@@ -144,6 +179,7 @@ const seedEffort = async ($: EngineInterface) => {
 // Everything the band shows, read again: at start, and after /clear, /resume or /branch
 // reset $.state, which session.start does not follow.
 const fill = async ($: EngineInterface, isForced: boolean) => {
+  await loadWeekStart($)
   await refreshLive($)
   await seedEffort($)
   await askLedger($, isForced)
@@ -152,6 +188,7 @@ const fill = async ($: EngineInterface, isForced: boolean) => {
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const result = await next(e)
+    await loadWeekStart($)
     await refreshLive($)
     await seedEffort($)
     // Off the start's path: ccusage takes about a second and the first prompt need not wait.
@@ -266,19 +303,28 @@ export const register: Register = on => {
           outAt !== null ? [{ text: `out at ${clockOf(outAt)}`, color: 'error', bold: true }] : [],
           five.resetsAt != null ? [{ text: `resets ${clockOf(Date.parse(five.resetsAt))}`, dim: true }] : [],
         )
+    // The week: today against its share of what was left when today began.
+    const seven = l.rateLimits.find(r => r.kind === 'seven_day')
+    const start = await read($, weekStart)
+    const budget = seven && start !== null ? weekBudget(start, seven.percentUsed, seven.resetsAt, now) : null
+    const weekSegs: Seg[] = budget === null || !seven ? [] : weekHead(budget, seven.percentUsed).map(h => (
+      h.level === null ? { text: h.text, dim: true } : { text: h.text, bold: true, ...(h.level === 'success' ? {} : { color: h.level }) }
+    ))
+    const weekLead = weekSegs.flatMap((g, i) => (i === 0 ? [g] : [dot, g]))
+    // After the week's "today", the money's goes without saying.
+    const sayToday = weekLead.length === 0
     const moneyHead: Seg[] = [
       ...(led?.today == null ? []
         : isTodayUnpriced(led, l) ? [{ text: 'today $0 · model not priced in ccusage', color: 'warning' }]
-        : [{ text: 'today ', dim: true }, { text: usd(led.today), ...(led.today >= TODAY_LOUD_USD ? { color: 'warning', bold: true } : {}) }]),
+        : [...(sayToday ? [{ text: 'today ', dim: true }] : []), { text: usd(led.today), ...(led.today >= TODAY_LOUD_USD ? { color: 'warning', bold: true } : {}) }]),
       ...(led?.burnPerHour != null ? [...(led.today == null ? [] : [dot]), { text: `${usd(led.burnPerHour)}/h`, dim: five !== undefined }] : []),
     ]
 
-    // The gauges, each limit's carrying its even-pace mark when its reset time is known.
-    const seven = l.rateLimits.find(r => r.kind === 'seven_day')
+    // The gauges: the 5-hour one marked where an even pace would have it, the week's where today's budget runs out.
     const gauges = [
       { label: 'ctx', used: contextUsed(l.context), mark: null as number | null, head: contextHead },
       ...(five ? [{ label: '5h', used: five.percentUsed, mark: evenPace(five.resetsAt, WINDOW_MS.fiveHour, now), head: fiveHead ?? [] }] : []),
-      ...(seven ? [{ label: 'wk', used: seven.percentUsed, mark: evenPace(seven.resetsAt, WINDOW_MS.week, now), head: pace(seven.percentUsed, seven.resetsAt, WINDOW_MS.week) }] : []),
+      ...(seven ? [{ label: 'wk', used: seven.percentUsed, mark: budget?.mark ?? null, head: weekLead }] : []),
     ]
     // The money goes after the last head: the week's pace, or whatever column comes last.
     const last = gauges[gauges.length - 1]

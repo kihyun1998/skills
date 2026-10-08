@@ -3,7 +3,13 @@ import type { Engine } from 'claude-code/testing'
 import type { On, RenderElement, SessionUsage } from 'claude-code'
 
 import {
+  budgetLevel,
   cacheHit,
+  dayOf,
+  daysLeft,
+  nextDayStart,
+  weekBudget,
+  weekHead,
   clockOf,
   runsOutAt,
   effortFromSettings,
@@ -23,6 +29,7 @@ import {
 
 const MIN = 60_000
 const HOUR = 60 * MIN
+const DAY = 24 * HOUR
 
 // The 5-hour window resets 2h13m after the mocked clock's 0, so 2h47m of it have passed.
 const RESETS_AT = new Date(2 * HOUR + 13 * MIN).toISOString()
@@ -59,12 +66,15 @@ type World = {
   settings?: Record<string, unknown>
   /** What each main-thread request reports of its prompt; none by default. */
   stepUsage?: { input_tokens: number; output_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number }
+  /** What $.store holds when the session starts, as an earlier one left it. */
+  store?: Record<string, unknown>
   /** What the bands beneath draw; nothing by default. */
   beneath?: RenderElement
 }
 
 const start = async ($: Engine, on: On, u: SessionUsage, w: World) => {
   const clock = mock.clock(on)
+  mock.store(on, w.store)
   on('session.start', (_$, e) => ({ cwd: e.cwd }))
   on('session.model', () => ({ value: 'claude-opus-5-5' }))
   on('session.usage', () => {
@@ -161,15 +171,48 @@ describe('usage-band', () => {
     expect((await rows(ui))[1]?.match(/┊/g)).toHaveLength(1)
   })
 
-  test('the week gauge marks its even pace too, once its reset time is known', async ($, on) => {
-    const u = usage(68, 41, 18)
-    // Two days before the weekly reset: 5 of its 7 days gone, 71.4%.
-    const week = { kind: 'seven_day', percentUsed: 18, resetsAt: new Date(48 * HOUR).toISOString() }
-    await start($, on, { ...u, rateLimits: [u.rateLimits[0]!, week] }, { burn: 10, today: 5, argv: [] })
+  test('the week shows today’s budget: what was left at the day’s start over the days to the reset', async ($, on) => {
+    const u = usage(20, 41, 18)
+    const resetsAt = new Date(48 * HOUR).toISOString()
+    const withWeek = (used: number): SessionUsage => ({ ...u, rateLimits: [u.rateLimits[0]!, { kind: 'seven_day', percentUsed: used, resetsAt }] })
+    await start($, on, withWeek(18), { burn: 10, today: 5, argv: [] })
     const ui = await mount($)
+    const days = daysLeft(resetsAt, 0)
+    const budget = 82 / days
+    const wk = async () => ((await rows(ui))[0] ?? '').split(DIV)[2] ?? ''
+    // The money follows, its "today" said once.
+    expect((await wk()).startsWith(`today 0% of ${Math.round(budget)}% · $5.00 · $10.00/h`)).toBe(true)
+    expect((await propsOf(ui, `today 0% of ${Math.round(budget)}%`))?.color).toBe(undefined)
+    // The week's gauge marks where today's budget runs out; no pace is drawn for the week.
     const bar = [...((await rows(ui))[1]?.split(DIV)[2] ?? '')].slice(4, 4 + 33)
-    expect(bar.indexOf('┊')).toBe(24)
-    expect((await rows(ui))[1]?.match(/┊/g)).toHaveLength(2)
+    expect(bar.indexOf('┊')).toBe(Math.min(32, Math.round(((18 + budget) / 100) * 33)))
+    expect(await wk()).not.toContain('pace')
+    // Past it: red, and what tomorrow is left with.
+    const over = 18 + Math.ceil(budget) + 3
+    await measure($, withWeek(over))
+    const text = `today ${over - 18}% of ${Math.round(budget)}%`
+    expect(await wk()).toContain(`${text} · tomorrow ${Math.round((100 - over) / (days - 1))}%`)
+    expect((await propsOf(ui, text))?.color).toBe('error')
+  })
+
+  test('where today began, kept by an earlier session, is taken up by the next: the budget does not move within the day', async ($, on) => {
+    const u = usage(20, 41, 18)
+    const resetsAt = new Date(48 * HOUR).toISOString()
+    // An earlier session today saw the week at 10%; this one starts at 18%.
+    const store = { weekStart: { day: dayOf(0), used: 10, resetsAt } }
+    await start($, on, { ...u, rateLimits: [u.rateLimits[0]!, { kind: 'seven_day', percentUsed: 18, resetsAt }] }, { burn: 10, today: 5, argv: [], store })
+    const ui = await mount($)
+    const budget = Math.round(90 / daysLeft(resetsAt, 0))
+    expect(((await rows(ui))[0] ?? '').split(DIV)[2]).toContain(`today 8% of ${budget}%`)
+  })
+
+  test('a day’s start from another day is not today’s', async ($, on) => {
+    const u = usage(20, 41, 18)
+    const resetsAt = new Date(48 * HOUR).toISOString()
+    const store = { weekStart: { day: dayOf(-2 * DAY), used: 10, resetsAt } }
+    await start($, on, { ...u, rateLimits: [u.rateLimits[0]!, { kind: 'seven_day', percentUsed: 18, resetsAt }] }, { burn: 10, today: 5, argv: [], store })
+    const ui = await mount($)
+    expect(((await rows(ui))[0] ?? '').split(DIV)[2]).toContain('today 0% of ')
   })
 
   test('another band stays above the two rows, which keep next to the prompt', async ($, on) => {
@@ -181,15 +224,11 @@ describe('usage-band', () => {
     expect((await rows(ui))[0]?.startsWith('opus 5.5')).toBe(true)
   })
 
-  test('each limit leads with its pace: the share used over the share of its window gone', async ($, on) => {
-    const u = usage(20, 41, 18)
-    // Two days before the weekly reset: 5 of its 7 days gone, 71.4%; 18% used is a 25% pace.
-    const week = { kind: 'seven_day', percentUsed: 18, resetsAt: new Date(48 * HOUR).toISOString() }
-    await start($, on, { ...u, rateLimits: [u.rateLimits[0]!, week] }, { burn: 10, today: 5, argv: [] })
+  test('the 5-hour limit leads with its pace: the share used over the share of its window gone', async ($, on) => {
+    await start($, on, usage(20, 41, 18), { burn: 10, today: 5, argv: [] })
     const ui = await mount($)
-    const [, five, wk] = ((await rows(ui))[0] ?? '').split(DIV)
+    const [, five] = ((await rows(ui))[0] ?? '').split(DIV)
     expect(five?.startsWith('74% pace · resets ')).toBe(true)
-    expect(wk?.startsWith('25% pace · today $5.00')).toBe(true)
     // %/h no longer shows; under 80% the pace takes no colour.
     expect((await rows(ui))[0]).not.toContain('%/h')
     expect((await propsOf(ui, '74% pace'))?.color).toBe(undefined)
@@ -399,6 +438,43 @@ describe('format', () => {
     expect(paceLevel(81)).toBe('warning')
     expect(paceLevel(100)).toBe('warning')
     expect(paceLevel(101)).toBe('error')
+  })
+
+  test('the day’s start: kept through the day, taken again on a new day, a new week, or a fall in use', () => {
+    const wed = new Date(2026, 9, 7).getTime()
+    const reset = new Date(wed + 5 * DAY).toISOString()
+    const first = nextDayStart(null, 20, reset, wed + 9 * HOUR)
+    expect(first.used).toBe(20)
+    expect(nextDayStart(first, 30, reset, wed + 20 * HOUR)).toBe(first)
+    expect(nextDayStart(first, 30, reset, wed + DAY + HOUR).used).toBe(30)
+    expect(nextDayStart(first, 30, new Date(wed + 12 * DAY).toISOString(), wed + 20 * HOUR).used).toBe(30)
+    expect(nextDayStart(first, 2, reset, wed + 20 * HOUR).used).toBe(2)
+  })
+
+  test('days left count today and the reset’s own day; the budget splits what was left at the day’s start', () => {
+    const wed = new Date(2026, 9, 7).getTime()
+    const at = wed + 10 * HOUR
+    expect(daysLeft(new Date(wed + 5 * DAY + 9 * HOUR).toISOString(), at)).toBe(6)
+    expect(daysLeft(new Date(wed + 2 * DAY).toISOString(), at)).toBe(2)
+    expect(daysLeft(new Date(wed + 11 * HOUR).toISOString(), at)).toBe(1)
+    const start = { day: '2026-10-07', used: 20, resetsAt: new Date(wed + 4 * DAY).toISOString() }
+    const b = weekBudget(start, 30, start.resetsAt, at)
+    expect(b).toMatchObject({ budget: 20, today: 10, mark: 40, daysLeft: 4 })
+    expect(Math.round((b?.tomorrow ?? 0) * 100)).toBe(2333)
+    expect(weekBudget(start, 30, null, at)).toBe(null)
+  })
+
+  test('the week’s head: today against its budget, tomorrow once past it, what is left once a day’s share is under 1%', () => {
+    expect(budgetLevel(12, 16)).toBe('success')
+    expect(budgetLevel(13, 16)).toBe('warning')
+    expect(budgetLevel(17, 16)).toBe('error')
+    const text = (h: ReturnType<typeof weekHead>) => h.map(x => x.text).join(' · ')
+    expect(text(weekHead({ today: 9, budget: 16.4, tomorrow: 14, daysLeft: 5, mark: 30 }, 26))).toBe('today 9% of 16%')
+    expect(text(weekHead({ today: 21, budget: 16.4, tomorrow: 12.6, daysLeft: 5, mark: 30 }, 38))).toBe('today 21% of 16% · tomorrow 13%')
+    // The last day: past it, there is no tomorrow to name.
+    expect(text(weekHead({ today: 21, budget: 16, tomorrow: null, daysLeft: 1, mark: 30 }, 38))).toBe('today 21% of 16%')
+    expect(text(weekHead({ today: 0, budget: 0.4, tomorrow: 0.4, daysLeft: 5, mark: 99 }, 98))).toBe('2% left for 5d')
+    expect(text(weekHead({ today: 3, budget: 2, tomorrow: null, daysLeft: 1, mark: 100 }, 100))).toBe('')
   })
 
   test('effort from settings: per model first, then the global level', () => {

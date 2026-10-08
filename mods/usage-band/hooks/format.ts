@@ -1,4 +1,4 @@
-import type { FiveSample, Ledger, Live } from '../types'
+import type { DayStart, FiveSample, Ledger, Live } from '../types'
 
 export type Level = 'success' | 'warning' | 'error'
 
@@ -147,6 +147,79 @@ export const paceOf = (percentUsed: number, resetsAt: string | null, windowMs: n
 
 /** A pace's colour: past 80% warns, past 100% (out before the reset) is red, below that it stays quiet. */
 export const paceLevel = (pace: number): Level => (pace > 100 ? 'error' : pace > 80 ? 'warning' : 'success')
+
+// --- the week's day budget ---------------------------------------------------------
+
+const DAY = 24 * HOUR
+
+/** The engine's local date, `2026-10-08`: the day a budget belongs to. */
+export const dayOf = (at: number): string => {
+  const d = new Date(at)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/**
+ * Where today began for the week: kept through the day, taken again from this reading on
+ * a new day, a new week (another reset time), or a fall in use. The first reading of the
+ * day stands in for midnight's, which no machine may have seen.
+ */
+export const nextDayStart = (prev: DayStart | null, used: number, resetsAt: string | null, now: number): DayStart => {
+  const day = dayOf(now)
+  if (prev !== null && prev.day === day && prev.resetsAt === resetsAt && used >= prev.used) return prev
+  return { day, used, resetsAt }
+}
+
+/** Days from today to the reset, today and the reset's own day each counted whole. */
+export const daysLeft = (resetsAt: string, now: number): number => {
+  const d = new Date(now)
+  const midnight = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+  return Math.max(1, Math.ceil((Date.parse(resetsAt) - midnight) / DAY))
+}
+
+/** Today's share of what the week had left when today began, and what today has used of it. */
+export type Budget = {
+  /** Percent of the week used since today began. */
+  today: number
+  /** Percent of the week today may use: what was left at its start over the days to the reset. */
+  budget: number
+  /** Tomorrow's share of what is left now; null on the reset's own day. */
+  tomorrow: number | null
+  daysLeft: number
+  /** Where today's budget runs out on the week's gauge. */
+  mark: number
+}
+
+/** Null when the reset time is unknown or past. */
+export const weekBudget = (start: DayStart, used: number, resetsAt: string | null, now: number): Budget | null => {
+  if (resetsAt === null || !(Date.parse(resetsAt) > now)) return null
+  const days = daysLeft(resetsAt, now)
+  const budget = (100 - start.used) / days
+  return {
+    today: used - start.used,
+    budget,
+    tomorrow: days > 1 ? (100 - used) / (days - 1) : null,
+    daysLeft: days,
+    mark: Math.min(100, start.used + budget),
+  }
+}
+
+/** Today against its budget: past 80% of it warns, past it is red. */
+export const budgetLevel = (today: number, budget: number): Level =>
+  today > budget ? 'error' : today > budget * 0.8 ? 'warning' : 'success'
+
+/**
+ * The week's head: `today 9% of 16%`, then once past it what tomorrow is left with; once a
+ * day's share is under 1%, what is left over how many days; nothing once the week is spent.
+ */
+export const weekHead = (b: Budget, used: number): { text: string; level: Level | null }[] => {
+  if (used >= 100) return []
+  if (b.budget < 1) return [{ text: `${Math.round(100 - used)}% left for ${b.daysLeft}d`, level: 'warning' }]
+  const head: { text: string; level: Level | null }[] = [
+    { text: `today ${Math.round(b.today)}% of ${Math.round(b.budget)}%`, level: budgetLevel(b.today, b.budget) },
+  ]
+  if (b.today > b.budget && b.tomorrow !== null) head.push({ text: `tomorrow ${Math.round(b.tomorrow)}%`, level: null })
+  return head
+}
 
 // --- the forecast and the cache -----------------------------------------------------
 
