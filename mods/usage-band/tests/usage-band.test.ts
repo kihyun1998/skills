@@ -3,6 +3,9 @@ import type { Engine } from 'claude-code/testing'
 import type { On, RenderElement, SessionUsage } from 'claude-code'
 
 import {
+  cacheHit,
+  clockOf,
+  runsOutAt,
   effortFromSettings,
   WINDOW_MS,
   evenPace,
@@ -55,6 +58,8 @@ type World = {
   argv: string[][]
   usageReads?: number
   settings?: Record<string, unknown>
+  /** What each main-thread request reports of its prompt; none by default. */
+  stepUsage?: { input_tokens: number; output_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number }
   /** What the bands beneath draw; nothing by default. */
   beneath?: RenderElement
 }
@@ -71,7 +76,8 @@ const start = async ($: Engine, on: On, u: SessionUsage, w: World) => {
   on('classic.SessionStart', () => ({}))
   on('session.measure', (_$, e) => ({ changed: e.changed }))
   on('turn.step', async function* (_$, e) {
-    return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'end_turn' as const, usage: null }
+    const usage = w.stepUsage ? { ...w.stepUsage, model: 'claude-opus-5-5' } : null
+    return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'end_turn' as const, usage }
   })
   // Whatever the bands beneath draw; nothing by default.
   on('ui.render', { component: 'AbovePrompt' }, (): RenderElement => w.beneath ?? { type: 'Box', props: {}, children: [] })
@@ -186,13 +192,33 @@ describe('usage-band', () => {
     expect((await rows(ui))[0]).toContain('+15%/h')
   })
 
-  test('a pace that reaches the limit before the reset is red', async ($, on) => {
+  test('a pace that runs the limit out before the reset says when, in place of %/h', async ($, on) => {
     const clock = await start($, on, usage(20, 50, 5), { burn: 10, today: 5, argv: [] })
     const ui = await mount($)
-    // 50% left over 2h13m holds 22.6%/h. 30 points in 20 minutes is 90%/h.
+    // 50% left over 2h13m holds 22.6%/h. 30 points in 20 minutes is 90%/h: the last 20% go in 13m20s.
     await clock.advance(20 * MIN)
     await measure($, usage(21, 80, 5))
-    expect((await propsOf(ui, '+90%/h'))?.color).toBe('error')
+    const out = clockOf(20 * MIN + (20 / 90) * HOUR)
+    expect((await propsOf(ui, `${out} 바닥`))?.color).toBe('error')
+    expect((await rows(ui))[0]).toContain(`${out} 바닥 · 리셋 ${clockOf(Date.parse(RESETS_AT))}`)
+    expect((await rows(ui))[0]).not.toContain('%/h')
+  })
+
+  test('the cache hit rate shows after today, over the latest main-thread requests', async ($, on) => {
+    const world: World = { burn: 5, today: 3, argv: [], stepUsage: { input_tokens: 2_000, output_tokens: 500, cache_read_input_tokens: 93_000, cache_creation_input_tokens: 5_000 } }
+    await start($, on, usage(20, 5, 5), world)
+    const step = async (agentId?: string) => {
+      for await (const _ of $.turn.step({ turnId: 't', index: 0, model: 'claude-opus-5-5', effort: 'high', messageCount: 1, ...(agentId ? { agentId } : {}) })) {
+        // drain
+      }
+    }
+    await step()
+    // A subagent's request, all of it uncached, is not the main thread's cache.
+    world.stepUsage = { input_tokens: 100_000, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }
+    await step('subagent-1')
+    const ui = await mount($)
+    expect((await rows(ui))[0]).toMatch(/today \$3\.00 {3}캐시 93%$/)
+    expect((await propsOf(ui, '93%'))?.color).toBe('success')
   })
 
   test('without a 5-hour limit (an API key) the band shows $/h in its place', async ($, on) => {
@@ -286,6 +312,21 @@ describe('format', () => {
     expect(gaugeCells(10, 100, 100).at(-1)).toBe('mark')
     expect(gaugeWidth(137, 3, 4)).toBe(43)
     expect(gaugeWidth(137, 1, 4)).toBe(137)
+  })
+
+  test('the forecast: a time only when the limit runs out before the reset', () => {
+    const reset = new Date(2 * HOUR).toISOString()
+    // 40% left at 30%/h: out in 80 minutes, before the reset in 120.
+    expect(runsOutAt(30, 60, reset, 0)).toBe(80 * MIN)
+    // At 15%/h the 40% last 160 minutes: past the reset, so nothing to say.
+    expect(runsOutAt(15, 60, reset, 0)).toBe(null)
+    expect(runsOutAt(0, 60, reset, 0)).toBe(null)
+    expect(runsOutAt(30, 60, null, 0)).toBe(null)
+  })
+
+  test('the cache hit rate: what the cache served of every prompt token', () => {
+    expect(cacheHit([{ read: 90, written: 5, uncached: 5 }, { read: 0, written: 100, uncached: 0 }])).toBe(45)
+    expect(cacheHit([])).toBe(null)
   })
 
   test('even pace: the share of a window gone, null when unknown or past', () => {

@@ -4,6 +4,6 @@
   "author": {
     "name": "Ki Hyun Park"
   },
-  "description": "Two rows above the prompt: model, effort, how fast the 5-hour limit is going (%/h) and today's cost, over gauges for context, the 5-hour window and the week, each limit marked where an even pace would be.",
+  "description": "Two rows above the prompt: model, effort, how fast the 5-hour limit is going (%/h) today's cost and the cache hit rate (or when the limit runs out, if before the reset), over gauges for context, the 5-hour window and the week, each limit marked where an even pace would be.",
   "types": "./types/index.d.ts"
 }

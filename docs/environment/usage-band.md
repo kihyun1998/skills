@@ -48,6 +48,8 @@ a figure takes the theme's `warning` or `error` instead.
 | `%/h` | the 5-hour window's readings (below) | error when this pace reaches the limit before the reset, warning past 80% of that pace |
 | `$/h` | `ccusage blocks --active --json --offline` → `burnRate.costPerHour` | dim beside `%/h`; it stands in, in yellow, where there is no 5-hour limit (an API key) |
 | today | `ccusage daily --json --offline --since <yesterday UTC>` → last day's `totalCost` | bold at $100 or more |
+| `HH:MM 바닥 · 리셋 HH:MM` | `%/h` and the 5-hour window's `resetsAt` | in place of `%/h`, in error, only when this pace runs the limit out before the reset |
+| 캐시 | each main-thread request's `usage` (`turn.step`): cache read ÷ (read + written + uncached), over the last 10 | green from 80%, amber from 50%, red below; a subagent's requests are left out |
 | ctx gauge | `context.percent` | each gauge's cells run teal → green → amber → red, hex colors that do not follow the theme; the number is loud past 80% |
 | 5h, wk gauges | `rateLimits` `five_hour`, `seven_day`; each `┊` from that limit's `resetsAt` | 80% (warning), 90% (error); 5h adds its reset time |
 

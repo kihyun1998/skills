@@ -20,6 +20,9 @@ export type Ledger = {
   today: number | null
 }
 
+/** One main-thread request's prompt, as the API reported it: what the cache served, what it wrote, what neither. */
+export type CacheReading = { read: number; written: number; uncached: number }
+
 /** One reading of the 5-hour window: when it was taken, and how much was used. */
 export type FiveSample = { at: number; percentUsed: number }
 
@@ -31,6 +34,8 @@ declare module 'claude-code' {
       ledger: Ledger | null
       /** The current 5-hour window's readings, oldest first: what %/h is measured from. */
       fiveSamples: FiveSample[]
+      /** The latest main-thread requests' prompt tokens, oldest first: what the cache hit rate is taken over. */
+      cacheReadings: CacheReading[]
     }
   }
 }

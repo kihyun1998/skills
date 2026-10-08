@@ -3,8 +3,12 @@ import type { EngineInterface, Register, SessionMeasureInput, SessionUsage } fro
 
 import type { Live } from '../types'
 import {
+  CACHE_READINGS,
   FIGURE_COLOR,
   WINDOW_MS,
+  cacheHit,
+  cacheLevel,
+  clockOf,
   TODAY_LOUD_USD,
   contextUsed,
   effortColor,
@@ -22,6 +26,7 @@ import {
   rateLevel,
   recordFive,
   resetIn,
+  runsOutAt,
   runwayColor,
   sinceArg,
   usd,
@@ -31,6 +36,7 @@ const live = atom({ plugin: 'usage-band', key: 'live' } as const, null)
 const effort = atom({ plugin: 'usage-band', key: 'effort' } as const, null)
 const ledger = atom({ plugin: 'usage-band', key: 'ledger' } as const, null)
 const fiveSamples = atom({ plugin: 'usage-band', key: 'fiveSamples' } as const, [])
+const cacheReadings = atom({ plugin: 'usage-band', key: 'cacheReadings' } as const, [])
 
 /** Blank cells at the band's left, so its text lines up with the turn line's after `✻ `; and at its right. */
 const LEFT = 2
@@ -174,7 +180,8 @@ export const register: Register = on => {
     return next(e)
   }).catch(($, e, next) => next(e))
 
-  // The effort a main-thread request is actually sent with, after any downgrade for the model.
+  // The effort a main-thread request is actually sent with, after any downgrade for the model,
+  // and what the cache served of its prompt.
   on('turn.step', async function* ($, e, next) {
     if (e.agentId === undefined) {
       const sent = e.effort === undefined ? null : String(e.effort)
@@ -182,7 +189,13 @@ export const register: Register = on => {
         await update($, effort, () => sent)
       }
     }
-    return yield* next(e)
+    const result = yield* next(e)
+    const usage = result.usage
+    if (e.agentId === undefined && usage !== null) {
+      const reading = { read: usage.cache_read_input_tokens, written: usage.cache_creation_input_tokens, uncached: usage.input_tokens }
+      await update($, cacheReadings, list => [...list, reading].slice(-CACHE_READINGS))
+    }
+    return result
   })
 
   // Two rows: who and how fast on top, then a gauge each for context, the 5-hour window and the week.
@@ -205,8 +218,15 @@ export const register: Register = on => {
     // Top row: model and effort, %/h of the 5-hour limit (or $/h without one), today.
     const five = fiveOf(l)
     const rate = five ? fiveHourRate(samples, five.percentUsed, five.resetsAt, now) : null
+    const outAt = five && rate !== null ? runsOutAt(rate, five.percentUsed, five.resetsAt, now) : null
     const pace =
-      five && rate !== null ? (
+      five && rate !== null && outAt !== null && five.resetsAt !== null ? (
+        // At this pace the limit runs out before the reset: say when, and when it comes back.
+        <Text>
+          <Text bold color="error">{`${clockOf(outAt)} 바닥`}</Text>
+          <Text dimColor>{` · 리셋 ${clockOf(Date.parse(five.resetsAt))}`}</Text>
+        </Text>
+      ) : five && rate !== null ? (
         <Text>
           <Text bold color={rateLevel(rate, five.percentUsed, five.resetsAt, now)}>{`+${Math.round(rate)}%/h`}</Text>
           {led?.burnPerHour != null && <Text dimColor>{` ${usd(led.burnPerHour)}/h`}</Text>}
@@ -223,6 +243,14 @@ export const register: Register = on => {
           <Text bold={led.today >= TODAY_LOUD_USD} color={FIGURE_COLOR.today}>{usd(led.today)}</Text>
         </Text>
       )
+    const hit = cacheHit(await read($, cacheReadings))
+    const cache =
+      hit === null ? null : (
+        <Text>
+          <Text dimColor>캐시 </Text>
+          <Text color={cacheLevel(hit)}>{`${hit}%`}</Text>
+        </Text>
+      )
     const top = (
       <Text wrap="truncate-end">
         <Text bold color={FIGURE_COLOR.model}>{modelLabel(l.model)}</Text>
@@ -231,6 +259,8 @@ export const register: Register = on => {
         {pace}
         {today && gap}
         {today}
+        {cache && gap}
+        {cache}
       </Text>
     )
 

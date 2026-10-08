@@ -173,6 +173,39 @@ export const evenPace = (resetsAt: string | null, windowMs: number, now: number)
   return Math.min(100, Math.max(0, ((windowMs - left) / windowMs) * 100))
 }
 
+// --- the forecast and the cache -----------------------------------------------------
+
+/**
+ * When the 5-hour limit runs out at this pace, if that comes before the window
+ * resets; null when it holds until the reset, or the pace or the reset is unknown.
+ */
+export const runsOutAt = (rate: number, percentUsed: number, resetsAt: string | null, now: number): number | null => {
+  if (resetsAt === null || !(rate > 0)) return null
+  const reset = Date.parse(resetsAt)
+  if (!(reset > now)) return null
+  const at = now + ((100 - percentUsed) / rate) * HOUR
+  return at < reset ? at : null
+}
+
+/** `16:27`, the engine's local time of day. */
+export const clockOf = (at: number): string => {
+  const d = new Date(at)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+/** The cache hit rate is taken over this many of the latest requests. */
+export const CACHE_READINGS = 10
+
+/** Percent of the prompt tokens the cache served over these requests; null before any request. */
+export const cacheHit = (readings: readonly { read: number; written: number; uncached: number }[]): number | null => {
+  const total = readings.reduce((n, r) => n + r.read + r.written + r.uncached, 0)
+  if (total === 0) return null
+  return Math.round((readings.reduce((n, r) => n + r.read, 0) / total) * 100)
+}
+
+/** A hit rate's colour: most of the prompt served from the cache is the healthy case. */
+export const cacheLevel = (percent: number): Level => (percent >= 80 ? 'success' : percent >= 50 ? 'warning' : 'error')
+
 // --- the gauges ------------------------------------------------------------------
 
 /** What each cell of a gauge holds: used, not yet used, or the even-pace mark. */
