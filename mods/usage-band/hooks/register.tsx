@@ -1,10 +1,11 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, SessionMeasureInput, SessionUsage } from 'claude-code'
 
-import type { Live } from '../types'
+import type { Credential, Live } from '../types'
 import {
   CACHE_READINGS,
   FIGURE_COLOR,
+  carryResets,
   WINDOW_MS,
   cacheHit,
   cacheLevel,
@@ -37,6 +38,7 @@ const effort = atom({ plugin: 'usage-band', key: 'effort' } as const, null)
 const ledger = atom({ plugin: 'usage-band', key: 'ledger' } as const, null)
 const fiveSamples = atom({ plugin: 'usage-band', key: 'fiveSamples' } as const, [])
 const cacheReadings = atom({ plugin: 'usage-band', key: 'cacheReadings' } as const, [])
+const credential = atom({ plugin: 'usage-band', key: 'credential' } as const, null)
 
 /** Blank cells at the band's left, so its text lines up with the turn line's after `✻ `; and at its right. */
 const LEFT = 2
@@ -73,20 +75,34 @@ const toLive = (model: string, u: Figures): Live => ({
 
 const fiveOf = (l: Live | null) => l?.rateLimits.find(r => r.kind === 'five_hour')
 
-// Takes a reading: the 5-hour window's goes in its history for the forecast.
+// Takes a reading: a limit the engine dropped once its reset passed goes on at 0%, and the
+// 5-hour window's goes in its history for the forecast.
 const refreshLive = async ($: EngineInterface, figures?: Figures) => {
   const model = await $.session.model()
   const u = figures ?? (await $.session.usage())
-  const next = toLive(model, u)
-  const previous = fiveOf(await read($, live))
-  const five = fiveOf(next)
   const now = await $.clock.now()
+  const before = await read($, live)
+  const reading = toLive(model, u)
+  const next = { ...reading, rateLimits: carryResets(before?.rateLimits ?? [], reading.rateLimits, now) }
+  const previous = fiveOf(before)
+  const five = fiveOf(next)
   if (five) {
     await update($, fiveSamples, samples =>
       recordFive(samples, five.percentUsed, five.resetsAt, previous?.resetsAt ?? five.resetsAt, now),
     )
   }
   await update($, live, () => next)
+}
+
+// Which credential the session holds, so a login's limits not yet reported show as waiting.
+const readCredential = async ($: EngineInterface) => {
+  let kind: Credential = null
+  try {
+    kind = (await $.session.authorize())?.kind ?? null
+  } catch {
+    // None to name: no limits are expected.
+  }
+  await update($, credential, () => kind)
 }
 
 // Module state: a reload starts these over, which costs one extra ccusage run.
@@ -146,6 +162,7 @@ const seedEffort = async ($: EngineInterface) => {
 // Everything the band shows, read again: at start, and after /clear, /resume or /branch
 // reset $.state, which session.start does not follow.
 const fill = async ($: EngineInterface, isForced: boolean) => {
+  await readCredential($)
   await refreshLive($)
   await seedEffort($)
   await askLedger($, isForced)
@@ -154,11 +171,13 @@ const fill = async ($: EngineInterface, isForced: boolean) => {
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const result = await next(e)
+    await readCredential($)
     await refreshLive($)
     await seedEffort($)
     // Off the start's path: ccusage takes about a second and the first prompt need not wait.
     $.clock.after(0, () => void askLedger($))
-    $.clock.every(LEDGER_MS, () => void askLedger($))
+    // The reading too, so a limit whose reset passes while idle draws as started over.
+    $.clock.every(LEDGER_MS, () => void refreshLive($).then(() => askLedger($)))
     return result
   })
 
@@ -271,7 +290,10 @@ export const register: Register = on => {
         )
     // The week: what it has left over the days left, today counted whole.
     const seven = l.rateLimits.find(r => r.kind === 'seven_day')
-    const share = seven && seven.percentUsed < 100 ? dailyShare(seven.percentUsed, seven.resetsAt, now) : null
+    // A week just started over has its seven days ahead, whenever the next reset falls.
+    const share = !seven || seven.percentUsed >= 100 ? null
+      : seven.isReset ? dailyShare(0, new Date(now + WINDOW_MS.week).toISOString(), now)
+      : dailyShare(seven.percentUsed, seven.resetsAt, now)
     const shareLv = share === null ? null : shareLevel(share.basis)
     const weekLead: Seg[] = share === null ? [] : [{ text: `${share.perDay.toFixed(1)}%/day`, bold: true, ...(shareLv === null ? {} : { color: shareLv }) }]
     const moneyHead: Seg[] = [
@@ -281,11 +303,17 @@ export const register: Register = on => {
       ...(led?.burnPerHour != null ? [...(led.today == null ? [] : [dot]), { text: `${usd(led.burnPerHour)}/h`, dim: five !== undefined }] : []),
     ]
 
+    // A login's limit with no reading yet (a new session, before its first response) keeps its
+    // column, empty and waiting; an API key has none, and its columns go.
+    const isLogin = (await read($, credential)) === 'bearer'
+    const waiting = (label: string) => ({ label, used: null, mark: null, head: [{ text: 'no reading yet', dim: true }] })
     // The gauges: the 5-hour one marked where an even pace would have it; the week's has no mark.
-    const gauges = [
-      { label: 'ctx', used: contextUsed(l.context), mark: null as number | null, head: contextHead },
-      ...(five ? [{ label: '5h', used: five.percentUsed, mark: evenPace(five.resetsAt, WINDOW_MS.fiveHour, now), head: fiveHead ?? [] }] : []),
-      ...(seven ? [{ label: 'wk', used: seven.percentUsed, mark: null, head: weekLead }] : []),
+    const gauges: { label: string; used: number | null; mark: number | null; head: Seg[] }[] = [
+      { label: 'ctx', used: contextUsed(l.context), mark: null, head: contextHead },
+      ...(five ? [{ label: '5h', used: five.percentUsed, mark: evenPace(five.resetsAt, WINDOW_MS.fiveHour, now), head: fiveHead ?? [] }]
+        : isLogin ? [waiting('5h')] : []),
+      ...(seven ? [{ label: 'wk', used: seven.percentUsed, mark: null, head: weekLead }]
+        : isLogin ? [waiting('wk')] : []),
     ]
     // The money goes after the last head: the week's share, or whatever column comes last.
     const last = gauges[gauges.length - 1]
@@ -306,9 +334,9 @@ export const register: Register = on => {
     const bottom = (
       <Text wrap="truncate-end">
         {gauges.map((g, i) => {
-          const figure = ` ${String(g.used).padStart(3)}%`
-          const cells = gaugeCells(Math.max(4, each - GAUGE_LABEL - figure.length), g.used, g.mark)
-          const loud = isLoud(g.used) ? levelOf(g.used) : undefined
+          const figure = ` ${(g.used === null ? '–' : String(g.used)).padStart(3)}%`
+          const cells = gaugeCells(Math.max(4, each - GAUGE_LABEL - figure.length), g.used ?? 0, g.mark)
+          const loud = g.used !== null && isLoud(g.used) ? levelOf(g.used) : undefined
           return (
             <Text>
               {i > 0 && divider}

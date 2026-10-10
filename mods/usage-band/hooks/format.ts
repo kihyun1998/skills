@@ -1,4 +1,4 @@
-import type { FiveSample, Ledger, Live } from '../types'
+import type { FiveSample, Ledger, Live, RateWindow } from '../types'
 
 export type Level = 'success' | 'warning' | 'error'
 
@@ -122,6 +122,19 @@ export const fiveHourRate = (
 
 /** How long each limit's window runs before it resets. */
 export const WINDOW_MS = { fiveHour: WINDOW, week: 7 * 24 * HOUR } as const
+
+/**
+ * A reading with the limits it no longer reports carried on: the engine drops a limit once its
+ * reset time passes with no response since, so one seen before with its reset now past (or
+ * carried already) has started over, at 0%. One gone before its reset is dropped.
+ */
+export const carryResets = (previous: readonly RateWindow[], next: readonly RateWindow[], now: number): RateWindow[] => [
+  ...next,
+  ...previous
+    .filter(p => !next.some(n => n.kind === p.kind))
+    .filter(p => p.isReset === true || (p.resetsAt !== null && Date.parse(p.resetsAt) <= now))
+    .map(p => ({ kind: p.kind, percentUsed: 0, resetsAt: null, isReset: true as const })),
+]
 
 /**
  * Where a limit's bar would end at an even pace: the share of its window already

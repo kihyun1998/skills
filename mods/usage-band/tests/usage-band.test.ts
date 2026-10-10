@@ -5,6 +5,7 @@ import type { On, RenderElement, SessionUsage } from 'claude-code'
 import {
   DAY_SHARE,
   cacheHit,
+  carryResets,
   dailyShare,
   shareLevel,
   clockOf,
@@ -65,6 +66,8 @@ type World = {
   stepUsage?: { input_tokens: number; output_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number }
   /** What the bands beneath draw; nothing by default. */
   beneath?: RenderElement
+  /** The credential the session holds; a login by default. */
+  credential?: 'bearer' | 'api-key' | null
 }
 
 const start = async ($: Engine, on: On, u: SessionUsage, w: World) => {
@@ -76,6 +79,10 @@ const start = async ($: Engine, on: On, u: SessionUsage, w: World) => {
     return { value: u }
   })
   on('settings.read', () => ({ value: w.settings ?? {} }))
+  on('session.authorize', () => {
+    const kind = w.credential === undefined ? 'bearer' : w.credential
+    return { value: kind === null ? null : { handle: 'h', kind } }
+  })
   on('classic.SessionStart', () => ({}))
   on('session.measure', (_$, e) => ({ changed: e.changed }))
   on('session.compact', () => ({ messages: [SUMMARY] }))
@@ -215,6 +222,47 @@ describe('usage-band', () => {
     expect((await weekHead(ui)).startsWith('today $5.00 · $10.00/h')).toBe(true)
   })
 
+  test('a login\'s limits not yet reported (before the first response) keep their columns, empty and waiting', async ($, on) => {
+    await start($, on, { ...usage(20, 0, 0), rateLimits: [] }, { burn: 10, today: 5, argv: [] })
+    const ui = await mount($)
+    const [top, bottom] = await rows(ui)
+    expect(top?.split(DIV).map(h => h.trim())).toEqual(['opus 5.5', 'no reading yet', 'no reading yet · today $5.00 · $10.00/h'])
+    const [, five, week] = (bottom ?? '').split(DIV)
+    expect(five).toMatch(/^5h {2}─+ {3}–%$/)
+    expect(week).toMatch(/^wk {2}─+ {3}–%$/)
+  })
+
+  test('a limit whose reset passes with no response since, which the engine then drops, draws as started over', async ($, on) => {
+    const clock = await start($, on, withWeek(30), { burn: 10, today: 5, argv: [] })
+    const ui = await mount($)
+    // Past the 5-hour reset (2h13m) the engine reports the week alone.
+    await clock.advance(2 * HOUR + 14 * MIN)
+    await measure($, { ...withWeek(30), rateLimits: [withWeek(30).rateLimits[1]!] })
+    const [top, bottom] = await rows(ui)
+    expect(bottom?.split(DIV)[1]).toMatch(/^5h {2}─+ {3}0%$/)
+    // A window started over has no pace to draw, nor a reset to name until a response says it.
+    expect(top?.split(DIV)[1]?.trim()).toBe('')
+    // Past the week's too (5d3h): seven days ahead of it, a day's share each, and green.
+    await clock.advance(5 * DAY + HOUR)
+    await measure($, { ...withWeek(30), rateLimits: [] })
+    expect((await weekHead(ui)).startsWith('14.3%/day')).toBe(true)
+    expect((await propsOf(ui, '14.3%/day'))?.color).toBe('success')
+    expect((await rows(ui))[1]?.split(DIV)[2]).toMatch(/ {3}0%$/)
+  })
+
+  test('the reading is taken again between turns, so a reset that passes while idle shows', async ($, on) => {
+    const w: World = { burn: 10, today: 5, argv: [] }
+    const u = usage(20, 41, 18)
+    const clock = await start($, on, u, w)
+    const ui = await mount($)
+    // The engine reports the 5-hour window up to its reset (2h13m), and drops it after.
+    await clock.advance(2 * HOUR + 12 * MIN)
+    u.rateLimits = [u.rateLimits[1]!]
+    await clock.advance(4 * MIN)
+    await clock.settle()
+    expect((await rows(ui))[1]?.split(DIV)[1]).toMatch(/^5h {2}─+ {3}0%$/)
+  })
+
   test('another band stays above the two rows, which keep next to the prompt', async ($, on) => {
     const beneath: RenderElement = { type: 'Text', props: {}, children: ['thegraph #42'] }
     await start($, on, usage(30, 10, 5), { burn: 10, today: 5, argv: [], beneath })
@@ -275,7 +323,7 @@ describe('usage-band', () => {
   })
 
   test('without a 5-hour limit (an API key) the band shows $/h in its place', async ($, on) => {
-    await start($, on, { ...usage(20, 0, 0), rateLimits: [] }, { burn: 42.5, today: 5, argv: [] })
+    await start($, on, { ...usage(20, 0, 0), rateLimits: [] }, { burn: 42.5, today: 5, argv: [], credential: 'api-key' })
     const ui = await mount($)
     const [top, bottom] = await rows(ui)
     // Context alone takes the whole row, the money after the model in its head.
@@ -438,6 +486,18 @@ describe('format', () => {
     expect(paceLevel(81)).toBe('warning')
     expect(paceLevel(100)).toBe('warning')
     expect(paceLevel(101)).toBe('error')
+  })
+
+  test('a limit the engine stops reporting once its reset passed goes on at 0%; one gone before its reset does not', () => {
+    const at = (h: number) => new Date(h * HOUR).toISOString()
+    const five = { kind: 'five_hour', percentUsed: 41, resetsAt: at(2) }
+    const week = { kind: 'seven_day', percentUsed: 30, resetsAt: at(100) }
+    expect(carryResets([five, week], [week], 3 * HOUR)).toEqual([week, { kind: 'five_hour', percentUsed: 0, resetsAt: null, isReset: true }])
+    expect(carryResets([five, week], [week], HOUR)).toEqual([week])
+    // Carried on until a response reports it again.
+    const reset = carryResets([five], [], 3 * HOUR)
+    expect(carryResets(reset, [], 4 * HOUR)).toEqual(reset)
+    expect(carryResets(reset, [five], 4 * HOUR)).toEqual([five])
   })
 
   test('the daily share: what is left over the days to the reset, today counted whole', () => {

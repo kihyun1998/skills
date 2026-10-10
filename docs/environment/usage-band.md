@@ -36,8 +36,9 @@ model, its effort and the prompt cache), the 5-hour window (its pace, when it
 runs out if it will, and its reset), and the week (what it has left for each of
 its days) with the money. The heads are cut or padded
 to their gauge's width, so a head that grows (the forecast) never pushes the next
-column. A limit the account does not have drops its column; the money then goes
-after the last head.
+column. A session on an API key has no limits and drops both their columns; the
+money then goes after the last head. A login's limit with no reading yet keeps its
+column, empty: `no reading yet` over `–%` (below).
 
 The 5-hour gauge carries `┊` where an even pace would have it: the share of the
 window already gone. A bar past the mark is spending faster than time passes. The
@@ -134,6 +135,26 @@ Weighed and left, as HTML prototypes on 2026-10-08:
   gauge past 60%, and through those points smoothed reads 300% on the first day.
 - **A ledger.** A day's share each day, what is left carried over: an overspent
   day falls on the next one alone instead of spreading over the rest.
+
+### When the engine reports no limit
+
+The engine reads the limits from the last API response's headers and reports a
+window only while its reset is ahead: once the reset passes with no response
+since, it drops that window (read from Claude Code 2.1.294's source). So the
+5-hour column went whenever a window ended while idle, and both went in a new or
+resumed session until its first response: offline it stays so, but going offline
+is not what drops them.
+
+A limit seen in this session whose reset has passed has started over, so the band
+draws it at 0%, with no pace and no reset to name until a response brings them;
+a week started over has its seven days ahead, `14.3%/day`, green. The reading is
+taken again with each ccusage run, every 2 minutes, so a reset that passes while
+idle shows without a turn. This lives in `$.state`, so a `/clear` forgets it.
+
+A limit never seen draws as waiting, `no reading yet` over `–%`, when the session
+holds a login (`$.session.authorize()` answers `bearer`); with an API key there
+are no limits to wait for and the columns go. A login without plan limits would
+wait for ever; none is known here.
 
 Effort is the value the request is **sent** with, after any downgrade for the
 model. It changes on the next request after `/effort`, not at the command. Before

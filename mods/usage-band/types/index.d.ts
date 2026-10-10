@@ -2,7 +2,15 @@ export type RateWindow = {
   kind: string
   percentUsed: number
   resetsAt: string | null
+  /**
+   * The engine no longer reports it because its reset time passed with no response since:
+   * the window has started over, at 0%, its next reset unknown until a response says it.
+   */
+  isReset?: true
 }
+
+/** The session's credential, as `$.session.authorize()` names it: a login (`bearer`) has plan limits. */
+export type Credential = 'bearer' | 'api-key' | null
 
 /** What the engine measures for this session. */
 export type Live = {
@@ -36,6 +44,8 @@ declare module 'claude-code' {
       fiveSamples: FiveSample[]
       /** The latest main-thread requests' prompt tokens, oldest first: what the cache hit rate is taken over. */
       cacheReadings: CacheReading[]
+      /** Which credential the session holds: a login expects the 5-hour and weekly limits, a key neither. */
+      credential: Credential
     }
   }
 }
