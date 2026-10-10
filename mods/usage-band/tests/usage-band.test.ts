@@ -242,9 +242,16 @@ describe('usage-band', () => {
     expect(bottom?.split(DIV)[1]).toMatch(/^5h {2}─+ {3}0%$/)
     // A window started over has no pace to draw, nor a reset to name until a response says it.
     expect(top?.split(DIV)[1]?.trim()).toBe('')
-    // Past the week's too (5d3h): seven days ahead of it, a day's share each, and green.
-    await clock.advance(5 * DAY + HOUR)
-    await measure($, { ...withWeek(30), rateLimits: [] })
+  })
+
+  test('a week started over has its seven days ahead: a day\'s share each, green', async ($, on) => {
+    // The week resets an hour in; a clock run for days would fire the 2-minute timer thousands of times.
+    const u = usage(20, 41, 30)
+    const reading = (week: boolean): SessionUsage => ({ ...u, rateLimits: [u.rateLimits[0]!, ...(week ? [{ kind: 'seven_day', percentUsed: 30, resetsAt: new Date(HOUR).toISOString() }] : [])] })
+    const clock = await start($, on, reading(true), { burn: 10, today: 5, argv: [] })
+    const ui = await mount($)
+    await clock.advance(HOUR + MIN)
+    await measure($, reading(false))
     expect((await weekHead(ui)).startsWith('14.3%/day')).toBe(true)
     expect((await propsOf(ui, '14.3%/day'))?.color).toBe('success')
     expect((await rows(ui))[1]?.split(DIV)[2]).toMatch(/ {3}0%$/)
