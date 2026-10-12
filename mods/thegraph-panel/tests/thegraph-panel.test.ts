@@ -115,6 +115,17 @@ const flat = (node: unknown): string =>
       ? node.children.map(flat).join('')
       : ''
 
+// How the innermost line whose text starts with `start` wraps: the `wrap` prop it was drawn with.
+const wrapOf = (node: unknown, start: string): unknown => {
+  if (node === null || typeof node !== 'object' || !('children' in node) || !Array.isArray(node.children)) return undefined
+  for (const child of node.children) {
+    const found = wrapOf(child, start)
+    if (found !== undefined) return found
+  }
+  const props = 'props' in node ? (node.props as Record<string, unknown>) : {}
+  return flat(node).startsWith(start) && 'wrap' in props ? props.wrap : undefined
+}
+
 const band = ($: Engine) => $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'AbovePrompt', props: BAND })
 
 describe('thegraph-panel', () => {
@@ -222,12 +233,12 @@ describe('thegraph-panel', () => {
     const text = flat(await pane.drawn())
     expect(text).toContain('설정 행 높이 통일')
     expect(text).toContain('→ check-it: 문서만 바뀜, prose 검사만')
-    expect(text).toContain('thegraph · prose')
+    expect(text).toContain('thegraph .scratch/settings/issues/03-row-height.md — 설정 행 높이 통일 · prose')
     expect(text).toContain('↗ 단축키 표 문구가 SPEC과 다름')
     // Every step checked off is the end, whatever the events saw.
     await $.tool.call({ tool: 'Write', file_path: SHEET, content: sheetText('x') })
     expect(flat(await ui.drawn())).toContain('ask-it ✓  done')
-    expect(flat(await pane.drawn())).toMatch(/thegraph · prose · \S+ · done/)
+    expect(flat(await pane.drawn())).toMatch(/설정 행 높이 통일 · prose · \S+ · done/)
   })
 
   test('thegraph is told where its run sheet is, and a sheet written there by any tool is read', async ($, on) => {
@@ -491,6 +502,107 @@ describe('thegraph-panel', () => {
     await $.tool.call({ tool: 'Bash', command: 'true' })
     expect(flat(await ui.drawn())).toContain('make-it ◐')
     expect(flat(await ui.drawn())).not.toContain('done')
+  })
+
+  test("the run is named by its sheet's issue once there is one, by the label until then", async ($, on) => {
+    const fs = sheetFiles(on)
+    on('tool.call', { tool: 'Write' }, (_$, e) => {
+      fs.write(e.file_path, e.content)
+      return { result: { type: 'create', filePath: e.file_path, content: e.content, structuredPatch: [], originalFile: null } }
+    })
+    await start($, on)
+    const ui = await band($)
+    await say($, '/thegraph #42 band redraw')
+    await skill($, 'thegraph')
+    expect(flat(await ui.drawn())).toContain('thegraph #42 band redraw  ')
+    await $.tool.call({ tool: 'Write', file_path: SHEET, content: sheetText('~', 'kihyun1998/penterm#42') })
+    const line = flat(await ui.drawn())
+    expect(line).toContain('thegraph #42 설정 행 높이 통일  ')
+    expect(line).not.toContain('band redraw')
+    const pane = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS })
+    const text = flat(await pane.drawn())
+    expect(text).toContain('thegraph #42 설정 행 높이 통일 · prose')
+    // Under the header, where the issue lives; its title is not said twice.
+    expect(text).toContain('kihyun1998/penterm#42')
+    expect(text).not.toContain('03-row-height.md — ')
+  })
+
+  test('a bare /thegraph gains a name from its sheet, a local issue named by its file', async ($, on) => {
+    const fs = sheetFiles(on)
+    on('tool.call', { tool: 'Write' }, (_$, e) => {
+      fs.write(e.file_path, e.content)
+      return { result: { type: 'create', filePath: e.file_path, content: e.content, structuredPatch: [], originalFile: null } }
+    })
+    await start($, on)
+    const ui = await band($)
+    await say($, '/thegraph')
+    await skill($, 'thegraph')
+    expect(flat(await ui.drawn())).toContain('thegraph  read-it')
+    const ISSUE = 'D:\\github\\penterm\\.scratch\\settings\\issues\\03-row-height.md'
+    await $.tool.call({ tool: 'Write', file_path: SHEET, content: sheetText('~', ISSUE) })
+    expect(flat(await ui.drawn())).toContain('thegraph 03-row-height 설정 행 높이 통일  ')
+    const pane = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS })
+    expect(flat(await pane.drawn())).toContain(ISSUE)
+  })
+
+  test('a sheet issue with no title is named by its number; one with no source by its whole line, cut on the band', async ($, on) => {
+    const fs = sheetFiles(on)
+    on('tool.call', { tool: 'Write' }, (_$, e) => {
+      fs.write(e.file_path, e.content)
+      return { result: { type: 'create', filePath: e.file_path, content: e.content, structuredPatch: [], originalFile: null } }
+    })
+    await start($, on)
+    const ui = await band($)
+    await say($, '/thegraph')
+    await skill($, 'thegraph')
+    const issueLine = (issue: string, source?: string) =>
+      sheetText('~', source).replace(/^issue: .*$/m, `issue: ${issue}`)
+    await $.tool.call({ tool: 'Write', file_path: SHEET, content: issueLine('#7', '#7') })
+    expect(flat(await ui.drawn())).toContain('thegraph #7  read-it')
+    // An older sheet, before `source:`: the issue line whole, cut to 40 on the band.
+    const old = '.scratch/settings/issues/03-row-height.md — 설정 행 높이 통일'
+    await $.tool.call({ tool: 'Write', file_path: SHEET, content: issueLine(old) })
+    expect(flat(await ui.drawn())).toContain(`thegraph ${[...old].slice(0, 40).join('')}…  `)
+    const pane = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS })
+    expect(flat(await pane.drawn())).toContain(`thegraph ${old} · prose`)
+  })
+
+  test('a long title is cut at 40 characters on the band, whole in the pane', async ($, on) => {
+    const fs = sheetFiles(on)
+    on('tool.call', { tool: 'Write' }, (_$, e) => {
+      fs.write(e.file_path, e.content)
+      return { result: { type: 'create', filePath: e.file_path, content: e.content, structuredPatch: [], originalFile: null } }
+    })
+    await start($, on)
+    const ui = await band($)
+    await say($, '/thegraph')
+    await skill($, 'thegraph')
+    const title = '세션 하나는 엔진 하나를 프레임 싱크 하나에 묶는다 — 피드, 펌프, 구독, 크기 조정, 종료까지'
+    const name = `#1043 ${title}`
+    await $.tool.call({ tool: 'Write', file_path: SHEET, content: sheetText('~', 'o/r#1043').replace(/^issue: .*$/m, `issue: #1043 — ${title}`) })
+    const line = flat(await ui.drawn())
+    expect(line).toContain(`thegraph ${[...name].slice(0, 40).join('')}…  `)
+    expect(line).not.toContain([...name].slice(0, 41).join(''))
+    const pane = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS })
+    const drawn = await pane.drawn()
+    expect(flat(drawn)).toContain(`thegraph ${name} · prose`)
+    // Whole on screen too: the header wraps at the pane's width rather than cutting the name off.
+    expect(wrapOf(drawn, `thegraph ${name}`)).toBe('wrap')
+  })
+
+  test("a sheet's issue line left as the template's placeholder names nothing", async ($, on) => {
+    const fs = sheetFiles(on)
+    on('tool.call', { tool: 'Write' }, (_$, e) => {
+      fs.write(e.file_path, e.content)
+      return { result: { type: 'create', filePath: e.file_path, content: e.content, structuredPatch: [], originalFile: null } }
+    })
+    await start($, on)
+    const ui = await band($)
+    await say($, '/thegraph #5')
+    await skill($, 'thegraph')
+    await $.tool.call({ tool: 'Write', file_path: SHEET, content: sheetText('~').replace(/^issue: .*$/m, "issue: <the issue as read-it resolved it> — <its title>") })
+    expect(flat(await ui.drawn())).toContain('thegraph #5  ')
+    expect(flat(await ui.drawn())).not.toContain('<the issue')
   })
 
   test('a question put away with Esc is no answer: the run waits, and what is typed next takes it up again', async ($, on) => {

@@ -23,6 +23,8 @@ import {
   trail,
   turnSummary,
   addLog,
+  bandName,
+  runName,
   sheetLog,
   testCounts,
   testOf,
@@ -449,11 +451,12 @@ export const register: Register = on => {
     const { Box, Button, Text } = $.ui.resolve(e)
     const t = Math.max(await read($, now), r.startedAt)
     const segs = trail(r, t)
+    const name = runName(r)
     const line = (
       <Box flexDirection="row" justifyContent="space-between" paddingLeft={LEFT} paddingRight={RIGHT}>
         <Text wrap="truncate-end">
           <Text bold>thegraph</Text>
-          {r.label !== null && <Text dimColor>{` ${r.label}`}</Text>}
+          {name !== null && <Text dimColor>{` ${bandName(name)}`}</Text>}
           <Text>{'  '}</Text>
           {segs.map(g => <Text color={g.color ?? undefined} bold={g.bold} dimColor={g.dim}>{g.text}</Text>)}
         </Text>
@@ -503,6 +506,7 @@ export const register: Register = on => {
     }
     const t = Math.max(await read($, now), r.startedAt)
     const route = r.sheet?.route ?? (r.route === null ? null : routeName(r.route))
+    const name = runName(r)
     // The gantt: a row per step, the run's time across, filled wherever that step ran.
     const end = Math.max(t, r.doneAt ?? 0)
     const bars = gantt(r, end, Math.max(8, Math.min(48, e.props.bodyColumns - STEP_CELLS - 5))).map(g => (
@@ -550,16 +554,17 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column">
         <Box flexDirection="row" justifyContent="space-between">
-          <Text wrap="truncate-end">
+          {/* Wraps rather than cuts: the pane is where a name the band cut is read whole. */}
+          <Text wrap="wrap">
             <Text bold>thegraph</Text>
-            {r.label !== null && <Text dimColor>{` ${r.label}`}</Text>}
+            {name !== null && <Text dimColor>{` ${name}`}</Text>}
             {route !== null && <Text color="cyan">{` · ${route}`}</Text>}
             <Text dimColor>{` · ${minutes((r.doneAt ?? t) - r.startedAt)}`}</Text>
             {isDone(r) && <Text color="success"> · done</Text>}
           </Text>
           {close}
         </Box>
-        {r.sheet?.issue != null && <Text dimColor wrap="wrap">{r.sheet.issue}</Text>}
+        {r.sheet?.source != null && <Text dimColor wrap="wrap">{r.sheet.source}</Text>}
         <Text dimColor>{'─'.repeat(Math.max(8, Math.min(40, e.props.bodyColumns)))}</Text>
         {bars}
         <Text> </Text>

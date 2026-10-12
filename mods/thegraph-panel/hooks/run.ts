@@ -174,8 +174,8 @@ export const parseSheet = (path: string, text: string): Sheet => {
     const note = /^\s+→\s*(.*\S)\s*$/.exec(line)
     if (/^##\s/.test(line)) isCarried = /^##\s+Carried\b/i.test(line)
     else if (isCarried && /^- /.test(line)) sheet.carried.push(line.slice(2).trim())
-    else if (field?.[1] === 'issue') sheet.issue = field[2] ?? null
-    // A template placeholder (`<read-it's label ...>`) is no route yet.
+    // A template placeholder (`<read-it's label ...>`) is no value yet.
+    else if (field?.[1] === 'issue') sheet.issue = (field[2] ?? '').startsWith('<') ? null : (field[2] ?? null)
     else if (field?.[1] === 'route') sheet.route = (field[2] ?? '').startsWith('<') ? null : (field[2] ?? null)
     else if (field?.[1] === 'source') sheet.source = (field[2] ?? '').startsWith('<') ? null : (field[2] ?? null)
     else if (step) sheet.steps.push({ key: SHEET_KEY[step[2] ?? ''] ?? step[2] ?? '', mark: SHEET_MARK[step[1] ?? ' '] ?? 'todo', note: null })
@@ -219,6 +219,32 @@ export const issueOf = (source: string | null | undefined, cwd: string | null): 
   if (cwd === null) return null
   const sep = cwd.includes('\\') ? '\\' : '/'
   return { kind: 'file', path: `${cwd.replace(/[\\/]+$/, '')}${sep}${source}` }
+}
+
+/** The band's cut of a run name: this many characters, then `…`. */
+const NAME_MAX = 40
+
+/**
+ * What the panel calls the run: once the sheet names an issue, its number (or its file's
+ * name) and the title after ` — `; the whole issue line when the sheet has no source;
+ * before any of that, the label. Null for a run with none of them.
+ */
+export const runName = (run: Run): string | null => {
+  const issue = run.sheet?.issue ?? null
+  const source = run.sheet?.source ?? null
+  if (issue === null) return run.label
+  if (source === null) return issue
+  const ref = issueOf(source, null)
+  const front = ref?.kind === 'github' ? `#${ref.number}` : baseName(source).replace(/\.[^.]+$/, '')
+  const at = issue.indexOf(' — ')
+  const title = at < 0 ? '' : issue.slice(at + 3).trim()
+  return title === '' ? front : `${front} ${title}`
+}
+
+/** A run name as the band draws it: cut on whole characters, `…` where it was cut. */
+export const bandName = (name: string): string => {
+  const chars = [...name]
+  return chars.length <= NAME_MAX ? name : `${chars.slice(0, NAME_MAX).join('')}…`
 }
 
 /** Whether a shell command closes issue `n` with gh: `gh issue close 42`, `#42`, or its URL. */
