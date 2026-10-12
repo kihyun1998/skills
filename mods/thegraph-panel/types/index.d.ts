@@ -19,6 +19,8 @@ export type Sheet = {
   path: string
   /** The issue as read-it resolved it, and its title. */
   issue: string | null
+  /** Where the issue lives, for this plugin to read: `owner/repo#42`, `#42`, or the issue file's path. */
+  source: string | null
   /** read-it's route label, verbatim: trivial, open decision, prose, code. */
   route: string | null
   steps: SheetStep[]

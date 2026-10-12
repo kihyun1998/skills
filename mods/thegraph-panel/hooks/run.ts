@@ -86,9 +86,12 @@ export const onTurnEnd = (run: Run, now: number): Run => {
   return { ...run, isWaiting: true }
 }
 
-/** The person answered: a prompt of their own, or a question's reply. Null once a finished run has been moved on from. */
+/**
+ * The person answered: a prompt of their own, or a question's reply. Null once a finished
+ * run has been moved on from, finished by its events or by its sheet checked off whole.
+ */
 export const onAnswer = (run: Run, now: number): Run | null => {
-  if (run.doneAt !== null) return null
+  if (isDone(run)) return null
   // After a question put away, the person's words take the step up again: no stop closes, nothing ends.
   if (run.isDismissed) return { ...run, isWaiting: false, isDismissed: false }
   if (!run.isWaiting) return run
@@ -99,6 +102,10 @@ export const onAnswer = (run: Run, now: number): Run | null => {
   }
   return { ...run, isWaiting: false }
 }
+
+/** The run's issue was closed, wherever the run had got to: that is its end. */
+export const onIssueClosed = (run: Run, now: number): Run =>
+  run.doneAt !== null ? run : logged({ ...run, isWaiting: false, steps: closeAll(run.steps, now), doneAt: now }, now, 'end', 'issue closed')
 
 /** A question box put away with nothing answered: the run still waits on the person, and is not answered. */
 export const onDismiss = (run: Run): Run => (run.doneAt !== null ? run : { ...run, isWaiting: true, isDismissed: true })
@@ -159,10 +166,10 @@ const SHEET_MARK: Record<string, SheetStep['mark']> = { ' ': 'todo', '~': 'doing
 
 /** Reads a run sheet's text; lines it does not know are skipped. */
 export const parseSheet = (path: string, text: string): Sheet => {
-  const sheet: Sheet = { path, issue: null, route: null, steps: [], carried: [] }
+  const sheet: Sheet = { path, issue: null, source: null, route: null, steps: [], carried: [] }
   let isCarried = false
   for (const line of text.split(/\r?\n/)) {
-    const field = /^(issue|route):\s*(.*\S)\s*$/.exec(line)
+    const field = /^(issue|source|route):\s*(.*\S)\s*$/.exec(line)
     const step = /^- \[([ ~xX])\]\s+(\S+)/.exec(line)
     const note = /^\s+→\s*(.*\S)\s*$/.exec(line)
     if (/^##\s/.test(line)) isCarried = /^##\s+Carried\b/i.test(line)
@@ -170,6 +177,7 @@ export const parseSheet = (path: string, text: string): Sheet => {
     else if (field?.[1] === 'issue') sheet.issue = field[2] ?? null
     // A template placeholder (`<read-it's label ...>`) is no route yet.
     else if (field?.[1] === 'route') sheet.route = (field[2] ?? '').startsWith('<') ? null : (field[2] ?? null)
+    else if (field?.[1] === 'source') sheet.source = (field[2] ?? '').startsWith('<') ? null : (field[2] ?? null)
     else if (step) sheet.steps.push({ key: SHEET_KEY[step[2] ?? ''] ?? step[2] ?? '', mark: SHEET_MARK[step[1] ?? ' '] ?? 'todo', note: null })
     else if (note) {
       const last = sheet.steps[sheet.steps.length - 1]
@@ -194,6 +202,31 @@ export const sheetLog = (before: Sheet | null, after: Sheet, at: number): LogEnt
   if (isEnd(after) && !isEnd(before)) out.push({ at, kind: 'end', text: 'done', detail: null })
   return out
 }
+
+// --- the run's issue -------------------------------------------------------------
+
+export type IssueRef = { kind: 'github'; repo: string | null; number: number } | { kind: 'file'; path: string }
+
+/**
+ * Where the sheet's `source:` says the issue lives: `owner/repo#42` or `#42` on GitHub,
+ * else a file, a relative path taken from the session's folder. Null when there is none.
+ */
+export const issueOf = (source: string | null | undefined, cwd: string | null): IssueRef | null => {
+  if (source == null || source === '') return null
+  const gh = /^(?:([\w.-]+\/[\w.-]+))?#(\d+)$/.exec(source)
+  if (gh) return { kind: 'github', repo: gh[1] ?? null, number: Number(gh[2]) }
+  if (/^(?:[a-z]:[\\/]|[\\/])/i.test(source)) return { kind: 'file', path: source }
+  if (cwd === null) return null
+  const sep = cwd.includes('\\') ? '\\' : '/'
+  return { kind: 'file', path: `${cwd.replace(/[\\/]+$/, '')}${sep}${source}` }
+}
+
+/** Whether a shell command closes issue `n` with gh: `gh issue close 42`, `#42`, or its URL. */
+export const closesIssue = (command: string, n: number): boolean =>
+  [...command.matchAll(/\bgh\s+issue\s+close\s+(?:\S*\/issues\/|#)?(\d+)\b/g)].some(m => Number(m[1]) === n)
+
+/** Whether an issue file's `Status:` line says it is finished. */
+export const isClosedStatus = (text: string): boolean => /^\s*Status:\s*(done|closed|resolved|archived|wontfix)\b/im.test(text)
 
 /** The test runner a shell command calls, by name; null for any other command. */
 const TEST_RUNNER = /\b(vitest|jest|pytest|cargo test|go test|bun test|deno test|(?:npm|pnpm|yarn)(?: run)? test|claude plugin test|check-mods|flutter test|dotnet test|gradle test|mvn test)\b/

@@ -165,7 +165,9 @@ What one run keeps of itself while it lasts: each step checked off as it ends, a
 note each step leaves the next (*"only docs changed — prose checks"*), and what is
 carried for a person until `ask-it` puts it in front of them. It names the issue
 it belongs to, so a later run on the same issue can find one left behind and ask
-whether to pick it up. **It lives only as long as the run**, outside any
+whether to pick it up — twice over: as **issue**, the issue and its title as a
+person reads them, and as **source**, the issue's address in a form a program can
+follow (the tracker's number, or the issue file's path). **It lives only as long as the run**, outside any
 repository; deleting it at the end loses nothing that has not already reached a
 person. Not a record — the records stay where they were: decision records, the
 tracker, the commit.

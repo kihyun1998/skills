@@ -2,8 +2,12 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import {
+  closesIssue,
   focusOf,
+  isClosedStatus,
   isDone,
+  issueOf,
+  onIssueClosed,
   isSheetPath,
   labelOf,
   minutes,
@@ -61,6 +65,69 @@ let tempDir: string | null | undefined
 // The sheet's modification time when it was last read, so an unchanged sheet is not read again.
 let sheetSeen = -1
 
+/** gh is asked whether the run's GitHub issue is closed at most this often. */
+const GH_EVERY_MS = 5 * 60_000
+// The issue file's modification time when last read, and whether it was ever there: a path
+// never seen is a mistyped one, not an archived issue. When gh was last asked.
+let issueSeen = -1
+let isIssueFound = false
+let ghAskedAt: number | null = null
+
+// A new run watches its own sheet and issue from scratch.
+const forgetWatch = () => {
+  sheetSeen = -1
+  issueSeen = -1
+  isIssueFound = false
+  ghAskedAt = null
+}
+
+const closeByIssue = async ($: EngineInterface) => {
+  const t = await $.clock.now()
+  await update($, run, r => (r === null ? r : onIssueClosed(r, t)))
+  await update($, now, () => t)
+}
+
+// A local issue file marked done, or gone once seen (archived, moved): the run's issue is closed.
+const checkIssueFile = async ($: EngineInterface) => {
+  const r = await read($, run)
+  const issue = r === null || r.doneAt !== null ? null : issueOf(r.sheet?.source, cwd)
+  if (issue?.kind !== 'file') return
+  let mtime: number
+  try {
+    mtime = (await $.fs.stat(issue.path)).mtimeMs
+  } catch {
+    if (isIssueFound) await closeByIssue($)
+    return
+  }
+  isIssueFound = true
+  if (mtime === issueSeen) return
+  issueSeen = mtime
+  let text: string
+  try {
+    text = await $.fs.read(issue.path)
+  } catch {
+    return
+  }
+  if (isClosedStatus(text)) await closeByIssue($)
+}
+
+// A GitHub issue closed anywhere (the web, a merged PR): gh is asked, now and then.
+const checkIssueGh = async ($: EngineInterface) => {
+  const r = await read($, run)
+  const issue = r === null || r.doneAt !== null ? null : issueOf(r.sheet?.source, cwd)
+  if (issue?.kind !== 'github') return
+  const t = await $.clock.now()
+  if (ghAskedAt !== null && t - ghAskedAt < GH_EVERY_MS) return
+  ghAskedAt = t
+  const argv = ['gh', 'issue', 'view', String(issue.number), ...(issue.repo === null ? [] : ['-R', issue.repo]), '--json', 'state', '--jq', '.state']
+  try {
+    const out = await $.process.run(argv, { timeoutMs: 10_000 })
+    if (out.exitCode === 0 && out.stdout.trim() === 'CLOSED') await closeByIssue($)
+  } catch {
+    // No gh here, or no network: the next ask may answer.
+  }
+}
+
 // No shell runs the argv: cmd answers on Windows, sh elsewhere.
 const TEMP_ASKS: readonly (readonly string[])[] = [
   ['cmd', '/c', 'echo %TEMP%'],
@@ -107,6 +174,8 @@ const tick = async ($: EngineInterface) => {
     await update($, now, () => t)
     // A write the tool hooks did not see (another process, a missed call) still shows within a tick.
     await checkSheet($)
+    await checkIssueFile($)
+    await checkIssueGh($)
   }
 }
 
@@ -192,8 +261,14 @@ export const register: Register = on => {
     if (e.origin.kind === 'composer' || e.origin.kind === 'bridge') {
       const label = labelOf(e.text)
       if (label !== null) {
+        // The new run starts here, whatever the first left: its skill restarts it, named, if it expands.
         pendingLabel = label
+        const t = await $.clock.now()
+        await update($, run, () => startRun(label, t))
+        forgetWatch()
+        await update($, now, () => t)
       } else {
+        pendingLabel = null
         await shutOrphanPane($)
         const t = await $.clock.now()
         const before = await read($, run)
@@ -218,7 +293,7 @@ export const register: Register = on => {
       const sheetPath = temp === null ? null : sheetPathFor(temp, baseName(cwd ?? '') || 'repo', t, hex)
       await update($, run, () => ({ ...startRun(pendingLabel, t), sheetPath }))
       pendingLabel = null
-      sheetSeen = -1
+      forgetWatch()
       await update($, now, () => t)
       const result = await next(e)
       return sheetPath === null ? result : { ...result, text: result.text + sheetLine(sheetPath) }
@@ -298,7 +373,8 @@ export const register: Register = on => {
         const entry = log[i]
         if (entry) log[i] = { ...entry, detail: isDismissed ? 'dismissed' : (answers[q] ?? 'no answer') }
       }
-      return isDismissed ? onDismiss({ ...r, log }) : onAnswer({ ...r, log }, t)
+      // A finished run is moved on from by a prompt, never by a question inside the turn.
+      return isDismissed ? onDismiss({ ...r, log }) : (onAnswer({ ...r, log }, t) ?? { ...r, log })
     })
     await update($, now, () => t)
     return result
@@ -327,15 +403,20 @@ export const register: Register = on => {
   }).catch(($, e, next) => next(e))
 
   // A shell command that runs tests: its result goes in the log, with the counts it printed.
+  // One that closes the run's GitHub issue ends the run.
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
+    const r = e.agentId === undefined ? await read($, run) : null
     const runner = testOf(e.command)
-    if (e.agentId !== undefined || runner === null || (await read($, run)) === null) return next(e)
+    const issue = r === null ? null : issueOf(r.sheet?.source, cwd)
+    const isClose = issue?.kind === 'github' && closesIssue(e.command, issue.number)
+    if (r === null || (runner === null && !isClose)) return next(e)
     const result = await next(e)
     const t = await $.clock.now()
     const done = resultOf(result)
     const out = `${String(field(done, 'stdout') ?? '')}\n${String(field(done, 'stderr') ?? '')}`
     const isOk = done !== undefined && !('isError' in result && result.isError === true) && field(done, 'interrupted') !== true
-    await update($, run, r => (r === null ? r : addLog(r, { at: t, kind: 'test', text: runner, detail: testCounts(out), isOk })))
+    if (runner !== null) await update($, run, r2 => (r2 === null ? r2 : addLog(r2, { at: t, kind: 'test', text: runner, detail: testCounts(out), isOk })))
+    if (isClose && isOk) await closeByIssue($)
     return result
   }).catch(($, e, next) => next(e))
 
@@ -343,7 +424,10 @@ export const register: Register = on => {
   // look at its modification time once each main-thread call has run.
   on('tool.call', async ($, e, next) => {
     const result = await next(e)
-    if (e.agentId === undefined) await checkSheet($)
+    if (e.agentId === undefined) {
+      await checkSheet($)
+      await checkIssueFile($)
+    }
     return result
   }).catch(($, e, next) => next(e))
 
@@ -459,7 +543,7 @@ export const register: Register = on => {
           {l.kind === 'signal' && <Text color="magenta">{`⚑ ${l.text}`}</Text>}
           {l.kind === 'note' && <Text dimColor>{`→ ${l.text}`}</Text>}
           {l.kind === 'carry' && <Text color="cyan">{`↗ ${l.text}`}</Text>}
-          {l.kind === 'end' && <Text bold color="success">✓ done</Text>}
+          {l.kind === 'end' && <Text bold color="success">{`✓ ${l.text}`}</Text>}
         </Text>
       )
     })

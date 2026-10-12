@@ -29,6 +29,7 @@ record: deleting it at the end loses nothing that has not reached a person
 ```markdown
 # thegraph run sheet
 issue: <the issue as read-it resolved it> — <its title>
+source: <owner/repo#number for a GitHub issue, or the issue file's absolute path>
 repo: <the working tree's absolute path>
 route: <read-it's label, once it names one>
 
@@ -44,7 +45,9 @@ route: <read-it's label, once it names one>
 ```
 
 `[ ]` to do, `[~]` under way, `[x]` done. The steps listed are the route's: an
-open decision lists `read-it`, `confirm`, `lens`, `decide`.
+open decision lists `read-it`, `confirm`, `lens`, `decide`. `source` is the issue's
+address in a form a program can follow: a watcher takes the issue closed there
+(`gh issue close`, a `Status: done`, the file archived away) as the run's end.
 
 **Write it at every boundary, not at the end.** When a step ends, check it, write
 the line for the next step under it, and mark the next one `[~]` before calling

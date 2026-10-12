@@ -42,9 +42,10 @@ const start = async ($: Engine, on: On) => {
 
 // A run sheet as thegraph's template writes it, part way through a prose run.
 const SHEET = 'C:\\Users\\u\\AppData\\Local\\Temp\\thegraph\\penterm-20261007-1542-7f3a9c2e.md'
-const sheetText = (makeIt: ' ' | '~' | 'x') => [
+const sheetText = (makeIt: ' ' | '~' | 'x', source?: string) => [
   '# thegraph run sheet',
   'issue: .scratch/settings/issues/03-row-height.md — 설정 행 높이 통일',
+  ...(source === undefined ? [] : [`source: ${source}`]),
   'repo: D:\\github\\penterm',
   'route: prose',
   '',
@@ -73,7 +74,10 @@ const sheetFiles = (on: On) => {
     return { value: { kind: 'file' as const, size: f.text.length, mtimeMs: f.mtime, isLink: false } }
   })
   on('fs.read', (_$, e) => ({ value: find(e.path)?.text ?? '' }))
-  return { write: (path: string, text: string) => void files.set(path, { text, mtime: ++writes }) }
+  return {
+    write: (path: string, text: string) => void files.set(path, { text, mtime: ++writes }),
+    remove: (path: string) => void files.delete([...files.keys()].find(k => nameOf(k) === nameOf(path)) ?? path),
+  }
 }
 
 // The surface's panes, as the engine keeps them: open, close and list, and how the last one was opened.
@@ -365,6 +369,130 @@ describe('thegraph-panel', () => {
     expect(flat(await ui.drawn())).toBe('BELOW')
   })
 
+  test('a run its sheet checked off whole is moved on from at the next prompt', async ($, on) => {
+    const fs = sheetFiles(on)
+    on('tool.call', { tool: 'Write' }, (_$, e) => {
+      fs.write(e.file_path, e.content)
+      return { result: { type: 'create', filePath: e.file_path, content: e.content, structuredPatch: [], originalFile: null } }
+    })
+    await start($, on)
+    const ui = await band($)
+    await say($, '/thegraph')
+    await skill($, 'thegraph')
+    await $.tool.call({ tool: 'Write', file_path: SHEET, content: sheetText('x') })
+    expect(flat(await ui.drawn())).toContain('ask-it ✓  done')
+    // No event saw ask-it end; the sheet did, and that is the end.
+    await say($, '다음 거 하자')
+    expect(flat(await ui.drawn())).toBe('BELOW')
+  })
+
+  test('a /thegraph whose skill never expands still replaces the run before it', async ($, on) => {
+    await start($, on)
+    const ui = await band($)
+    await say($, '/thegraph #1')
+    await skill($, 'thegraph')
+    await skill($, 'read-it')
+    await say($, '/thegraph #2')
+    await skill($, 'read-it')
+    const line = flat(await ui.drawn())
+    expect(line).toContain('thegraph #2  read-it ◐ › confirm')
+    expect(line).not.toContain('#1')
+  })
+
+  test('the GitHub issue on the sheet closed by the run ends the run; another issue closed does not', async ($, on) => {
+    const fs = sheetFiles(on)
+    on('tool.call', { tool: 'Write' }, (_$, e) => {
+      fs.write(e.file_path, e.content)
+      return { result: { type: 'create', filePath: e.file_path, content: e.content, structuredPatch: [], originalFile: null } }
+    })
+    on('tool.call', { tool: 'Bash' }, () => ({ result: { stdout: '', stderr: '', interrupted: false, isImage: false } }))
+    await start($, on)
+    const ui = await band($)
+    await say($, '/thegraph #42')
+    await skill($, 'thegraph')
+    await $.tool.call({ tool: 'Write', file_path: SHEET, content: sheetText('~', 'kihyun1998/penterm#42') })
+    await $.tool.call({ tool: 'Bash', command: 'gh issue close 41 --comment "dup"' })
+    expect(flat(await ui.drawn())).toContain('make-it ◐')
+    expect(flat(await ui.drawn())).not.toContain('done')
+    await $.tool.call({ tool: 'Bash', command: 'gh issue close #42 -R kihyun1998/penterm --comment "done"' })
+    expect(flat(await ui.drawn())).toContain('done · ')
+    const pane = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS })
+    expect(flat(await pane.drawn())).toContain('✓ issue closed')
+    // Ended, it goes at the next prompt like any finished run.
+    await say($, '다음')
+    expect(flat(await ui.drawn())).toBe('BELOW')
+  })
+
+  test('the GitHub issue on the sheet closed elsewhere is found by asking gh now and then', async ($, on) => {
+    const fs = sheetFiles(on)
+    let state = 'OPEN'
+    const asked: string[][] = []
+    on('process.run', (_$, e) => {
+      asked.push([...e.argv])
+      const stdout = e.argv[0] === 'gh' ? `${state}\n` : '/tmp\n'
+      return { value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+    })
+    on('tool.call', { tool: 'Write' }, (_$, e) => {
+      fs.write(e.file_path, e.content)
+      return { result: { type: 'create', filePath: e.file_path, content: e.content, structuredPatch: [], originalFile: null } }
+    })
+    const clock = await start($, on)
+    const ui = await band($)
+    await say($, '/thegraph #42')
+    await skill($, 'thegraph')
+    await $.tool.call({ tool: 'Write', file_path: SHEET, content: sheetText('~', 'kihyun1998/penterm#42') })
+    await clock.advance(6 * MIN)
+    expect(flat(await ui.drawn())).toContain('make-it ◐')
+    expect(asked.some(a => a[0] === 'gh' && a.includes('42') && a.includes('kihyun1998/penterm'))).toBe(true)
+    state = 'CLOSED'
+    await clock.advance(6 * MIN)
+    expect(flat(await ui.drawn())).toContain('done · ')
+  })
+
+  test('a local issue file marked done, or moved away once seen, ends the run', async ($, on) => {
+    const fs = sheetFiles(on)
+    on('tool.call', { tool: 'Write' }, (_$, e) => {
+      fs.write(e.file_path, e.content)
+      return { result: { type: 'create', filePath: e.file_path, content: e.content, structuredPatch: [], originalFile: null } }
+    })
+    on('tool.call', { tool: 'Bash' }, () => ({ result: { stdout: '', stderr: '', interrupted: false, isImage: false } }))
+    const ISSUE = 'D:\\github\\penterm\\.scratch\\settings\\issues\\03-row-height.md'
+    const issueText = (status: string) => `# 03 — 설정 행 높이 통일\n\nStatus: ${status}\n`
+    await start($, on)
+    const ui = await band($)
+    for (const finish of ['status', 'move'] as const) {
+      fs.write(ISSUE, issueText('ready-for-agent'))
+      await say($, '/thegraph')
+      await skill($, 'thegraph')
+      await $.tool.call({ tool: 'Write', file_path: SHEET, content: sheetText('~', ISSUE) })
+      await $.tool.call({ tool: 'Bash', command: 'true' })
+      expect(flat(await ui.drawn())).toContain('make-it ◐')
+      if (finish === 'status') fs.write(ISSUE, issueText('done'))
+      else fs.remove(ISSUE)
+      await $.tool.call({ tool: 'Bash', command: 'true' })
+      expect(flat(await ui.drawn())).toContain('done · ')
+      await say($, '다음')
+      expect(flat(await ui.drawn())).toBe('BELOW')
+    }
+  })
+
+  test('a local issue file never seen is not taken as closed', async ($, on) => {
+    const fs = sheetFiles(on)
+    on('tool.call', { tool: 'Write' }, (_$, e) => {
+      fs.write(e.file_path, e.content)
+      return { result: { type: 'create', filePath: e.file_path, content: e.content, structuredPatch: [], originalFile: null } }
+    })
+    on('tool.call', { tool: 'Bash' }, () => ({ result: { stdout: '', stderr: '', interrupted: false, isImage: false } }))
+    await start($, on)
+    const ui = await band($)
+    await say($, '/thegraph')
+    await skill($, 'thegraph')
+    await $.tool.call({ tool: 'Write', file_path: SHEET, content: sheetText('~', 'D:\\nowhere\\typo.md') })
+    await $.tool.call({ tool: 'Bash', command: 'true' })
+    expect(flat(await ui.drawn())).toContain('make-it ◐')
+    expect(flat(await ui.drawn())).not.toContain('done')
+  })
+
   test('a question put away with Esc is no answer: the run waits, and what is typed next takes it up again', async ($, on) => {
     let isEsc = true
     on('tool.call', { tool: 'AskUserQuestion' }, () =>
@@ -425,9 +553,10 @@ describe('thegraph-panel', () => {
     for (const s of ['make-it', 'redden', 'check-it', 'ask-it']) await skill($, s)
     await $.tool.call({ tool: 'AskUserQuestion', questions: [{ question: '이슈로?', header: '정리', options: [], multiSelect: false }] })
     expect(flat(await ui.drawn())).toContain('thegraph #1')
-    // The next run's prompt answers nothing of the first; its skill replaces the first whole.
+    // The next run's prompt replaces the first whole, before its skill expands.
     await say($, '/thegraph #2')
-    expect(flat(await ui.drawn())).toContain('thegraph #1')
+    expect(flat(await ui.drawn())).toContain('thegraph #2')
+    expect(flat(await ui.drawn())).not.toContain('thegraph #1')
     await skill($, 'thegraph')
     await skill($, 'read-it')
     const line = flat(await ui.drawn())
