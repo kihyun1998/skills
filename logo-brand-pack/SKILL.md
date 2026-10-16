@@ -1,6 +1,6 @@
 ---
 name: logo-brand-pack
-description: Turn approved master logo artwork into a repository-ready brand asset pack. Use when a finalized logo needs transparent PNGs, SVGs, light/dark variants, project icons, favicons, README banners, social previews, or horizontal lockups.
+description: Turn approved logos into brand packs with macOS app icons. Use when finalized artwork needs brand exports, app icons, favicons, banners, or lockups.
 ---
 
 # Logo Brand Pack
@@ -20,6 +20,8 @@ Treat the supplied logo as master artwork. Preserve its geometry, proportions, s
 Default to monochrome: black or near-black for light surfaces, white for dark surfaces, and neutral gray only when technically necessary. Add colour, gradients, shadows, glow, texture, 3D effects, decoration, or new symbol elements only when the user requests them.
 
 Read [the asset specification](references/asset-spec.md) before producing assets.
+
+Include macOS app icons in every brand pack by default unless the user explicitly excludes them. Read [the macOS icon specification](references/macos-icons.md) before producing them. Its platform container rules apply to app icons while the supplied symbol retains its original geometry.
 
 ## Deliverables
 
@@ -44,6 +46,10 @@ brand/
 │   └── {project}-lockup-white.png
 ├── icons/
 │   └── {project}-icon-{light|dark}-{size}.png
+├── macos/
+│   ├── {project}-macos-{light|dark}-1024.png
+│   ├── {project}-macos-{light|dark}.iconset/
+│   └── {project}-macos-{light|dark}.icns
 ├── readme/
 │   ├── {project}-readme-light.png
 │   └── {project}-readme-dark.png
@@ -72,7 +78,8 @@ Before delivery, inspect the outputs to confirm:
 - light/dark assets remain legible on their intended backgrounds;
 - SVGs render and are vector where possible;
 - icon padding and aspect ratios are consistent, including recognizable 16 px and 32 px icons;
+- macOS icon geometry, iconset representations, and decoded ICNS contents pass the checks in the macOS specification;
 - banner and social-preview dimensions and readability are correct; and
 - filenames and output structure match this skill.
 
-When practical, add a contact sheet for visual review. Create `brand/README.md` identifying light and dark usage, the recommended README banner, favicon files, social-preview files, and the rule not to distort or recolour the mark. Package `{project}-brand-pack.zip` only when useful or requested.
+When practical, add a contact sheet for visual review, including the macOS icons. Create the pack's `README.md` identifying light and dark usage, the recommended README banner, favicon files, social-preview files, macOS installation assets and their intended workflow, and the rule not to distort or recolour the mark. Package `{project}-brand-pack.zip` only when useful or requested.
