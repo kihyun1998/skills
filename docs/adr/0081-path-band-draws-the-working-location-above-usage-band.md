@@ -8,9 +8,9 @@ branch. It draws one line of its own above `usage-band`, as two chips:
 
 ## The call, and whose it was
 
-The maintainer's, on 2026-10-20. They chose this from a prototype with four placements,
-kept on the `prototype/path-band` branch (`47762e9`), never merged:
-*"A가 나음"*, then the chips, the cut and no moved-from marker, each picked
+The maintainer's, on 2026-10-20. They chose this from a throwaway HTML prototype that
+drew four placements on a mocked terminal. It was deleted once chosen, because
+what it showed is written below: *"A가 나음"*, then the chips, the cut and no moved-from marker, each picked
 from the options put to them.
 
 ## What it was decided on
