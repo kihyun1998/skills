@@ -6,6 +6,11 @@
   },
   "plugins": [
     {
+      "name": "path-band",
+      "source": "./mods/path-band",
+      "description": "One line above the prompt with where the agent is working now and on which branch, as two chips: the worktree or repository with the path beneath it, and the branch (a short SHA when detached). It follows /cd and worktree moves; a long path gives way at its start so the branch stays whole."
+    },
+    {
       "name": "thegraph-panel",
       "source": "./mods/thegraph-panel",
       "description": "While /thegraph runs: one line above the prompt with its steps in order, each marked, and the signals that fired, and a button that opens a pane with a gantt of the steps over the whole log as a table; the spinner and each turn's closing line carry the step and what the turn did."

@@ -59,6 +59,7 @@ How each entry was found:
 | `turn.complete` carries `agentId` for a subagent's turn and leaves it absent on the main thread. | types |
 | A question the model puts in a box (`AskUserQuestion`) neither ends the turn nor brings a `prompt.submit`: the person's reply comes back as that tool call's result. Hook `tool.call` for `AskUserQuestion` to see the person's turn and their answer. | measured (a `/thegraph` run in another session) |
 | `$.session.usage()`'s `rateLimits` come from the last API response's headers, and a window drops out once its `resetsAt` passes with no response since; a new or resumed session has none until its first response. `$.session.authorize()`'s `kind` (`bearer` for a login, `api-key`, or null) says whether limits are to be expected. | types (`SessionUsage.rateLimits`, `SessionAuthorization`); the 2.1.294 source |
+| A shell `cd` moves `$.session.cwd()` and nothing else: `$.session.root()` stays and `CwdChanged` does not fire. Inside the `tool.call` hook of the call that ran the `cd`, `cwd()` still reads the old folder; the next call, or a read a second later, sees the new one. A `cd` outside the project is reset to its root by the harness. | measured (`path-band`, 2.1.304) |
 | `$` may be passed only to functions declared at the module's top level. `claude plugin validate` refuses a closure that passes it on. | validator |
 
 ## Testing kit (`claude-code/testing`)
@@ -73,6 +74,7 @@ How each entry was found:
 | `$.ui.mount({ ..., viewport: { columns, rows, isFullscreen } })` mounts the tree as either layout. | test |
 | The test's `$.tool.call` takes the tool's fields flat (`{ tool: 'Edit', file_path, … }`), with no `input` wrapper. A bottom `tool.call` hook answers with `{ result }`. | test |
 | The test's `$.tool.call` cannot set `agentId`, so a hook's subagent filter on `tool.call` cannot be reached from a test. | test |
+| A hand-written fake can carry the module's own mistake, and then the test passes. `$.fs.stat`'s `kind` is `'dir'`, not `'directory'`. A module and its fake both wrote `'directory'` and every test passed, which would have meant no branch in a real repository. Only type-checking the tests against the API caught it, so run `tsc` over `tests` too. | test (`path-band`) |
 | `expect` has no `toBeCloseTo`. | test |
 
 ## Workflow

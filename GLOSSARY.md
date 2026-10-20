@@ -357,6 +357,16 @@ tie-breaker is what has authority.
 _Avoid_: Open question (implies it is waiting on information; this is waiting on
 a decision), Gap
 
+**Working location** (path-band):
+Where the agent is working now, as `path-band` shows it: the worktree's name
+inside a worktree, otherwise the repository's name, and the path relative to it.
+Outside any repository it is the path shortened with `~`. It is the agent's
+location, not where the session started: it moves with the agent's shell `cd`, as
+well as `/cd` and worktree moves, because it is read from `$.session.cwd()`
+(ADR-0081).
+_Avoid_: cwd (the absolute path it is read from — not what is shown), session root
+(the engine's `$.session.root()`, which a shell `cd` does not move)
+
 ## Relationships
 
 - An **AFK agent** produces work in response to one **issue**; the

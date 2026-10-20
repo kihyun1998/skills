@@ -1,0 +1,9 @@
+{
+  "name": "path-band",
+  "version": "0.1.0",
+  "author": {
+    "name": "Ki Hyun Park"
+  },
+  "description": "One line above the prompt with where the agent is working now and on which branch, as two chips: the worktree or repository with the path beneath it, and the branch (a short SHA when detached). It follows /cd and worktree moves; a long path gives way at its start so the branch stays whole.",
+  "types": "./types/index.d.ts"
+}
