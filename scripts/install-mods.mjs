@@ -9,7 +9,7 @@
 //   --uninstall   remove every mod and the marketplace.
 //   --dry-run -n  print the changes and make none.
 //
-// install-mods.ps1 and install-mods.sh only run this file. mods/README.md holds
+// install-mods.sh only runs this file. mods/README.md holds
 // the layout a mod folder must have.
 
 import { spawnSync } from 'node:child_process'

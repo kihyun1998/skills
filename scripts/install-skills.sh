@@ -18,7 +18,7 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; repo_root="$(dirname
 run() { [ "$dry_run" -eq 1 ] || "$@"; }
 # Git Bash's `ln -s` deep-copies the directory unless MSYS asks for native links, and
 # exits 0 either way; a copy then reads as a shadow on every later run. On Windows the
-# link is a junction, as install-skills.ps1 makes, and every link is checked after.
+# link is a junction, and every link is checked after.
 link_dir() {
     local target="$1" link="$2"
     case "$(uname -s)" in

@@ -53,18 +53,13 @@ Link every skill in this repo into both `~/.claude/skills` and
 `~/.codex/skills` (or `$CODEX_HOME/skills` when `CODEX_HOME` is set):
 
 ```sh
-# Windows (PowerShell)
-powershell -File .\scripts\install-skills.ps1
-
-# macOS / Linux / WSL / git-bash
-./scripts/install-skills.sh
+./scripts/install-skills.sh        # macOS / Linux / WSL / Git Bash on Windows
 ```
 
-To sync only one agent, use `-Target Claude` or `-Target Codex` on PowerShell,
-or `--claude` / `--codex` on macOS, Linux, WSL, and Git Bash.
+To sync only one agent, add `--claude` or `--codex`.
 
-Both scripts scan the repo for every folder containing a `SKILL.md`, so new
-skills are picked up automatically on re-run. They create links — a directory
+The script scans the repo for every folder containing a `SKILL.md`, so new
+skills are picked up automatically on re-run. It creates links — a directory
 junction on Windows, a symlink on Unix — not copies, so edits made in this
 repo are live in both agents immediately. No Developer Mode or elevation is
 needed.
@@ -79,16 +74,16 @@ silent, and is how four skills once ran for days against a stale copy of
 themselves after a rename. The run says whether the shadow's `SKILL.md` differs
 from this repo's and carries the count into its summary line, so a run that
 skipped skills cannot read as a clean one. Nothing is removed by default; add
-`-ReplaceCopies` / `--replace-copies` and the folder is **moved** to
-`~/.claude/skills-replaced/<name>-<timestamp>`, never deleted — neither script
-can tell an old copy from one somebody edited in place, and moving is the action
+`--replace-copies` and the folder is **moved** to
+`~/.claude/skills-replaced/<name>-<timestamp>`, never deleted — the script
+cannot tell an old copy from one somebody edited in place, and moving is the action
 that does not need that judgement.
 
 Re-running is a **sync**, not just an add: a skill that was deleted, renamed,
 or merged into another bundle leaves a stale link behind, and the script
 prunes it. Only links pointing back into *this* repo are ever removed — links
 that other skill repos put in `~/.claude/skills` are left untouched. Pass
-`--dry-run` (`-DryRun` on PowerShell) to preview the changes without touching
+`--dry-run` to preview the changes without touching
 anything.
 
 ## Adding a skill
@@ -103,9 +98,8 @@ anything.
 repo is also a plugin marketplace that lists them, and one script installs them
 all for every session:
 
-```powershell
-.\scripts\install-mods.ps1        # Windows; -DryRun, -Uninstall
-./scripts/install-mods.sh          # macOS / Linux / WSL / git-bash; --dry-run, --uninstall
+```sh
+./scripts/install-mods.sh          # macOS / Linux / WSL / Git Bash; --dry-run, --uninstall
 ```
 
 From another machine, without cloning: `/plugin install <mod> --marketplace kihyun1998/skills`.

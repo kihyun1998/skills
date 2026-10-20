@@ -8,7 +8,7 @@ repo, so this note is the only record of why it looks the way it does.
 ## Current setting
 
 There is no `statusLine` key. The mod is installed at user scope from this
-repo's marketplace by `scripts/install-mods.ps1`, which leaves this in
+repo's marketplace by `scripts/install-mods.sh`, which leaves this in
 `~/.claude/settings.json`:
 
 ```json

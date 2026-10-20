@@ -2,13 +2,12 @@
 
 Claude Code mods: plugins of function hooks that draw in the terminal (a band, a
 pane, the status line) or hook the session's events. They are not skills, and
-the skill install scripts leave this folder alone.
+the skill install script leaves this folder alone.
 
 ## Install
 
-```powershell
-.\scripts\install-mods.ps1             # Windows; -DryRun previews, -Uninstall removes all
-./scripts/install-mods.sh              # macOS / Linux / WSL / git-bash; --dry-run, --uninstall
+```sh
+./scripts/install-mods.sh              # macOS / Linux / WSL / Git Bash; --dry-run, --uninstall
 ```
 
 The script is a sync. It validates every mod, rewrites
