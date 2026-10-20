@@ -43,15 +43,19 @@ restate them here or in the draft** — that text moves with the tool.
    Re-researching produces a survey of the topic rather than a record of the
    work, and the author will not recognise it.
 
-3. **Hold the line between what may be written and what must be quoted.**
+3. **Hold the line between what you write and whose stance it is.**
    Technical content worked out in the session is yours to write up. Opinions,
    evaluations, surprise, and anything of the form *"this is the interesting
-   part"* are the author's, drawn from what they actually said in this session.
-   Where the session holds none, leave the gap visible or ask one question —
-   inventing one is the failure this skill exists to avoid.
+   part"* follow the author's stance — the direction they gave in this session.
+   By default (stance mode, `jblog voice` §2-A) you write those sentences
+   yourself, woven into the surrounding prose; the author's exact words go in
+   only when they ask for it (quote mode). Never add a stance they did not give,
+   and never invent a fact about the author (what they tried, asked or got
+   wrong). Where the session holds no stance, leave the gap visible or ask one
+   question — inventing one is the failure this skill exists to avoid.
 
-4. **Read the tone notes and use the author's own messages.** `jblog voice`
-   returns them; hold them while polishing. **They are read, never written** —
+4. **Read the tone notes and take the stance from the author's own messages.**
+   `jblog voice` returns the notes; hold them while writing. **They are read, never written** —
    updating them belongs to the skills that live in the blog's own checkout,
    and the kill switch is theirs. If the command reports it cannot read them,
    say so rather than proceeding on a default voice.
