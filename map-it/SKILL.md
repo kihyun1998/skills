@@ -1,7 +1,7 @@
 ---
 name: map-it
 disable-model-invocation: true
-description: "Write a repo's MAP by reading it the way a person learns a codebase. Use when a repo has no map yet. /map-it, /map-it init."
+description: "Write and keep a repo's MAP by reading it the way a person learns a codebase. Use when a repo has no map yet, or its map has fallen behind its commits. /map-it, /map-it init."
 ---
 
 # map-it — read the repo, then map it
@@ -29,10 +29,9 @@ Look at the map folder and say in one line which mode runs and why.
 
 `/map-it init` forces init on a map with a synced-at line.
 
-**update** and **init over an existing map** are not built yet (tracked:
-#17, #16 in the skills repository). For either — including `/map-it init` over a
-folder that holds notes with no synced-at line — say so, name the issue, and
-stop without writing.
+**init over an existing map** is not built yet (tracked: #16 in the skills
+repository). For it — including `/map-it init` over a folder that holds notes
+with no synced-at line — say so, name the issue, and stop without writing.
 
 ## init
 
@@ -107,8 +106,9 @@ subject you found. Record each answer by its **provenance**:
 An answer that points somewhere — *"look at the caller"* — is a lead: read
 where it points, and record what you found there under the first rule.
 
-An old note, a comment or a commit message used as a source follows the same
-rule.
+A README, an old note, a comment or a commit message used as a source follows
+the same rule: what it says about the code is checked against the code before a
+note repeats it.
 
 **Done when** the maintainer has answered the draft question and every open
 question from the reading is answered or written into a note's
@@ -129,15 +129,18 @@ The hub carries two stamps, one line each:
 
 ```markdown
 <!-- map-it build stamp: <skills repo commit> -->
-<!-- map-it synced at: <this repo's HEAD commit> -->
+<!-- map-it synced at: <this repo's HEAD commit> (<its committer date, yyyy-mm-dd>) -->
 ```
 
 The build stamp is the commit of the skills checkout that `~/.claude/skills/map-it`
-resolves to. The synced-at line is what update reads from.
+resolves to, with `(uncommitted)` after it when that checkout has uncommitted
+changes to `map-it`. The synced-at line is what update reads from; the date is its
+fallback when the commit is gone.
 
 **Done when** every territory from step 2 has a note, the hub links them all,
 both stamps are written, and the identity doc carries the hub link and the
-binding from [Once the map exists](#once-the-map-exists).
+binding from [Once the map exists](#once-the-map-exists) — or, in a repo with no
+identity doc, the hub says so and the closing report names it.
 
 ### 5. The reading test
 
@@ -165,6 +168,107 @@ does.
 **Done when** the test reaches every touched territory, and its transcript — the
 change, the path from the hub, the explanation, the comparison — has been shown
 to the maintainer.
+
+## update
+
+The map was true at its synced-at commit. Update reads what happened since, the
+way a maintainer back from leave reads the log: subjects first, then the diffs
+that matter, then the notes those diffs falsified. A note is opened only when a
+commit or a backlog change names it (step 1), or it holds a copy of a fact the
+range changed (step 3).
+
+### 1. Read the range
+
+Resolve the synced-at commit. If it no longer exists (a rebase, a squash), read
+from the first commit **on** its date — the stamp has no time, and re-reading a
+day costs less than missing a commit — and say so in one line naming both. If
+it is HEAD, the map is current: say so and stop.
+
+Read every commit subject in the range, and give each one a class:
+
+| Class | Examples | What follows |
+|---|---|---|
+| **behaviour** | a feature, a fix, a changed default | its diff is read |
+| **refactor** | a file split, symbols moved, a module extracted, a module path renamed — behaviour unchanged | its diff is read for moved addresses, and for a fact restated at the new site (a module doc, a comment) that a note already owns |
+| **structure** | a new top-level package, a moved entry point, a reorganised tree, a territory's code removed whole | see below |
+| **doc** | the README, the identity doc, the glossary, a decision record | its diff is read: a doc can falsify a claim, and a new decision record fills a `## Governing decisions`. A claim the doc makes about the code is checked against the code before a note repeats it |
+| **build** | build, release, CI, packaging | its diff is read |
+| **noise** | a dependency bump, formatting, a release tag with no change | named, not read |
+
+Read the backlog too: issues opened or closed since that date. It changes
+without a commit. An **opened** issue is read like a behaviour commit's subject
+— which notes would it bite? — and goes in as a `Tracked:` pointer or a
+`## Known holes / open` line; a **closed** one is found where notes cite it, and
+the sentence around the citation is checked against the code.
+
+A subject can lie about its commit. Where the files a commit touched do not
+match its subject, read the diff and class it by what it did.
+
+**A structure commit is a reason to stop.** The territories were drafted from a
+system that is no longer there, and patching them maps the old one. Recommend
+`/map-it init`, give the commit and what moved, and stop unless the maintainer
+says to continue. A rename that touches every file and changes no behaviour (a
+module path) is not structure; it is a refactor.
+
+**Done when** every commit in the range has a class, every backlog change is
+read as opened or closed, and each that is not noise names the notes it may
+falsify, or *none* with the reason.
+
+### 2. Fix what the range falsified
+
+For each named note, read the whole note against the code as it is now — not
+the diff alone. The diff says where to look; the note says what was claimed.
+
+- **A claim the change made false** — a design rule, a blast edge, a known hole
+  now closed, a governing decision now written — rewrite it with its evidence.
+  Provenance follows init's step 3; a commit is evidence, its message a source.
+- **An address that moved** — a symbol renamed or moved between files —
+  correct `## Code`. A symbol that no longer exists anywhere is not an address
+  problem: the design model above it may be gone too.
+- **An area no note covers** — draft it under init's step 2 rules and write it
+  with NOTES.md. An entry point or top-level folder that appeared is the usual
+  tell.
+- **An identity doc that appeared or changed** — make sure it carries the hub
+  link and the [binding](#once-the-map-exists).
+
+Ask when the reading does not settle which claim a change moved, as in init's
+step 3. Keep each invariant's territories and the territories' cross-cutting
+sections pointing at each other.
+
+**Done when** every note named in step 1 has been reread and either changed or
+confirmed unchanged, and no note outside them was edited in this step.
+
+### 3. Read the same fact in two notes
+
+A map gains a second copy of a fact through updates, and the copy usually sits in
+a note no commit named. For every fact the range changed — an enumeration, a
+shared constant, a named rule — search **every** note for it and read the copies
+side by side. **One note owns it; the others say they are one of its cases and
+link.** Two lists of the same length beside each other is the smell: check that
+each entry in one maps to an entry in the other, and where one does not, ask what
+the unmatched entry was — it is usually the sharpest fact in the territory.
+
+**Done when** each such fact has one owner and the rest are pointers. The edits
+here are the only ones allowed outside step 1's notes.
+
+### 4. Advance the stamps
+
+Set `map-it synced at` to HEAD with its committer date (`git log -1 --format=%cs`),
+and the build stamp to the skills commit this run used — with `(uncommitted)`
+after it when the skills checkout had uncommitted changes to `map-it`.
+
+**Done when** both lines name this run.
+
+### 5. The reading test
+
+As init's step 5, on a behaviour commit **from the range**; where the range has
+none, on an opened backlog item, and where there is none of those either, say
+the test had nothing to run on. The predictor sees only the updated map and the
+subject line.
+
+**Done when** the test reaches every territory that change touched, and the run
+— the range, each commit's class, the notes changed and why, the test — has been
+shown to the maintainer.
 
 ## Once the map exists
 
