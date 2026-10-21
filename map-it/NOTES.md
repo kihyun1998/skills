@@ -48,12 +48,15 @@ only from reading the source; that is the territory's status.
 ## Code
 Symbols by file, as text: `file — Type::method`. A territory that is designed and
 not built takes **None.**, then what does not exist and where a first slice
-would start.
+would start. It gets a note when something in the repo commits to it — a
+decision record, a spec, an open issue with a design; an idea with nothing
+behind it is a line in the hub's scope instead.
 
 ## Reference behaviour
 Links into the repo's verified external-fact store, anchored to the entry, one
-line each on what it settles here. **None.** when this area was never compared to
-a reference.
+line each on what it settles here. Without a store, link the comparison's own
+source — a pinned upstream file, the issue that measured it. **None.** only when
+this area was never compared to a reference.
 
 ## Cross-cutting invariants
 Links to the invariant notes that hold here.
@@ -131,7 +134,8 @@ sentinel queries answer the rest. It holds what no note holds:
 - what the map cannot answer: source files and issues are text inside notes,
   not nodes;
 - the scope, and **what an absent note means** — when absence is correct and
-  what makes a note owed ("a territory appears when its first slice lands");
+  what makes a note owed ("a territory appears when something in the repo
+  commits to it");
 - what the orientation found that belongs to no single note (the repo's shape in
   one paragraph, the largest gap);
 - the two stamps (SKILL.md, step 4).

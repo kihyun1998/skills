@@ -9,7 +9,8 @@ description: "Write and keep a repo's MAP by reading it the way a person learns 
 A **MAP** is a repo's linked note graph (see `GLOSSARY.md`). It answers the two
 questions that gate a change: *if I touch this, what else moves?* and *what
 decision is this shape derived from?* It lives in `docs/map/` unless the repo's
-layout names another place, and its hub is linked from the repo's identity doc.
+layout names another place, and its hub is linked from each of the repo's
+identity docs (`CLAUDE.md`, `AGENTS.md`).
 
 This skill builds one the way a new maintainer learns a codebase: read what the
 repo says about itself, walk its tree, read the code that runs, and **ask when
@@ -27,11 +28,8 @@ Look at the map folder and say in one line which mode runs and why.
 | notes, and a hub with a `map-it synced at` line | **update** |
 | notes, and no `map-it synced at` line (a map written by another skill or by hand) | **init over an existing map** |
 
-`/map-it init` forces init on a map with a synced-at line.
-
-**init over an existing map** is not built yet (tracked: #16 in the skills
-repository). For it — including `/map-it init` over a folder that holds notes
-with no synced-at line — say so, name the issue, and stop without writing.
+`/map-it init` forces init on a map with a synced-at line; that run follows
+[init over an existing map](#init-over-an-existing-map), since notes are there.
 
 ## init
 
@@ -133,28 +131,32 @@ The hub carries two stamps, one line each:
 ```
 
 The build stamp is the commit of the skills checkout that `~/.claude/skills/map-it`
-resolves to, with `(uncommitted)` after it when that checkout has uncommitted
-changes to `map-it`. The synced-at line is what update reads from; the date is its
+resolves to (`git -C ~/.claude/skills/map-it rev-parse --short HEAD`), with
+`(uncommitted)` after it when that checkout has uncommitted changes to `map-it`. The synced-at line is what update reads from; the date is its
 fallback when the commit is gone.
 
 **Done when** every territory from step 2 has a note, the hub links them all,
-both stamps are written, and the identity doc carries the hub link and the
+both stamps are written, and every identity doc carries the hub link and the
 binding from [Once the map exists](#once-the-map-exists) — or, in a repo with no
 identity doc, the hub says so and the closing report names it.
 
 ### 5. The reading test
 
-The map is done when it can explain a change. Pick the most recent commit that
-changed behaviour (not a dependency bump, release or formatting pass); in a repo
-without one, pick an open backlog item. A commit that bundles unrelated work
+The map is done when it can explain a change. Prefer an **open backlog item**:
+the map was written at HEAD, so every commit is already in it, and a predictor
+handed a commit's subject can find that commit's own fix written in a note.
+Without a backlog, pick the most recent commit that changed behaviour (not a
+dependency bump, release or formatting pass) and say the map has absorbed it. A commit that bundles unrelated work
 under one subject is scored per part: a territory reached only by the part the
 subject does not name is not a miss.
 
 You have read that change's code, so the prediction is not yours to make. Give a
-fresh subagent that can read **only the map folder** the change's subject line
-or backlog text — no diff — and have it name, from the hub, the territories the
-change touches and why, following blast-radius and invariant links. Then compare
-with the commit's real diff, or with the code the backlog item would need.
+fresh subagent the change's subject line or backlog text — no diff — and the map
+folder as the only thing it may read, and have it name, from the hub, the
+territories the change touches and why, following blast-radius and invariant
+links. Nothing confines it, so have it list every file it opened: one outside the
+map voids the run. Then compare with the commit's real diff, or with the code
+the backlog item would need.
 
 - A territory the change touched and the map did not reach is a **missing edge**
   or a **missing note**: fix it and run the test again.
@@ -168,6 +170,78 @@ does.
 **Done when** the test reaches every touched territory, and its transcript — the
 change, the path from the hub, the explanation, the comparison — has been shown
 to the maintainer.
+
+## init over an existing map
+
+The old map — a `grill-map` map, a flat folder of hand-written notes, a map from
+an earlier init — is one more thing a new maintainer reads: useful, possibly
+stale, and written by someone who knew things the code does not say. Run init's
+five steps with these changes.
+
+**Steps 1 and 2, draft first.** Orient on the repo and write the territory
+draft down **before opening any old note** — the file names seen when the mode
+was chosen are not a draft. Then read every old note, the hub included, and take
+each claim in it as a **lead**, keeping the lead's own provenance: *"decided on
+#1"*, *"the maintainer chose on #5"*, an ADR, a pinned reference — each is
+already a source. Revise the draft where a lead shows the system does something
+you missed.
+
+**The ledger.** Place every old note against the draft:
+
+| Old note is… | What happens to its path |
+|---|---|
+| the same concept as a drafted note | the new note **keeps the old path** |
+| split into several concepts | the path stays with the part that references outside the map cite (`git grep`), or, with none citing a part, the part that holds most of the old note; the other parts are new notes, and references now landing on the wrong part are listed at closing. An aggregate takes the path only where NOTES.md's aggregate rule holds on its own |
+| merged into another concept | the path dies |
+| no longer a concept the system has | the path dies |
+| the old hub | replaced by the new hub at its path |
+
+A new note may be built from several old notes; it takes a new path unless one
+of them is the same concept. Code comments, identity docs and other docs
+point at note paths, and this skill edits none of them, so a path is kept
+wherever a concept survives. New notes follow the old map's layout — flat beside
+flat notes, under `territory/` and `invariant/` where the old map used them; in
+a flat layout an invariant is named for its fact, and the hub links it under its
+own heading, apart from the territories. Put the ledger beside the draft when you ask step 3's question
+whenever a path would die or split: it decides which references break.
+
+**Step 4, carrying.** Every claim in an old note ends one of four ways:
+
+- **re-verified** — checked against the code at HEAD and written with that
+  evidence. A claim true in substance and wrong in a detail is re-verified with
+  the detail corrected, and the correction goes in the closing report;
+- **attributed** — not checkable in the repo (a decision recorded only on an
+  issue or by a person, a measurement on an issue, an upstream comparison),
+  written with its original source and date. A decision recorded in the repo — a
+  decision record, a direction doc — is evidence that it was decided; whether
+  the code follows it is re-verified;
+- **moved** — re-verified or attributed into another note, because it is that
+  note's fact;
+- **dropped** — false at HEAD, a to-do already done, or a story whose lesson
+  no section holds, with the reason in the closing report. A discovery history
+  and a dated measurement are not dropped as history: they go to the sections
+  that hold them.
+
+The evidence or source written beside each claim is the marker; there is no
+separate tag. A heading an old note used that the templates lack is folded into
+the template's sections. The counts per old note go in the closing report, not
+the notes.
+
+The new hub replaces the old one and carries map-it's stamps; an old stamp line
+goes with it. Files in the map folder that are not notes — a checker script, its
+config — stay where they are, and a checker is run as in init's step 5.
+
+**Closing, the references that changed meaning.** Delete every note whose path
+died; git keeps it. Then list every reference outside the map's notes —
+`git grep -n '<path>' -- . ':(exclude,glob)<map folder>/**/*.md'`, so a kept
+checker config is searched too — that now lands somewhere else
+than it meant: each reference to a dead path, and each reference to a kept path
+whose cited content moved out. Name the note that now holds it, so the
+maintainer (or `decant`, for a code comment) can repoint it.
+
+**Done when** init's criteria hold, every old note appears in the ledger, every
+carried claim is re-verified, attributed, moved or dropped with a reason, and
+every reference that changed meaning is listed.
 
 ## update
 
@@ -272,12 +346,15 @@ shown to the maintainer.
 
 ## Once the map exists
 
-A map that is only written is pure cost. Bind it before closing, in the repo's
-identity doc next to the hub link:
+A map that is only written is pure cost. Bind it before closing, next to the
+hub link in every identity doc the repo has (`CLAUDE.md`, `AGENTS.md`) — and
+where one already carries a map binding, revise that one rather than adding a
+second:
 
 - **Read before the change, write after it.** Where the repo's working
-  discipline has phases, the read binds to an early one, before a design is
-  committed; the write to a late one.
+  discipline has named phases, the read binds to an early one, before a design
+  is committed, and the write to a late one; where it has none, say *before
+  designing a change* and *after it lands*.
 - **Replace hand-kept lists with the map.** Where a checklist or process doc
   hand-lists what a map note now holds — "also check these files", an area
   roster — propose replacing the list with a link to the note, so the map is the
@@ -290,7 +367,10 @@ identity doc next to the hub link:
 
 ## Scope
 
-Writes map notes and the hub, and the binding above in the repo's identity doc.
+Writes map notes and the hub, and the binding above in the repo's identity docs.
 Never edits source, decision records or specs, and never proposes moving,
 merging or shrinking a doc without knowing what consumes it. Where one of those
-looks wrong, say so in the closing report and leave it.
+looks wrong, say so in the closing report and leave it. A hole the reading found
+goes in its note's `## Known holes / open` and in the closing report — never
+into the tracker, even where the repo's rules want an issue per hole; filing is
+the maintainer's.
