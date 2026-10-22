@@ -206,7 +206,7 @@ to the maintainer.
 
 ## init over an existing map
 
-The old map — a `grill-map` map, a flat folder of hand-written notes, a map from
+The old map — one written by the retired `grill-map` (ADR-0082), a flat folder of hand-written notes, a map from
 an earlier init — is one more thing a new maintainer reads: useful, possibly
 stale, and written by someone who knew things the code does not say. Run init's
 five steps with these changes.

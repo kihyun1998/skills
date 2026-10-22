@@ -121,7 +121,7 @@ holds the reasons, including why the rule below overrides
 |---|---|---|
 | Build file | `docs/agents/thegraph.md` | same path, listed in `.git/info/exclude` |
 | Comment rule | `CLAUDE.md`, from §3's table | `CLAUDE.local.md`, listed in `.git/info/exclude`, the text below |
-| Map | §3 makes its folder | none, and the closing report does not name `grill-map` |
+| Map | §3 makes its folder | none, and the closing report does not name `map-it` |
 | Attribution | kept, unless the maintainer turns it off at §4 | always off: `.claude/settings.local.json` and `.git/hooks/pre-push`, below |
 
 The build file keeps its path, so `read-it` and `check-it` find it unchanged. One
@@ -250,13 +250,13 @@ Git keeps no empty directory, so the folder holds one file, a hub stub
 (`README.md`):
 
 > The territory map. A comment's why, trap and measured value go to a note here.
-> Notes are added as they come up, or all at once with `grill-map`, which also
-> brings hand-written notes into its format.
+> Notes are added as they come up, or all at once with `map-it`, which also
+> reads hand-written notes as leads and keeps their paths.
 
-Write no notes and do not run [`grill-map`](../grill-map/SKILL.md) — filling the
+Write no notes and do not run [`map-it`](../map-it/SKILL.md) — filling the
 map is its job, not setup's. Where the repo already has enough that nobody can
 say what depends on what — decision records, a spread of source files — name
-`grill-map` once in the closing report as a next step, not as a question.
+`map-it` once in the closing report as a next step, not as a question.
 
 **Then the rule.** Its destinations name only what is on disk once this step's
 writes land; a destination that does not exist is invented.

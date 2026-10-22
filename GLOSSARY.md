@@ -234,10 +234,11 @@ anchor makes, which the anchor is not), **Map** (see below — an upstream skill
 calls a parent issue with child tickets "the map", which is this thing under a
 word this repo has already spent)
 
-**MAP** (grill-map):
+**MAP** (map-it):
 A repo's linked note graph, answering *"if I touch this, what else moves?"*
 (horizontal) and *"what decision is this derived from?"* (vertical). A
-**document**, never a tracker artifact. `grill-map` authors one; `thegraph`'s
+**document**, never a tracker artifact. `map-it` authors one (the retired
+`grill-map` wrote the same artifact, ADR-0082); `thegraph`'s
 [`read-it`](read-it/) **reads** one where the repo keeps one — which is the
 only relation between the two, and why a repo that keeps no MAP has no `map`
 read rather than a step to skip.
@@ -407,9 +408,9 @@ _Avoid_: cwd (the absolute path it is read from — not what is shown), session 
   The provenance marks that encoded this are retired with their only producer
   (ADR-0069), and the asymmetry they existed for survives as the rule: **a settled
   call re-opened is loud; a call wrongly treated as settled is silent.**
-- **`grill-map`** authors a **MAP**; [`read-it`](read-it/) reads one where the
-  repo keeps one. The same setup/execution split as the two below, with one
-  difference worth stating: `grill-map` is **standalone** — a MAP is worth having
+- **[`map-it`](map-it/)** authors a **MAP**; [`read-it`](read-it/) reads one where
+  the repo keeps one. The same setup/execution split as the two below, with one
+  difference worth stating: `map-it` is **standalone** — a MAP is worth having
   on its own, and the read is worth nothing without one.
 - **An upstream wayfinding skill calls a parent issue holding child tickets "the
   map".** In this vocabulary that is an **Anchor**, not a **MAP** — one is an

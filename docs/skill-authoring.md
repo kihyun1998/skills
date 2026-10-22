@@ -142,25 +142,11 @@ roughly two thirds, and going under the line would mean moving `## State` or
 `## The reasoning habits`, both read on every traversal and neither carrying the
 size trigger that licensed moving the node contracts.
 
-**`grill-map/SKILL.md` is deliberate now, and was not before.** It is the longest
-in the catalog and had never been examined against this rule at all. It has been:
-every section was read against the two tests this repo uses — *does anything read
-what this produces*, and *is being wrong caught elsewhere* — and none failed.
-
-What makes it long is that its rules carry their evidence inline. `Measured`
-appears twelve times, each with a number: 48 issues cited across 27 notes of
-which 46 were closed; 72% of a spec file being unimplemented behaviour and cited
-by 2 notes of 27; a sweep pattern that returned one reassuring hit while two
-worse ones sat outside it. A measurement cannot be compressed the way an argument
-can, and its two sections about checks — *the one gate worth writing* and *the
-check no gate can do* — reached
-[ADR-0066](adr/0066-there-are-no-gates.md)'s conclusion before it was written:
-*"the documents are written to be read by people … that gap **is** the
-false-positive rate"*, and *"the pattern that survives is one owner and
-pointers"*.
-
-Excluding its 119 lines of note templates it runs 11.9 prose lines per rule,
-against 7.6 for `thegraph/SKILL.md`. The gap is the evidence, not padding.
+**`grill-map/SKILL.md` was a deliberate divergence too, and is retired**
+([ADR-0082](adr/0082-grill-map-retires-map-it-reads-the-repo.md)). Its length came
+from rules carrying their measurements inline, which do not compress the way an
+argument does. Its successor `map-it` keeps its note templates in a sibling
+`NOTES.md` and runs under the line, so it holds no divergence here.
 
 **The guidance offers no way to test the 500-line rule.** It states the number
 twice and gives its rationale as *optimal performance*, and that is all. Model
