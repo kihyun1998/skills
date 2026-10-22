@@ -1,6 +1,6 @@
 ---
 name: sweep
-description: "Bring every surface that describes a changed behaviour — doc-comments, changelog, glossary, decision records, examples, README — back in line with it. Use once a change is otherwise complete, and after writing any rule."
+description: "Bring every surface that describes a changed behaviour — doc-comments, changelog, glossary, decision records, examples, README, the territory map — back in line with it. Use once a change is otherwise complete, and after writing any rule."
 ---
 
 Find every surface that describes the behaviour, and distrust a clean-looking pass.
@@ -30,6 +30,24 @@ Only one of them is good news.
    | Decision records | a **write** surface, not a read-only one — see below |
    | Examples, demo headers, spike comments | these are specifications; each promises only what it can actually demonstrate |
    | README, quickstart, onboarding | the reader with the least context and the least ability to notice they were misled |
+   | Territory map, where the repo keeps one | its notes are claims a reader plans the next change from — see below |
+
+   **The map row.** Open the notes that name a symbol the change touched — under
+   `## Code`, or in an invariant's prose, which often has no `## Code` — and a
+   note naming only a touched file when that file is its alone; a file many notes
+   share selects by symbol. Then open, one hop out, the notes their
+   `## Blast radius` and `## Cross-cutting invariants` link. Bring each opened
+   note in line with the change under the conventions the map's hub states:
+   rewrite a claim it made false — a design rule, a symbol's address, a blast
+   edge, a known hole now closed — and add what it made true that the note now
+   lacks, a new symbol or rule. Where the change fixed or closed a hole, ask
+   whether the fact it revealed holds at sites that share the same assumption:
+   when two or more that do not call each other can be named by symbol, the fix
+   lands with an invariant note, linked from those territories and the hub;
+   when it is only suspected, carry it as a question. Leave the hub's
+   `grill-map synced at` line alone — only `grill-map`'s update advances it, and
+   its next run re-reads these commits. An area the change created that no note
+   covers is carried for the person, as work for `/grill-map`, not drafted here.
 
 2. **Amend the decision trail, do not just read it.** A change that falsifies a
    record's premise amends **that record** — a status note, a superseded-by line —
