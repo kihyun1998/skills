@@ -1,10 +1,10 @@
 ---
-name: map-it
+name: grill-map
 disable-model-invocation: true
-description: "Write and keep a repo's MAP by reading it the way a person learns a codebase. Use when a repo has no map yet, or its map has fallen behind its commits. /map-it, /map-it init."
+description: "Write and keep a repo's MAP by reading it the way a person learns a codebase. Use when a repo has no map yet, or its map has fallen behind its commits. /grill-map, /grill-map init."
 ---
 
-# map-it — read the repo, then map it
+# grill-map — read the repo, then map it
 
 A **MAP** is a repo's linked note graph (see `GLOSSARY.md`). It answers the two
 questions that gate a change: *if I touch this, what else moves?* and *what
@@ -25,14 +25,14 @@ Look at the map folder and say in one line which mode runs and why.
 | On disk | Mode |
 |---|---|
 | no map folder, or only a hub stub (a hub with no notes beside it) | **init** |
-| notes, and a hub with a `map-it synced at` line | **update** |
-| notes, and no `map-it synced at` line (a map written by another skill or by hand) | **init over an existing map** |
+| notes, and a hub with a `grill-map synced at` line | **update** |
+| notes, and no `grill-map synced at` line (a map written by this skill's first version, another skill or by hand) | **init over an existing map** |
 
 The working tree decides, not the git index: map files the index lists and the
 tree lacks are a deleted map, named in the one-line statement, and the mode is
 read from what is on disk.
 
-`/map-it init` forces init on a map with a synced-at line; that run follows
+`/grill-map init` forces init on a map with a synced-at line; that run follows
 [init over an existing map](#init-over-an-existing-map), since notes are there.
 
 ## init
@@ -157,14 +157,14 @@ claims point at each other.
 The hub carries two stamps, one line each:
 
 ```markdown
-<!-- map-it build stamp: <skills repo commit> -->
-<!-- map-it synced at: <this repo's HEAD commit> (<its committer date, yyyy-mm-dd>) -->
+<!-- grill-map build stamp: <skills repo commit> -->
+<!-- grill-map synced at: <this repo's HEAD commit> (<its committer date, yyyy-mm-dd>) -->
 ```
 
-The build stamp is the commit of the skills checkout whose `map-it` this run
+The build stamp is the commit of the skills checkout whose `grill-map` this run
 read — `git -C <that checkout> rev-parse --short HEAD`, normally the one
-`~/.claude/skills/map-it` resolves to — with `(uncommitted)` after it when that
-checkout has uncommitted changes to `map-it`. The synced-at line is what update reads from; the date is its
+`~/.claude/skills/grill-map` resolves to — with `(uncommitted)` after it when that
+checkout has uncommitted changes to `grill-map`. The synced-at line is what update reads from; the date is its
 fallback when the commit is gone.
 
 **Done when** every territory from step 2 has a note, the hub links them all,
@@ -206,7 +206,7 @@ to the maintainer.
 
 ## init over an existing map
 
-The old map — one written by the retired `grill-map` (ADR-0082), a flat folder of hand-written notes, a map from
+The old map — one written by this skill's first version (`retired/grill-map-v1`, ADR-0082), a flat folder of hand-written notes, a map from
 an earlier init — is one more thing a new maintainer reads: useful, possibly
 stale, and written by someone who knew things the code does not say. Run init's
 five steps with these changes.
@@ -260,7 +260,7 @@ separate tag. A heading an old note used that the templates lack is folded into
 the template's sections. The counts per old note go in the closing report, not
 the notes.
 
-The new hub replaces the old one and carries map-it's stamps; an old stamp line
+The new hub replaces the old one and carries grill-map's stamps; an old stamp line
 goes with it. Files in the map folder that are not notes — a checker script, its
 config — stay where they are, and a checker is run as in init's step 5.
 
@@ -314,7 +314,7 @@ match its subject, read the diff and class it by what it did.
 
 **A structure commit is a reason to stop.** The territories were drafted from a
 system that is no longer there, and patching them maps the old one. Recommend
-`/map-it init`, give the commit and what moved, and stop unless the maintainer
+`/grill-map init`, give the commit and what moved, and stop unless the maintainer
 says to continue. A rename that touches every file and changes no behaviour (a
 module path) is not structure; it is a refactor.
 
@@ -361,9 +361,9 @@ here are the only ones allowed outside step 1's notes.
 
 ### 4. Advance the stamps
 
-Set `map-it synced at` to HEAD with its committer date (`git log -1 --format=%cs`),
+Set `grill-map synced at` to HEAD with its committer date (`git log -1 --format=%cs`),
 and the build stamp to the skills commit this run used — with `(uncommitted)`
-after it when the skills checkout had uncommitted changes to `map-it`.
+after it when the skills checkout had uncommitted changes to `grill-map`.
 
 **Done when** both lines name this run.
 

@@ -8,7 +8,7 @@ description: "Sort source comments so each says only what the code is and move t
 # decant — leave the one line, move the rest
 
 **It runs where the repo keeps a map.** Check that the map exists on disk. Where
-it does not, say so, name `map-it`, and stop — there is no destination, and an
+it does not, say so, name `grill-map`, and stop — there is no destination, and an
 invented one is worse than no pass. **The exception is a repository you
 contribute to** — `CLAUDE.local.md` holds `grill-the-graph`'s contributor rule —
 and there everything below gives way to *In a repository you contribute to*.
@@ -106,7 +106,7 @@ outcomes, reported apart:
 - **held** — the note already says it; the paragraph is a copy.
 - **notes owed** — the note does not say it; the paragraph is the only place the
   fact exists. This is a defect in the map. Report it per territory, one line
-  each: the fact, and the note that should hold it. Writing it is `map-it`'s
+  each: the fact, and the note that should hold it. Writing it is `grill-map`'s
   work.
 - **two grounds** — note and comment give *different reasons for the same
   decision*, both plausible. Report both and pick neither; which is the real one
@@ -249,6 +249,6 @@ There is no map, so nothing is owed to a note and nothing moves into one.
 
 - **`sweep`** asks whether a change made a surface *wrong*; this asks whether a
   paragraph belongs where it sits. A paragraph can fail both.
-- **`map-it`** owns the notes. This pass names what a note owes; when it
+- **`grill-map`** owns the notes. This pass names what a note owes; when it
   applies, it writes only the sentences its report moved.
 - **`assay`** reads the code; this reads what the code says about itself.

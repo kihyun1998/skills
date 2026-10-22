@@ -142,10 +142,10 @@ roughly two thirds, and going under the line would mean moving `## State` or
 `## The reasoning habits`, both read on every traversal and neither carrying the
 size trigger that licensed moving the node contracts.
 
-**`grill-map/SKILL.md` was a deliberate divergence too, and is retired**
-([ADR-0082](adr/0082-grill-map-retires-map-it-reads-the-repo.md)). Its length came
+**The first `grill-map/SKILL.md` was a deliberate divergence too, and is retired**
+([ADR-0082](adr/0082-grill-map-is-rewritten-to-read-the-repo.md)). Its length came
 from rules carrying their measurements inline, which do not compress the way an
-argument does. Its successor `map-it` keeps its note templates in a sibling
+argument does. Its rewrite under the same name keeps its note templates in a sibling
 `NOTES.md` and runs under the line, so it holds no divergence here.
 
 **The guidance offers no way to test the 500-line rule.** It states the number

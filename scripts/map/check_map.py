@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""check_map -- the mechanical and schema tiers for a repo's MAP (`map-it` output, or the retired `grill-map`'s).
+"""check_map -- the mechanical and schema tiers for a repo's MAP (`grill-map` output, either version).
 
     python3 check_map.py [--config PATH] [--selftest] [file ...]
 
