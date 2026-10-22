@@ -20,13 +20,16 @@ notes can show, so every claim in it carries where it came from.
 
 ## Mode — decided from disk
 
-Look at the map folder and say in one line which mode runs and why.
+Look at the map folder and say in one line which mode runs and why. Find the
+**hub** first: the map file each identity doc links to; with no link, the map
+folder's `README.md`. A short file whose only job is to point at another is a
+**pointer**, not the hub. Both stamps live in the hub, and the table reads it.
 
 | On disk | Mode |
 |---|---|
-| no map folder, or only a hub stub (a hub with no notes beside it) | **init** |
+| no map folder, or only a hub or a pointer with no notes beside it | **init** |
 | notes, and a hub with a `grill-map synced at` line | **update** |
-| notes, and no `grill-map synced at` line (a map written by this skill's first version, another skill or by hand) | **init over an existing map** |
+| notes, and no `grill-map synced at` line — a map written by hand, by another skill, or by this skill's first version (a `grill-map build stamp` with no synced-at line) | **init over an existing map** |
 
 The working tree decides, not the git index: map files the index lists and the
 tree lacks are a deleted map, named in the one-line statement, and the mode is
@@ -80,8 +83,10 @@ paragraph you just wrote, not from the folders:
   spelled-out `-and-` — is the tell. Where several concepts belong side by side, add an **aggregate** note
   over them.
 - **A fact that holds in several territories is an invariant**, its own note —
-  the shared storage layout, the coordinate space, the lifecycle rule. Put it in
-  one territory and the others never see it.
+  the shared storage layout, the coordinate space, the lifecycle rule — when it
+  can name at least two sites, by symbol, that do not call each other. Put it
+  in one territory and the others never see it; with fewer sites it is a
+  design-model line in one territory.
 - **Quiet areas count.** Release tracks, published packages, frozen shims, CI,
   generated or vendored directories: they rarely change and break silently when
   touched. Shipping is something the system does.
@@ -127,9 +132,9 @@ A README, an old note, a comment or a commit message used as a source follows
 the same rule: what it says about the code is checked against the code before a
 note repeats it.
 
-**Done when** the maintainer has answered the draft question and every open
-question from the reading is answered or written into a note's
-`## Known holes / open`.
+**Done when** the maintainer has answered the draft question and every doubt in
+your notes from steps 1 and 2 that a grep did not settle is answered or written
+into a note's `## Known holes / open`.
 
 ### 4. Write
 
@@ -214,19 +219,16 @@ five steps with these changes.
 **Before anything, show what is there and ask.** Rewriting someone's map is hard
 to take back, and its shape varies by repo, so survey it and get a yes before
 writing. The survey reads file names, the identity docs, and the hub and any
-stub whole — they are short and route, they hold no territory's claims — but no
-note, which stays unread until the draft exists:
+pointer only far enough to tell a pointer from the hub and to take their links
+and stamp lines; their prose is a lead like any note's, read after the draft:
 
-- **the hub** — the map file each identity doc links to; with no link, the map
-  folder's `README.md`. A short file whose only job is to point at another is a
-  stub, not the hub. Both stamps go in the hub, and the mode is read from it;
-- **files that are not notes** — a checker, its config, a stub, and any `.md`
+- **the hub**, as Mode found it;
+- **files that are not notes** — a checker, its config, a pointer, and any `.md`
   the notes link into as a store, such as a reference-facts file: search by
   link, `git grep -lE '\]\(([^)]*/)?<file>' -- <map folder>`, not by bare name,
   which also matches files outside the map. These stay as they are;
 - **the notes** — every other `.md` in the folder: how many, and the layout,
-  `territory/` and `invariant/` folders, flat, or other. A
-  `grill-map build stamp` line in the hub says the first version wrote it;
+  `territory/` and `invariant/` folders, flat, or other;
 - **references from outside** — `git grep -c '<map folder>/' -- . ':(exclude)<map folder>/**'`,
   the count that says how much depends on the paths kept;
 - **the repo's own map checker** — searched in the map folder, `scripts/`,
@@ -290,10 +292,6 @@ separate tag. A heading an old note used that the templates lack is folded into
 the template's sections. The counts per old note go in the closing report, not
 the notes.
 
-The new hub replaces the old one and carries grill-map's stamps; an old stamp line
-goes with it. Files in the map folder that are not notes — a checker script, its
-config — stay where they are, and a checker is run as in init's step 5.
-
 **Closing, the references that changed meaning.** Delete every note whose path
 died; git keeps it. Then list every reference outside the map's notes —
 `git grep -n '<path inside the map, e.g. territory/x.md>' -- . ':(exclude,glob)<map folder>/**/*.md'`,
@@ -313,8 +311,9 @@ every reference that changed meaning is listed.
 The map was true at its synced-at commit. Update reads what happened since, the
 way a maintainer back from leave reads the log: subjects first, then the diffs
 that matter, then the notes those diffs falsified. A note is opened only when a
-commit or a backlog change names it (step 1), or it holds a copy of a fact the
-range changed (step 3).
+commit or a backlog change names it (step 1), it holds a copy of a fact the
+range changed (step 3), or it owes a link to a note this run added or an
+invariant this run changed.
 
 ### 1. Read the range
 
@@ -330,7 +329,7 @@ Read every commit subject in the range, and give each one a class:
 | **behaviour** | a feature, a fix, a changed default | its diff is read |
 | **refactor** | a file split, symbols moved, a module extracted, a module path renamed — behaviour unchanged | its diff is read for moved addresses, and for a fact restated at the new site (a module doc, a comment) that a note already owns |
 | **structure** | a new top-level package, a moved entry point, a reorganised tree, a territory's code removed whole | see below |
-| **doc** | the README, the identity doc, the glossary, a decision record | its diff is read: a doc can falsify a claim, and a new decision record fills a `## Governing decisions`. A claim the doc makes about the code is checked against the code before a note repeats it |
+| **doc** | the README, the identity doc, the glossary, a decision record | its diff is read: a doc can falsify a claim, and a new decision record fills a `## Governing decisions` |
 | **build** | build, release, CI, packaging | its diff is read |
 | **noise** | a dependency bump, formatting, a release tag with no change | named, not read |
 
@@ -346,8 +345,7 @@ match its subject, read the diff and class it by what it did.
 **A structure commit is a reason to stop.** The territories were drafted from a
 system that is no longer there, and patching them maps the old one. Recommend
 `/grill-map init`, give the commit and what moved, and stop unless the maintainer
-says to continue. A rename that touches every file and changes no behaviour (a
-module path) is not structure; it is a refactor.
+says to continue.
 
 **Done when** every commit in the range has a class, every backlog change is
 read as opened or closed, and each that is not noise names the notes it may
@@ -362,8 +360,8 @@ the diff alone. The diff says where to look; the note says what was claimed.
   now closed, a governing decision now written — rewrite it with its evidence.
   Provenance follows init's step 3; a commit is evidence, its message a source.
 - **An address that moved** — a symbol renamed or moved between files —
-  correct `## Code`. A symbol that no longer exists anywhere is not an address
-  problem: the design model above it may be gone too.
+  correct `## Code`. A symbol gone from the whole tree: reread the design model
+  above it, which may be gone too.
 - **An area no note covers** — draft it under init's step 2 rules and write it
   with NOTES.md. An entry point or top-level folder that appeared is the usual
   tell.
@@ -375,7 +373,8 @@ step 3. Keep each invariant's territories and the territories' cross-cutting
 sections pointing at each other.
 
 **Done when** every note named in step 1 has been reread and either changed or
-confirmed unchanged, and no note outside them was edited in this step.
+confirmed unchanged, and no other note was edited in this step except for
+back-links and the hub's link to a note this step wrote.
 
 ### 3. Read the same fact in two notes
 
@@ -387,14 +386,13 @@ link.** Two lists of the same length beside each other is the smell: check that
 each entry in one maps to an entry in the other, and where one does not, ask what
 the unmatched entry was — it is usually the sharpest fact in the territory.
 
-**Done when** each such fact has one owner and the rest are pointers. The edits
-here are the only ones allowed outside step 1's notes.
+**Done when** each such fact has one owner and the rest are pointers. Besides
+step 2's links, these are the only edits outside step 1's notes.
 
 ### 4. Advance the stamps
 
 Set `grill-map synced at` to HEAD with its committer date (`git log -1 --format=%cs`),
-and the build stamp to the skills commit this run used — with `(uncommitted)`
-after it when the skills checkout had uncommitted changes to `grill-map`.
+and the build stamp as init's step 4 says.
 
 **Done when** both lines name this run.
 
@@ -405,8 +403,8 @@ none, on an opened backlog item, and where there is none of those either, say
 the test had nothing to run on. The predictor sees only the updated map and the
 subject line.
 
-**Done when** the test reaches every territory that change touched, and the run
-— the range, each commit's class, the notes changed and why, the test — has been
+**Done when** the test reaches every territory that change touched, or was
+reported as having nothing to run on, and the run — the range, each commit's class, the notes changed and why, the test — has been
 shown to the maintainer.
 
 ## Once the map exists
@@ -423,18 +421,32 @@ second:
 - **Replace hand-kept lists with the map.** Where a checklist or process doc
   hand-lists what a map note now holds — "also check these files", an area
   roster — propose replacing the list with a link to the note, so the map is the
-  only place the answer lives. Find out what reads the list first: a table that
-  looks misfiled may be there because something consumes it.
+  only place the answer lives — once you know what reads the list (Scope).
 - **Promotion, at the first fix.** When a fix reveals a fact, ask whether it
   also holds outside the territory it was found in — phrased so grep can answer
   it: *"does this hold at every site that shares <the assumption>?"* If yes, the
   fix lands with an invariant note.
 
+## Closing report
+
+Every mode ends with one report to the maintainer. Collect into it, from
+wherever the run met them:
+
+- references outside the map that now land somewhere else, with the note that
+  holds their subject — and whether the repo's link check stays red until they
+  are repointed;
+- corrections made to old claims, drops with their reasons, and the counts per
+  old note (init over an existing map);
+- holes the reading found, with the note that records each;
+- anything that looked wrong in source, records or specs, left as it was;
+- a missing identity doc, and the reading test's transcript.
+
 ## Scope
 
 Writes map notes and the hub, and the binding above in the repo's identity docs.
-Never edits source, decision records or specs, and never proposes moving,
-merging or shrinking a doc without knowing what consumes it. Where one of those
+Never edits source, decision records or specs. Proposes moving, merging or
+shrinking a doc only once it knows what consumes it: a table that looks
+misfiled may be there because something reads it. Where one of those
 looks wrong, say so in the closing report and leave it. A hole the reading found
 goes in its note's `## Known holes / open` and in the closing report — never
 into the tracker, even where the repo's rules want an issue per hole; filing is

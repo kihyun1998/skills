@@ -1,7 +1,7 @@
 # MAP notes — templates and conventions
 
 Read before writing the first note. The note kinds and section headings are the
-same as every MAP already in use, so maps written by either skill read alike.
+same as every MAP already in use, so maps written by either version read alike.
 
 ## Conventions
 
@@ -13,7 +13,7 @@ same as every MAP already in use, so maps written by either skill read alike.
   headings, so a query for it names its heading:
 
   ```sh
-  rg -lU '## Governing decisions\r?\n(\r?\n)?\*\*None\.\*\*' docs/map/territory/
+  rg -lU '## Governing decisions\r?\n(\r?\n)?\*\*None\.\*\*' <map folder>/territory/
   ```
 
 - **Symbols, never line numbers.** `launcher.go — Launch` survives the next edit;
@@ -85,8 +85,8 @@ bounds (see `## Design model`).
 Stated once, in the form that makes it checkable.
 
 ## Why it is cross-cutting
-The shared assumption that makes it hold in several places, and whether those
-sites call each other. When they do not, no territory edge could have carried it.
+The shared assumption that makes it hold in several places, and that those
+sites do not call each other — which is why no territory edge could carry it.
 
 ## Territories it holds in
 Territory links, naming the site in each. Each territory links back under its
@@ -96,9 +96,8 @@ own `## Cross-cutting invariants`.
 The symptom, and the condition under which it reproduces.
 
 ## Discovery history
-Where it was found, one line each, with evidence. Found by reading counts, when
-`## Territories it holds in` names at least two sites by symbol that do not call
-each other; a candidate that cannot is a design-model line in one territory.
+Where it was found, one line each, with evidence — a reading is evidence; the
+bar for being an invariant at all is in SKILL.md, step 2.
 
 ## Where it will recur
 The test a future author can run: "if a function does X, it is subject to this".
