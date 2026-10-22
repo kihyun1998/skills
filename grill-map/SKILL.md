@@ -93,9 +93,18 @@ paragraph you just wrote, not from the folders:
 
 **Note paths already cited.** Code comments, docs and a CI link check may name
 note paths before any note exists. Search for the map's last folder name with a
-note subfolder or a `.md` after it — `git grep -nE '<map>/(territory|invariant)/|<map>/[^ )]*\.md' -- .`
+note subfolder or a `.md` after it — `git grep -nE '(^|[^[:alnum:]_-])<map>/((territory|invariant)/|[^ )]*\.md)' -- .`
 with `<map>` the folder's last segment (`map`) — so a relative citation such as
-`../map/invariant/x.md` is found too. A drafted concept that a cited path names
+`../map/invariant/x.md` is found too, and `roadmap/` is not. Read each hit: a
+path in a map checker's **tests** is fixture data, not a citation; a checker's
+config that names note paths is one. The bodies of the open issues step 1 read
+cite too, since the next worker follows their links; closed issues are not
+searched. A cited path with no note on disk — resolved against the citing file
+when relative — may have a past version in git: `git show HEAD:<path>` when
+only the working tree lacks it, else `git show <d>^:<path>` with `<d>` from
+`git log -1 --no-renames --format=%h --diff-filter=D -- <path>`. Read it after
+the draft as a lead under step 3's source rule, with that commit as its source;
+it takes no ledger row. A drafted concept that a cited path names
 takes that path; where one cited path names several drafted concepts, it is
 placed by the ledger's split row in
 [init over an existing map](#init-over-an-existing-map). A cited path no concept
@@ -312,8 +321,8 @@ The map was true at its synced-at commit. Update reads what happened since, the
 way a maintainer back from leave reads the log: subjects first, then the diffs
 that matter, then the notes those diffs falsified. A note is opened only when a
 commit or a backlog change names it (step 1), it holds a copy of a fact the
-range changed (step 3), or it owes a link to a note this run added or an
-invariant this run changed.
+range changed (step 3), or it owes a link to a note this run added, an
+invariant this run changed, or a moved path; or a fold writes into it (step 2).
 
 ### 1. Read the range
 
@@ -331,7 +340,19 @@ Read every commit subject in the range, and give each one a class:
 | **structure** | a new top-level package, a moved entry point, a reorganised tree, a territory's code removed whole | see below |
 | **doc** | the README, the identity doc, the glossary, a decision record | its diff is read: a doc can falsify a claim, and a new decision record fills a `## Governing decisions` |
 | **build** | build, release, CI, packaging | its diff is read |
+| **map** | a commit touching only the map — a hand edit, a `sweep` pass | its diff is read: each note it changed is named, and its edits are kept unless the code at HEAD shows them false; a claim it added with no evidence or source is attributed to it as a message's is (step 2) |
 | **noise** | a dependency bump, formatting, a release tag with no change | named, not read |
+
+A commit of another class that also edits the map has its map part read as a
+**map** commit's. In a commit that changes the hub's `grill-map synced at` line,
+what this skill writes — map, binding — is its own run: **noise**; the rest
+keeps its class.
+
+Search for new note paths — init's step 2 grep over the files `git diff --name-only -G'<map>/' <start>..HEAD -- . ':(exclude)<map folder>'`
+lists, `<start>` the synced-at commit or the parent of the fallback's first — and the
+bodies, not comments, of issues opened since. A new citation of a path that
+exists is fine; one naming an existing note's concept under another path goes
+to step 2's path rule; one no concept claims is listed at closing.
 
 Read the backlog too: issues opened or closed since that date. It changes
 without a commit. An **opened** issue is read like a behaviour commit's subject
@@ -359,22 +380,48 @@ the diff alone. The diff says where to look; the note says what was claimed.
 - **A claim the change made false** — a design rule, a blast edge, a known hole
   now closed, a governing decision now written — rewrite it with its evidence.
   Provenance follows init's step 3; a commit is evidence, its message a source.
+  What a message says that the code can show is checked and written with the
+  code's evidence; what it cannot — an incident, a measured count — is written
+  as `(commit <sha>, <committer date>)`, in the section that holds that kind
+  of fact, as init over an existing map places a discovery history.
 - **An address that moved** — a symbol renamed or moved between files —
   correct `## Code`. A symbol gone from the whole tree: reread the design model
   above it, which may be gone too.
 - **An area no note covers** — draft it under init's step 2 rules and write it
   with NOTES.md. An entry point or top-level folder that appeared is the usual
   tell.
-- **An identity doc that appeared or changed** — make sure it carries the hub
-  link and the [binding](#once-the-map-exists).
+- **An invariant left with fewer than two sites that do not call each other**
+  — they now share one primitive — no longer meets init's step 2 bar: its fact
+  becomes a design-model line in the territory holding the primitive's file (with
+  none, ask which), the other territories gain a blast edge to it, and their
+  cross-cutting link goes when the note does.
+- **Every identity doc**, changed in the range or not — make sure it carries the
+  hub link and the [binding](#once-the-map-exists), so one missing before the
+  range is caught too.
+
+**A note path is never renamed or deleted unasked.** Code comments and docs
+cite note paths and this skill edits none of them. When a change calls for it —
+a cited path added in the range that names an existing note's concept, an
+invariant folded as above — count the references outside the map to each path
+(`git grep -n '<path inside the map>' -- . ':(exclude,glob)<map folder>/**/*.md'`,
+reading hits as init's step 2 does), and ask with the tool that renders a
+question, recommending an answer. Until a yes, the note keeps its path; a folded
+invariant's note says it is now a case of that territory and links there. After
+a yes, every link to the old path in the map — the hub's, blast edges,
+cross-cutting sections — is rewritten, or removed with a deleted note, and the
+references outside it that now land elsewhere go in the closing report. A note a
+**map** commit already renamed or deleted is handled the same way: the act was
+not this run's to ask about.
 
 Ask when the reading does not settle which claim a change moved, as in init's
 step 3. Keep each invariant's territories and the territories' cross-cutting
 sections pointing at each other.
 
 **Done when** every note named in step 1 has been reread and either changed or
-confirmed unchanged, and no other note was edited in this step except for
-back-links and the hub's link to a note this step wrote.
+confirmed unchanged, every identity doc carries the hub link and the binding,
+and no other note was edited in this step except for back-links, the hub's link
+to a note this step wrote, the links a moved path needs, and a fold's line in
+the primitive's territory.
 
 ### 3. Read the same fact in two notes
 
@@ -387,7 +434,7 @@ each entry in one maps to an entry in the other, and where one does not, ask wha
 the unmatched entry was — it is usually the sharpest fact in the territory.
 
 **Done when** each such fact has one owner and the rest are pointers. Besides
-step 2's links, these are the only edits outside step 1's notes.
+step 2's edits outside its notes, these are the only ones.
 
 ### 4. Advance the stamps
 
@@ -432,7 +479,7 @@ second:
 Every mode ends with one report to the maintainer. Collect into it, from
 wherever the run met them:
 
-- references outside the map that now land somewhere else, with the note that
+- references outside the map that land somewhere else or nowhere, with the note that
   holds their subject — and whether the repo's link check stays red until they
   are repointed;
 - corrections made to old claims, drops with their reasons, and the counts per
