@@ -62,10 +62,12 @@ before this retirement; this record is written on those results.
 ## What it was not decided on
 
 Two repositories, three changes per run, predictors and judges from one model
-family. **Only init was compared.** The update mode and init over an existing
-map were run and checked on real repositories but never in the blind
-comparison; #18's second round, the update round, was not run once its first
-round failed, and #21 re-ran init only. On the held-out run the rewrite's init
+family. **Init was compared; update was compared once, later.** #18's update
+round was not run once its first round failed, and #21 re-ran init only. #23
+then compared update on `justable` — init at one commit, update to a later one,
+against the repo's own maintained map: 0.605 against 0.611, a fail by its
+registered "at least" and parity within run-to-run noise. Init over an existing
+map was run and checked but never compared. On the held-out run the rewrite's init
 saw ten old note names in `git status` before drafting and, by its cited-path
 rule, kept 16 old paths. The mechanical symbol-grain truth was a tie on
 `justerm` and could not be computed for Dart. Some rules in the rewrite still
