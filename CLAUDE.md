@@ -29,21 +29,20 @@ diverged: the maintainer's evaluation act in this repo is `/grilling`, so the
 
 ### Skill dependencies
 
-Two things are checked, and they are not the same question.
+Two conventions, and they are not the same question. The writer keeps both;
+nothing checks them ([ADR-0066](docs/adr/0066-there-are-no-gates.md)).
 
 - **What a skill invokes** is declared by that skill, in a `requires:` key in its
-  own `SKILL.md` frontmatter. The platform ignores the key; only the gate reads
-  it.
-- **Every skill name written in prose** must resolve — to this catalog, to
+  own `SKILL.md` frontmatter. The platform ignores the key.
+- **Every skill name written in prose** resolves — to this catalog, to
   `retired/` where the sentence acknowledges the retirement, or to a declared
-  external. Read in every live skill's markdown **and in `scripts/`**: an error
-  message naming a skill is an instruction, not a record. A retired skill's
-  markdown is not read — it is frozen and installed nowhere, so a name in it is a
-  record too.
+  external. That holds in every live skill's markdown **and in `scripts/`**: an
+  error message naming a skill is an instruction, not a record. A retired
+  skill's markdown is frozen and installed nowhere, so a name in it is a record.
 
 The gap between them is deliberate: a **boundary reference** names a skill to say
-that something is *its* job, not this one's. It must resolve and must not be
-declared, or `--resolve` demands an install for a skill nothing calls.
+that something is *its* job, not this one's. It resolves, and it is not declared
+in `requires:`, since nothing calls it.
 
 Externals live in `docs/agents/skill-dependencies.md` with the namespace they
 live in (`user` under `~/.claude/skills`, or `platform` bundled with no file on

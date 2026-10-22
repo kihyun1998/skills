@@ -137,16 +137,14 @@ for f in */SKILL.md; do
 done
 ```
 
-`thegraph/SKILL.md` is deliberate: #40 ([ADR-0057](adr/0057-the-catalog-points-somewhere.md)) cut it by
-roughly two thirds, and going under the line would mean moving `## State` or
-`## The reasoning habits`, both read on every traversal and neither carrying the
-size trigger that licensed moving the node contracts.
-
-**The first `grill-map/SKILL.md` was a deliberate divergence too, and is retired**
-([ADR-0082](adr/0082-grill-map-is-rewritten-to-read-the-repo.md)). Its length came
-from rules carrying their measurements inline, which do not compress the way an
-argument does. Its rewrite under the same name keeps its note templates in a sibling
-`NOTES.md` and runs under the line, so it holds no divergence here.
+**No live skill exceeds the line now**: the command prints nothing (2026-10-22).
+The two that did are records. `thegraph/SKILL.md` was cut by #40
+([ADR-0057](adr/0057-the-catalog-points-somewhere.md)) and then rebuilt as four
+skills in order ([ADR-0071](adr/0071-thegraph-is-four-skills-in-order.md)). The
+first `grill-map/SKILL.md`, long because its rules carried their measurements
+inline, is retired ([ADR-0082](adr/0082-grill-map-is-rewritten-to-read-the-repo.md));
+its rewrite keeps its note templates in a sibling `NOTES.md`. Re-run the command
+before citing either as current.
 
 **The guidance offers no way to test the 500-line rule.** It states the number
 twice and gives its rationale as *optimal performance*, and that is all. Model

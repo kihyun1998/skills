@@ -50,8 +50,8 @@ other.** A reference asks whether a *name* resolves, which is what catches a nam
 going stale. A declaration asks what is actually invoked. The gap between them is
 the **boundary reference** — *"don't do a rearchitecture (that's
 `improve-codebase-architecture`)"* — which names a skill in order to say it is
-somebody else's job. It must resolve; it must **not** be declared, or `--resolve`
-demands an install for something nothing calls.
+somebody else's job. It must resolve; it is **not** declared, since nothing calls
+it (the `--resolve` check that once enforced this is gone, ADR-0066).
 _Avoid_: dependency (unqualified — say which of the two)
 
 **Lineage reference**:
