@@ -145,3 +145,13 @@ sentinel queries answer the rest. It holds what no note holds:
 - what the orientation found that belongs to no single note (the repo's shape in
   one paragraph, the largest gap);
 - the two stamps (SKILL.md, step 4).
+
+## Splitting the writing
+
+Where SKILL.md's step 4 is split across agents by territory, each one gets the
+draft, this file and step 3's provenance rule. One owner keeps the invariants
+and the hub: a territory agent that finds a fact holding beyond its territory
+reports it to the owner with its sites rather than writing an invariant note,
+and the owner writes it and adds it to the territories it holds in. At the end
+the owner checks that every invariant and the territories it claims point at
+each other.

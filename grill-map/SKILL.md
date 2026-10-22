@@ -160,13 +160,8 @@ drafted note not yet written is expected to fail until step 4 ends. A defect
 found at the third note ends there; found at the end, it has been copied into
 every note after it.
 
-**A large repo may split this step** across agents by territory. Each one gets
-the draft, NOTES.md and step 3's provenance rule. One owner keeps the
-invariants and the hub: a territory agent that finds a fact holding beyond its
-territory reports it to the owner with its sites rather than writing an
-invariant note, and the owner writes it and adds it to the territories it holds
-in. At the end the owner checks that every invariant and the territories it
-claims point at each other.
+**A large repo may split this step** across agents by territory, under one owner
+of the invariants and the hub — [NOTES.md](NOTES.md#splitting-the-writing).
 
 The hub carries two stamps, one line each:
 
@@ -485,16 +480,21 @@ wherever the run met them:
 - corrections made to old claims, drops with their reasons, and the counts per
   old note (init over an existing map);
 - holes the reading found, with the note that records each;
-- anything that looked wrong in source, records or specs, left as it was;
+- anything that looked wrong in source, records or specs, left as it was, and
+  checks worth having, as proposals (Scope);
 - a missing identity doc, and the reading test's transcript.
 
 ## Scope
 
-Writes map notes and the hub, and the binding above in the repo's identity docs.
-Never edits source, decision records or specs. Proposes moving, merging or
-shrinking a doc only once it knows what consumes it: a table that looks
-misfiled may be there because something reads it. Where one of those
-looks wrong, say so in the closing report and leave it. A hole the reading found
-goes in its note's `## Known holes / open` and in the closing report — never
-into the tracker, even where the repo's rules want an issue per hole; filing is
-the maintainer's.
+Writes map notes, the hub, and the binding in the identity docs. Never edits
+source, decision records or specs, and proposes moving or merging a doc only
+once it knows what consumes it; one that looks wrong is named in the closing
+report and left. A hole the reading found goes in its note's `## Known holes /
+open` and the closing report — never into the tracker, even where the repo's
+rules want an issue per hole; filing is the maintainer's.
+
+**Builds no tool.** A doubt is settled by a command run once and read. A saved
+script, a loop that judges covered or not, a checker the repo lacks (step 4
+follows each link by hand) are not this run's to write, even when asked whether
+something can be checked: the closing report names the check, what it would
+test and the miss it would have caught, and building it is the maintainer's.
