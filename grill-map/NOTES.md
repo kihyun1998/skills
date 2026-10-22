@@ -86,7 +86,8 @@ Stated once, in the form that makes it checkable.
 
 ## Why it is cross-cutting
 The shared assumption that makes it hold in several places, and that those
-sites do not call each other — which is why no territory edge could carry it —
+sites do not call each other or one shared primitive — which is why no
+territory edge could carry it —
 and why changing one without the other would be a bug.
 
 ## Territories it holds in

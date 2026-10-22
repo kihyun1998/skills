@@ -85,8 +85,9 @@ paragraph you just wrote, not from the folders:
   over them.
 - **A fact that holds in several territories is an invariant**, its own note —
   the shared storage layout, the coordinate space, the lifecycle rule — when it
-  can name at least two sites, by symbol, that do not call each other, and
-  changing one without the other would be a bug — values that merely agree are
+  can name at least two sites, by symbol, that neither call each other nor reach
+  the fact through one shared primitive, and changing one without the other
+  would be a bug — values that merely agree are
   not one. Put it in one territory and the others never see it; with fewer
   sites it is a design-model line in one territory. One first found after step
   3's question is asked about before it is written.
@@ -317,8 +318,8 @@ searching by the path inside the map so relative citations are found, and so a
 kept checker config is searched too — that now lands somewhere else
 than it meant: each reference to a dead path, and each reference to a kept path
 whose cited content moved out. Section citations too — `git grep -nE '\.md ?(§|#)'`
-over the same scope, read for note names: a cited heading that no longer
-exists is listed with the heading that now holds it. Name the note that now
+over the same scope, read for note names: a cited heading (a `#` hit by its
+slug) that no longer exists is listed with the heading that now holds it. Name the note that now
 holds each, so the maintainer (or `decant`, for a code comment) can repoint it.
 
 **Done when** the maintainer said rewrite, init's criteria hold,
@@ -401,11 +402,12 @@ the diff alone. The diff says where to look; the note says what was claimed.
 - **An area no note covers** — draft it under init's step 2 rules and write it
   with NOTES.md. An entry point or top-level folder that appeared is the usual
   tell.
-- **An invariant left with fewer than two sites that do not call each other**
-  — they now share one primitive — no longer meets init's step 2 bar: its fact
-  becomes a design-model line in the territory holding the primitive's file (with
-  none, ask which), the other territories gain a blast edge to it, and their
-  cross-cutting link goes when the note does.
+- **An invariant that no longer meets init's step 2 bar** is folded. Fewer than
+  two sites left, or one shared primitive now holding the fact: it becomes a
+  design-model line in the territory holding that primitive or the last site,
+  and a territory that still reaches the fact gains a blast edge to it. Sites
+  that could now change apart: each keeps or gains its own line, with no edge.
+  Either way the territories' cross-cutting link goes when the note does.
 - **Every identity doc**, changed in the range or not — make sure it carries the
   hub link and the [binding](NOTES.md#the-binding), so one missing before the
   range is caught too.
@@ -417,12 +419,16 @@ invariant folded as above — count the references outside the map to each path
 (`git grep -n '<path inside the map>' -- . ':(exclude,glob)<map folder>/**/*.md'`,
 reading hits as init's step 2 does), and ask with the tool that renders a
 question, recommending an answer. Until a yes, the note keeps its path; a folded
-invariant's note says it is now a case of that territory and links there. After
+invariant's note says where its fact now lives and links there. After
 a yes, every link to the old path in the map — the hub's, blast edges,
 cross-cutting sections — is rewritten, or removed with a deleted note, and the
 references outside it that now land elsewhere go in the closing report. A note a
 **map** commit already renamed or deleted is handled the same way: the act was
 not this run's to ask about.
+
+Section citations to any note this step edited or moved — init over an existing
+map's `§`/`#` grep, `-- . ':(exclude,glob)<map folder>/**/*.md'` — whose heading
+is gone go in the closing report too, whether or not a path moved.
 
 Ask when the reading does not settle which claim a change moved, as in init's
 step 3. Keep each invariant's territories and the territories' cross-cutting
@@ -431,8 +437,7 @@ sections pointing at each other.
 **Done when** every note named in step 1 has been reread and either changed or
 confirmed unchanged, every identity doc carries the hub link and the binding,
 and no other note was edited in this step except for back-links, the hub's link
-to a note this step wrote, the links a moved path needs, and a fold's line in
-the primitive's territory.
+to a note this step wrote, the links a moved path needs, and a fold's edits.
 
 ### 3. Read the same fact in two notes
 
