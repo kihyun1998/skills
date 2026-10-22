@@ -50,6 +50,14 @@ skill directory, where Claude Code and Codex discover them.
 
 ## Install
 
+To sync the skills and the mods in one go — `--dry-run` previews both:
+
+```sh
+./scripts/sync.sh                  # runs install-skills.sh, then install-mods.sh
+```
+
+Each script below also runs on its own, and takes the flags only it knows.
+
 Link every skill in this repo into both `~/.claude/skills` and
 `~/.codex/skills` (or `$CODEX_HOME/skills` when `CODEX_HOME` is set):
 
@@ -115,7 +123,7 @@ Adding a mod, its layout, and the check every mod passes: [`mods/README.md`](mod
 ```
 .
 ├── .claude-plugin/ marketplace.json — generated from mods/ by install-mods; do not edit
-├── scripts/        install scripts — symlink skills into ~/.claude/skills, install mods
+├── scripts/        install scripts — sync.sh runs both: symlink skills, install mods
 ├── docs/agents/    config the Matt Pocock engineering skills read for this repo
 ├── CLAUDE.md       guidance auto-loaded by Claude Code when working in this repo
 ├── <skill>/        one folder per skill, each with a SKILL.md
