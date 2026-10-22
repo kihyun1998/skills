@@ -58,8 +58,9 @@ Read in the order a person would, and take notes as you go:
    contain this, and a map without it maps only what already happened;
 6. **the other side of the boundary**, where the repo names the project that
    calls or consumes it, or the maintainer points you there: read the seam —
-   the call site, how it is built and shipped from there — and cite it with that
-   repo's commit and the date. A helper whose contract lives in its caller is
+   the call site, how it is built and shipped from there — at one commit, read
+   with `git -C <repo> show <sha>:<path>` so a moving checkout cannot shift it,
+   and cite that sha and its date. A helper whose contract lives in its caller is
    half-mapped from inside.
 
 Where a doubt appears — *is this the only caller? does this file really hold half
@@ -84,9 +85,11 @@ paragraph you just wrote, not from the folders:
   over them.
 - **A fact that holds in several territories is an invariant**, its own note —
   the shared storage layout, the coordinate space, the lifecycle rule — when it
-  can name at least two sites, by symbol, that do not call each other. Put it
-  in one territory and the others never see it; with fewer sites it is a
-  design-model line in one territory.
+  can name at least two sites, by symbol, that do not call each other, and
+  changing one without the other would be a bug — values that merely agree are
+  not one. Put it in one territory and the others never see it; with fewer
+  sites it is a design-model line in one territory. One first found after step
+  3's question is asked about before it is written.
 - **Quiet areas count.** Release tracks, published packages, frozen shims, CI,
   generated or vendored directories: they rarely change and break silently when
   touched. Shipping is something the system does.
@@ -172,28 +175,32 @@ The hub carries two stamps, one line each:
 
 The build stamp is the commit of the skills checkout whose `grill-map` this run
 read — `git -C <that checkout> rev-parse --short HEAD`, normally the one
-`~/.claude/skills/grill-map` resolves to — with `(uncommitted)` after it when that
-checkout has uncommitted changes to `grill-map`. The synced-at line is what update reads from; the date is its
-fallback when the commit is gone.
+`~/.claude/skills/grill-map` resolves to — with `(uncommitted)` after it when
+`git -C <that checkout> status --porcelain -- grill-map` lists changes. It is
+read once, when the run begins; a skill changed mid-run is not re-read. The
+synced-at line is what update reads from; the date is its fallback when the
+commit is gone.
 
 **Done when** every territory from step 2 has a note, the hub links them all,
 both stamps are written, and every identity doc carries the hub link and the
-binding from [Once the map exists](#once-the-map-exists) — or, in a repo with no
+[binding](NOTES.md#the-binding) — or, in a repo with no
 identity doc, the hub says so and the closing report names it.
 
 ### 5. The reading test
 
-The map is done when it can explain a change. Prefer an **open backlog item**:
-the map was written at HEAD, so every commit is already in it, and a predictor
-handed a commit's subject can find that commit's own fix written in a note.
-Without a backlog, pick the most recent commit that changed behaviour (not a
-dependency bump, release or formatting pass) and say the map has absorbed it. A commit that bundles unrelated work
+The map is done when it can explain a change it does not already describe. The
+map was written at HEAD, so a commit's own fix is in a note. In order: an
+**open backlog item**; else a `## Known holes / open` item as a change, compared
+with the code it would need; else the most recent commit that changed behaviour
+(not a bump, release or formatting pass), its issue number cut from the subject.
+For either of the last two, the predictor reads a scratch copy of the map
+without the lines naming the change — the hole's own line, the issue or commit. A commit that bundles unrelated work
 under one subject is scored per part: a territory reached only by the part the
 subject does not name is not a miss.
 
 You have read that change's code, so the prediction is not yours to make. Give a
 fresh subagent the change's subject line or backlog text — no diff — and the map
-folder as the only thing it may read, and have it name, from the hub, the
+folder, or that copy, as the only thing it may read, and have it name, from the hub, the
 territories the change touches and why, following blast-radius and invariant
 links. Nothing confines it, so have it list every file it opened: one outside the
 map voids the run. Then compare with the commit's real diff, or with the code
@@ -243,7 +250,14 @@ and stamp lines; their prose is a lead like any note's, read after the draft:
 Put that to the maintainer with the tool that renders a question, as a proposal
 with a recommended answer and the reason that would make it wrong: the hub
 path, the notes to be rewritten in place, the files kept, the outside count, the
-checker's baseline. **A no means nothing is written**: say so and stop. An answer that corrects the survey — *"the
+checker's baseline, and the cost — notes and lines to be read and rewritten.
+Three answers: **rewrite**, below; **adopt**, offered when a hub exists, the map
+folder is committed and clean (`git status --porcelain -- <map folder>` empty), and init was not forced — write the synced-at
+line at the map folder's last commit (`git log -1 --format='%h (%cs)' -- <map folder>`)
+and the build stamp, then run [update](#update) from there, every step even on
+an empty range, and end on its criteria; its reading test is the adoption test
+and never "nothing to run on". A claim false since before that commit is not
+caught, which is the price; **no** — nothing is written: say so and stop. An answer that corrects the survey — *"the
 hub is the other file"*, *"that one is not a note"* — is recorded as theirs and
 followed.
 
@@ -274,7 +288,8 @@ a flat layout an invariant is named for its fact, and the hub links it under its
 own heading, apart from the territories. Put the ledger beside the draft when you ask step 3's question
 whenever a path would die or split: it decides which references break.
 
-**Step 4, carrying.** Every claim in an old note ends one of four ways:
+**Step 4, carrying.** A note that keeps its path is edited in place, not
+written from blank. Every claim in an old note ends one of four ways:
 
 - **re-verified** — checked against the code at HEAD and written with that
   evidence. A claim true in substance and wrong in a detail is re-verified with
@@ -293,8 +308,7 @@ whenever a path would die or split: it decides which references break.
 
 The evidence or source written beside each claim is the marker; there is no
 separate tag. A heading an old note used that the templates lack is folded into
-the template's sections. The counts per old note go in the closing report, not
-the notes.
+the template's sections.
 
 **Closing, the references that changed meaning.** Delete every note whose path
 died; git keeps it. Then list every reference outside the map's notes —
@@ -302,10 +316,12 @@ died; git keeps it. Then list every reference outside the map's notes —
 searching by the path inside the map so relative citations are found, and so a
 kept checker config is searched too — that now lands somewhere else
 than it meant: each reference to a dead path, and each reference to a kept path
-whose cited content moved out. Name the note that now holds it, so the
-maintainer (or `decant`, for a code comment) can repoint it.
+whose cited content moved out. Section citations too — `git grep -nE '\.md ?(§|#)'`
+over the same scope, read for note names: a cited heading that no longer
+exists is listed with the heading that now holds it. Name the note that now
+holds each, so the maintainer (or `decant`, for a code comment) can repoint it.
 
-**Done when** the maintainer said yes to the survey, init's criteria hold,
+**Done when** the maintainer said rewrite, init's criteria hold,
 every old note appears in the ledger, every
 carried claim is re-verified, attributed, moved or dropped with a reason, and
 every reference that changed meaning is listed.
@@ -324,7 +340,7 @@ invariant this run changed, or a moved path; or a fold writes into it (step 2).
 Resolve the synced-at commit. If it no longer exists (a rebase, a squash), read
 from the first commit **on** its date — the stamp has no time, and re-reading a
 day costs less than missing a commit — and say so in one line naming both. If
-it is HEAD, the map is current: say so and stop.
+it is HEAD, the map is current: say so and stop — except on adopt.
 
 Read every commit subject in the range, and give each one a class:
 
@@ -391,7 +407,7 @@ the diff alone. The diff says where to look; the note says what was claimed.
   none, ask which), the other territories gain a blast edge to it, and their
   cross-cutting link goes when the note does.
 - **Every identity doc**, changed in the range or not — make sure it carries the
-  hub link and the [binding](#once-the-map-exists), so one missing before the
+  hub link and the [binding](NOTES.md#the-binding), so one missing before the
   range is caught too.
 
 **A note path is never renamed or deleted unasked.** Code comments and docs
@@ -440,34 +456,13 @@ and the build stamp as init's step 4 says.
 
 ### 5. The reading test
 
-As init's step 5, on a behaviour commit **from the range**; where the range has
-none, on an opened backlog item, and where there is none of those either, say
-the test had nothing to run on. The predictor sees only the updated map and the
-subject line.
+As init's step 5, masked the same way, on a behaviour commit **from the
+range**; where it has none, on an opened backlog item, and where there is none
+of those either, say the test had nothing to run on (on adopt, init's order).
 
 **Done when** the test reaches every territory that change touched, or was
 reported as having nothing to run on, and the run — the range, each commit's class, the notes changed and why, the test — has been
 shown to the maintainer.
-
-## Once the map exists
-
-A map that is only written is pure cost. Bind it before closing, next to the
-hub link in every identity doc the repo has (`CLAUDE.md`, `AGENTS.md`) — and
-where one already carries a map binding, revise that one rather than adding a
-second:
-
-- **Read before the change, write after it.** Where the repo's working
-  discipline has named phases, the read binds to an early one, before a design
-  is committed, and the write to a late one; where it has none, say *before
-  designing a change* and *after it lands*.
-- **Replace hand-kept lists with the map.** Where a checklist or process doc
-  hand-lists what a map note now holds — "also check these files", an area
-  roster — propose replacing the list with a link to the note, so the map is the
-  only place the answer lives — once you know what reads the list (Scope).
-- **Promotion, at the first fix.** When a fix reveals a fact, ask whether it
-  also holds outside the territory it was found in — phrased so grep can answer
-  it: *"does this hold at every site that shares <the assumption>?"* If yes, the
-  fix lands with an invariant note.
 
 ## Closing report
 
@@ -477,8 +472,8 @@ wherever the run met them:
 - references outside the map that land somewhere else or nowhere, with the note that
   holds their subject — and whether the repo's link check stays red until they
   are repointed;
-- corrections made to old claims, drops with their reasons, and the counts per
-  old note (init over an existing map);
+- corrections made to old claims, and drops with their reasons (init over an
+  existing map);
 - holes the reading found, with the note that records each;
 - anything that looked wrong in source, records or specs, left as it was, and
   checks worth having, as proposals (Scope);

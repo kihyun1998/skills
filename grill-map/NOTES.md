@@ -86,7 +86,8 @@ Stated once, in the form that makes it checkable.
 
 ## Why it is cross-cutting
 The shared assumption that makes it hold in several places, and that those
-sites do not call each other — which is why no territory edge could carry it.
+sites do not call each other — which is why no territory edge could carry it —
+and why changing one without the other would be a bug.
 
 ## Territories it holds in
 Territory links, naming the site in each. Each territory links back under its
@@ -152,6 +153,30 @@ Where SKILL.md's step 4 is split across agents by territory, each one gets the
 draft, this file and step 3's provenance rule. One owner keeps the invariants
 and the hub: a territory agent that finds a fact holding beyond its territory
 reports it to the owner with its sites rather than writing an invariant note,
-and the owner writes it and adds it to the territories it holds in. At the end
+and the owner, once the maintainer has been asked (SKILL.md, step 2), writes it
+and adds it to the territories it holds in. A claim one
+agent moves into a note another agent writes goes to the owner too, and every
+such move is applied by the owner after all the agents have finished, and
+checked as step 4 checks a note. At the end
 the owner checks that every invariant and the territories it claims point at
 each other.
+
+## The binding
+
+A map that is only written is pure cost. Bind it before closing, next to the
+hub link in every identity doc the repo has (`CLAUDE.md`, `AGENTS.md`) — and
+where one already carries a map binding, revise that one rather than adding a
+second:
+
+- **Read before the change, write after it.** Where the repo's working
+  discipline has named phases, the read binds to an early one, before a design
+  is committed, and the write to a late one; where it has none, say *before
+  designing a change* and *after it lands*.
+- **Replace hand-kept lists with the map.** Where a checklist or process doc
+  hand-lists what a map note now holds — "also check these files", an area
+  roster — propose replacing the list with a link to the note, so the map is the
+  only place the answer lives — once you know what reads the list (SKILL.md, Scope).
+- **Promotion, at the first fix.** When a fix reveals a fact, ask whether it
+  also holds outside the territory it was found in — phrased so grep can answer
+  it: *"does this hold at every site that shares <the assumption>?"* If yes, the
+  fix lands with an invariant note.
