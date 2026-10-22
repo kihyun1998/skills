@@ -211,6 +211,36 @@ an earlier init — is one more thing a new maintainer reads: useful, possibly
 stale, and written by someone who knew things the code does not say. Run init's
 five steps with these changes.
 
+**Before anything, show what is there and ask.** Rewriting someone's map is hard
+to take back, and its shape varies by repo, so survey it and get a yes before
+writing. The survey reads file names, the identity docs, and the hub and any
+stub whole — they are short and route, they hold no territory's claims — but no
+note, which stays unread until the draft exists:
+
+- **the hub** — the map file each identity doc links to; with no link, the map
+  folder's `README.md`. A short file whose only job is to point at another is a
+  stub, not the hub. Both stamps go in the hub, and the mode is read from it;
+- **files that are not notes** — a checker, its config, a stub, and any `.md`
+  the notes link into as a store, such as a reference-facts file: search by
+  link, `git grep -lE '\]\(([^)]*/)?<file>' -- <map folder>`, not by bare name,
+  which also matches files outside the map. These stay as they are;
+- **the notes** — every other `.md` in the folder: how many, and the layout,
+  `territory/` and `invariant/` folders, flat, or other. A
+  `grill-map build stamp` line in the hub says the first version wrote it;
+- **references from outside** — `git grep -c '<map folder>/' -- . ':(exclude)<map folder>/**'`,
+  the count that says how much depends on the paths kept;
+- **the repo's own map checker** — searched in the map folder, `scripts/`,
+  `.github/` and the commands the identity docs name; a link check that covers
+  the map counts. Run it on the map as it stands, so a red after the rewrite can
+  be told from a red that was already there, or say none exists.
+
+Put that to the maintainer with the tool that renders a question, as a proposal
+with a recommended answer and the reason that would make it wrong: the hub
+path, the notes to be rewritten in place, the files kept, the outside count, the
+checker's baseline. **A no means nothing is written**: say so and stop. An answer that corrects the survey — *"the
+hub is the other file"*, *"that one is not a note"* — is recorded as theirs and
+followed.
+
 **Steps 1 and 2, draft first.** Orient on the repo and write the territory
 draft down **before opening any old note** — the file names seen when the mode
 was chosen are not a draft. Then read every old note, the hub included, and take
@@ -273,7 +303,8 @@ than it meant: each reference to a dead path, and each reference to a kept path
 whose cited content moved out. Name the note that now holds it, so the
 maintainer (or `decant`, for a code comment) can repoint it.
 
-**Done when** init's criteria hold, every old note appears in the ledger, every
+**Done when** the maintainer said yes to the survey, init's criteria hold,
+every old note appears in the ledger, every
 carried claim is re-verified, attributed, moved or dropped with a reason, and
 every reference that changed meaning is listed.
 
