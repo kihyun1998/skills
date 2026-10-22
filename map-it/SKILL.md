@@ -28,6 +28,10 @@ Look at the map folder and say in one line which mode runs and why.
 | notes, and a hub with a `map-it synced at` line | **update** |
 | notes, and no `map-it synced at` line (a map written by another skill or by hand) | **init over an existing map** |
 
+The working tree decides, not the git index: map files the index lists and the
+tree lacks are a deleted map, named in the one-line statement, and the mode is
+read from what is on disk.
+
 `/map-it init` forces init on a map with a synced-at line; that run follows
 [init over an existing map](#init-over-an-existing-map), since notes are there.
 
@@ -72,8 +76,8 @@ paragraph you just wrote, not from the folders:
 - **Overlap is expected.** A file can sit in three territories; a territory can
   span four folders. A large file holding several jobs is several territories.
 - **One concept, one note.** Two things with separate names get separate notes,
-  so a blast edge can point at exactly one. A `&` in a territory name is the
-  tell. Where several concepts belong side by side, add an **aggregate** note
+  so a blast edge can point at exactly one. A `&` in a territory name — or a
+  spelled-out `-and-` — is the tell. Where several concepts belong side by side, add an **aggregate** note
   over them.
 - **A fact that holds in several territories is an invariant**, its own note —
   the shared storage layout, the coordinate space, the lifecycle rule. Put it in
@@ -81,6 +85,21 @@ paragraph you just wrote, not from the folders:
 - **Quiet areas count.** Release tracks, published packages, frozen shims, CI,
   generated or vendored directories: they rarely change and break silently when
   touched. Shipping is something the system does.
+
+**Note paths already cited.** Code comments, docs and a CI link check may name
+note paths before any note exists. Search for the map's last folder name with a
+note subfolder or a `.md` after it — `git grep -nE '<map>/(territory|invariant)/|<map>/[^ )]*\.md' -- .`
+with `<map>` the folder's last segment (`map`) — so a relative citation such as
+`../map/invariant/x.md` is found too. A drafted concept that a cited path names
+takes that path; where one cited path names several drafted concepts, it is
+placed by the ledger's split row in
+[init over an existing map](#init-over-an-existing-map). A cited path no concept
+claims is listed at closing with the note that now holds its subject. Draft
+first, then match: a cited name never adds a territory the system does not have.
+
+A listed reference stays broken until someone repoints it, and this skill edits
+none of them: where the repo's link check covers those files, say in the closing
+report that it stays red until they are repointed.
 
 **Done when** every entry point, every top-level folder and every open-backlog
 item lands in some territory or in the hub's stated out-of-scope.
@@ -119,9 +138,21 @@ templates and conventions are in [NOTES.md](NOTES.md); read it before the first
 note.
 
 **Check each note as you finish it**, against the code it names: reread the
-symbols under `## Code`, follow each link, and make sure each claim has its
-evidence or its source. A defect found at the third note ends there; found at the
-end, it has been copied into every note after it.
+symbols under `## Code`, follow each link, check that each blast reason names a
+shared assumption, and make sure each claim has its evidence or its source. Where
+the repo has its own map checkers, run them on the note here, not only at the
+end — and read their result for this note's own addresses only: a link to a
+drafted note not yet written is expected to fail until step 4 ends. A defect
+found at the third note ends there; found at the end, it has been copied into
+every note after it.
+
+**A large repo may split this step** across agents by territory. Each one gets
+the draft, NOTES.md and step 3's provenance rule. One owner keeps the
+invariants and the hub: a territory agent that finds a fact holding beyond its
+territory reports it to the owner with its sites rather than writing an
+invariant note, and the owner writes it and adds it to the territories it holds
+in. At the end the owner checks that every invariant and the territories it
+claims point at each other.
 
 The hub carries two stamps, one line each:
 
@@ -130,9 +161,10 @@ The hub carries two stamps, one line each:
 <!-- map-it synced at: <this repo's HEAD commit> (<its committer date, yyyy-mm-dd>) -->
 ```
 
-The build stamp is the commit of the skills checkout that `~/.claude/skills/map-it`
-resolves to (`git -C ~/.claude/skills/map-it rev-parse --short HEAD`), with
-`(uncommitted)` after it when that checkout has uncommitted changes to `map-it`. The synced-at line is what update reads from; the date is its
+The build stamp is the commit of the skills checkout whose `map-it` this run
+read — `git -C <that checkout> rev-parse --short HEAD`, normally the one
+`~/.claude/skills/map-it` resolves to — with `(uncommitted)` after it when that
+checkout has uncommitted changes to `map-it`. The synced-at line is what update reads from; the date is its
 fallback when the commit is gone.
 
 **Done when** every territory from step 2 has a note, the hub links them all,
@@ -164,7 +196,8 @@ the backlog item would need.
   list is a checklist, and an item with nothing to do is a correct outcome.
 
 If the repo already has a map checker, run it as a check on addresses: fix the
-broken links it reports. Passing it does not finish the map; the reading test
+broken links inside the map's notes, and list the ones outside them as step 2's
+cited-path rule says. Passing it does not finish the map; the reading test
 does.
 
 **Done when** the test reaches every touched territory, and its transcript — the
@@ -233,8 +266,9 @@ config — stay where they are, and a checker is run as in init's step 5.
 
 **Closing, the references that changed meaning.** Delete every note whose path
 died; git keeps it. Then list every reference outside the map's notes —
-`git grep -n '<path>' -- . ':(exclude,glob)<map folder>/**/*.md'`, so a kept
-checker config is searched too — that now lands somewhere else
+`git grep -n '<path inside the map, e.g. territory/x.md>' -- . ':(exclude,glob)<map folder>/**/*.md'`,
+searching by the path inside the map so relative citations are found, and so a
+kept checker config is searched too — that now lands somewhere else
 than it meant: each reference to a dead path, and each reference to a kept path
 whose cited content moved out. Name the note that now holds it, so the
 maintainer (or `decant`, for a code comment) can repoint it.

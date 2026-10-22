@@ -43,7 +43,9 @@ adjacent and why it does not govern ("this ADR decides delivery, not the model")
 
 ## Design model
 The rules and invariants this area keeps. Say whether they come from a record or
-only from reading the source; that is the territory's status.
+only from reading the source; that is the territory's status. Where the area
+takes input from outside the system — a byte stream, a user, a network peer —
+say what bounds that input's size and count.
 
 ## Code
 Symbols by file, as text: `file — Type::method`. A territory that is designed and
@@ -63,10 +65,15 @@ Links to the invariant notes that hold here.
 
 ## Blast radius
 Links to the territories to check after changing this one, each with its reason.
+The reason names **what goes wrong over there** — the assumption the two share —
+not the route a call takes: *"the URI it stores has no size bound"*, not
+*"the `OSC 8` arm"*. A reader holding a change picks edges by their reasons; a
+route reason matches every change and so guides none.
 
 ## Known holes / open
 What is not built, not decided, or not understood — including questions the
-reading raised and nobody could answer.
+reading raised and nobody could answer — and an outside input that nothing
+bounds (see `## Design model`).
 ```
 
 ## Cross-cutting invariant note
