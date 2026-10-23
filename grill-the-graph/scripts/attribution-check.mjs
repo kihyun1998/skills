@@ -43,12 +43,18 @@ function liftBodies(command) {
   return { text: out, bodies };
 }
 
+// A redirection (`2>&1`, `> out.log`, `&>`, PowerShell's `*>` and `2>$null`) is
+// dropped with its file descriptor and its target, so neither reads as an argument.
 function tokenize(text) {
   const tokens = [];
   let word = null;
+  let quoted = false;
+  let dropNext = false;
   const flush = () => {
-    if (word !== null) tokens.push({ word });
+    if (word !== null && !dropNext) tokens.push({ word });
+    if (word !== null) dropNext = false;
     word = null;
+    quoted = false;
   };
   for (let i = 0; i < text.length; i++) {
     const c = text[i];
@@ -56,6 +62,7 @@ function tokenize(text) {
       const end = text.indexOf("'", i + 1);
       const stop = end === -1 ? text.length : end;
       word = (word ?? '') + text.slice(i + 1, stop);
+      quoted = true;
       i = stop;
     } else if (c === '"') {
       let j = i + 1;
@@ -65,9 +72,17 @@ function tokenize(text) {
         s += text[j++];
       }
       word = (word ?? '') + s;
+      quoted = true;
       i = j;
     } else if (c === '\\' && i + 1 < text.length && text[i + 1] !== '\n') {
       word = (word ?? '') + text[++i];
+      quoted = true;
+    } else if (c === '<' || c === '>' || (c === '&' && text[i + 1] === '>')) {
+      if (!quoted && /^(\d+|\*)$/.test(word ?? '')) word = null;
+      flush();
+      // `>&`, `<&` and `>|` are one operator; `&>`, `>>` and `<<<` repeat this branch.
+      if (text[i + 1] === '&' || text[i + 1] === '|') i++;
+      dropNext = true;
     } else if (c === '\n' || c === ';' || c === '|' || c === '&') {
       flush();
       tokens.push({ op: c });
@@ -232,15 +247,28 @@ function mentionIn(text) {
   return null;
 }
 
+const resolves = (rev, git, dir) => {
+  try {
+    git(dir, ['rev-parse', '--verify', '--quiet', `${rev}^{commit}`]);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 // The `git log` arguments for commits not yet on any remote. With no
 // remote-tracking ref at all that is the whole history, upstream's included, so
-// the check refuses rather than reading every commit as new.
+// the check refuses rather than reading every commit as new. A rev that does not
+// resolve yet — a branch the same command creates — stands for every local branch.
 function unpushedRange(revs, git, dir) {
   if (!git(dir, ['for-each-ref', '--count=1', '--format=%(refname)', 'refs/remotes']).trim()) {
     throw new Error('no remote-tracking refs, so nothing tells what is new; run git fetch first');
   }
-  const tail = revs[0] === '--branches' ? revs : ['--end-of-options', ...revs];
-  return ['--not', '--remotes', '--not', ...tail];
+  const named = revs.filter((r) => r !== '--branches');
+  const found = named.filter((r) => resolves(r, git, dir));
+  const branches = found.length < named.length || named.length < revs.length ? ['--branches'] : [];
+  const tail = found.length ? ['--end-of-options', ...found] : [];
+  return ['--not', '--remotes', '--not', ...branches, ...tail];
 }
 
 const SHELLS = { bash: '-c', sh: '-c', zsh: '-c', pwsh: '-command', powershell: '-command' };

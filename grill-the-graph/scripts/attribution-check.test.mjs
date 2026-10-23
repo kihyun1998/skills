@@ -6,8 +6,9 @@ const TRAILER = 'Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>';
 const FOOTER = '🤖 Generated with [Claude Code](https://claude.com/claude-code)';
 
 // A repo with nothing unpushed on branch `fix-x`, one remote-tracking ref, and no
-// message files.
-function deps({ files = {}, unpushed = '', branch = 'fix-x', remotes = 'origin/main\n' } = {}) {
+// message files. Every rev resolves except those in `missing`; `logged` collects
+// the arguments of each `git log`.
+function deps({ files = {}, unpushed = '', branch = 'fix-x', remotes = 'origin/main\n', missing = [], logged = [] } = {}) {
   return {
     readFile: (path) => {
       const hit = Object.keys(files).find((f) => path.replaceAll('\\', '/').endsWith(f));
@@ -15,7 +16,12 @@ function deps({ files = {}, unpushed = '', branch = 'fix-x', remotes = 'origin/m
       return files[hit];
     },
     git: (_cwd, args) => {
-      if (args[0] === 'log') return unpushed;
+      if (args[0] === 'log') { logged.push(args.slice(2)); return unpushed; }
+      if (args[0] === 'rev-parse' && args.includes('--verify')) {
+        const rev = args[args.length - 1].replace(/\^\{commit\}$/, '');
+        if (missing.includes(rev)) throw new Error('Command failed: git rev-parse');
+        return `${'c'.repeat(40)}\n`;
+      }
       if (args[0] === 'rev-parse') return `${branch}\n`;
       if (args[0] === 'for-each-ref') return remotes;
       throw new Error(`unexpected git ${args.join(' ')}`);
@@ -193,6 +199,65 @@ test('a command inside bash -c or pwsh -Command is checked', () => {
   assert.equal(run(`bash -c 'git commit -m "fix" -m "${TRAILER}"'`), 'block');
   assert.equal(run(`powershell -NoProfile -Command "git commit -m fix -m '${TRAILER}'"`), 'block');
   assert.equal(run('pwsh -c "gh pr comment 3 --body \'Claude saw it\'"'), 'ask');
+});
+
+// Shell redirections around a push.
+test('a redirection is not read as a refspec', () => {
+  const cases = [
+    'git push -u origin main 2>&1 | tail -6',
+    'git push origin main > out.log',
+    'git push origin main 2>/dev/null',
+    'git push origin main>out.log',
+    'git push origin main >> out.log 2>&1',
+    'git push origin main &> out.log',
+    'git push origin main 2>$null',
+    'git push origin main *> out.txt',
+    'git push origin main < /dev/null',
+    'git push origin main 2>&1 |& tee out.log',
+    'git push 2>&1 origin main',
+    'git push &>out.log origin main',
+    'git push >|out.log origin main',
+    'git push 2>&- origin main <<<x',
+  ];
+  for (const cmd of cases) {
+    const logged = [];
+    assert.equal(run(cmd, deps({ unpushed: 'fix\n\0', logged })), 'pass', cmd);
+    assert.deepEqual(logged, [['--not', '--remotes', '--not', '--end-of-options', 'main']], cmd);
+  }
+});
+
+test('a redirection does not hide a trailer in the pushed commits', () => {
+  assert.equal(run('git push origin main 2>&1 | tail -6', deps({ unpushed: `fix\n\n${TRAILER}\n\0` })), 'block');
+});
+
+test('a quoted > or & is message text, not a redirection', () => {
+  assert.equal(run('git commit -m "Claude > 2>&1 & co"'), 'ask');
+  assert.equal(run('git push origin "a>b"', deps({ branch: 'x' })), 'pass');
+  // A quoted number before > is a word, not a file descriptor.
+  const logged = [];
+  run("git push origin '1'>out.log", deps({ logged }));
+  assert.deepEqual(logged, [['--not', '--remotes', '--not', '--end-of-options', '1']]);
+});
+
+// A ref the same command creates does not exist when the hook runs.
+test('a branch created earlier in the command is checked against every unpushed commit', () => {
+  for (const make of ['git switch -c feat/x', 'git checkout -b feat/x', 'git branch feat/x']) {
+    const logged = [];
+    const cmd = `${make} && git push -u origin feat/x`;
+    assert.equal(run(cmd, deps({ missing: ['feat/x'], unpushed: 'fix\n\0', logged })), 'pass', cmd);
+    assert.deepEqual(logged, [['--not', '--remotes', '--not', '--branches']], cmd);
+    assert.equal(run(cmd, deps({ missing: ['feat/x'], unpushed: `fix\n\n${TRAILER}\n\0` })), 'block', cmd);
+  }
+});
+
+test('a missing ref beside a resolved one checks both', () => {
+  const logged = [];
+  run('git push origin main feat/x', deps({ missing: ['feat/x'], logged }));
+  assert.deepEqual(logged, [['--not', '--remotes', '--not', '--branches', '--end-of-options', 'main']]);
+});
+
+test('a claude/ branch created in the same command is still blocked', () => {
+  assert.equal(run('git switch -c claude/x && git push -u origin claude/x', deps({ missing: ['claude/x'] })), 'block');
 });
 
 test('a clone with no remote-tracking refs blocks a push rather than scanning all history', () => {
