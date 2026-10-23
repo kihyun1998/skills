@@ -151,13 +151,15 @@ checks every push, from a script, an IDE or a person at the terminal.
 
 Merge this into `.claude/settings.local.json`, keeping any keys already there.
 Claude Code keeps that file out of every repository through the global git
-excludes, so it needs no exclude line of its own. `<run>` is one `shell` and
-`command` pair, chosen by whether `bash` is on the PATH (Git Bash, on Windows):
+excludes, so it needs no exclude line of its own. `<run>` starts `node` with no
+shell, and `<script>` is the absolute path of
+`~/.claude/skills/grill-the-graph/scripts/no-attribution.mjs`, with the home
+directory written out and forward slashes, because a hook started with no shell
+expands no `$HOME`:
 
-| `bash` found | `"shell"` | `"command"` |
-|---|---|---|
-| yes | `"bash"` | `node "$HOME/.claude/skills/grill-the-graph/scripts/no-attribution.mjs" \|\| exit 2` |
-| no | `"powershell"` | `node "$env:USERPROFILE\.claude\skills\grill-the-graph\scripts\no-attribution.mjs"; if ($LASTEXITCODE -ne 0) { exit 2 }` |
+```json
+"command": "node", "args": ["<script>"], "onFailure": "block"
+```
 
 ```json
 {
@@ -182,8 +184,12 @@ excludes, so it needs no exclude line of its own. `<run>` is one `shell` and
 }
 ```
 
-The exit-2 tail is what makes it fail closed: a hook that exits 1, or whose
-`node` is missing, lets the command run.
+`onFailure: "block"` is what makes it fail closed: a hook that cannot start,
+exits with anything but 0 or 2, prints output Claude Code cannot read, or times
+out blocks the call, where it would otherwise let the command run. It needs
+Claude Code v2.1.295 or later: read `claude --version` before writing the block,
+and on an older one say so and stop, since there a hook that cannot start lets
+every command through.
 
 Write `.git/hooks/pre-push`, executable:
 
@@ -198,9 +204,8 @@ Git runs it through its own `sh` on every platform. A missing `node` fails the
 runs its own hooks, and replacing one is not setup's to do.
 
 What none of the three can see: a push made with Claude Code not running and no
-git hook (`core.hooksPath` set), a PreToolUse hook that times out, which lets the
-call through, and an `ask` in a headless `-p` run, which Claude Code turns into
-a deny.
+git hook (`core.hooksPath` set), and an `ask` in a headless `-p` run, which
+Claude Code turns into a deny.
 
 ## Process
 
@@ -312,7 +317,7 @@ Show the mode and what chose it — the argument, or the answer to the first
 question — the file, the `CLAUDE.md` rule, and — where §3
 makes one — the map folder's path and hub stub. In contributor mode show instead
 the `CLAUDE.local.md` rule, the two `.git/info/exclude` lines, the settings
-block with the `<run>` row it chose, and the `pre-push` hook or why none was
+block with `<script>` written out, and the `pre-push` hook or why none was
 written. In your own repository with attribution turned off, show those last two
 as well. Get approval. Write them. They are short enough to read whole, so there
 is nothing to summarise and no reason to write before they have been read.
@@ -323,7 +328,8 @@ mode, or wherever attribution was turned off:
 - [ ] `docs/agents/thegraph.md` exists
 - [ ] `CLAUDE.local.md` holds the contributor rule (contributor mode)
 - [ ] `.git/info/exclude` lists both (contributor mode)
-- [ ] `.claude/settings.local.json` has `attribution` and both matcher groups
+- [ ] `.claude/settings.local.json` has `attribution` and both matcher groups,
+      every hook with `"onFailure": "block"`
 - [ ] `.git/hooks/pre-push` exists and is executable — or the reason none was
       written
 - [ ] `git status --short` prints nothing (contributor mode)
