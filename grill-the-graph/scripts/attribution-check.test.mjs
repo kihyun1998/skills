@@ -478,6 +478,39 @@ test('a switch target that git would read as an option is not passed to git', ()
   assert.ok(!seen.some((a) => a.startsWith('--output')), seen.join(' '));
 });
 
+// gh pr checkout switches to the pull request's head branch, named in the command
+// only by -b or a branch argument.
+test('a push of HEAD after gh pr checkout of a number or URL blocks, asking for a separate push', () => {
+  for (const cmd of [
+    'gh pr checkout 12 && git push',
+    'gh pr checkout https://github.com/o/r/pull/12 && git push origin HEAD',
+    'gh pr co 12 && gh pr create --fill',
+    'gh pr checkout -R o/r 12 && git push -u origin @',
+    'gh pr checkout 12 && git push origin HEAD:main',
+    'gh pr checkout && git push',
+  ]) {
+    const verdict = inspect({ command: cmd, cwd: '/repo' }, deps());
+    assert.equal(verdict.action, 'block', cmd);
+    assert.match(verdict.reason, /own command/, cmd);
+  }
+});
+
+test('gh pr checkout with a known name checks that name', () => {
+  assert.equal(run('gh pr checkout claude/x && git push', deps({ missing: ['claude/x'] })), 'block');
+  assert.equal(run('gh pr checkout 12 -b claude/x && git push -u origin HEAD', deps({ missing: ['claude/x'] })), 'block');
+  assert.equal(run('gh pr checkout 12 --branch=fix-y && git push -u origin HEAD', deps({ missing: ['fix-y'] })), 'pass');
+});
+
+test('gh pr checkout leaves a push that names its branch, a detached checkout and an earlier push alone', () => {
+  for (const cmd of [
+    'gh pr checkout 12 && git push origin feat',
+    'gh pr checkout 12 --detach && git push origin feat',
+    'gh pr checkout 12 --detach && git push',
+    'git push && gh pr checkout 12',
+    'gh pr checkout 12',
+  ]) assert.equal(run(cmd), 'pass', cmd);
+});
+
 test('a switch inside bash -c counts for a push after it', () => {
   assert.equal(run('bash -c "git switch -c claude/x" && git push origin HEAD', deps({ missing: ['claude/x'] })), 'block');
 });

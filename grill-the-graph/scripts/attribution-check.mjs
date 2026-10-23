@@ -257,9 +257,31 @@ function parseGit(words, cwd) {
   return found;
 }
 
+// A branch an earlier part of the command switches to that no word names.
+const UNKNOWN = Symbol('unnamed branch');
+
+// The branch `gh pr checkout` leaves current: `-b` or a branch argument names it;
+// a number or URL names a pull request whose head branch only GitHub knows.
+function checkoutTargets(rest) {
+  let target = null;
+  for (let k = 0; k < rest.length; k++) {
+    const v = takeValue(rest, k, ['-b'], ['--branch']);
+    if (v) return v[0] ? [v[0]] : [];
+    if (rest[k] === '--detach') return [];
+    if (['-R', '--repo'].includes(rest[k])) k++;
+    else if (!rest[k].startsWith('-')) target ??= rest[k];
+  }
+  if (target === null) return [UNKNOWN];
+  return /^\d+$/.test(target) || /^https?:/.test(target) ? [UNKNOWN] : [target];
+}
+
 function parseGh(words) {
   const [, group, verb, ...rest] = words;
   const found = { prose: [], files: [], branches: [], pushes: [] };
+  if (group === 'pr' && (verb === 'checkout' || verb === 'co')) {
+    found.switches = checkoutTargets(rest);
+    return found;
+  }
   const spec = GH_FLAGS[group];
   if (spec && spec.verbs.has(verb)) {
     let head = null;
@@ -306,12 +328,17 @@ function parseGh(words) {
 // that land upstream. `switched` holds the branches an earlier part of the same
 // command may have made current; HEAD stands for those as well as for its own.
 function pushed(push, git, dir, switched) {
-  const current = () => [git(dir, ['rev-parse', '--abbrev-ref', 'HEAD']).trim(), ...switched];
+  const switchedTo = () => {
+    // A later tool call reads HEAD once the switch has happened.
+    if (switched.includes(UNKNOWN)) throw new Error('gh pr checkout switches to a branch this check cannot name; run the push as its own command');
+    return switched;
+  };
+  const current = () => [git(dir, ['rev-parse', '--abbrev-ref', 'HEAD']).trim(), ...switchedTo()];
   if (push.all) {
     const names = git(dir, ['for-each-ref', '--format=%(refname:short)', 'refs/heads']).split('\n').filter(Boolean);
     return { revs: ['--branches'], dests: push.del ? [] : names };
   }
-  if (push.refspecs.length === 0) return { revs: ['HEAD', ...switched], dests: push.del ? [] : current() };
+  if (push.refspecs.length === 0) return { revs: ['HEAD', ...switchedTo()], dests: push.del ? [] : current() };
   const head = (r) => r === 'HEAD' || r === '@';
   const revs = [];
   const dests = [];
@@ -319,7 +346,7 @@ function pushed(push, git, dir, switched) {
     const bare = spec.replace(/^\+/, '');
     if (bare.startsWith('-')) throw new Error(`refspec "${spec}" reads as an option`);
     const [src, dest] = bare.split(':');
-    if (src) revs.push(src, ...(head(src) ? switched : []));
+    if (src) revs.push(src, ...(head(src) ? switchedTo() : []));
     // Deleting a branch (`-d`, or an empty source) sends no name worth keeping out.
     if (push.del || !src) continue;
     const name = dest ?? src;
@@ -392,15 +419,17 @@ function collect(command, cwd, { readFile, git }, acc, shell) {
     if (!found) continue;
     if (found.switches) {
       acc.switched ??= new Map();
-      const key = resolve(found.dir);
+      const dir = found.dir ?? cwd;
+      const key = resolve(dir);
       const names = acc.switched.get(key) ?? [];
       for (const name of found.switches) {
+        if (name === UNKNOWN) { names.push(name); continue; }
         // git refuses a branch named like an option, so that switch moves nothing.
         if (name.startsWith('-') && name !== '-') continue;
         // `-` is the branch before this one; it is unknown only where git has none.
         if (name !== '-' && !name.startsWith('@{-')) { names.push(name); continue; }
         try {
-          names.push(git(found.dir, ['rev-parse', '--abbrev-ref', name === '-' ? '@{-1}' : name]).trim());
+          names.push(git(dir, ['rev-parse', '--abbrev-ref', name === '-' ? '@{-1}' : name]).trim());
         } catch { /* git has no previous branch, so the switch fails and nothing moves */ }
       }
       acc.switched.set(key, names);
