@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 import { inspect, inspectTool, inspectPrePush } from './attribution-check.mjs';
 
@@ -382,6 +383,73 @@ test('an MSYS drive path is read from that drive in bash on Windows', { skip: pr
   // PowerShell has no MSYS drives: `/c/...` is a folder on the current drive.
   inspectTool({ tool_name: 'PowerShell', tool_input: { command: 'git commit -F /c/work/msg.txt' }, cwd: '/repo' }, d);
   assert.deepEqual(read, [resolve('C:/work/msg.txt'), resolve('C:/work/msg.txt'), resolve('/repo', '/c/work/msg.txt')]);
+});
+
+// A `cd` earlier in the command moves where the rest of it runs.
+const gitDirs = (check, opts) => {
+  const seen = new Set();
+  const d = deps(opts);
+  const git = d.git;
+  d.git = (cwd, args) => { seen.add(cwd); return git(cwd, args); };
+  check(d);
+  return [...seen];
+};
+
+test('a git command after cd runs in the directory cd moved to', () => {
+  for (const cmd of ['cd ../other && git push origin main', 'cd -P ../other; git push origin main', 'pushd ../other && git push origin main', 'chdir ../other && git push origin main']) {
+    assert.deepEqual(gitDirs((d) => run(cmd, d)), [resolve('/repo', '../other')], cmd);
+  }
+  for (const cmd of ['Set-Location ..\\other; git push origin main', 'sl ..\\other; git push origin main', 'Push-Location -Path ..\\other; git push origin main', 'Set-Location -LiteralPath ..\\other; git push origin main']) {
+    assert.deepEqual(gitDirs((d) => ps(cmd, d)), [resolve('/repo', '../other')], cmd);
+  }
+  assert.deepEqual(gitDirs((d) => run('cd "my repo" && git push origin main', d)), [resolve('/repo', 'my repo')]);
+});
+
+test('cd to home goes to the home directory', () => {
+  assert.deepEqual(gitDirs((d) => run('cd ~/work && git push origin main', d)), [resolve(homedir(), 'work')]);
+  assert.deepEqual(gitDirs((d) => run('cd && git push origin main', d)), [homedir()]);
+});
+
+test('cd to an MSYS drive path in bash on Windows', { skip: process.platform !== 'win32' }, () => {
+  assert.deepEqual(gitDirs((d) => run('cd /c/work && git push origin main', d)), [resolve('C:/work')]);
+});
+
+test('what a later part of the command reads follows cd', () => {
+  assert.deepEqual(gitDirs((d) => run('cd sub && git -C inner push origin main', d)), [resolve('/repo/sub/inner')]);
+  const d = deps({ files: { 'repo/msg.txt': 'fix\n', 'sub/msg.txt': `fix\n\n${TRAILER}\n` } });
+  assert.equal(run('cd sub && git commit -F - < msg.txt', d), 'block');
+  assert.equal(run('cd sub && git commit -F msg.txt', d), 'block');
+  assert.equal(run('cd sub && git switch -c claude/x && git push', deps({ missing: ['claude/x'] })), 'block');
+  // gh names no directory of its own, so it runs where cd left.
+  assert.deepEqual(gitDirs((d) => run('cd sub && gh pr create --fill', d)), [resolve('/repo/sub')]);
+  assert.equal(run('cd sub && gh pr checkout claude/x && git push', deps({ missing: ['claude/x'] })), 'block');
+});
+
+test('a cd inside bash -c stays there, and bash -c starts where cd left', () => {
+  assert.deepEqual(gitDirs((d) => run('bash -c "cd ../other" && git push origin main', d)), ['/repo']);
+  assert.deepEqual(gitDirs((d) => run('cd sub && bash -c "git push origin main"', d)), [resolve('/repo/sub')]);
+});
+
+test('a git command after a cd this check cannot follow blocks, asking for its own command', () => {
+  for (const [cmd, check] of [
+    ['cd $REPO && git push origin main', run],
+    ['cd - && git push origin main', run],
+    ['popd && git push origin main', run],
+    ['Pop-Location; git push origin main', ps],
+    ['cd; git push origin main', ps],
+    ['cd $REPO && cd sub && git push origin main', run],
+  ]) {
+    const verdict = check === run ? inspect({ command: cmd, cwd: '/repo' }, deps())
+      : inspectTool({ tool_name: 'PowerShell', tool_input: { command: cmd }, cwd: '/repo' }, deps());
+    assert.equal(verdict.action, 'block', cmd);
+    assert.match(verdict.reason, /own command/, cmd);
+  }
+  assert.equal(run('cd $REPO && npm test'), 'pass');
+  assert.equal(run('cd $REPO && git switch -c fix-y'), 'pass');
+});
+
+test('a cd on the right of a pipe moves nothing after it', () => {
+  assert.deepEqual(gitDirs((d) => run('echo x | cd sub; git push origin main', d)), ['/repo']);
 });
 
 // A ref the same command creates does not exist when the hook runs.

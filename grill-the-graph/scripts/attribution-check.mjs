@@ -2,6 +2,7 @@
 // pushes, PR, issue and release text is blocked, and a Claude or AI mention in
 // a message's prose asks. `no-attribution.mjs` is the hook that runs it.
 
+import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 
 const FORMAT = [
@@ -393,15 +394,40 @@ const SHELLS = { bash: '-c', sh: '-c', zsh: '-c', pwsh: '-command', powershell: 
 const local = (path, shell) =>
   shell === 'bash' && process.platform === 'win32' && /^\/[a-zA-Z](\/|$)/.test(path) ? `${path[1].toUpperCase()}:${path.slice(2) || '/'}` : path;
 
-// Gathers what one command string, run by `shell`, sends into `acc`; a shell
-// handed a command with `-c` / `-Command` has that command gathered too.
+const MOVES = {
+  bash: ['cd', 'chdir', 'pushd', 'popd'],
+  powershell: ['cd', 'chdir', 'sl', 'set-location', 'pushd', 'push-location', 'popd', 'pop-location'],
+};
+
+// The directory a `cd`, `pushd` or `Set-Location` moves to from `here`, or null
+// where the command does not say: a variable, `-`, a pop, PowerShell's bare `cd`.
+// `~user` reads as a folder of that name, which git then fails to enter.
+function moved(words, here, shell) {
+  if (/^pop(d|-location)$/i.test(words[0])) return null;
+  const to = words.slice(1).find((w) => !w.startsWith('-') || w === '-');
+  if (to === undefined) return shell === 'bash' ? homedir() : null;
+  if (to === '-' || to.includes('$')) return null;
+  if (/^~([\\/]|$)/.test(to)) return resolve(homedir(), to.slice(2));
+  return resolve(here, local(to, shell));
+}
+
+// Gathers what one command string, run by `shell` from `cwd`, sends into `acc`; a
+// shell handed a command with `-c` / `-Command` has that command gathered too. A
+// `cd` moves where the rest of the command runs; `cwd` is null after one this
+// check cannot follow.
 function collect(command, cwd, { readFile, git }, acc, shell) {
   const { text, bodies } = liftBodies(command);
   const expand = (s) => s.replace(/__BODY_(\d+)__/g, (_m, n) => bodies[Number(n)]);
   let relevant = false;
+  let here = cwd;
 
   for (const seg of segments(tokenize(text, shell))) {
     const { words } = seg;
+    // A command on the right of a pipe runs in a subshell, so its cd stays there.
+    if (MOVES[shell].includes(words[0].toLowerCase())) {
+      if (!seg.piped) here = here === null ? null : moved(words, here, shell);
+      continue;
+    }
     const nested = Object.keys(SHELLS).find((s) => isTool(words[0], s));
     if (nested) {
       const flag = SHELLS[nested];
@@ -410,16 +436,21 @@ function collect(command, cwd, { readFile, git }, acc, shell) {
         // A POSIX shell takes one argument; PowerShell joins the rest.
         const inner = flag === '-c' ? words[at + 1] : words.slice(at + 1).join(' ');
         const innerShell = flag === '-c' ? 'bash' : 'powershell';
-        relevant = collect(expand(inner), cwd, { readFile, git }, acc, innerShell) || relevant;
+        relevant = collect(expand(inner), here, { readFile, git }, acc, innerShell) || relevant;
       }
       continue;
     }
-    const found = isTool(words[0], 'git') ? parseGit(words, cwd)
+    const found = isTool(words[0], 'git') ? parseGit(words, here ?? '.')
       : isTool(words[0], 'gh') ? parseGh(words) : null;
     if (!found) continue;
+    if (here === null) {
+      // A switch alone sends nothing, and a push after it blocks here too.
+      if (found.switches) continue;
+      throw new Error('cd moves to a directory this check cannot name; run the git command as its own command');
+    }
     if (found.switches) {
       acc.switched ??= new Map();
-      const dir = found.dir ?? cwd;
+      const dir = found.dir ?? here;
       const key = resolve(dir);
       const names = acc.switched.get(key) ?? [];
       for (const name of found.switches) {
@@ -436,12 +467,12 @@ function collect(command, cwd, { readFile, git }, acc, shell) {
       continue;
     }
     relevant = true;
-    const dir = found.dir ?? cwd;
+    const dir = found.dir ?? here;
     for (const p of found.prose) acc.prose.push(expand(p));
     // A redirected or piped file is opened by the shell, so it is found from the
     // shell's directory, not from `git -C`.
     const stdin = found.stdin ? [...seg.input, ...(seg.piped ? readerFiles(seg.piped.words) : [])] : [];
-    const read = [...found.files.map((f) => [dir, f]), ...stdin.map((f) => [cwd, f])];
+    const read = [...found.files.map((f) => [dir, f]), ...stdin.map((f) => [here, f])];
     for (const [base, f] of read) {
       const content = f === '/dev/null' ? '' : readFile(resolve(base, local(f, shell)));
       acc.prose.push(content);
