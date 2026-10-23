@@ -136,6 +136,25 @@ function messageFlags(rest, found) {
   }
 }
 
+// The branch a `switch`, `checkout` or `branch -m` leaves current. A word that may
+// be a path rather than a branch (`checkout x`) counts: it only widens the check.
+function switchTargets(sub, rest) {
+  const create = { switch: ['-c', '-C', '--create', '--force-create', '--orphan'], checkout: ['-b', '-B', '--orphan'] }[sub] ?? [];
+  const positional = [];
+  let moved = sub !== 'branch';
+  for (let k = 0; k < rest.length; k++) {
+    const w = rest[k];
+    // `checkout [<tree-ish>] -- <paths>` restores files and leaves HEAD where it is.
+    if (w === '--' && sub === 'checkout') return [];
+    const v = takeValue(rest, k, create.filter((f) => f.length === 2), create.filter((f) => f.length > 2));
+    if (v) return v[0] ? [v[0]] : [];
+    if (sub === 'branch' && ['-m', '-M', '--move'].includes(w)) moved = true;
+    else if (!w.startsWith('-') || w === '-') positional.push(w);
+  }
+  if (!moved || positional.length === 0) return [];
+  return [sub === 'branch' ? positional[positional.length - 1] : positional[0]];
+}
+
 function parseGit(words, cwd) {
   let i = 1;
   let dir = cwd;
@@ -165,6 +184,8 @@ function parseGit(words, cwd) {
     }
     push.refspecs = remoteNamed ? positional : positional.slice(1);
     found.pushes.push(push);
+  } else if (sub === 'switch' || sub === 'checkout' || sub === 'branch') {
+    found.switches = switchTargets(sub, rest);
   } else {
     return null;
   }
@@ -216,25 +237,27 @@ function parseGh(words) {
 }
 
 // What one push sends: the revisions whose messages leave, and the branch names
-// that land upstream.
-function pushed(push, git, dir) {
-  const current = () => git(dir, ['rev-parse', '--abbrev-ref', 'HEAD']).trim();
+// that land upstream. `switched` holds the branches an earlier part of the same
+// command may have made current; HEAD stands for those as well as for its own.
+function pushed(push, git, dir, switched) {
+  const current = () => [git(dir, ['rev-parse', '--abbrev-ref', 'HEAD']).trim(), ...switched];
   if (push.all) {
     const names = git(dir, ['for-each-ref', '--format=%(refname:short)', 'refs/heads']).split('\n').filter(Boolean);
     return { revs: ['--branches'], dests: push.del ? [] : names };
   }
-  if (push.refspecs.length === 0) return { revs: ['HEAD'], dests: push.del ? [] : [current()] };
+  if (push.refspecs.length === 0) return { revs: ['HEAD', ...switched], dests: push.del ? [] : current() };
+  const head = (r) => r === 'HEAD' || r === '@';
   const revs = [];
   const dests = [];
   for (const spec of push.refspecs) {
     const bare = spec.replace(/^\+/, '');
     if (bare.startsWith('-')) throw new Error(`refspec "${spec}" reads as an option`);
     const [src, dest] = bare.split(':');
-    if (src) revs.push(src);
+    if (src) revs.push(src, ...(head(src) ? switched : []));
     // Deleting a branch (`-d`, or an empty source) sends no name worth keeping out.
     if (push.del || !src) continue;
     const name = dest ?? src;
-    dests.push(name === 'HEAD' || name === '@' ? current() : name);
+    dests.push(...(head(name) ? current() : [name]));
   }
   return { revs, dests };
 }
@@ -295,6 +318,22 @@ function collect(command, cwd, { readFile, git }, acc) {
     const found = isTool(words[0], 'git') ? parseGit(words, cwd)
       : isTool(words[0], 'gh') ? parseGh(words) : null;
     if (!found) continue;
+    if (found.switches) {
+      acc.switched ??= new Map();
+      const key = resolve(found.dir);
+      const names = acc.switched.get(key) ?? [];
+      for (const name of found.switches) {
+        // git refuses a branch named like an option, so that switch moves nothing.
+        if (name.startsWith('-') && name !== '-') continue;
+        // `-` is the branch before this one; it is unknown only where git has none.
+        if (name !== '-' && !name.startsWith('@{-')) { names.push(name); continue; }
+        try {
+          names.push(git(found.dir, ['rev-parse', '--abbrev-ref', name === '-' ? '@{-1}' : name]).trim());
+        } catch { /* git has no previous branch, so the switch fails and nothing moves */ }
+      }
+      acc.switched.set(key, names);
+      continue;
+    }
     relevant = true;
     const dir = found.dir ?? cwd;
     for (const p of found.prose) acc.prose.push(expand(p));
@@ -305,7 +344,7 @@ function collect(command, cwd, { readFile, git }, acc) {
     }
     acc.branches.push(...found.branches);
     for (const push of found.pushes) {
-      const { revs, dests } = pushed(push, git, dir);
+      const { revs, dests } = pushed(push, git, dir, acc.switched?.get(resolve(dir)) ?? []);
       acc.branches.push(...dests);
       if (revs.length === 0) continue;
       acc.format.push(git(dir, ['log', '--format=%B%x00', ...unpushedRange(revs, git, dir)]));
