@@ -452,6 +452,62 @@ test('a cd on the right of a pipe moves nothing after it', () => {
   assert.deepEqual(gitDirs((d) => run('echo x | cd sub; git push origin main', d)), ['/repo']);
 });
 
+// Parentheses and braces group commands.
+test('a command inside parentheses or $( ) is checked', () => {
+  assert.equal(run('(git push origin claude/x)'), 'block');
+  assert.equal(run(`echo $(git commit -m fix -m "${TRAILER}")`), 'block');
+  assert.equal(ps('(git push origin claude/x)'), 'block');
+  const logged = [];
+  run('( cd ../other && git push origin main )', deps({ logged }));
+  assert.deepEqual(logged, [['--not', '--remotes', '--not', '--end-of-options', 'main']]);
+});
+
+test("a bash subshell's cd stays inside it; PowerShell's parentheses and a brace group do not hold it", () => {
+  assert.deepEqual(gitDirs((d) => run('( cd ../other ) && git push origin main', d)), ['/repo']);
+  assert.deepEqual(gitDirs((d) => run('echo $(cd ../other) ; git push origin main', d)), ['/repo']);
+  assert.deepEqual(gitDirs((d) => run('( cd ../other && git push origin main )', d)), [resolve('/repo', '../other')]);
+  assert.deepEqual(gitDirs((d) => ps('(Set-Location ..\\other); git push origin main', d)), [resolve('/repo', '../other')]);
+  assert.deepEqual(gitDirs((d) => run('{ cd ../other; git push origin main; }', d)), [resolve('/repo', '../other')]);
+  assert.deepEqual(gitDirs((d) => run('{ cd ../other; }; git push origin main', d)), [resolve('/repo', '../other')]);
+  assert.equal(run('git push origin main )'), 'pass');
+  // A `)` with no `(` (a case pattern) leaves the directory alone.
+  assert.deepEqual(gitDirs((d) => run('case x in a) git push origin main;; esac', d)), ['/repo']);
+});
+
+test('a bash backtick substitution is read as $( )', () => {
+  assert.equal(run('echo `git push origin claude/x`'), 'block');
+  const verdict = inspect({ command: 'git push origin `git branch --show-current`', cwd: '/repo' }, deps());
+  assert.equal(verdict.action, 'block');
+  assert.match(verdict.reason, /write/);
+  assert.deepEqual(gitDirs((d) => run('echo `cd ../other` ; git push origin main', d)), ['/repo']);
+  assert.equal(run('git commit -m "fix `code` style"'), 'pass');
+});
+
+test('a subshell after a command does not compute its arguments', () => {
+  assert.equal(run('git commit -m fix && ( cd ../other )'), 'pass');
+  assert.equal(run('git push origin main; (cd ../other)'), 'pass');
+});
+
+test('a computed argument to a command that sends blocks, asking for the value written out', () => {
+  for (const cmd of [
+    'git push origin $(git branch --show-current)',
+    'git commit -m $(cat msg.txt)',
+  ]) {
+    const verdict = inspect({ command: cmd, cwd: '/repo' }, deps());
+    assert.equal(verdict.action, 'block', cmd);
+    assert.match(verdict.reason, /write/, cmd);
+  }
+  // A switch to a computed branch leaves HEAD unnamed until the next call.
+  const verdict = inspect({ command: 'git switch $(echo feat) && git push', cwd: '/repo' }, deps());
+  assert.equal(verdict.action, 'block');
+  assert.match(verdict.reason, /own command/);
+  assert.equal(run('git switch $(echo feat)'), 'pass');
+  for (const cmd of ['git log $(git merge-base main HEAD)', 'echo $(date) && git push origin main', 'git commit -m "fix (scope)"']) {
+    assert.equal(run(cmd), 'pass', cmd);
+  }
+  assert.equal(run('git commit -m "(Claude)"'), 'ask');
+});
+
 // A ref the same command creates does not exist when the hook runs.
 test('a branch created earlier in the command is checked against every unpushed commit', () => {
   for (const make of ['git switch -c feat/x', 'git checkout -b feat/x', 'git branch feat/x']) {

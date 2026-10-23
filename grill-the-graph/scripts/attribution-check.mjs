@@ -55,6 +55,7 @@ function tokenize(text, shell) {
   let word = null;
   let quoted = false;
   let target = null;
+  let ticked = false;
   const flush = () => {
     if (word !== null) {
       if (target === null) tokens.push({ word });
@@ -112,9 +113,14 @@ function tokenize(text, shell) {
       // PowerShell's call operator: `& git push` runs git. The first `&` of `&&`
       // still ends the command.
       flush();
-    } else if (c === '\n' || c === ';' || c === '|' || c === '&') {
+    } else if (c === '\n' || c === ';' || c === '|' || c === '&' || c === '(' || c === ')') {
       flush();
       tokens.push({ op: c });
+    } else if (c === '`') {
+      // bash's older `...` is `$( ... )`; PowerShell's backtick escapes, above.
+      flush();
+      tokens.push({ op: ticked ? ')' : '(' });
+      ticked = !ticked;
     } else if (c === ' ' || c === '\t' || c === '\r') {
       flush();
     } else {
@@ -126,23 +132,32 @@ function tokenize(text, shell) {
 }
 
 // One simple command each: its words, the files and strings redirected into its
-// stdin, and the command piped into it, if any.
+// stdin, the command piped into it, if any, and whether a `(` computes one of its
+// arguments. A `{ scope }` item marks each `(` and `)` between them.
 function segments(tokens) {
-  const blank = (piped) => ({ words: [], input: [], string: [], piped });
+  const blank = (piped) => ({ words: [], input: [], string: [], piped, computed: false });
   const out = [blank(null)];
   for (const t of tokens) {
     const seg = out[out.length - 1];
-    if (t.op) out.push(blank(t.op === '|' ? seg : null));
-    else if (t.input !== undefined) seg.input.push(t.input);
+    if (t.op) {
+      // A `(` inside a command, `$(` and `@(` among them, computes one of its
+      // arguments; one that opens a command marks an empty segment, dropped below.
+      if (t.op === '(') seg.computed = true;
+      if (t.op === '(' || t.op === ')') out.push({ scope: t.op });
+      out.push(blank(t.op === '|' ? seg : null));
+    } else if (t.input !== undefined) seg.input.push(t.input);
     else if (t.string !== undefined) seg.string.push(t.string);
     else seg.words.push(t.word);
   }
   for (const seg of out) {
+    if (seg.scope) continue;
+    // `{ ...; }` groups commands in the same shell; its `}` stands alone after a `;`.
+    if (seg.words[0] === '{') seg.words.shift();
     let i = 0;
     while (i < seg.words.length && /^[A-Za-z_]\w*=/.test(seg.words[i])) i++;
     seg.words = seg.words.slice(i);
   }
-  return out.filter((seg) => seg.words.length > 0);
+  return out.filter((seg) => seg.scope || seg.words.length > 0);
 }
 
 const READERS = ['cat', 'type', 'get-content', 'gc'];
@@ -331,7 +346,7 @@ function parseGh(words) {
 function pushed(push, git, dir, switched) {
   const switchedTo = () => {
     // A later tool call reads HEAD once the switch has happened.
-    if (switched.includes(UNKNOWN)) throw new Error('gh pr checkout switches to a branch this check cannot name; run the push as its own command');
+    if (switched.includes(UNKNOWN)) throw new Error('an earlier part of this command switches to a branch this check cannot name; run the push as its own command');
     return switched;
   };
   const current = () => [git(dir, ['rev-parse', '--abbrev-ref', 'HEAD']).trim(), ...switchedTo()];
@@ -420,8 +435,13 @@ function collect(command, cwd, { readFile, git }, acc, shell) {
   const expand = (s) => s.replace(/__BODY_(\d+)__/g, (_m, n) => bodies[Number(n)]);
   let relevant = false;
   let here = cwd;
+  // A bash subshell's cd ends with it; PowerShell's parentheses hold no location.
+  const outer = [];
 
   for (const seg of segments(tokenize(text, shell))) {
+    if (seg.scope === '(' && shell === 'bash') outer.push(here);
+    if (seg.scope === ')' && shell === 'bash' && outer.length) here = outer.pop();
+    if (seg.scope) continue;
     const { words } = seg;
     // A command on the right of a pipe runs in a subshell, so its cd stays there.
     if (MOVES[shell].includes(words[0].toLowerCase())) {
@@ -447,6 +467,11 @@ function collect(command, cwd, { readFile, git }, acc, shell) {
       // A switch alone sends nothing, and a push after it blocks here too.
       if (found.switches) continue;
       throw new Error('cd moves to a directory this check cannot name; run the git command as its own command');
+    }
+    if (seg.computed) {
+      // The shell fills the argument in, so what it names is unknown here.
+      if (!found.switches) throw new Error('an argument here is computed by the shell; write the value out instead');
+      found.switches = [UNKNOWN];
     }
     if (found.switches) {
       acc.switched ??= new Map();
