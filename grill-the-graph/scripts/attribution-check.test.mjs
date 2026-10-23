@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { resolve } from 'node:path';
 import { inspect, inspectTool, inspectPrePush } from './attribution-check.mjs';
 
 const TRAILER = 'Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>';
@@ -34,6 +35,7 @@ function deps({ files = {}, unpushed = '', branch = 'fix-x', previous = null, re
 }
 
 const run = (command, d = deps()) => inspect({ command, cwd: '/repo' }, d).action;
+const ps = (command, d = deps()) => inspectTool({ tool_name: 'PowerShell', tool_input: { command }, cwd: '/repo' }, d).action;
 
 test('a command that sends nothing passes', () => {
   assert.equal(run('git status && cargo test'), 'pass');
@@ -215,7 +217,6 @@ test('a redirection is not read as a refspec', () => {
     'git push origin main >> out.log 2>&1',
     'git push origin main &> out.log',
     'git push origin main 2>$null',
-    'git push origin main *> out.txt',
     'git push origin main < /dev/null',
     'git push origin main 2>&1 |& tee out.log',
     'git push 2>&1 origin main',
@@ -230,6 +231,48 @@ test('a redirection is not read as a refspec', () => {
   }
 });
 
+// The shell the command runs in decides what `*` before `>` is.
+test('*> is a redirection in PowerShell and a glob in bash', () => {
+  let logged = [];
+  assert.equal(ps('git push origin main *> out.txt', deps({ logged })), 'pass');
+  assert.deepEqual(logged, [['--not', '--remotes', '--not', '--end-of-options', 'main']]);
+  for (const check of [
+    (d) => run('git push origin *>out.txt', d),
+    (d) => inspectTool({ tool_name: 'Bash', tool_input: { command: 'git push origin *>out.txt' }, cwd: '/repo' }, d),
+    (d) => ps('bash -c "git push origin *>out.txt"', d),
+  ]) {
+    logged = [];
+    check(deps({ missing: ['*'], logged }));
+    assert.deepEqual(logged, [['--not', '--remotes', '--not', '--branches']]);
+  }
+  logged = [];
+  run('pwsh -c "git push origin main *> out.txt"', deps({ logged }));
+  assert.deepEqual(logged, [['--not', '--remotes', '--not', '--end-of-options', 'main']]);
+});
+
+test('a backslash is a path separator in PowerShell and an escape in bash', () => {
+  const dirs = (check) => {
+    const seen = [];
+    const d = deps();
+    const git = d.git;
+    d.git = (cwd, args) => { seen.push(cwd); return git(cwd, args); };
+    check(d);
+    return seen;
+  };
+  assert.ok(dirs((d) => ps('git -C D:\\work\\repo push origin main', d)).every((c) => c === resolve('/repo', 'D:\\work\\repo')));
+  assert.ok(dirs((d) => run('git -C a\\ b push origin main', d)).every((c) => c === resolve('/repo', 'a b')));
+});
+
+test('a backtick escapes in PowerShell', () => {
+  assert.equal(ps('git commit -m "say `"hi`" to Claude"'), 'ask');
+  const logged = [];
+  ps('git push `\n  origin main', deps({ logged }));
+  ps('git push `\r\n  origin main', deps({ logged }));
+  run('git push \\\n  origin main', deps({ logged }));
+  for (const args of logged) assert.deepEqual(args, ['--not', '--remotes', '--not', '--end-of-options', 'main']);
+  assert.equal(logged.length, 3);
+});
+
 test('a redirection does not hide a trailer in the pushed commits', () => {
   assert.equal(run('git push origin main 2>&1 | tail -6', deps({ unpushed: `fix\n\n${TRAILER}\n\0` })), 'block');
 });
@@ -241,6 +284,104 @@ test('a quoted > or & is message text, not a redirection', () => {
   const logged = [];
   run("git push origin '1'>out.log", deps({ logged }));
   assert.deepEqual(logged, [['--not', '--remotes', '--not', '--end-of-options', '1']]);
+});
+
+// A message read from stdin (`-F -`) comes from a redirected file, a here-string or a pipe.
+test('a message file redirected to stdin is checked', () => {
+  const trailer = deps({ files: { 'repo/msg.txt': `fix\n\n${TRAILER}\n` } });
+  for (const cmd of [
+    'git commit -F - < msg.txt', 'git commit --file=- <msg.txt', '< msg.txt git commit -F -',
+    'git tag -a v1 -F - < msg.txt', 'gh pr create -t T --body-file - < msg.txt', 'git -C sub commit -F - < msg.txt',
+  ]) assert.equal(run(cmd, trailer), 'block', cmd);
+  assert.equal(run('git commit -F - < msg.txt', deps({ files: { 'repo/msg.txt': 'Claude found this\n' } })), 'ask');
+  assert.equal(run('git commit -F - < msg.txt', deps({ files: { 'repo/msg.txt': 'fix the check\n' } })), 'pass');
+});
+
+test('a redirected file is read against the shell directory, not git -C', () => {
+  const d = deps({ files: { 'repo/msg.txt': 'fix\n', 'sub/msg.txt': `fix\n\n${TRAILER}\n` } });
+  assert.equal(run('git -C sub commit -F - < msg.txt', d), 'pass');
+});
+
+test('a redirected file is read only where the message comes from stdin', () => {
+  const trailer = deps({ files: { 'repo/msg.txt': `fix\n\n${TRAILER}\n` } });
+  assert.equal(run('git commit -m fix < msg.txt', trailer), 'pass');
+  assert.equal(run('git push origin main < msg.txt', trailer), 'pass');
+  assert.equal(run('git commit -F - < /dev/null'), 'pass');
+  assert.equal(inspect({ command: 'git commit -F - < /dev/null', cwd: 'Z:\\work' }, deps()).action, 'pass');
+  // Duplicating a descriptor or an unterminated heredoc names no file.
+  assert.equal(run('git commit -F - <&0'), 'pass');
+  assert.equal(run('git commit -F - <<EOF'), 'pass');
+});
+
+test('gh api reads a field or its input from stdin', () => {
+  const trailer = deps({ files: { 'repo/msg.txt': `fix\n\n${TRAILER}\n` } });
+  assert.equal(run('gh api repos/o/r/issues/1/comments -F body=@- < msg.txt', trailer), 'block');
+  assert.equal(run('gh api repos/o/r/issues/1/comments --input - < msg.txt', trailer), 'block');
+});
+
+test('an unreadable redirected message file blocks', () => {
+  assert.equal(run('git commit -F - < missing.txt'), 'block');
+});
+
+test('a here-string read from stdin is message text', () => {
+  assert.equal(run('git commit -F - <<< "Claude found this"'), 'ask');
+  assert.equal(run('git commit -m fix <<< "Claude found this"'), 'pass');
+});
+
+test('a message file piped into stdin is checked', () => {
+  const trailer = deps({ files: { 'repo/msg.txt': `fix\n\n${TRAILER}\n` } });
+  assert.equal(run('cat msg.txt | git commit -F -', trailer), 'block');
+  assert.equal(ps('Get-Content msg.txt | git commit -F -', trailer), 'block');
+  assert.equal(ps('Get-Content -Path msg.txt | git commit -F -', trailer), 'block');
+  // The value of -Encoding is not a file.
+  assert.equal(ps('Get-Content -Encoding utf8 msg.txt | git commit -F -', deps({ files: { 'repo/msg.txt': 'fix\n' } })), 'pass');
+  assert.equal(ps('type msg.txt | git commit -F -', trailer), 'block');
+  assert.equal(run('cat msg.txt && git commit -F -', trailer), 'pass');
+  assert.equal(run('cat msg.txt | git push origin main', trailer), 'pass');
+});
+
+test('a tool named by a Windows path is checked', () => {
+  assert.equal(ps(String.raw`& "C:\Program Files\Git\cmd\git.exe" commit -m fix -m "` + TRAILER + '"'), 'block');
+  assert.equal(ps(String.raw`& "C:\Program Files\GitHub CLI\gh.exe" pr create -t T --body "` + FOOTER + '"'), 'block');
+});
+
+test("PowerShell's call operator does not end the command", () => {
+  const trailer = deps({ files: { 'repo/msg.txt': `fix\n\n${TRAILER}\n` } });
+  assert.equal(ps('Get-Content msg.txt | & git commit -F -', trailer), 'block');
+  const logged = [];
+  ps('& git push origin main && git status', deps({ logged }));
+  assert.deepEqual(logged, [['--not', '--remotes', '--not', '--end-of-options', 'main']]);
+});
+
+test('a comment is not part of the command', () => {
+  const logged = [];
+  run('git push origin main # push it', deps({ logged }));
+  ps('git push origin main # push it', deps({ logged }));
+  assert.deepEqual(logged, [
+    ['--not', '--remotes', '--not', '--end-of-options', 'main'],
+    ['--not', '--remotes', '--not', '--end-of-options', 'main'],
+  ]);
+  assert.equal(run('git commit -m "Claude #1"'), 'ask');
+  assert.equal(run('git commit -m fix#Claude'), 'ask');
+  assert.equal(run('# note\ngit push origin claude/x'), 'block');
+});
+
+test('text echoed into stdin is message text', () => {
+  assert.equal(run('echo "Claude found this" | git commit -F -'), 'ask');
+  assert.equal(run("printf 'fix the check\\n' | git commit -F -"), 'pass');
+  assert.equal(ps('Write-Output "Claude found this" | git commit -F -'), 'ask');
+  assert.equal(run('echo "Claude found this" | git commit -m fix'), 'pass');
+});
+
+test('an MSYS drive path is read from that drive in bash on Windows', { skip: process.platform !== 'win32' }, () => {
+  const read = [];
+  const d = deps();
+  d.readFile = (path) => { read.push(path); return 'fix\n'; };
+  run('git commit -F /c/work/msg.txt', d);
+  run('git commit -F - < /c/work/msg.txt', d);
+  // PowerShell has no MSYS drives: `/c/...` is a folder on the current drive.
+  inspectTool({ tool_name: 'PowerShell', tool_input: { command: 'git commit -F /c/work/msg.txt' }, cwd: '/repo' }, d);
+  assert.deepEqual(read, [resolve('C:/work/msg.txt'), resolve('C:/work/msg.txt'), resolve('/repo', '/c/work/msg.txt')]);
 });
 
 // A ref the same command creates does not exist when the hook runs.

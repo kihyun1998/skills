@@ -45,14 +45,21 @@ function liftBodies(command) {
 
 // A redirection (`2>&1`, `> out.log`, `&>`, PowerShell's `*>` and `2>$null`) is
 // dropped with its file descriptor and its target, so neither reads as an argument.
-function tokenize(text) {
+// The target of `<` is kept as an input file and that of `<<<` as a string, since
+// either can be a message read from stdin. `shell` is `bash` or `powershell`: it
+// decides the escape character and whether `*` before `>` is a file descriptor.
+function tokenize(text, shell) {
+  const escape = shell === 'powershell' ? '`' : '\\';
   const tokens = [];
   let word = null;
   let quoted = false;
-  let dropNext = false;
+  let target = null;
   const flush = () => {
-    if (word !== null && !dropNext) tokens.push({ word });
-    if (word !== null) dropNext = false;
+    if (word !== null) {
+      if (target === null) tokens.push({ word });
+      else if (target !== 'drop') tokens.push({ [target]: word });
+      target = null;
+    }
     word = null;
     quoted = false;
   };
@@ -68,21 +75,42 @@ function tokenize(text) {
       let j = i + 1;
       let s = '';
       while (j < text.length && text[j] !== '"') {
-        if (text[j] === '\\' && j + 1 < text.length) j++;
+        if (text[j] === escape && j + 1 < text.length) j++;
         s += text[j++];
       }
       word = (word ?? '') + s;
       quoted = true;
       i = j;
-    } else if (c === '\\' && i + 1 < text.length && text[i + 1] !== '\n') {
-      word = (word ?? '') + text[++i];
-      quoted = true;
+    } else if (c === escape && i + 1 < text.length) {
+      // An escaped newline continues the line.
+      if (text[i + 1] === '\n' || text.startsWith('\r\n', i + 1)) {
+        flush();
+        i += text[i + 1] === '\r' ? 2 : 1;
+      } else {
+        word = (word ?? '') + text[++i];
+        quoted = true;
+      }
     } else if (c === '<' || c === '>' || (c === '&' && text[i + 1] === '>')) {
-      if (!quoted && /^(\d+|\*)$/.test(word ?? '')) word = null;
+      const fd = shell === 'powershell' ? /^(\d+|\*)$/ : /^\d+$/;
+      if (!quoted && fd.test(word ?? '')) word = null;
       flush();
-      // `>&`, `<&` and `>|` are one operator; `&>`, `>>` and `<<<` repeat this branch.
-      if (text[i + 1] === '&' || text[i + 1] === '|') i++;
-      dropNext = true;
+      if (text.startsWith('<<<', i)) {
+        target = 'string';
+        i += 2;
+      } else if (c === '<' && !'<>&'.includes(text[i + 1])) {
+        target = 'input';
+      } else {
+        // `>&`, `<&`, `>|` and `<<` are one operator; `&>` and `>>` repeat this branch.
+        if ('&|<'.includes(text[i + 1])) i++;
+        target = 'drop';
+      }
+    } else if (c === '#' && word === null) {
+      // A comment runs to the end of the line.
+      while (i + 1 < text.length && text[i + 1] !== '\n') i++;
+    } else if (shell === 'powershell' && c === '&' && text[i + 1] !== '&') {
+      // PowerShell's call operator: `& git push` runs git. The first `&` of `&&`
+      // still ends the command.
+      flush();
     } else if (c === '\n' || c === ';' || c === '|' || c === '&') {
       flush();
       tokens.push({ op: c });
@@ -96,22 +124,53 @@ function tokenize(text) {
   return tokens;
 }
 
+// One simple command each: its words, the files and strings redirected into its
+// stdin, and the command piped into it, if any.
 function segments(tokens) {
-  const out = [[]];
+  const blank = (piped) => ({ words: [], input: [], string: [], piped });
+  const out = [blank(null)];
   for (const t of tokens) {
-    if (t.op) out.push([]);
-    else out[out.length - 1].push(t.word);
+    const seg = out[out.length - 1];
+    if (t.op) out.push(blank(t.op === '|' ? seg : null));
+    else if (t.input !== undefined) seg.input.push(t.input);
+    else if (t.string !== undefined) seg.string.push(t.string);
+    else seg.words.push(t.word);
   }
-  return out
-    .map((words) => {
-      let i = 0;
-      while (i < words.length && /^[A-Za-z_]\w*=/.test(words[i])) i++;
-      return words.slice(i);
-    })
-    .filter((w) => w.length > 0);
+  for (const seg of out) {
+    let i = 0;
+    while (i < seg.words.length && /^[A-Za-z_]\w*=/.test(seg.words[i])) i++;
+    seg.words = seg.words.slice(i);
+  }
+  return out.filter((seg) => seg.words.length > 0);
 }
 
-const isTool = (word, name) => word === name || word.endsWith(`/${name}`) || word === `${name}.exe`;
+const READERS = ['cat', 'type', 'get-content', 'gc'];
+const READER_VALUES = ['-encoding', '-totalcount', '-tail', '-head', '-first', '-last', '-delimiter', '-readcount', '-filter', '-include', '-exclude', '-stream'];
+
+const ECHOES = ['echo', 'printf', 'write-output'];
+
+// The text an `echo`, `printf` or `Write-Output` writes to its stdout.
+function echoed(words) {
+  if (!ECHOES.includes(words[0].toLowerCase())) return [];
+  return [words.slice(1).join(' ')];
+}
+
+// The files a `cat`, `type` or `Get-Content` writes to its stdout.
+function readerFiles(words) {
+  if (!READERS.includes(words[0].toLowerCase())) return [];
+  const files = [];
+  for (let k = 1; k < words.length; k++) {
+    const w = words[k].toLowerCase();
+    if (READER_VALUES.includes(w)) k++;
+    else if (!w.startsWith('-')) files.push(words[k]);
+  }
+  return files;
+}
+
+const isTool = (word, name) => {
+  const base = word.split(/[\\/]/).pop();
+  return base === name || base === `${name}.exe`;
+};
 
 // Reads a flag's value in any of `-m v`, `-mv`, `--message v`, `--message=v`.
 function takeValue(words, i, short, long) {
@@ -127,12 +186,18 @@ function takeValue(words, i, short, long) {
   return null;
 }
 
+// A message file flag's value: a file to read, or `-` for stdin.
+function fileValue(value, found) {
+  if (value === '-') found.stdin = true;
+  else if (value) found.files.push(value);
+}
+
 function messageFlags(rest, found) {
   for (let k = 0; k < rest.length; k++) {
     let v = takeValue(rest, k, ['-m'], ['--message']);
     if (v) { found.prose.push(v[0] ?? ''); k = v[1]; continue; }
     v = takeValue(rest, k, ['-F'], ['--file']);
-    if (v) { if (v[0] && v[0] !== '-') found.files.push(v[0]); k = v[1]; }
+    if (v) { fileValue(v[0], found); k = v[1]; }
   }
 }
 
@@ -202,7 +267,7 @@ function parseGh(words) {
       let v = takeValue(rest, k, ...spec.prose);
       if (v) { found.prose.push(v[0] ?? ''); k = v[1]; continue; }
       v = takeValue(rest, k, ...spec.files);
-      if (v) { if (v[0] && v[0] !== '-') found.files.push(v[0]); k = v[1]; continue; }
+      if (v) { fileValue(v[0], found); k = v[1]; continue; }
       v = group === 'pr' ? takeValue(rest, k, ['-H'], ['--head']) : null;
       if (v) { head = v[0] ?? ''; k = v[1]; }
     }
@@ -221,12 +286,13 @@ function parseGh(words) {
       let v = takeValue(fields, k, ['-X'], ['--method']);
       if (v) { read = (v[0] ?? '').toUpperCase() === 'GET'; k = v[1]; continue; }
       v = takeValue(fields, k, [], ['--input']);
-      if (v) { if (v[0] && v[0] !== '-') found.files.push(v[0]); k = v[1]; continue; }
+      if (v) { fileValue(v[0], found); k = v[1]; continue; }
       v = takeValue(fields, k, ['-f', '-F'], ['--field', '--raw-field']);
       if (!v) continue;
       k = v[1];
       const value = (v[0] ?? '').replace(/^[^=]*=/, '');
-      if (value.startsWith('@') && value !== '@-') found.files.push(value.slice(1));
+      if (value === '@-') found.stdin = true;
+      else if (value.startsWith('@')) found.files.push(value.slice(1));
       else values.push(value);
     }
     // A GET sends its fields as a query, and a query is not something published.
@@ -296,22 +362,28 @@ function unpushedRange(revs, git, dir) {
 
 const SHELLS = { bash: '-c', sh: '-c', zsh: '-c', pwsh: '-command', powershell: '-command' };
 
-// Gathers what one command string sends into `acc`; a shell handed a command
-// with `-c` / `-Command` has that command gathered too.
-function collect(command, cwd, { readFile, git }, acc) {
+// Git Bash on Windows names a drive as `/c/...`, which node reads as a folder.
+const local = (path, shell) =>
+  shell === 'bash' && process.platform === 'win32' && /^\/[a-zA-Z](\/|$)/.test(path) ? `${path[1].toUpperCase()}:${path.slice(2) || '/'}` : path;
+
+// Gathers what one command string, run by `shell`, sends into `acc`; a shell
+// handed a command with `-c` / `-Command` has that command gathered too.
+function collect(command, cwd, { readFile, git }, acc, shell) {
   const { text, bodies } = liftBodies(command);
   const expand = (s) => s.replace(/__BODY_(\d+)__/g, (_m, n) => bodies[Number(n)]);
   let relevant = false;
 
-  for (const words of segments(tokenize(text))) {
-    const shell = Object.keys(SHELLS).find((s) => isTool(words[0], s));
-    if (shell) {
-      const flag = SHELLS[shell];
+  for (const seg of segments(tokenize(text, shell))) {
+    const { words } = seg;
+    const nested = Object.keys(SHELLS).find((s) => isTool(words[0], s));
+    if (nested) {
+      const flag = SHELLS[nested];
       const at = words.findIndex((w, k) => k > 0 && (w.toLowerCase() === flag || w.toLowerCase() === '-c'));
       if (at > 0 && at + 1 < words.length) {
         // A POSIX shell takes one argument; PowerShell joins the rest.
         const inner = flag === '-c' ? words[at + 1] : words.slice(at + 1).join(' ');
-        relevant = collect(expand(inner), cwd, { readFile, git }, acc) || relevant;
+        const innerShell = flag === '-c' ? 'bash' : 'powershell';
+        relevant = collect(expand(inner), cwd, { readFile, git }, acc, innerShell) || relevant;
       }
       continue;
     }
@@ -337,10 +409,18 @@ function collect(command, cwd, { readFile, git }, acc) {
     relevant = true;
     const dir = found.dir ?? cwd;
     for (const p of found.prose) acc.prose.push(expand(p));
-    for (const f of found.files) {
-      const content = readFile(resolve(dir, f));
+    // A redirected or piped file is opened by the shell, so it is found from the
+    // shell's directory, not from `git -C`.
+    const stdin = found.stdin ? [...seg.input, ...(seg.piped ? readerFiles(seg.piped.words) : [])] : [];
+    const read = [...found.files.map((f) => [dir, f]), ...stdin.map((f) => [cwd, f])];
+    for (const [base, f] of read) {
+      const content = f === '/dev/null' ? '' : readFile(resolve(base, local(f, shell)));
       acc.prose.push(content);
       acc.format.push(content);
+    }
+    if (found.stdin) {
+      acc.prose.push(...seg.string.map(expand));
+      if (seg.piped) acc.prose.push(...echoed(seg.piped.words).map(expand));
     }
     acc.branches.push(...found.branches);
     for (const push of found.pushes) {
@@ -378,14 +458,14 @@ const failed = (err) => ({ action: 'block', reason: `Attribution check could not
 
 /**
  * Decides what one shell command may send.
- * @param {{command: string, cwd: string}} call
+ * @param {{command: string, cwd: string, shell?: 'bash' | 'powershell'}} call
  * @param {{readFile: (path: string) => string, git: (cwd: string, args: string[]) => string}} deps
  * @returns {{action: 'pass' | 'ask' | 'block', reason?: string}}
  */
-export function inspect({ command, cwd }, deps) {
+export function inspect({ command, cwd, shell = 'bash' }, deps) {
   try {
     const acc = { format: [], prose: [], branches: [] };
-    if (!collect(command, cwd, deps, acc)) return { action: 'pass' };
+    if (!collect(command, cwd, deps, acc, shell)) return { action: 'pass' };
     return judge(acc);
   } catch (err) {
     return failed(err);
@@ -401,7 +481,8 @@ const MCP_BRANCH = new Set(['head', 'branch', 'ref']);
  */
 export function inspectTool({ tool_name, tool_input, cwd }, deps) {
   if (tool_name === 'Bash' || tool_name === 'PowerShell') {
-    return inspect({ command: tool_input?.command ?? '', cwd }, deps);
+    const shell = tool_name === 'PowerShell' ? 'powershell' : 'bash';
+    return inspect({ command: tool_input?.command ?? '', cwd, shell }, deps);
   }
   if (!/^mcp__.*github/i.test(tool_name)) return { action: 'pass' };
   const acc = { format: [], prose: [], branches: [] };
