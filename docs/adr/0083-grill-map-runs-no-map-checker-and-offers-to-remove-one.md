@@ -1,6 +1,9 @@
 # ADR-0083 — grill-map runs no map checker, and offers to remove one in use
 
-**Status:** accepted. Amends [ADR-0082](0082-grill-map-is-rewritten-to-read-the-repo.md)'s
+**Status:** accepted. Its open question was settled the same day by
+[ADR-0084](0084-check-map-retires.md): `check_map.py` retires.
+
+Amends [ADR-0082](0082-grill-map-is-rewritten-to-read-the-repo.md)'s
 *What stays* line on `scripts/map/check_map.py`.
 
 `grill-map` no longer runs a map checker: not `scripts/map/check_map.py`, not a

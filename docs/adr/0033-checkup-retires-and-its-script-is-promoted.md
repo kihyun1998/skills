@@ -1,5 +1,8 @@
 # `checkup` retires, and the one part of it that ever ran becomes a script
 
+> **Amended 2026-10-25** by [ADR-0084](0084-check-map-retires.md): the promoted
+> script retires too, to `retired/check_map/`, once nothing ran it.
+
 `checkup` asked whether a repo's written agent artifacts were still true and still
 current, in three tiers. It is retired to [`retired/`](../../retired/checkup/), and
 its mechanical tier is promoted to [`scripts/map/`](../../scripts/map/).

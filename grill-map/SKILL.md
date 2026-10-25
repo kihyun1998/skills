@@ -35,8 +35,8 @@ The working tree decides, not the git index: map files the index lists and the
 tree lacks are a deleted map, named in the one-line statement, and the mode is
 read from what is on disk.
 
-**No map checker runs** — this repo's script, a vendored copy, or one the repo
-wrote — since it verifies addresses and the reading verifies claims
+**No map checker runs** — `check_map.py` (retired), a vendored copy, or one the
+repo wrote — since it verifies addresses and the reading verifies claims
 (ADR-0083). Where the repo has one in use, put its removal to the maintainer
 right after the mode line, before step 1, and on a yes remove it:
 [NOTES.md](NOTES.md#a-map-checker-in-the-repo).

@@ -1,6 +1,6 @@
 # retired/
 
-Skills that are no longer installed.
+Skills that are no longer installed, and one script nothing runs any more.
 
 The install scripts scan **top-level** directories for a `SKILL.md`, so a skill
 under `retired/` is not linked into `~/.claude/skills`, and re-running the script
@@ -15,12 +15,13 @@ skill that produced it. A retired skill is frozen: no fixes, no new precision.
 |---|---|---|---|
 | [`theflow`](theflow/) | Succeeded by a method that carries every rule it held | [`thegraph`](../thegraph/) | [ADR-0019](../docs/adr/0019-theflow-is-frozen-thegraph-inherits-by-copy.md), [ADR-0027](../docs/adr/0027-retirement-moves-a-skill-to-the-retired-folder.md) |
 | [`grill-the-flow`](grill-the-flow/) | The setup half of `theflow`; its successor **compiles** the bindings it wrote | [`grill-the-graph`](../grill-the-graph/) | [ADR-0027](../docs/adr/0027-retirement-moves-a-skill-to-the-retired-folder.md) |
-| [`checkup`](checkup/) | Only one of its three tiers ever ran, and never through the skill | [`scripts/map/check_map.py`](../scripts/map/) | [ADR-0033](../docs/adr/0033-checkup-retires-and-its-script-is-promoted.md) |
+| [`checkup`](checkup/) | Only one of its three tiers ever ran, and never through the skill | `check_map.py`, itself retired below | [ADR-0033](../docs/adr/0033-checkup-retires-and-its-script-is-promoted.md) |
 | [`grill-code`](grill-code/) | The maintainer stopped using it — nothing measured it defective and nothing superseded it | — | [ADR-0058](../docs/adr/0058-grill-code-is-retired.md), ADR-0027 |
 | [`to-deck`](to-deck/) | As above, called immediately after it; also settles the `/grill-me` alias two skills were claiming | — | [ADR-0059](../docs/adr/0059-to-deck-is-retired.md), ADR-0027 |
 | [`promote`](promote/) | Records would pile up faster than they earned their place, and nothing counted its triggers any more | none — the two-occurrence bar was stated in `sift`, now retired and deleted too, and has no live holder ([ADR-0075](../docs/adr/0075-sift-is-retired.md)) | [ADR-0070](../docs/adr/0070-promote-is-retired.md), [ADR-0027](../docs/adr/0027-retirement-moves-a-skill-to-the-retired-folder.md) |
 | [`tickets`](tickets/) | Over-engineered on the maintainer's read, and its one measured run marked **every** entry `derived` — which licenses nothing, and is [ADR-0045](../docs/adr/0045-the-issue-contract-is-thegraphs-schema-and-the-producer-lives-outside.md)'s own falsification condition | — the schema it filled stays live in [`thegraph`](../thegraph/) and is read wherever a contract is written | [ADR-0069](../docs/adr/0069-tickets-is-retired.md), ADR-0027 |
 | [`grill-map` v1](grill-map-v1/) | The maintainer did not trust its maps: it opened with fixed measurements and called a note done when a checker passed, which verifies addresses, not claims. Rewritten to read the repo, measured against it blind | [`grill-map`](../grill-map/), same name | [ADR-0082](../docs/adr/0082-grill-map-is-rewritten-to-read-the-repo.md), ADR-0027 |
+| [`check_map.py`](check_map/) (a script) | `grill-map` stopped running map checkers (ADR-0083), and nothing else in the catalog ran it | — | [ADR-0084](../docs/adr/0084-check-map-retires.md) |
 | `sift` (deleted) | The maintainer took the one-bin policy for comments; `sift` was the three-bins-stay policy not in use | [`decant`](../decant/) | [ADR-0075](../docs/adr/0075-sift-is-retired.md), ADR-0027 |
 
 `to-external-issue`, `weekly-digest` and `unexported-archives` were retired here
