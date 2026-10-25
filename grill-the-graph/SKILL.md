@@ -396,16 +396,20 @@ written. In your own repository with attribution turned off, show those last two
 as well. Get approval. Write them. They are short enough to read whole, so there
 is nothing to summarise and no reason to write before they have been read.
 
-**Then check what landed, line by line, and report each line.** In contributor
-mode, or wherever attribution was turned off:
+**Then check what landed, line by line, and report each line**, in every mode:
 
 - [ ] `docs/agents/thegraph.md` exists
+- [ ] `CLAUDE.md` (or `AGENTS.md`) holds the comment rule, its row matching §3's
+      table and its destination on disk (own repository)
+- [ ] the map folder and its `README.md` hub exist, where §3 made them (own
+      repository)
 - [ ] `CLAUDE.local.md` holds the contributor rule (contributor mode)
 - [ ] `.git/info/exclude` lists both (contributor mode)
 - [ ] `.claude/settings.local.json` has `attribution` and both matcher groups,
-      every hook with `"onFailure": "block"`
+      every hook with `"onFailure": "block"` (contributor mode, or attribution
+      off)
 - [ ] `.git/hooks/pre-push` exists and is executable — or the reason none was
-      written
+      written (contributor mode, or attribution off)
 - [ ] `git status --short` prints nothing (contributor mode)
 
 A line that fails is written now, not reported as done. Where a per-project
