@@ -1,5 +1,9 @@
 # `check_map.py` — is this map still true?
 
+> **`grill-map` no longer runs this script or a vendored copy, and offers to
+> remove one in use** ([ADR-0083](../../docs/adr/0083-grill-map-runs-no-map-checker-and-offers-to-remove-one.md)).
+> Nothing in the catalog runs it now; whether it retires is open.
+
 A map note claims things about code: that a symbol lives in a named file, that a
 link resolves, that two notes point at each other. Code moves and the note does
 not, and **nothing reports it** — which is how a note described a constant for six

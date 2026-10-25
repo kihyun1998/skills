@@ -83,7 +83,12 @@ Report, in this order:
    named for the task branch that needs it.
 5. **The pointer wording** for each destination.
 
-Ask for approval and wait. Nothing is written before it.
+Then **ask for approval** with the tool that renders a question
+(`AskUserQuestion` where the harness has one): approve the cut as shown, approve
+with changes, or stop. A table that ends the turn without that question leaves
+the maintainer to start the next step unprompted. Nothing is written before the
+answer; on approval, go straight on to step 4 in the same run, with any changes
+applied to the bins first.
 
 ## 4. Write
 

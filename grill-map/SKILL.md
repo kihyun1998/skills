@@ -35,6 +35,12 @@ The working tree decides, not the git index: map files the index lists and the
 tree lacks are a deleted map, named in the one-line statement, and the mode is
 read from what is on disk.
 
+**No map checker runs** — this repo's script, a vendored copy, or one the repo
+wrote — since it verifies addresses and the reading verifies claims
+(ADR-0083). Where the repo has one in use, put its removal to the maintainer
+right after the mode line, before step 1, and on a yes remove it:
+[NOTES.md](NOTES.md#a-map-checker-in-the-repo).
+
 `/grill-map init` forces init on a map with a synced-at line; that run follows
 [init over an existing map](#init-over-an-existing-map), since notes are there.
 
@@ -157,12 +163,10 @@ note.
 
 **Check each note as you finish it**, against the code it names: reread the
 symbols under `## Code`, follow each link, check that each blast reason names a
-shared assumption, and make sure each claim has its evidence or its source. Where
-the repo has its own map checkers, run them on the note here, not only at the
-end — and read their result for this note's own addresses only: a link to a
-drafted note not yet written is expected to fail until step 4 ends. A defect
-found at the third note ends there; found at the end, it has been copied into
-every note after it.
+shared assumption, and make sure each claim has its evidence or its source. A
+link to a drafted note not yet written is expected to dangle until step 4 ends.
+A defect found at the third note ends there; found at the end, it has been
+copied into every note after it.
 
 **A large repo may split this step** across agents by territory, under one owner
 of the invariants and the hub — [NOTES.md](NOTES.md#splitting-the-writing).
@@ -212,11 +216,6 @@ the backlog item would need.
 - A territory the map reached and the change did not touch is fine. The blast
   list is a checklist, and an item with nothing to do is a correct outcome.
 
-If the repo already has a map checker, run it as a check on addresses: fix the
-broken links inside the map's notes, and list the ones outside them as step 2's
-cited-path rule says. Passing it does not finish the map; the reading test
-does.
-
 **Done when** the test reaches every touched territory, and its transcript — the
 change, the path from the hub, the explanation, the comparison — has been shown
 to the maintainer.
@@ -235,23 +234,20 @@ pointer only far enough to tell a pointer from the hub and to take their links
 and stamp lines; their prose is a lead like any note's, read after the draft:
 
 - **the hub**, as Mode found it;
-- **files that are not notes** — a checker, its config, a pointer, and any `.md`
+- **files that are not notes** — a pointer, a map checker's config where the
+  maintainer kept it, and any `.md`
   the notes link into as a store, such as a reference-facts file: search by
   link, `git grep -lE '\]\(([^)]*/)?<file>' -- <map folder>`, not by bare name,
   which also matches files outside the map. These stay as they are;
 - **the notes** — every other `.md` in the folder: how many, and the layout,
   `territory/` and `invariant/` folders, flat, or other;
 - **references from outside** — `git grep -c '<map folder>/' -- . ':(exclude)<map folder>/**'`,
-  the count that says how much depends on the paths kept;
-- **the repo's own map checker** — searched in the map folder, `scripts/`,
-  `.github/` and the commands the identity docs name; a link check that covers
-  the map counts. Run it on the map as it stands, so a red after the rewrite can
-  be told from a red that was already there, or say none exists.
+  the count that says how much depends on the paths kept.
 
 Put that to the maintainer with the tool that renders a question, as a proposal
 with a recommended answer and the reason that would make it wrong: the hub
-path, the notes to be rewritten in place, the files kept, the outside count, the
-checker's baseline, and the cost — notes and lines to be read and rewritten.
+path, the notes to be rewritten in place, the files kept, the outside count,
+and the cost — notes and lines to be read and rewritten.
 Three answers: **rewrite**, below; **adopt**, offered when a hub exists, the map
 folder is committed and clean (`git status --porcelain -- <map folder>` empty), and init was not forced — write the synced-at
 line at the map folder's last commit (`git log -1 --format='%h (%cs)' -- <map folder>`)
@@ -480,6 +476,8 @@ wherever the run met them:
 - corrections made to old claims, and drops with their reasons (init over an
   existing map);
 - holes the reading found, with the note that records each;
+- a map checker the repo had: each file removed or edited, or *kept* and by
+  whose answer;
 - anything that looked wrong in source, records or specs, left as it was, and
   checks worth having, as proposals (Scope);
 - a missing identity doc, and the reading test's transcript.
@@ -497,4 +495,5 @@ rules want an issue per hole; filing is the maintainer's.
 script, a loop that judges covered or not, a checker the repo lacks (step 4
 follows each link by hand) are not this run's to write, even when asked whether
 something can be checked: the closing report names the check, what it would
-test and the miss it would have caught, and building it is the maintainer's.
+test and the miss it would have caught, and building it is the maintainer's. A
+map checker is never one of them (ADR-0083).

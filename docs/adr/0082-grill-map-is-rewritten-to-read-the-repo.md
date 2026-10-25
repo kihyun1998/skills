@@ -1,5 +1,10 @@
 # `grill-map` is rewritten to read the repo; its first version retires
 
+> **Amended 2026-10-25** by [ADR-0083](0083-grill-map-runs-no-map-checker-and-offers-to-remove-one.md):
+> the rewrite no longer runs a map checker, vendored or not, and offers to remove
+> one in use. The *What stays* line on `check_map.py` below is no longer true in
+> its second half.
+
 The first `grill-map` moves to [`retired/grill-map-v1`](../../retired/grill-map-v1/)
 and is no longer installed
 ([ADR-0027](0027-retirement-moves-a-skill-to-the-retired-folder.md)). A

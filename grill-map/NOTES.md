@@ -162,6 +162,34 @@ checked as step 4 checks a note. At the end
 the owner checks that every invariant and the territories it claims point at
 each other.
 
+## A map checker in the repo
+
+A **map checker** is anything that reads the map's notes and fails on their
+addresses — links, anchors, symbols, the section set. `check_map.py` is one,
+under whatever name it was vendored as; so is one the repo wrote itself. A
+general link check over all of the repo's markdown is not one, and stays.
+
+**Find it in use**, after the mode line: in the map folder, `scripts/`,
+`.github/` (a workflow step), the commands the identity docs and README name,
+and a config at the root such as `.checkup.json`. `git grep -nE 'check_map|\.checkup\.json|<map folder>' -- .github scripts ':(glob)*.md'`
+finds most of it; read each hit to tell a checker from a citation. None found:
+say so in one line and go on.
+
+**Ask before touching it.** List every part with its path — the script, its
+config, its tests and fixtures, each CI step that runs it, each line in a doc
+that tells a reader to run it — and put it to the maintainer with the tool that
+renders a question (`AskUserQuestion` where the harness has one), recommending
+removal for the reason in ADR-0083:
+
+- **remove** — delete the script, its config and its tests; drop its CI steps;
+  delete or reword the doc lines, so no sentence still tells a reader to run it.
+  Touch nothing else; where a CI job holds only that check, the job goes.
+- **keep** — leave every part as it is. This run still does not run it, and
+  the next run asks again.
+
+A listed part the maintainer says is not the checker is theirs to call: leave
+it out. The closing report lists what was removed or edited, or *kept*.
+
 ## The binding
 
 A map that is only written is pure cost. Bind it before closing, next to the
