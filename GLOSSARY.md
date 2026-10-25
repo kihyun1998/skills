@@ -178,8 +178,10 @@ file
 One repo's answer to what a person already knows and no file in it states —
 in practice the outside sources the project is built against, each marked what it
 informs, how it is reached and whether it binds. Short enough to read whole.
-**It grows by being appended to** when a run needs something nobody wrote down;
-there is no rebuild and no stamp.
+**It grows by being appended to** when a run needs something nobody wrote down,
+and is rebuilt only when the maintainer asks (`/grill-the-graph init`) and
+approves the overwrite. There is no stamp. Run again on a repo that has one,
+`grill-the-graph` updates what setup installed and keeps the build (ADR-0085).
 _Avoid_: bindings (the input format of the retired `theflow`, gone since
 ADR-0067), config, compiled graph (there is no graph)
 

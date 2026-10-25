@@ -1,8 +1,8 @@
 ---
 name: grill-the-graph
 disable-model-invocation: true
-argument-hint: "[local|own]"
-description: "Set a repo up for `thegraph` by recording the real sources it is built against in one short file. Run once, before the repo's first /thegraph."
+argument-hint: "[local|own] [init]"
+description: "Set a repo up for `thegraph` by recording the real sources it is built against in one short file. Run before the repo's first /thegraph, and again to bring an earlier setup up to date."
 ---
 
 # grill-the-graph — set a repo up for `thegraph`
@@ -23,6 +23,24 @@ check as the recommendation — never as the answer. **Do not take the mode from
 existing files or a silent check**: a mode nobody chose is the step a run skips,
 and every later step branches on it.
 
+## init or update — decided from disk
+
+A second question, and disk answers it: is this repo already set up? Say in one
+line which run this is and why. §2's check for an older generated build comes
+first in every run, and a build it finds goes to `salvage` whatever the table
+says.
+
+| On disk | Run | Process steps |
+|---|---|---|
+| no `docs/agents/thegraph.md` | **init** | §1–§5 |
+| `docs/agents/thegraph.md` | **update** | §1, §2, then *Update*, then *Repoint*, then §5's check |
+| `docs/agents/thegraph.md`, and the argument `init` | **init over an existing setup** | §1–§5 as at init, as *Init over an existing setup* amends them, then *Repoint* |
+
+The two arguments do not overlap, so either order reads: `/grill-the-graph own
+init` is `/grill-the-graph init own`. `update` as an argument changes nothing,
+since disk already decides it; on a repo with no build, say there is nothing to
+update and run init.
+
 `thegraph` hardcodes no source names, no commands and no paths. Something has to
 record **which real sources this project is built against**. That is this skill,
 and it is very nearly the whole of it.
@@ -32,7 +50,9 @@ the map's folder and a one-line hub (§3). In a repository you contribute to
 rather than own, it writes the same file and a rule locally, plus an attribution
 check, and commits nothing (*Contributor mode*). In your own repository it asks
 whether Claude attribution stays, and installs the same check where it does not.
-It touches nothing else.
+Run again on a repo it already set up, it also repoints lines elsewhere that
+point at what it wrote (*Repoint what points at the setup*). It touches nothing
+else.
 
 ## What the build is
 
@@ -200,12 +220,66 @@ exec node "$HOME/.claude/skills/grill-the-graph/scripts/no-attribution.mjs" --pr
 
 Git runs it through its own `sh` on every platform. A missing `node` fails the
 `exec`, and a failed hook stops the push. **Where `core.hooksPath` is set or a
-`pre-push` already exists, write nothing there and say so in §5** — the project
-runs its own hooks, and replacing one is not setup's to do.
+`pre-push` of the project's own exists, write nothing there and say so in §5** —
+the project runs its own hooks, and replacing one is not setup's to do. A
+`pre-push` whose only line runs `no-attribution.mjs` is setup's, from an earlier
+run, and is rewritten.
 
 What none of the three can see: a push made with Claude Code not running and no
 git hook (`core.hooksPath` set), and an `ask` in a headless `-p` run, which
 Claude Code turns into a deny.
+
+## Update
+
+The repo was set up by an earlier run, and this skill has moved since: the
+settings block, the hook, the comment rule's table, the map folder. Update
+brings what setup installed up to what this file says now, and asks nothing a
+person already answered.
+
+- **Own or contributor** is still the first question where no argument names
+  it. What the earlier run left — `CLAUDE.local.md` holding the contributor
+  rule, its two `.git/info/exclude` lines — joins §1's `viewerPermission` check
+  as the recommendation, never as the answer.
+- **The build is kept.** References are not asked again, and lines a later run
+  appended stay. Only a section *What to write* names and the build lacks is
+  asked for, at §4 as at init.
+- **Attribution in your own repository is not asked again.** The pieces on disk
+  are the earlier answer: none installed is *keep*, any installed is *off*, and
+  off means all three — the ones missing are written now.
+- **Every piece setup writes is compared with this file's current text** — the
+  comment rule against §3's table and the destinations on disk now, the map hub,
+  the settings block hook by hook, the `pre-push` hook, the exclude lines, the
+  `CLAUDE.local.md` rule. Which `pre-push` is setup's own is *Contributor
+  mode*'s rule.
+- **Then the links** — *Repoint what points at the setup*.
+
+Show each change as old line and new, get approval, write, and run §5's check.
+Where nothing differs, say so and write nothing.
+
+## Init over an existing setup
+
+`/grill-the-graph init` on a repo that has a build: the maintainer has changed
+their mind, and the build is written again as if none existed. The Process runs
+whole — §4 asks its questions from scratch, and the existing build is neither
+input nor the recommendation.
+
+The overwrite is the maintainer's to approve. At §5, show the existing build in
+full beside the new one, and every installed piece the new run replaces, before
+writing anything. A piece setup wrote is replaced, not duplicated: the comment
+rule already in `CLAUDE.md`, the settings block, and the `pre-push` *Contributor
+mode* calls setup's own. Then *Repoint what points at the setup*.
+
+## Repoint what points at the setup
+
+Update and init over an existing setup both end here, because a file elsewhere
+in the repo may still point at what setup wrote before. Search for the paths
+setup writes — `docs/agents/thegraph.md`, the map hub, `no-attribution.mjs` —
+with `git grep -n`, plus the ignored files setup itself writes
+(`CLAUDE.local.md`, `.claude/settings.local.json`), and read each hit. A line
+that names a path no longer there, a section the build no longer has, or a
+script path that does not resolve is fixed in the same approval as the rest.
+Decision records describe the world when they were written and are left as they
+are.
 
 ## Process
 
@@ -225,12 +299,12 @@ repository recommends **contributor mode**; anything else recommends the
 default. It stays a recommendation — whether a team accepts commits to
 `docs/agents/` is something a person knows and no permission says.
 
-### 2. An older generated build goes to `salvage`, not to an update
+### 2. An older generated build goes to `salvage`, not to Update
 
 `scripts/thegraph/` or `.claude/agents/thegraph-*` means this repo was built by
 an earlier version of this skill, which generated code and copied repo facts into
-a long document. **Do not read it as input, do not update it, and do not delete
-it.** Some of what is in there is a person's answer and the rest is a copy of the
+a long document. That is not an earlier setup in *Update*'s sense: **do not read
+it as input, do not update it, do not rebuild over it, and do not delete it.** Some of what is in there is a person's answer and the rest is a copy of the
 repo, and telling those apart is `salvage`'s job. Say what you found, point at
 `salvage`, and stop.
 
@@ -314,7 +388,7 @@ accept no *"use judgement"*: a source nobody named is a source nobody reads, but
 ### 5. Show it, then write it
 
 Show the mode and what chose it — the argument, or the answer to the first
-question — the file, the `CLAUDE.md` rule, and — where §3
+question — and which run this is, init or init over an existing setup; then the file, the `CLAUDE.md` rule, and — where §3
 makes one — the map folder's path and hub stub. In contributor mode show instead
 the `CLAUDE.local.md` rule, the two `.git/info/exclude` lines, the settings
 block with `<script>` written out, and the `pre-push` hook or why none was
@@ -346,13 +420,15 @@ already answers.** The previous version of this skill emitted 686 lines here, an
 the difference was entirely copies: command lists, surface lists, record numbers,
 node counts, an artifact manifest.
 
-## The build grows; it is never rebuilt
+## The build grows; a rebuild is asked for
 
-There is no rebuild, no stamp and no drift queue.
+There is no stamp and no drift queue, and nothing rebuilds the build on its own.
 
 A run that needs something this file does not hold **asks then**, and the answer
 is appended here. Nothing has to be recompiled, because nothing here was
-compiled.
+compiled. A rebuild happens when the maintainer asks for one with
+`/grill-the-graph init`, and is written only on their approval — *Init over an
+existing setup*.
 
 And a run that keeps asking the same question is the signal that its answer
 belongs here — the maintainer answering *"show me it actually running"* on three

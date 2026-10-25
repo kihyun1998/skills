@@ -49,6 +49,7 @@ cite it.
 | [0082](0082-grill-map-is-rewritten-to-read-the-repo.md) | `grill-map` is rewritten to read the repo — README, identity docs, records, folder tree as a guide, entry points, backlog, the caller — and records answers by provenance; done is a blind reading test, not a checker. Built as `map-it`, renamed on the maintainer's call so instructions in other repos still resolve; the first version retires to `retired/grill-map-v1`. Lost the first blind comparison on `justerm` (0.59 vs 0.69), won after fixes (0.62 vs 0.42) and on a held-out repo (0.86 vs 0.70); update compared once (#23), parity with a maintained map |
 | [0083](0083-grill-map-runs-no-map-checker-and-offers-to-remove-one.md) | `grill-map` runs no map checker — `check_map.py`, a vendored copy, or one the repo wrote — and offers to remove one in use, on the maintainer's yes |
 | [0084](0084-check-map-retires.md) | `check_map.py` retires to `retired/check_map/` — nothing runs it once `grill-map` stopped |
+| [0085](0085-grill-the-graph-runs-again-as-an-update.md) | `grill-the-graph` runs again: disk decides init or update, update brings installed pieces and the links to them up to date and keeps the build, and `init` rebuilds on the maintainer's approval — ending "never rebuilt" |
 
 ### `gate` — the Acceptance Gate
 
