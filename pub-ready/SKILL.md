@@ -63,8 +63,9 @@ Each ends on a stated result. Report every one, including the ones that passed.
    version — grep each one. A behaviour the release changed reads as it does
    now. The example the README points at runs against this version.
 4. **Gates, bare** (`bare`). The CI workflow is the list: run each of its steps
-   locally, in each directory it runs them in. Then the ones CI does not reach,
-   each run on its own:
+   locally, in each directory it runs them in. Where the repo's guidance says CI
+   gates nothing, the gate list that guidance names is the list instead. Then
+   the ones the list does not reach, each run on its own:
    - `flutter pub get` (or `dart pub get`) in the package and in `example/`,
      first — `dart format` reads the language version from the resolved
      package config, and a stale one passes locally and fails in CI
