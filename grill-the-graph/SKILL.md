@@ -32,9 +32,9 @@ says.
 
 | On disk | Run | Process steps |
 |---|---|---|
-| no `docs/agents/thegraph.md` | **init** | §1–§5 |
-| `docs/agents/thegraph.md` | **update** | §1, §2, then *Update*, then *Repoint*, then §5's check |
-| `docs/agents/thegraph.md`, and the argument `init` | **init over an existing setup** | §1–§5 as at init, as *Init over an existing setup* amends them, then *Repoint* |
+| no `docs/agents/thegraph.md` | **init** | §1–§4, *A package that publishes*, §5 |
+| `docs/agents/thegraph.md` | **update** | §1, §2, then *Update*, then *Repoint*, then *A package that publishes*, then §5's check |
+| `docs/agents/thegraph.md`, and the argument `init` | **init over an existing setup** | §1–§5 as at init, as *Init over an existing setup* amends them, then *Repoint*, then *A package that publishes* |
 
 The two arguments do not overlap, so either order reads: `/grill-the-graph own
 init` is `/grill-the-graph init own`. `update` as an argument changes nothing,
@@ -51,8 +51,9 @@ rather than own, it writes the same file and a rule locally, plus an attribution
 check, and commits nothing (*Contributor mode*). In your own repository it asks
 whether Claude attribution stays, and installs the same check where it does not.
 Run again on a repo it already set up, it also repoints lines elsewhere that
-point at what it wrote (*Repoint what points at the setup*). It touches nothing
-else.
+point at what it wrote (*Repoint what points at the setup*). In a repo that
+publishes to pub.dev, it replaces copies of the release bar with a pointer to
+`pub-ready` (*A package that publishes*). It touches nothing else.
 
 ## What the build is
 
@@ -281,6 +282,30 @@ script path that does not resolve is fixed in the same approval as the rest.
 Decision records describe the world when they were written and are left as they
 are.
 
+## A package that publishes
+
+Every run in your own repository does this, before §5 shows anything, where the
+repo holds a publishable Dart package — a `pubspec.yaml` with no `publish_to:
+none`. In contributor mode the release bar is upstream's, and this is skipped.
+
+[`pub-ready`](../pub-ready/SKILL.md) holds the maintainer's release bar once,
+and `check-it` reaches it by reading the pubspec, so **the build gets no line
+for it**: a fact a directory listing answers fails condition 2.
+
+What this section does is find the copies that predate it. Read each place a
+release rule lives — `CLAUDE.md`, `docs/agents/release.md`, a map note on
+releasing, a section of `docs/agents/thegraph.md` — and sort every line:
+
+| The line | Goes |
+|---|---|
+| says what `pub-ready` says — the dry-run bar, who publishes, frozen CHANGELOG entries, `pub get` before `dart format` | replaced by one pointer: *Before a release, run `pub-ready`.* |
+| says more, or something only this package has — an SDK floor's reason, a `.pubignore` trap, a consumer to round-trip, a manual check | stays where it is |
+| contradicts `pub-ready` | stays, since the repo's guidance wins, and is named in the closing report |
+
+Show each change as old line and new, in the same approval as the run's other
+writes. A repo with no copy gets nothing written: `check-it` reaches `pub-ready`
+without a pointer.
+
 ## Process
 
 ### 1. Look before you ask
@@ -393,7 +418,8 @@ makes one — the map folder's path and hub stub. In contributor mode show inste
 the `CLAUDE.local.md` rule, the two `.git/info/exclude` lines, the settings
 block with `<script>` written out, and the `pre-push` hook or why none was
 written. In your own repository with attribution turned off, show those last two
-as well. Get approval. Write them. They are short enough to read whole, so there
+as well, and where *A package that publishes* found copies of the release bar,
+each old line beside its pointer. Get approval. Write them. They are short enough to read whole, so there
 is nothing to summarise and no reason to write before they have been read.
 
 **Then check what landed, line by line, and report each line**, in every mode:
@@ -411,6 +437,8 @@ is nothing to summarise and no reason to write before they have been read.
 - [ ] `.git/hooks/pre-push` exists and is executable — or the reason none was
       written (contributor mode, or attribution off)
 - [ ] `git status --short` prints nothing (contributor mode)
+- [ ] each release-bar copy reads as approved — the pointer, or the line kept
+      (own repository, a publishable package)
 
 A line that fails is written now, not reported as done. Where a per-project
 memory asked for no Claude trailer and the pieces are now installed, name it in

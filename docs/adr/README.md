@@ -50,6 +50,7 @@ cite it.
 | [0083](0083-grill-map-runs-no-map-checker-and-offers-to-remove-one.md) | `grill-map` runs no map checker — `check_map.py`, a vendored copy, or one the repo wrote — and offers to remove one in use, on the maintainer's yes |
 | [0084](0084-check-map-retires.md) | `check_map.py` retires to `retired/check_map/` — nothing runs it once `grill-map` stopped |
 | [0085](0085-grill-the-graph-runs-again-as-an-update.md) | `grill-the-graph` runs again: disk decides init or update, update brings installed pieces and the links to them up to date and keeps the build, and `init` rebuilds on the maintainer's approval — ending "never rebuilt" |
+| [0086](0086-the-pub-dev-release-bar-is-one-skill.md) | The pub.dev release bar is one skill, `pub-ready`; `check-it` reaches it from the pubspec, so no build records where it applies, and `grill-the-graph` offers to replace the per-repo copies with a pointer |
 
 ### `gate` — the Acceptance Gate
 

@@ -440,7 +440,7 @@ _Avoid_: cwd (the absolute path it is read from — not what is shown), session 
   |---|---|
   | [`read-it`](read-it/) | `spine`, `firsthand` |
   | [`make-it`](make-it/) | `tdd`, `redden` |
-  | [`check-it`](check-it/) | `bare`, `lens`, `sweep`, [`assay`](assay/), [`silt`](silt/), `security-review` |
+  | [`check-it`](check-it/) | `bare`, [`pub-ready`](pub-ready/), `lens`, `sweep`, [`assay`](assay/), [`silt`](silt/), `security-review` |
   | [`ask-it`](ask-it/) | `envelope`, `byartifact` |
 
   The seam is the same every time: **a method governs work of its kind anywhere;
