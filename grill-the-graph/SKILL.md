@@ -32,9 +32,9 @@ says.
 
 | On disk | Run | Process steps |
 |---|---|---|
-| no `docs/agents/thegraph.md` | **init** | §1–§4, *A package that publishes*, §5 |
-| `docs/agents/thegraph.md` | **update** | §1, §2, then *Update*, then *Repoint*, then *A package that publishes*, then §5's check |
-| `docs/agents/thegraph.md`, and the argument `init` | **init over an existing setup** | §1–§5 as at init, as *Init over an existing setup* amends them, then *Repoint*, then *A package that publishes* |
+| no `docs/agents/thegraph.md` | **init** | §1–§5 |
+| `docs/agents/thegraph.md` | **update** | §1, §2, then *Update*, then *Repoint*, then §5's check |
+| `docs/agents/thegraph.md`, and the argument `init` | **init over an existing setup** | §1–§5 as at init, as *Init over an existing setup* amends them, then *Repoint* |
 
 The two arguments do not overlap, so either order reads: `/grill-the-graph own
 init` is `/grill-the-graph init own`. `update` as an argument changes nothing,
@@ -51,9 +51,10 @@ rather than own, it writes the same file and a rule locally, plus an attribution
 check, and commits nothing (*Contributor mode*). In your own repository it asks
 whether Claude attribution stays, and installs the same check where it does not.
 Run again on a repo it already set up, it also repoints lines elsewhere that
-point at what it wrote (*Repoint what points at the setup*). In a repo that
-publishes to pub.dev, it replaces copies of the release bar with a pointer to
-`pub-ready` (*A package that publishes*). It touches nothing else.
+point at what it wrote (*Repoint what points at the setup*). In your own
+repository holding a Dart package for pub.dev, it asks whether `pub-ready` is
+this repo's release bar, and where it is, offers to replace the older copies of
+that bar with a pointer (*Release*). It touches nothing else.
 
 ## What the build is
 
@@ -85,7 +86,8 @@ have produced them.
 
 ## What to write
 
-Two sections. Nothing else has cleared all three conditions.
+Two sections, and a third in a Dart package of the maintainer's own. Nothing
+else has cleared all three conditions.
 
 ### What this project is
 
@@ -128,6 +130,33 @@ which an absent file cannot, and a run that later reads against an outside
 source appends it (see *The build grows*). Never fill the table to avoid an empty
 one — a row proposed without evidence and ratified by someone who had no answer
 is exactly condition 2's failure.
+
+### Release
+
+Written only in your own repository, and only where it holds a publishable Dart
+package — a `pubspec.yaml` with no `publish_to: none`. One line under the
+heading: `pub-ready`, or `None.`
+
+**Whether a package publishes is on disk; whether `pub-ready` is its release bar
+is not.** A package can be publishable and released some other way, or not yet
+released at all, so the line records the maintainer's choice and clears
+condition 2. [`pub-ready`](../pub-ready/SKILL.md) reads it (condition 3): it runs
+where the line names it and stops where the line says `None.` `None.` records
+that the question was put, as it does under References, so an update does not
+ask it again.
+
+Where the answer is `pub-ready`, the copies of the release bar written before it
+are sorted in the same approval. Read each place a release rule lives —
+`CLAUDE.md`, `docs/agents/release.md`, a map note on releasing, another section
+of `docs/agents/thegraph.md` — and sort every line:
+
+| The line | Goes |
+|---|---|
+| says what `pub-ready` says — the dry-run bar, who publishes, frozen CHANGELOG entries, `pub get` before `dart format` | replaced by one pointer: *Before a release, run `pub-ready`.* |
+| says more, or something only this package has — an SDK floor's reason, a `.pubignore` trap, a consumer to round-trip, a manual check | stays where it is |
+| contradicts `pub-ready` | stays, since the repo's guidance wins, and is named in the closing report |
+
+Where the answer is `None.`, no copy is touched.
 
 ## Contributor mode
 
@@ -282,30 +311,6 @@ script path that does not resolve is fixed in the same approval as the rest.
 Decision records describe the world when they were written and are left as they
 are.
 
-## A package that publishes
-
-Every run in your own repository does this, before §5 shows anything, where the
-repo holds a publishable Dart package — a `pubspec.yaml` with no `publish_to:
-none`. In contributor mode the release bar is upstream's, and this is skipped.
-
-[`pub-ready`](../pub-ready/SKILL.md) holds the maintainer's release bar once,
-and `check-it` reaches it by reading the pubspec, so **the build gets no line
-for it**: a fact a directory listing answers fails condition 2.
-
-What this section does is find the copies that predate it. Read each place a
-release rule lives — `CLAUDE.md`, `docs/agents/release.md`, a map note on
-releasing, a section of `docs/agents/thegraph.md` — and sort every line:
-
-| The line | Goes |
-|---|---|
-| says what `pub-ready` says — the dry-run bar, who publishes, frozen CHANGELOG entries, `pub get` before `dart format` | replaced by one pointer: *Before a release, run `pub-ready`.* |
-| says more, or something only this package has — an SDK floor's reason, a `.pubignore` trap, a consumer to round-trip, a manual check | stays where it is |
-| contradicts `pub-ready` | stays, since the repo's guidance wins, and is named in the closing report |
-
-Show each change as old line and new, in the same approval as the run's other
-writes. A repo with no copy gets nothing written: `check-it` reaches `pub-ready`
-without a pointer.
-
 ## Process
 
 ### 1. Look before you ask
@@ -391,8 +396,8 @@ is also why it would fail the three conditions if it were written down.
 ### 4. Ask
 
 **One question, and recommend an answer — two in the maintainer's own
-repository.** The compiled draft *is* the recommendation — the maintainer
-confirms or corrects it. Ask them together with the tool that renders a question;
+repository, three where it holds a publishable Dart package.** The compiled
+draft *is* the recommendation — the maintainer confirms or corrects it. Ask them together with the tool that renders a question;
 a list printed with *"confirm or correct"* underneath is a question nobody was
 put.
 
@@ -401,6 +406,14 @@ off, which installs *Contributor mode*'s Attribution pieces. Recommend from what
 can be seen — a per-project memory asking for no Claude trailer, or a history
 whose commits carry none, recommends off; a history that carries them recommends
 keep. A contributor clone is never asked: there it is always off.
+
+**Release**, own repository with a publishable Dart package only: `pub-ready` or
+`None.` Recommend `pub-ready` when the package is open source — `gh repo view
+--json visibility` reads `PUBLIC` and a `LICENSE` is at the root — and `None.`
+otherwise. Where `gh` cannot answer because the repo has no GitHub remote, the
+recommendation is still `None.`, and it says *no GitHub remote, so whether it is
+public is unknown* rather than *not public*. Show what `pub-ready` would replace beside the option, from the sort
+under *Release*, so the answer is given knowing what it changes.
 
 For the reference table, propose the sources you can see evidence for — an
 upstream named in `CLAUDE.md`, a peer repo already installed, a dependency whose
@@ -418,9 +431,10 @@ makes one — the map folder's path and hub stub. In contributor mode show inste
 the `CLAUDE.local.md` rule, the two `.git/info/exclude` lines, the settings
 block with `<script>` written out, and the `pre-push` hook or why none was
 written. In your own repository with attribution turned off, show those last two
-as well, and where *A package that publishes* found copies of the release bar,
-each old line beside its pointer. Get approval. Write them. They are short enough to read whole, so there
-is nothing to summarise and no reason to write before they have been read.
+as well. Where *Release* is `pub-ready`, show each copy of the release bar it
+replaces, old line beside its pointer. Get approval. Write them. They are short
+enough to read whole, so there is nothing to summarise and no reason to write
+before they have been read.
 
 **Then check what landed, line by line, and report each line**, in every mode:
 
@@ -437,8 +451,9 @@ is nothing to summarise and no reason to write before they have been read.
 - [ ] `.git/hooks/pre-push` exists and is executable — or the reason none was
       written (contributor mode, or attribution off)
 - [ ] `git status --short` prints nothing (contributor mode)
-- [ ] each release-bar copy reads as approved — the pointer, or the line kept
-      (own repository, a publishable package)
+- [ ] the build has a *Release* line, and each copy of the release bar reads as
+      approved — the pointer, or the line kept (own repository, a publishable
+      Dart package)
 
 A line that fails is written now, not reported as done. Where a per-project
 memory asked for no Claude trailer and the pieces are now installed, name it in

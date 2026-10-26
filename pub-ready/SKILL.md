@@ -1,16 +1,27 @@
 ---
 name: pub-ready
 requires: [bare, firsthand]
-description: "Ready a Dart or Flutter package for pub.dev, up to the publish command. Use when preparing a pub.dev release, or when a change touches a publishable package's pubspec, README or CHANGELOG."
+description: "Ready a Dart or Flutter package for pub.dev, up to the publish command. Use when preparing a pub.dev release."
 ---
 
 # pub-ready — everything but the publish
 
-The bar the maintainer sets for every package they publish, held once here
+The bar the maintainer sets for the packages they publish, held once here
 instead of in each package's `CLAUDE.md`. **The repo's own guidance outranks
 it**: a package's `CLAUDE.md`, release note or map note that asks for more — a
 consumer round trip, an eyeball pass on the example — adds to this, and one that
 asks for something different wins.
+
+## Whether this repo uses it
+
+Read the *Release* line in `docs/agents/thegraph.md` before anything else.
+`grill-the-graph` writes it from the maintainer's answer.
+
+| The line | Then |
+|---|---|
+| `pub-ready` | run it |
+| `None.` | the maintainer chose another way to release this repo: say so, and run it only if they ask again knowing that |
+| no line, or no build | nobody has chosen yet: say so, name `/grill-the-graph` as where the choice is recorded, and ask whether to run it this once |
 
 **Publishable** means a `pubspec.yaml` with no `publish_to: none`. A workspace
 holds one per package; run this once per publishable one.

@@ -1,6 +1,6 @@
 ---
 name: check-it
-requires: [bare, pub-ready, lens, sweep, assay, silt, security-review, boundary]
+requires: [bare, lens, sweep, assay, silt, security-review, boundary]
 description: "Measure a finished change before anyone calls it done, cheapest check first. Use once a change is written and before it reaches a person."
 ---
 
@@ -19,26 +19,20 @@ a waste, so it goes first.
 | | What it answers | Call | When |
 |---|---|---|---|
 | 1 | Did every check actually run, and pass | `bare` | the project has checks |
-| 2 | Could it be published as it stands | `pub-ready` | the change touches a publishable Dart package's `pubspec.yaml`, `README.md` or `CHANGELOG.md` |
-| 3 | Did the files land where the rule said they would | — | the change added or moved a file |
-| 4 | Does it work against something real | — | the change compiles or runs |
-| 5 | Does the code hold up, and does it do what was asked | `assay` | ” |
-| 6 | Will it get slower | `silt` | the change adds state, loops, or I/O |
-| 7 | Is it open to somebody who means harm | `security-review` | ” |
-| 8 | What is missing | `lens` | always |
-| 9 | Which surfaces now describe it wrongly | `sweep` | always |
+| 2 | Did the files land where the rule said they would | — | the change added or moved a file |
+| 3 | Does it work against something real | — | the change compiles or runs |
+| 4 | Does the code hold up, and does it do what was asked | `assay` | ” |
+| 5 | Will it get slower | `silt` | the change adds state, loops, or I/O |
+| 6 | Is it open to somebody who means harm | `security-review` | ” |
+| 7 | What is missing | `lens` | always |
+| 8 | Which surfaces now describe it wrongly | `sweep` | always |
 
-**Publishable** is read off disk on every run — a `pubspec.yaml` with no
-`publish_to: none` — so nothing records it. Row 2 runs `pub-ready`'s checks and
-stops at its hand-over; publishing is never this skill's either.
-
-**A prose change runs 8 and 9 — plus 3, where it added or moved a file, and 2,
-where it touched a publishable package's README or CHANGELOG — and nothing
-else.** There are no gates to run, no round trip to prove, no smells in a
+**A prose change runs 7 and 8 — plus 2, where it added or moved a file — and
+nothing else.** There are no gates to run, no round trip to prove, no smells in a
 paragraph — and a run that reports those as passed has reported on work it did
 not do.
 
-**5, 6 and 7 read the same diff and ask different questions**, so they run at the
+**4, 5 and 6 read the same diff and ask different questions**, so they run at the
 same time. That is not splitting material; it is the opposite.
 
 ### Where the files landed
