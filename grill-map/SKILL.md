@@ -316,7 +316,7 @@ than it meant: each reference to a dead path, and each reference to a kept path
 whose cited content moved out. Section citations too — `git grep -nE '\.md ?(§|#)'`
 over the same scope, read for note names: a cited heading (a `#` hit by its
 slug) that no longer exists is listed with the heading that now holds it. Name the note that now
-holds each, so the maintainer (or `decant`, for a code comment) can repoint it.
+holds each, so the maintainer can repoint it.
 
 **Done when** the maintainer said rewrite, init's criteria hold,
 every old note appears in the ledger, every

@@ -451,7 +451,7 @@ _Avoid_: cwd (the absolute path it is read from — not what is shown), session 
   |---|---|
   | [`read-it`](read-it/) | `firsthand` (`spine` absorbed, ADR-0090) |
   | [`make-it`](make-it/) | `tdd` (`redden` absorbed, ADR-0090) |
-  | [`check-it`](check-it/) | `lens`, `sweep`, [`assay`](assay/), [`silt`](silt/) (`bare` and `boundary` absorbed, and the security pass asked by `check-it` itself, ADR-0090) |
+  | [`check-it`](check-it/) | `lens`, `sweep` (`bare` and `boundary` absorbed, ADR-0090; `assay` and `silt` absorbed, ADR-0092; the security pass asked by `check-it` itself) |
   | [`ask-it`](ask-it/) | — (`envelope` and `byartifact` were absorbed, ADR-0089) |
 
   The seam is the same every time: **a method governs work of its kind anywhere;

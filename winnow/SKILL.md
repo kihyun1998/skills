@@ -9,7 +9,7 @@ description: "Cut an always-loaded agent document (CLAUDE.md, AGENTS.md, a skill
 
 **It runs on a document an agent loads every time**: a repository's `CLAUDE.md`
 or `AGENTS.md`, a `SKILL.md` body, a doc a pointer pulls in on most runs. Every
-line there is paid for on every session. Source comments are `decant`'s;
+line there is paid for on every session. Source comments follow the comment rule in `CLAUDE.md`;
 decision records are out of scope, since they are where history is kept.
 
 Load `writing-for-agents` first. It holds the levers — pointers, disclosure,
@@ -127,8 +127,8 @@ the repository's own rules.
 
 ## Boundaries
 
-- **`decant`** sorts source comments into the map; this sorts an agent document
-  into itself and its detail docs.
+- **The comment rule** in `CLAUDE.md` sends a source comment's why to the map;
+  this sorts an agent document into itself and its detail docs.
 - **`sweep`** asks whether a change made a surface wrong; this asks whether a
   paragraph earns its place in a document every run loads.
 - **`writing-for-agents`** says how a document for agents should read; this

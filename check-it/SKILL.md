@@ -1,6 +1,6 @@
 ---
 name: check-it
-requires: [lens, sweep, assay, silt]
+requires: [lens, sweep]
 description: "Measure a finished change before anyone calls it done, cheapest check first. Use once a change is written and before it reaches a person."
 ---
 
@@ -21,8 +21,8 @@ a waste, so it goes first.
 | 1 | Did every check actually run, and pass | — | the project has checks |
 | 2 | Did the files land where the rule said they would | — | the change added or moved a file |
 | 3 | Does it work against something real | — | the change compiles or runs |
-| 4 | Does the code hold up, and does it do what was asked | `assay` | ” |
-| 5 | Will it get slower | `silt` | the change adds state, loops, or I/O |
+| 4 | Does the code hold up, and does it do what was asked | — | ” |
+| 5 | Will it get slower | — | the change adds state, loops, or I/O |
 | 6 | Is it open to somebody who means harm | — | ” |
 | 7 | What is missing | `lens`, in a fresh agent | always; a skip is reported with its reason |
 | 8 | Which surfaces now describe it wrongly | `sweep` | always |
@@ -36,13 +36,27 @@ a hook to turn one green, and report a check not run, with why. **The same
 failure surviving three fixes stops the repairs** and goes to a person as a
 design question.
 
+**Review (4)** is two readers at once, each given the **whole** diff and one
+axis. One asks whether the code holds up against what this repo wrote down: its
+`CLAUDE.md`, decision records and conventions. Where it wrote nothing, the
+baseline is the well-known code smells (Fowler's catalogue). The other asks whether it does
+what the issue asked: what is missing, what crept in that nobody asked for, and
+what looks done but is done wrongly. Each finding is graded **violation** (cite
+the rule), **judgement**, or **already decided** (a record settled it; one line).
+The two axes are reported apart, each with its own worst finding, never merged
+into one ranking. A clean axis is a result.
+
+**Cost (5)**: no defect without a number. A slowdown that was measured, with
+something to compare it against, is a defect. A shape nobody measured is a
+question, and it is asked as one.
+
 **Harm (6)** is asked by `check-it` itself, of the same diff, after 4's
 readers return: who could reach this, what they control, and what it exposes.
 4's readers are not given it.
 
 **A prose change runs 7 and 8 — plus 2, where it added or moved a file — and
-nothing else.** There are no gates to run, no round trip to prove, no smells in a
-paragraph — and a run that reports those as passed has reported on work it did
+nothing else.** There are no gates to run, no round trip to prove, no code for 4's
+readers — and a run that reports those as passed has reported on work it did
 not do.
 
 **4, 5 and 6 read the same diff and ask different questions**, so they run at the

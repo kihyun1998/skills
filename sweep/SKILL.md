@@ -98,7 +98,8 @@ Only one of them is good news.
 - **A surface that has merely grown too long is not drift.** Doc-comments and
   headers are on the list above because a change can make them *wrong*; that is
   the only question this pass asks of them. A header that has simply grown past
-  the point of being read is `decant`'s pass — name it and stop. Do not widen a
+  the point of being read belongs to the repo's comment rule in `CLAUDE.md` — name
+  it and stop. Do not widen a
   drift sweep into a comment audit.
 - **Judge by coverage, never by hit count.** A clean-looking sweep is the one to
   distrust. Measured: a narrower first pass returned exactly one hit, which read

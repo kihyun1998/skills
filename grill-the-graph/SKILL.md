@@ -372,7 +372,7 @@ writes land; a destination that does not exist is invented.
 
 | The repo has | The rule |
 |---|---|
-| a map | A comment says what the code is. Why it is this way, what it deliberately leaves out, the trap and the measured value go to the territory note under `<map path>`. Where none seems to hold it, search the folder and the code symbol first; only then start a new note, named for what the system does there, not for the file. History goes to the commit message. Comments written before this rule still carry the rest: never delete one whose content the map does not yet hold — move it first (`decant`). |
+| a map | A comment says what the code is. Why it is this way, what it deliberately leaves out, the trap and the measured value go to the territory note under `<map path>`. Where none seems to hold it, search the folder and the code symbol first; only then start a new note, named for what the system does there, not for the file. History goes to the commit message. Comments written before this rule still carry the rest: never delete one whose content the map does not yet hold — move it there first. |
 | decision records, no map | A comment says what the code is. A decision and its reason go to `<records path>`; history goes to the commit message. |
 | neither | A comment says what the code is. Why it is this way and how it came to be go to the commit message. |
 
@@ -381,8 +381,8 @@ The last two rows are for a maintainer who turned the folder down at §5.
 It goes in `CLAUDE.md` — or `AGENTS.md` where that is the only guidance file and
 `CLAUDE.md` does not exist. Where neither exists, creating one is part of what
 gets approved. **A rule already there is checked, not duplicated**: rewrite it
-only where its destination no longer matches the table — a map built since, a
-directory moved.
+only where it no longer matches the table's row: a destination moved (a map
+built since, a directory moved), or the row's own wording changed.
 
 Show the lines and where they go, get approval, write them. The reasons and
 measurements behind the rule stay out of it; they are

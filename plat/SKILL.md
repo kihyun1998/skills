@@ -133,7 +133,7 @@ told you arrives later as rework — the imports, the module wiring, the history
 - **Move nothing.** Restructuring is its own change, filed as one. A move made
   without the rule written down drifts straight back, which is why the rule is
   the deliverable and the move is the follow-up.
-- **The tree is the whole subject.** Comment paragraphs belong to `decant` and the
+- **The tree is the whole subject.** Comment paragraphs belong to the comment rule in `CLAUDE.md` and the
   surfaces that describe behaviour belong to `sweep`; borrowing either here
   duplicates a judgement that already has a home.
 - **An unclassified difference is reported, not omitted.** Later, a difference
