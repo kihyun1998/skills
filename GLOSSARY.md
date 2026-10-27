@@ -355,8 +355,9 @@ deliberate-divergence list is one of the three buckets, not the set)
 **Unclassified** (plat):
 The bucket for a **Difference** nobody has decided — drift wearing a rule's
 clothes. It is the pass's output rather than its residue, and it is left visible
-rather than settled by majority, because majority is evidence and the
-tie-breaker is what has authority.
+rather than settled by majority, because majority is evidence, and authority is
+this project's own measured reason or, where none settles it, the maintainer's
+call.
 _Avoid_: Open question (implies it is waiting on information; this is waiting on
 a decision), Gap
 
