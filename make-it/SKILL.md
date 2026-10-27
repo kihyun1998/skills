@@ -1,6 +1,6 @@
 ---
 name: make-it
-requires: [tdd, redden]
+requires: [tdd]
 description: "Write the change, test-first where it compiles or runs. Use as the writing step of `thegraph`, after `read-it` has named a route."
 ---
 
@@ -24,10 +24,36 @@ clipboard, scroll, DOM, IPC — through **injected seams**, and assert against
 *structural* types the real thing already satisfies. The logic under test depends
 on no infrastructure, which is the whole reason it can be tested at a seam at all.
 
-**Then call `redden` on every test you write or change**, and on every fixture,
-golden, snapshot and guard. This is the one thing `tdd` does not do: **a green
-from a test nobody ever watched fail is not evidence.** Name the mutation that
-should redden the assertion, run it, and believe the green only after it goes red.
+**Then watch every test you write or change fail**, and every fixture, golden,
+snapshot and guard. This is the one thing `tdd` does not do: **a green from a
+test nobody ever watched fail is not evidence.**
+
+- **Name the assertion first**: which one should go red, before mutating.
+- **Turn the change off and run.** The named assertion reddens, and for the
+  right reason: assert the side conditions too, such as the callback that must
+  **not** fire, the exact count and the resulting state. A single positive
+  assertion can be made true by a bug.
+- **Mutate the predicate, not only the placement**: a moved guard and a wrong
+  guard are different mutations.
+- **Confirm the mutation landed** before reading the count. An edit you did not
+  see take is not a mutation.
+- **Restore, and re-run the baseline in the same pass**. It must be green
+  again.
+- Never loosen the target to make a mutation redden. **A mutation that survives
+  is a finding:** name which of the five patterns below it is, report the root
+  and the cheapest assertion that closes it, and add that assertion before
+  fixing anything else.
+
+| Pattern | What happened | The repair |
+|---|---|---|
+| **Shared wrong model** | test and code encode the same misunderstanding, so they confirm each other | derive the expected value from outside the code: a spec, a second implementation, a hand-computed case |
+| **Surface ablation** | the mutation removed a label the behaviour does not depend on | mutate the predicate itself |
+| **Vacuous window** | the state the assertion tests never occurred | assert the window exists before asserting inside it |
+| **Proxy condition** | it measured a stand-in: a flag for a state, an event for a transition | assert the state directly, or drive the real surface |
+| **Self-drawn fixture** | the graded artifact was produced by the thing under test | re-record it under the failing condition, or pin the value independently |
+
+The first and last are the expensive ones: both read as new coverage while
+proving nothing.
 
 **One exception, and it is narrow.** Where **compilation itself enforces
 completeness** — a new field on the wire that every layer has to thread — strict
@@ -81,8 +107,8 @@ patch, none of them knows about the others, and **the day somebody fixes the rea
 problem, every patch becomes wrong** — silently, with no error and no failing
 test.
 
-Call `boundary` to work out where it actually belongs, then **come to the
-maintainer with it**. Do not patch it alone, and do not quietly file an issue and
+Work out where it actually belongs: whose invariant broke, and which layer can
+hold it correct. Then **come to the maintainer with it**. Do not patch it alone, and do not quietly file an issue and
 move on. Patching may well be the right call — what matters is that it is a
 decision somebody made, not an `if` nobody can see.
 

@@ -1,6 +1,6 @@
 ---
 name: pub-ready
-requires: [bare, firsthand]
+requires: [firsthand]
 description: "Ready a Dart or Flutter package for pub.dev, up to the publish command. Use when preparing a pub.dev release."
 ---
 
@@ -62,7 +62,7 @@ Each ends on a stated result. Report every one, including the ones that passed.
    it. Every API name and parameter the README shows exists in `lib/` at this
    version — grep each one. A behaviour the release changed reads as it does
    now. The example the README points at runs against this version.
-4. **Gates, bare** (`bare`). The CI workflow is the list: run each of its steps
+4. **Gates, bare**: no pipe or filter on any of them. The CI workflow is the list: run each of its steps
    locally, in each directory it runs them in. Where the repo's guidance says CI
    gates nothing, the gate list that guidance names is the list instead. Then
    the ones the list does not reach, each run on its own:

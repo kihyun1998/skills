@@ -25,6 +25,10 @@ skill that produced it. A retired skill is frozen: no fixes, no new precision.
 | `sift` (deleted) | The maintainer took the one-bin policy for comments; `sift` was the three-bins-stay policy not in use | [`decant`](../decant/) | [ADR-0075](../docs/adr/0075-sift-is-retired.md), ADR-0027 |
 | [`envelope`](envelope/) | `ask-it` named it as owning its collecting and presenting, and it was loaded 0 times in 30 `ask-it` calls before 2026-10-27; the rules that bound moved into `ask-it` | [`ask-it`](../ask-it/) | [ADR-0089](../docs/adr/0089-ask-it-absorbs-envelope-and-byartifact.md), ADR-0027 |
 | [`byartifact`](byartifact/) | As above: `ask-it`'s search before filing, loaded 0 times; its four outs and the search-by-artifact rule moved into `ask-it` | [`ask-it`](../ask-it/) | ADR-0089, ADR-0027 |
+| [`redden`](redden/) | Absorbed: 23 of 29 test-writing `make-it` runs mutated their tests without loading it, and none left a test unseen failing. Its bars now sit in `make-it`'s test section | [`make-it`](../make-it/) | [ADR-0090](../docs/adr/0090-four-delegates-retire-into-their-callers.md), ADR-0027 |
+| [`spine`](spine/) | Absorbed: 40 of 44 runs with a parent read the cluster without it; the root-as-hypothesis and rejected-alternatives rules now sit in `read-it`'s cluster read | [`read-it`](../read-it/) | ADR-0090, ADR-0027 |
+| [`bare`](bare/) | Absorbed: 25 of 26 runs with checks ran them without it; *bare, the list from CI, no threshold moved* now sit in `check-it`'s check 1 and `pub-ready` | [`check-it`](../check-it/) | ADR-0090, ADR-0027 |
+| [`boundary`](boundary/) | Never loaded (0 calls); `check-it` and `make-it` already asked whose invariant broke | [`thegraph`](../thegraph/)'s signal, `make-it`, `check-it` | ADR-0090, ADR-0027 |
 
 `to-external-issue`, `weekly-digest` and `unexported-archives` were retired here
 and moved, with the rest of the NIT work, to `kihyun-work-skills`'s own

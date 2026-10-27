@@ -1,1 +1,0 @@
-../../../../boundary/SKILL.md

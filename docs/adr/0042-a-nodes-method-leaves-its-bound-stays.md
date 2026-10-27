@@ -1,5 +1,10 @@
 # A node's method leaves and its bound stays — twelve extractions under one seam
 
+> **Partly reversed by [ADR-0090](0090-four-delegates-retire-into-their-callers.md).**
+> Four of the methods extracted here (`redden`, `spine`, `bare`, `boundary`) were
+> measured as never borrowed back: the steps did the work themselves. Their rules
+> moved into those steps and the skills retired.
+
 > **Extended by [ADR-0071](0071-thegraph-is-four-skills-in-order.md).** This
 > record moved twelve methods out and kept their *bounds* in the catalog. **The
 > bounds left too** — there are no nodes to bind, and what survives of each is one

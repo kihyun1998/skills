@@ -1,6 +1,6 @@
 ---
 name: read-it
-requires: [spine, firsthand]
+requires: [firsthand]
 description: "Read the situation before touching anything, and come back with a route. Use as the first step of `thegraph`, or alone to size up an issue."
 ---
 
@@ -23,7 +23,7 @@ ordinary. What is not ordinary is skipping one and being unable to say why.
 | Read | When | Call |
 |---|---|---|
 | **the build** | `docs/agents/thegraph.md` exists | — |
-| **the cluster** | the issue has a parent or siblings | `spine` |
+| **the cluster** | the issue has a parent or siblings | — |
 | **the territory** | the repo keeps a dependency or territory map | — |
 | **the real sources, and the hidden state** | always | `firsthand` |
 
@@ -42,9 +42,16 @@ is absent, say so and name what you read in its place.
 ### The cluster
 
 **One tracker query answers whether this read applies**: does the issue have a
-parent, or siblings under one? If it does, run `spine` — read the anchor and its
-siblings before the ticket, treat the anchor's root as a **hypothesis to test**,
-and read a parent before the issue it produced.
+parent, or siblings under one? If it does, read the anchor and its siblings
+before the ticket, and read a parent before the issue it produced. From the
+siblings take three things: the suspected shared root, what each **established
+and rejected** (the rejected alternatives pay off only when read by someone
+about to re-propose one), and what is still open. **Treat the anchor's root as a
+hypothesis to test**: falsifying it is the more valuable outcome, and it is
+recorded, not dropped. The roster is the tracker's relation, never a list in a
+body. **No anchor, and you find yourself re-deriving a neighbour's reasoning?**
+That is the **sibling signal**: carry it as a candidate, and do not open an
+issue for it.
 
 An issue is written at filing time and read at work time, and the context that
 made it obvious decays in between. A fix reasoned from the ticket alone re-decides

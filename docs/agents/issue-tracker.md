@@ -23,7 +23,7 @@ Run `gh issue view <number> --comments`.
 
 ## Relations
 
-`spine`'s decider is `code` because the cluster roster is a **relation query**,
+`read-it`'s cluster read (it absorbed `spine`, ADR-0090) is a **relation query**, because the cluster roster is one,
 not a body parse. GitHub renders two relations natively and both are reachable
 from `gh`. **What was verified, and what was not**, checked against this repo on
 2026-08-30: every *read* below was run against this repo, and where the output is
@@ -54,7 +54,7 @@ Resolve it first:
 gh api repos/<owner>/<repo>/issues/<n> --jq .id
 ```
 
-**Parent / child (sub-issues).** This is the relation `spine` reads as the
+**Parent / child (sub-issues).** This is the relation `read-it`'s cluster read takes as the
 roster and `batch` uses to parent a follow-up in the same act as filing it.
 
 ```sh
@@ -108,7 +108,7 @@ whose only home was a deleted file is a contract nobody has.
 **GitHub Issues via the `gh` CLI**, and **both relations are native** — verified
 against this repo on 2026-08-30.
 
-- **Parent/child (sub-issues)** — `spine` reads the roster as a relation query,
+- **Parent/child (sub-issues)** — `read-it` reads the roster as a relation query,
   and `ask-it` parents a follow-up in the same act as filing it. Neither falls
   back to prose.
 - **Blocking (dependencies)** — distinct from parent/child; a ticket may be

@@ -233,12 +233,12 @@ case, and it now lives as a habit with the records governing any clash they have
 already settled.
 _Avoid_: Build (the repo-scoped one)
 
-**Anchor** (spine):
+**Anchor** (read-it):
 The issue holding a cluster's suspected shared root. Its body is a **hypothesis**,
 not a finding — falsifying it is the more valuable of the two outcomes. Its roster
 is the tracker's subtree, never a list in the body.
-_Avoid_: Spine (the skill's own name — the anchor is
-the *issue*, the spine is what a run knows about the cluster), Root (the claim the
+_Avoid_: Spine (the retired skill's name, ADR-0090. The anchor is
+the *issue*, and what a run knows about the cluster is `read-it`'s cluster read), Root (the claim the
 anchor makes, which the anchor is not), **Map** (see below — an upstream skill
 calls a parent issue with child tickets "the map", which is this thing under a
 word this repo has already spent)
@@ -297,30 +297,30 @@ _Avoid_: Finding (grill-code's term for a pre-scoring scan hit; here a finding i
 what a lens returns and a candidate is what reaches a human), Gap
 (unexported-archives' file-based notion).
 
-### redden
+### make-it's test bar (from `redden`, retired, ADR-0090)
 
-**Bar** (redden):
+**Bar** (make-it):
 One of the three mechanical checks the test-trust gate runs on an assertion —
 discriminating power, right reason, mutate-the-predicate. Each is *run*, never
 reasoned about.
 _Avoid_: this word as a threshold. thegraph's **two-trigger bar** and
-**anti-cascade bar** are counts something must exceed; a redden Bar is an
+**anti-cascade bar** are counts something must exceed; a test Bar is an
 experiment you perform. Qualify whenever both are in play. Also avoid **Gate**
 for a single Bar — the gate is all three plus the classification.
 
-**Named mutation** (redden):
+**Named mutation** (make-it):
 The specific change made in order to *fail* an assertion: the fix turned off, the
 guard removed, the predicate swapped for a plausible differently-wrong one. Named
 before it is run, because "something went red" is not evidence that the right
 thing did.
-_Avoid_: Mutation testing (the tooling category — redden names one mutation per
+_Avoid_: Mutation testing (the tooling category — `make-it` names one mutation per
 assertion by hand and runs it; it does not sweep a mutant space)
 
-**Pattern** (redden):
+**Pattern** (make-it):
 One of the five explanations for a mutation that should have reddened an
 assertion and did not — shared wrong model, surface ablation, vacuous window,
 proxy condition, self-drawn fixture. Each names its own repair.
-_Avoid_: Anti-pattern (a thing to stop doing; a redden Pattern is a diagnosis of
+_Avoid_: Anti-pattern (a thing to stop doing; a test Pattern is a diagnosis of
 why a proof is blind), Finding (a lens's term in thegraph), Trap (thegraph's
 `check-it`'s term for a project's own tautological check, which nothing lists —
 name each one in the decision record it belongs to as you meet it)
@@ -429,7 +429,7 @@ _Avoid_: cwd (the absolute path it is read from — not what is shown), session 
   map".** In this vocabulary that is an **Anchor**, not a **MAP** — one is an
   issue, the other a document, and the collision is with a word `thegraph`
   already spends elsewhere. Read it as an Anchor when it arrives: its children
-  are the roster `spine` queries, and its *"Decisions so far"* index is contract
+  are the roster `read-it`'s cluster read queries, and its *"Decisions so far"* index is contract
   material — the one place the two vocabularies actually have to meet. That
   material had a reader in `tickets` until
   [ADR-0069](docs/adr/0069-tickets-is-retired.md); the meeting point is still
@@ -449,9 +449,9 @@ _Avoid_: cwd (the absolute path it is read from — not what is shown), session 
 
   | Step | What it calls |
   |---|---|
-  | [`read-it`](read-it/) | `spine`, `firsthand` |
-  | [`make-it`](make-it/) | `tdd`, `redden` |
-  | [`check-it`](check-it/) | `bare`, `lens`, `sweep`, [`assay`](assay/), [`silt`](silt/), `security-review` |
+  | [`read-it`](read-it/) | `firsthand` (`spine` absorbed, ADR-0090) |
+  | [`make-it`](make-it/) | `tdd` (`redden` absorbed, ADR-0090) |
+  | [`check-it`](check-it/) | `lens`, `sweep`, [`assay`](assay/), [`silt`](silt/) (`bare` and `boundary` absorbed, and the security pass asked by `check-it` itself, ADR-0090) |
   | [`ask-it`](ask-it/) | — (`envelope` and `byartifact` were absorbed, ADR-0089) |
 
   The seam is the same every time: **a method governs work of its kind anywhere;
@@ -475,7 +475,7 @@ _Avoid_: cwd (the absolute path it is read from — not what is shown), session 
   dated by the release, the knowledge is not, and after the merge the one person
   who could say whether a workaround was bug-avoidance has stopped looking.
 - An extraction can also **surface a build value**, and the same move can later
-  take it away. `boundary` asks which layer can be correct and cannot know what the
+  take it away. `boundary` (retired, ADR-0090) asked which layer can be correct and cannot know what the
   layers are, so the project's **seams** had to be named as something somebody
   supplies — they were in the build's schema while being absent from the
   invariant/build split, which is how a value stays answerable while reading as

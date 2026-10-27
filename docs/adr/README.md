@@ -54,6 +54,7 @@ cite it.
 | [0087](0087-thegraph-reading-step-has-a-regression-suite.md) | `/thegraph`'s reading step has a regression suite in `read-it/evals/`, run with `claude plugin eval`: five closed issues rebuilt at the commit before work, each also run with no plugin, agent and judge on Opus — amending 0074's "no evaluation at all" |
 | [0088](0088-thegraph-takes-a-cluster.md) | `/thegraph` takes a cluster: an issue with open sub-issues runs its children in blocking order in one session, one confirm stop at the start and one `ask-it` at the end; the tracker decides the mode, and the run sheet lists children without checkboxes so the panel needs no change |
 | [0089](0089-ask-it-absorbs-envelope-and-byartifact.md) | `ask-it` absorbs `envelope` and `byartifact`, never loaded in 64 runs, and both retire; only what is the person's is asked, items carry five things, decide items come with consequences, and a cluster's discoveries join it only on the person's "needed" |
+| [0090](0090-four-delegates-retire-into-their-callers.md) | `redden`, `spine`, `bare` and `boundary` retire into `make-it`, `read-it`, `check-it` and `thegraph`, which a transcript audit showed already did their work; `security-review` leaves `check-it`'s `requires:` |
 
 ### `gate` — the Acceptance Gate
 

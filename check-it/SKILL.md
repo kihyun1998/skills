@@ -1,6 +1,6 @@
 ---
 name: check-it
-requires: [bare, lens, sweep, assay, silt, security-review, boundary]
+requires: [lens, sweep, assay, silt]
 description: "Measure a finished change before anyone calls it done, cheapest check first. Use once a change is written and before it reaches a person."
 ---
 
@@ -18,14 +18,27 @@ a waste, so it goes first.
 
 | | What it answers | Call | When |
 |---|---|---|---|
-| 1 | Did every check actually run, and pass | `bare` | the project has checks |
+| 1 | Did every check actually run, and pass | — | the project has checks |
 | 2 | Did the files land where the rule said they would | — | the change added or moved a file |
 | 3 | Does it work against something real | — | the change compiles or runs |
 | 4 | Does the code hold up, and does it do what was asked | `assay` | ” |
 | 5 | Will it get slower | `silt` | the change adds state, loops, or I/O |
-| 6 | Is it open to somebody who means harm | `security-review` | ” |
+| 6 | Is it open to somebody who means harm | — | ” |
 | 7 | What is missing | `lens` | always |
 | 8 | Which surfaces now describe it wrongly | `sweep` | always |
+
+**Running the checks (1).** The list is the project's CI workflow, or the gate
+list its guidance names where CI gates nothing, plus whatever those do not
+reach. Run each one **bare**: no pipe, no `| tail`, no filter, since a
+pipeline's exit status is the last command's and a red check reads green
+through it. Read every result. Never move a threshold, narrow a scope or bypass
+a hook to turn one green, and report a check not run, with why. **The same
+failure surviving three fixes stops the repairs** and goes to a person as a
+design question.
+
+**Harm (6)** is asked by `check-it` itself, of the same diff, after 4's
+readers return: who could reach this, what they control, and what it exposes.
+4's readers are not given it.
 
 **A prose change runs 7 and 8 — plus 2, where it added or moved a file — and
 nothing else.** There are no gates to run, no round trip to prove, no smells in a
@@ -75,8 +88,8 @@ disappeared.
 
 **And the artifact a proof reads from needs the same gate the tests got.** A
 recorded fixture, golden or capture that cannot fail reads as coverage and proves
-nothing. Run `redden`'s bars against the artifact, not just against the assertion
-that consumes it.
+nothing. Put it through `make-it`'s test bar, mutated until the assertion that
+reads it goes red, not just the assertion itself.
 
 ## Whose is it — the question that runs through all of it
 
@@ -126,7 +139,8 @@ If the answer is *"if X, which I did not change, behaved correctly"*, then **X i
 where it belongs**, and what is here is a patch standing in the place you happened
 to be standing.
 
-Call `boundary` for where it actually goes. **Then stop and take it to a person**
+Ask whose invariant broke, and which layer can actually hold it correct, before
+asking which layer is upstream. **Then stop and take it to a person**
 — do not fix it here, and do not quietly file it. Patching may well be the right
 call; what matters is that somebody decided it rather than an invisible
 conditional deciding it for them.
@@ -157,9 +171,9 @@ particular clash, the record governs.**
 |---|---|
 | a real defect **this change introduced** | back to `make-it`. Re-read only if the fix **opened a surface the pass did not walk** — otherwise it is covered by that pass's own claim, and say which of the two it was |
 | a red the baseline does not produce | back to `make-it` |
-| the same failure surviving three fixes | `bare` already stops there. What this adds is where it goes next: **a person**, as a design question, not a fourth repair |
+| the same failure surviving three fixes | **a person**, as a design question, not a fourth repair |
 | a defect this change **revealed or did not touch** | **not fixed here.** To a person, with the measurement |
-| a patch standing in for a deeper fix | **not fixed here.** `boundary`, then a person |
+| a patch standing in for a deeper fix | **not fixed here.** Where it belongs, then a person |
 
 **Fixing somebody else's defect inside this ticket puts it on a budget sized for
 this change's own repairs.** Three attempts later the ticket is over, the defect

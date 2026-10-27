@@ -1,6 +1,6 @@
 ---
 name: thegraph
-requires: [read-it, make-it, check-it, ask-it, lens, boundary, firsthand, redden]
+requires: [read-it, make-it, check-it, ask-it, lens, firsthand]
 disable-model-invocation: true
 description: "Take one change from an issue to done: read it, write it, measure it, and put what is left in front of a person. /thegraph."
 ---
@@ -181,7 +181,7 @@ present.**
 
 The last two share a row because the conditions live inside the skills. `make-it`
 skips its test section for a change that does not run; `check-it` runs two of its
-nine checks for prose — three where a file moved — and all of them for code.
+eight checks for prose — three where a file moved — and all of them for code.
 
 ## The signals that do not wait for their turn
 
@@ -191,8 +191,8 @@ than to note them for later.
 
 | Signal | What to do |
 |---|---|
-| *"This is a bit odd — I'll just fix it up here"* | **Stop.** The problem is one step further in. `boundary` for where it belongs, then take it to a person — patching may be right, but somebody has to have decided it |
-| a test, fixture, golden or guard just written or changed | `redden` — prove it can fail before believing that it passed |
+| *"This is a bit odd — I'll just fix it up here"* | **Stop.** The problem is one step further in. Ask whose invariant broke and which layer can hold it correct, then take it to a person — patching may be right, but somebody has to have decided it |
+| a test, fixture, golden or guard just written or changed | **Watch it fail first** (`make-it`'s test bar): name the assertion, turn the change off, see it go red, restore |
 | about to write a version, a *"supported since"*, or how a library, API, platform or tool behaves **from memory rather than from a read**, to carry over somebody else's claim, or to rely on a summary of a source (another project's approach and a published spec count too) | **Read the source first**: the local copy where there is one (the package cache, `node_modules`, the installed SDK), the web where there is not. `firsthand` holds how, raw and not summarized. **Read what is reachable; mark only what is not**: unconfirmed is a gap, not an absence, and it becomes a question, never a premise |
 | a call that is the person's (the list under *What holds everywhere*) | **Ask.** Present the options with their consequences, and stop. A pure technical mechanism is *not* one of these — deciding it is yours, and asking hands the work back |
 | anything worth a person's attention that you are not acting on | **Carry it** — under `## Carried` on the run sheet, not in mind. It goes out at the end, in one batch |
