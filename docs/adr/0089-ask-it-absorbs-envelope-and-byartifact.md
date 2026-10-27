@@ -40,9 +40,16 @@ with unrelated work and could not close until that work did.
 ## What it was decided on
 
 - **The delegation never ran.** Across every session transcript under
-  `~/.claude/projects`, `ask-it` was invoked 64 times, and `envelope` and
-  `byartifact` were invoked **0** times. Only `ask-it` named them. Its runs
-  imitated envelope's shape from a one-paragraph summary.
+  `~/.claude/projects`, `ask-it` was invoked 30 times in 26 sessions. Before
+  2026-10-27, `envelope` and `byartifact` were invoked **0** times. `envelope`'s
+  one call since is #37's run, the session that wrote this record. Only `ask-it`
+  named them. Its runs imitated envelope's shape from a one-paragraph summary.
+
+  > **Corrected 2026-10-27.** The first version of this record said `ask-it`
+  > ran 64 times. That count came from a grep for `"skill": "ask-it"` across the
+  > transcripts, which also matched mentions in text and tool definitions.
+  > Counting only `Skill` tool calls gives 30. The 0 for `envelope` and
+  > `byartifact` before that day holds either way, so the decision stands.
 - **What the imitation kept and lost.** A sampled run (just-admin-page,
   2026-10-23) carried measurements and named the tracker it searched. It also
   put four items in one question, against ADR-0064, and offered a decide item
