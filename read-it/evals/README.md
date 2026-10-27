@@ -35,3 +35,10 @@ the run, and check that the fixture leaves nothing after it reachable
 (`git rev-list --all`). Write `expected_outcome` before the first run, and grade
 what a run without the skill might plausibly do differently, not its words
 (ADR-0074).
+
+**The skill text under test must not describe a case.** A change to `read-it`
+once carried its rationale as a sentence describing flutter-table-37's own
+failure. All three with-arm runs then cited that sentence and passed. With the
+sentence removed, they failed. A case is measured by how a skill behaves, so
+the reason for a rule goes in the commit message and the issue, never in the
+skill.
