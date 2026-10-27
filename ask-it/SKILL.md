@@ -1,6 +1,5 @@
 ---
 name: ask-it
-requires: [envelope, byartifact]
 description: "Put everything that has been carried in front of a person, once, and file only what they keep. Use at the end of a change, once anything has accumulated for a person."
 ---
 
@@ -15,28 +14,53 @@ settle, what the release will oblige.
 asked, and nothing may evaporate into a pull-request body or a code comment on
 the way — those are buried on merge.
 
-**In a cluster run it runs once, at the end**, over what every child carried.
-The children's local commits are pushed only on that approval, so no child's
-issue closes before the person has seen the batch.
+**In a cluster run it runs at the end**, over what every child carried. Where
+the person answers *needed, now* for anything, the run continues and ends with
+another `ask-it`. **The push, and the question of closing the anchor, belong to
+the last one.** No child's issue closes before the person has seen every batch,
+and the anchor is not offered for closing while work under it is still in hand.
 
-## Collecting and presenting
+## What goes to the person, and what does not
 
-**`envelope` owns this**, and it is most of the job: collect rather than file as
-you go, give every item its seven columns, collapse several sightings of one gap
-into one item with the rest as evidence, present once as a proposal to confirm
-rather than a question the reader has to compose an answer to, one item at a time
-with the count that remains, and record what was dropped and on what ground.
+**Only what is theirs**, which is the one list `thegraph` keeps under *What holds
+everywhere*. A technical call is not on it. Measure it, decide it, and report it
+with what it was decided on.
+A reported call that the person later reverses is **overreach**, and it is
+counted ([ADR-0088](../docs/adr/0088-thegraph-takes-a-cluster.md)'s measure), as
+is a technical question asked of them, which is **offloading**.
 
-Two of its columns are filled from what happened earlier and cannot be
-reconstructed from a defect description: **what has already been done about it**,
-where *"nothing yet"* is written rather than left silent — silence reads as *a
-fix is already in the tree* — and **whether the plan everyone agreed on still
-stands**, which is the easiest to skip and the most expensive to have skipped.
+**Collect, and do not file as you go.** Several sightings of one gap are one
+item, with the rest as evidence under it. **Only what is real now**: a
+consequence that needs a hypothetical consumer or a feature nobody asked for is
+a drop, with that as its ground.
+
+## Every item carries five things
+
+| | What it holds | Where there is no answer |
+|---|---|---|
+| **Measured** | what you reproduced, with the number. A subagent's probe, a `lens` report or your own inference is not this until you have reproduced it | *"not reproduced; settling it would cost X"*, with the cheapest thing that would. The item is then a question you are asking, said in words |
+| **From** | which child and which step it came from | *"unprompted, while reading X"*. Never blank |
+| **Tracker** | which tracker was searched, for what, and what came back | *"not searched: proposed as a drop"* or *"…as a decision"*. Every item that could be filed is searched before it is presented (see below) |
+| **Done already** | what you changed, ran or committed on its account | *"nothing yet"*, written out, since silence reads as *a fix is already in the tree* |
+| **Still the plan?** | whether the agreed direction survives this item | *"it moved: here is where"*. Never omitted, since a batch of reasonable items can add up to a different plan from the one approved |
+
+**A decide item arrives with each option's consequences and a
+recommendation.** That includes deferring: where deferring is recommended, say
+what deferring costs. An option listed without its consequences is not ready to
+present.
+
+## Asking
+
+**One item, one answer, and the count that remains**
+([ADR-0064](../docs/adr/0064-a-human-stop-asks-one-reply-at-a-time.md)), put
+with the tool that renders a question. Present each as a proposal to confirm, so
+that the person replies rather than composing the sentence you should have
+written. Where the answer is genuinely open-ended rather than a disposition,
+plain text is right.
 
 ## Group by kind before you sequence
 
-**This is the part `envelope` cannot know**, because it depends on where the
-items came from. What arrives here has dispositions that share no vocabulary:
+**Sequence by where the items came from.** What arrives here has dispositions that share no vocabulary:
 
 | Kind | What the reader is being asked |
 |---|---|
@@ -53,22 +77,53 @@ them, and say which group an item belongs to as it arrives.
 ground is a record rather than a decision, so they arrive as a list, once, asking
 only whether the grounds hold. Sequencing them item by item spends the reader's
 attention on exactly the items already declined.
+A ground is citable (the record, the contract, the measurement). A drop that
+has none, or that would need fresh investigation to justify, is not a drop: it
+comes to the person as an item.
 
 ## Before opening anything, find out whether it has a home
 
-**`byartifact` owns this, and it only runs for items actually being filed.** An
-item the reader drops, or decides, never needed a search.
+**For every item that could be filed**, before it is presented, since whether it is filed is the person's answer. An item proposed as a drop or a decision needs none.
 
-What it adds here: **which tracker you searched goes in the column.** An item
-destined for one repository and searched in another gets a true answer about the
-wrong place, and *nothing found* reads identically either way. A defect in the
-method is filed where the method lives — derive that address from the installed
-skill's own checkout rather than storing it, and say *"could not check"* where
-there is no checkout to ask.
+**Search by the artifact, not the feature name**: the file, the symbol, the wire
+field, the config key, the error string, and their neighbours. A related issue
+was named after somebody else's symptom, so the feature name is the one
+vocabulary it does not use. Then take one of four outs, and name it:
 
-And its fourth out is the one to carry forward honestly: **a search that returned
-nothing has ruled out "it already exists" and not "it conflicts with something".**
-No query finds a conflict.
+- **It already exists.** Comment on it, and read what it decided and rejected
+  before proposing anything.
+- **It conflicts** with an issue this change would break. Cross-link both ways
+  in the same act, and say which comes first.
+- **It shares a root.** File under the root's home where one exists.
+- **Nothing.** A real answer.
+
+**Name the tracker searched, and the terms.** An item bound for one repository
+and searched in another gets a true answer about the wrong place. A defect in
+the method is filed where the method lives: derive that address from the
+installed skill's own checkout, and say *"could not check"* where there is none.
+**An empty search rules out "it already exists", never "it conflicts"**, since
+no query finds a conflict.
+
+## In a cluster run, the goal decides what joins it
+
+Each item a cluster run discovered takes **one answer**, which settles filing,
+scope and timing together:
+
+| Answer | Filed under | Worked |
+|---|---|---|
+| **needed, now** | the anchor | in this run, which continues and ends with another `ask-it` |
+| **needed, next run** | the anchor | by the next `/thegraph` on the anchor |
+| **out of scope** | the child it came from | later, by `/thegraph` on that child |
+| **needs design** | `needs-grill`, under its source or the anchor | after grilling, a spec and tickets |
+| **drop** | — | listed with its ground |
+
+Outside a cluster run the first two do not apply. **The tree records where a
+thing came from; only the person's "needed" widens the cluster.** Following the
+subtree instead would chase follow-ups of follow-ups without end.
+
+**A bug in a child already pushed and closed** is filed new, never fixed by
+reopening the child: under the anchor where its goal needs it. If the anchor is
+already closed, ask whether to reopen it.
 
 ## A follow-up is parented in the same act as filing it
 

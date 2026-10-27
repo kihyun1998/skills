@@ -109,7 +109,7 @@ whose only home was a deleted file is a contract nobody has.
 against this repo on 2026-08-30.
 
 - **Parent/child (sub-issues)** — `spine` reads the roster as a relation query,
-  and `envelope` parents a follow-up in the same act as filing it. Neither falls
+  and `ask-it` parents a follow-up in the same act as filing it. Neither falls
   back to prose.
 - **Blocking (dependencies)** — distinct from parent/child; a ticket may be
   blocked by a sibling it is not a child of.

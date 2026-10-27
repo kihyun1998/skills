@@ -23,6 +23,8 @@ skill that produced it. A retired skill is frozen: no fixes, no new precision.
 | [`grill-map` v1](grill-map-v1/) | The maintainer did not trust its maps: it opened with fixed measurements and called a note done when a checker passed, which verifies addresses, not claims. Rewritten to read the repo, measured against it blind | [`grill-map`](../grill-map/), same name | [ADR-0082](../docs/adr/0082-grill-map-is-rewritten-to-read-the-repo.md), ADR-0027 |
 | [`check_map.py`](check_map/) (a script) | `grill-map` stopped running map checkers (ADR-0083), and nothing else in the catalog ran it | — | [ADR-0084](../docs/adr/0084-check-map-retires.md) |
 | `sift` (deleted) | The maintainer took the one-bin policy for comments; `sift` was the three-bins-stay policy not in use | [`decant`](../decant/) | [ADR-0075](../docs/adr/0075-sift-is-retired.md), ADR-0027 |
+| [`envelope`](envelope/) | `ask-it` named it as owning its collecting and presenting, and it was loaded 0 times in 64 `ask-it` runs; the rules that bound moved into `ask-it` | [`ask-it`](../ask-it/) | [ADR-0089](../docs/adr/0089-ask-it-absorbs-envelope-and-byartifact.md), ADR-0027 |
+| [`byartifact`](byartifact/) | As above: `ask-it`'s search before filing, loaded 0 times; its four outs and the search-by-artifact rule moved into `ask-it` | [`ask-it`](../ask-it/) | ADR-0089, ADR-0027 |
 
 `to-external-issue`, `weekly-digest` and `unexported-archives` were retired here
 and moved, with the rest of the NIT work, to `kihyun-work-skills`'s own

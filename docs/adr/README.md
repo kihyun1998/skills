@@ -53,6 +53,7 @@ cite it.
 | [0086](0086-the-pub-dev-release-bar-is-one-skill.md) | The pub.dev release bar is one skill, `pub-ready`; `grill-the-graph` asks whether a Dart package uses it, recommending it for open source, records the answer in the build, and on a yes offers to replace the per-repo copies with a pointer |
 | [0087](0087-thegraph-reading-step-has-a-regression-suite.md) | `/thegraph`'s reading step has a regression suite in `read-it/evals/`, run with `claude plugin eval`: five closed issues rebuilt at the commit before work, each also run with no plugin, agent and judge on Opus — amending 0074's "no evaluation at all" |
 | [0088](0088-thegraph-takes-a-cluster.md) | `/thegraph` takes a cluster: an issue with open sub-issues runs its children in blocking order in one session, one confirm stop at the start and one `ask-it` at the end; the tracker decides the mode, and the run sheet lists children without checkboxes so the panel needs no change |
+| [0089](0089-ask-it-absorbs-envelope-and-byartifact.md) | `ask-it` absorbs `envelope` and `byartifact`, never loaded in 64 runs, and both retire; only what is the person's is asked, items carry five things, decide items come with consequences, and a cluster's discoveries join it only on the person's "needed" |
 
 ### `gate` — the Acceptance Gate
 

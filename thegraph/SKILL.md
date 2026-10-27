@@ -114,8 +114,10 @@ A cluster run is the same order once per child, in one session:
   nest.
 - **Each child is committed locally** as it finishes, closing its issue in the
   message. Nothing is pushed and nothing is filed before the end.
-- **`ask-it` runs once, at the end**, over what every child carried, and the
-  push goes through it.
+- **`ask-it` runs at the end**, over what every child carried. A discovery
+  the person calls *needed, now* continues the run, which ends with another
+  `ask-it`. The push, and the question of closing the anchor, go through the
+  last one.
 - **The anchor gets the result**, written back the way `ask-it` writes back to
   an anchor: the root confirmed or falsified, what was measured, and what is
   still open. Whether to close it is asked then. `to-tickets` never closes it,
@@ -192,13 +194,19 @@ than to note them for later.
 | *"This is a bit odd — I'll just fix it up here"* | **Stop.** The problem is one step further in. `boundary` for where it belongs, then take it to a person — patching may be right, but somebody has to have decided it |
 | a test, fixture, golden or guard just written or changed | `redden` — prove it can fail before believing that it passed |
 | about to rely on an outside reference, API or fact | `firsthand` — the real source, not a summary. **Unconfirmed is a gap, not an absence** |
-| a call about naming, structure, scope or direction | **Ask.** Present the options with their consequences, and stop. A pure technical mechanism is *not* one of these — deciding it is yours, and asking hands the work back |
+| a call that is the person's (the list under *What holds everywhere*) | **Ask.** Present the options with their consequences, and stop. A pure technical mechanism is *not* one of these — deciding it is yours, and asking hands the work back |
 | anything worth a person's attention that you are not acting on | **Carry it** — under `## Carried` on the run sheet, not in mind. It goes out at the end, in one batch |
 
 ## What holds everywhere
 
 **Ask the maintainer in Korean.** Every question and confirmation put to a person
 is written in Korean.
+
+**What is the person's, and only that, is asked**: naming, structure, scope,
+direction, priority, spend, what is written to a tracker, and acts on the
+outside world such as a push. This is the one list; every step and signal that
+says *ask* means this. Anything else is a technical call: measured, decided, and
+reported with what it was decided on.
 
 **Nothing reaches a tracker unasked.** Not through a pull-request body, not
 through a code comment — both are buried on merge. One door, at the end, and a
@@ -216,8 +224,8 @@ contradicts the claim, **say so before anyone else finds it**.
 ## Habits
 
 **Derive what the code and the named prior art can answer; ask what only a person
-can.** Naming, structure, scope, priority, vision — those are the maintainer's,
-and they will correct you. A wire format, an API shape, a coordinate system is
+can.** What is the maintainer's is the list under *What holds everywhere*, and
+they will correct you. A wire format, an API shape, a coordinate system is
 not, and asking about one is offloading. Decide it, check it against real source,
 and present the result for a yes or no.
 

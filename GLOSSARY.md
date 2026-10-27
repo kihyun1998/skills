@@ -177,9 +177,9 @@ file
 **Cluster run** (thegraph):
 A `/thegraph` run over an **Anchor**'s open sub-issues, decided by the tracker
 rather than by an argument: the four steps once per child, in blocking order,
-in one session, with one confirm stop at the start and one `ask-it` at the end
-(ADR-0088). Its **Run sheet** lists the children without checkboxes.
-_Avoid_: batch (that is `envelope`'s word for what reaches a person), epic run
+in one session, with one confirm stop at the start and `ask-it` at the end, the
+push going through the last one (ADR-0088, ADR-0089). Its **Run sheet** lists the children without checkboxes.
+_Avoid_: batch (the word for what reaches a person at `ask-it`), epic run
 
 **Build** (grill-the-graph):
 One repo's answer to what a person already knows and no file in it states —
@@ -257,16 +257,18 @@ _Avoid_: index (a MAP is a dependency graph, not a list of docs), taxonomy
 half of the context; a territory map holds the half a ticket structurally cannot
 carry"*)
 
-**Out** (byartifact):
-One of the four dispositions a search returns — already owned, conflicts with,
+**Out** (ask-it):
+One of the four dispositions a search before filing returns — already owned, conflicts with,
 shares a root, or nothing. **The conflict out cannot be found by a query**, so an
 empty search has ruled out the first, not all four.
 _Avoid_: Grade (a lens's term), Verdict (the
 Acceptance Gate's)
 
-**Column** (envelope):
-One of the seven cells every candidate carries before it may be presented. A
-fallback wording is an answer; a blank is not.
+**Column** (ask-it):
+One of the five things every candidate carries before it may be presented:
+measured, from, tracker, done already, still the plan. A fallback wording is an
+answer; a blank is not. Seven until `envelope` was absorbed into `ask-it`
+(ADR-0089).
 _Avoid_: Slot (retired `thegraph` vocabulary — a column is a presentation field)
 
 **Trigger** (retired — `promote`):
@@ -289,7 +291,8 @@ fetches it), Source class (the build's term for what `reference` fetches)
 **Candidate** (thegraph):
 Anything headed for the maintainer's batch — a deferral, a lens's residue, a
 follow-up, an unreproduced observation. Never filed unasked, and presented with
-every column of the envelope filled.
+every **Column** filled. In a cluster run it takes one answer that settles its
+filing, scope and timing together (ADR-0089).
 _Avoid_: Finding (grill-code's term for a pre-scoring scan hit; here a finding is
 what a lens returns and a candidate is what reaches a human), Gap
 (unexported-archives' file-based notion).
@@ -449,7 +452,7 @@ _Avoid_: cwd (the absolute path it is read from — not what is shown), session 
   | [`read-it`](read-it/) | `spine`, `firsthand` |
   | [`make-it`](make-it/) | `tdd`, `redden` |
   | [`check-it`](check-it/) | `bare`, `lens`, `sweep`, [`assay`](assay/), [`silt`](silt/), `security-review` |
-  | [`ask-it`](ask-it/) | `envelope`, `byartifact` |
+  | [`ask-it`](ask-it/) | — (`envelope` and `byartifact` were absorbed, ADR-0089) |
 
   The seam is the same every time: **a method governs work of its kind anywhere;
   what only means something inside one change stays with the step.** What each

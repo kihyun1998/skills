@@ -4,6 +4,11 @@
 (the four steps, unchanged) and [ADR-0080](0080-a-run-keeps-a-run-sheet-while-it-lasts.md)
 (one run, one run sheet, which now holds a cluster).
 
+> **Extended by [ADR-0089](0089-ask-it-absorbs-envelope-and-byartifact.md).** What a
+> cluster run discovers takes one answer at `ask-it` (needed now, needed next run,
+> out of scope under its source, needs design, drop), and only "needed" joins the
+> cluster.
+
 `/thegraph` given an issue with open sub-issues, or a folder of issue files,
 runs a **cluster run**. The issue is the anchor, and the four steps run once per
 open child, in blocking order, in one session. There is one confirm stop, at the
