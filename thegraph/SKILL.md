@@ -193,7 +193,7 @@ than to note them for later.
 |---|---|
 | *"This is a bit odd — I'll just fix it up here"* | **Stop.** The problem is one step further in. `boundary` for where it belongs, then take it to a person — patching may be right, but somebody has to have decided it |
 | a test, fixture, golden or guard just written or changed | `redden` — prove it can fail before believing that it passed |
-| about to rely on an outside reference, API or fact | `firsthand` — the real source, not a summary. **Unconfirmed is a gap, not an absence** |
+| about to write a version, a *"supported since"*, or how a library, API, platform or tool behaves **from memory rather than from a read**, to carry over somebody else's claim, or to rely on a summary of a source (another project's approach and a published spec count too) | **Read the source first**: the local copy where there is one (the package cache, `node_modules`, the installed SDK), the web where there is not. `firsthand` holds how, raw and not summarized. **Read what is reachable; mark only what is not**: unconfirmed is a gap, not an absence, and it becomes a question, never a premise |
 | a call that is the person's (the list under *What holds everywhere*) | **Ask.** Present the options with their consequences, and stop. A pure technical mechanism is *not* one of these — deciding it is yours, and asking hands the work back |
 | anything worth a person's attention that you are not acting on | **Carry it** — under `## Carried` on the run sheet, not in mind. It goes out at the end, in one batch |
 

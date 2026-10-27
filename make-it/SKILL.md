@@ -102,13 +102,22 @@ diff against them.
 Where two directories hold the same kind of file and nothing says which is the
 rule, that is a structure call — take it to the maintainer.
 
-### About to write against an outside reference
+### About to write an outside fact you have not read
 
-**Call `firsthand`.** Read the real source rather than a summary — a summary
-drops method bodies, and a handler that is there reads as absent. Pin a runtime
-value with a throwaway probe rather than reasoning about what the code must do.
+A version number, a *"supported since"*, how a library, API, platform or tool
+behaves, another project's approach, a published spec: **when you are about to
+write one from memory, or carry it over from somebody else's claim, read the
+source first.** Use the local copy where there is one (the package cache,
+`node_modules`, the installed SDK), and the web where there is not. `firsthand`
+holds how. Read the real source rather than a summary, since a summary drops
+method bodies and a handler that is there reads as absent. Pin a runtime value
+with a throwaway probe rather than reasoning about what the code must do.
 
-Unconfirmed is a gap, not an absence.
+**Read what is reachable; mark only what is not.** Unconfirmed is a gap, not an
+absence, and it becomes a question, never a premise. The measured misses were
+all of this kind (#47): an SDK floor stated from memory, a platform rule
+asserted unchecked, and a CLI default left as *"could not confirm"* while its
+docs were reachable.
 
 ### A call that is the maintainer's
 
