@@ -24,7 +24,7 @@ a waste, so it goes first.
 | 4 | Does the code hold up, and does it do what was asked | `assay` | ” |
 | 5 | Will it get slower | `silt` | the change adds state, loops, or I/O |
 | 6 | Is it open to somebody who means harm | — | ” |
-| 7 | What is missing | `lens` | always |
+| 7 | What is missing | `lens`, in a fresh agent | always; a skip is reported with its reason |
 | 8 | Which surfaces now describe it wrongly | `sweep` | always |
 
 **Running the checks (1).** The list is the project's CI workflow, or the gate
@@ -150,6 +150,15 @@ you are right not to trust. That does not answer *"if X behaved correctly"*, so 
 does not fire. Anything genuinely ambiguous goes out as a question, not a verdict.
 
 ## Briefing the completeness read
+
+**`lens` runs in a fresh agent** that never saw this session (ADR-0091). That is
+the point: the hand that shaped the change is the worst judge of it. So the
+brief is all it gets. Pass it as the skill's argument. **Save the report it
+returns** beside the run sheet (`<run sheet>.lens.md`), or in the OS temp folder
+when there is no run sheet, so a compaction does not lose it. Then **re-open every `CONFIRMED` citation at its source** before acting
+on it: a finding is a candidate until you have reproduced it. **It runs on every
+change.** A skip, such as a two-sentence change with nothing to enumerate, is
+reported with its reason, never silent.
 
 `lens` needs three things or it reports a divergence on a layer where the
 reference has no vote at all — and reports it as urgent, because from inside the

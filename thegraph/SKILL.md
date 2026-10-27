@@ -169,7 +169,7 @@ These are `read-it`'s own four labels, returned verbatim.
 | Route | What runs |
 |---|---|
 | **trivial** | nothing. It ended at step 2, said out loud |
-| **open decision** — the issue asks for a choice, not an implementation | `lens` over the **options**, then a person |
+| **open decision** — the issue asks for a choice, not an implementation | `lens` over the **options**, in a fresh agent briefed as `check-it` briefs it, then a person |
 | **prose**, **code** | `make-it` → `check-it` → `ask-it` |
 
 **The open-decision route is the one that gets missed, and missing it is

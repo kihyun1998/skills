@@ -1,9 +1,21 @@
 ---
 name: lens
 description: "An adversarial read-only pass returning graded findings, not bare claims, over this codebase's siblings and the named prior art. Use before trusting an enumeration, when a spike keeps catching new gaps one probe at a time, or when a bug would cost more than a wrong number."
+context: fork
+background: false
 ---
 
 Read everything once, adversarially, and hand back findings that are already graded.
+
+**This runs in a fresh agent, not in the session that did the work** (ADR-0091).
+It sees none of that session's conversation, so everything it reads arrives in
+the brief, passed as this skill's argument: the subject, the corpora as paths or
+commands, and the deliberate-divergence list with its records. Where the brief
+lacks one of those, say so first, and read what was given. **The report is the
+whole result**: return it as the final message, graded and cited. **Edit nothing
+and write no file.** The fork still has editing tools (a `disallowed-tools` key
+does not reach it, measured), so this sentence is what keeps the pass read-only. The caller saves it and re-opens every `CONFIRMED` citation before acting
+on it.
 
 ## Goal
 
