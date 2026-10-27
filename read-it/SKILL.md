@@ -128,6 +128,11 @@ Two statements, and both are here because nothing else catches them being wrong:
    it worth asking.
 2. **What this change will do**, and what it deliberately leaves alone.
 
+**In a cluster run** (`thegraph` decides it), read every open child before
+stopping, as well as the anchor, and give each child its ① and ② in a line. One
+stop covers them all, so a child left unread is one the person approved
+without seeing.
+
 **Ask ① alone where the issue supports two readings**, and build ② from the answer
 rather than writing it first.
 

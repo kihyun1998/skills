@@ -80,6 +80,8 @@ rather than a reading:
 
 ```sh
 gh api repos/<owner>/<repo>/issues/<n> --jq .issue_dependencies_summary
+# the blockers themselves, for ordering a cluster run (ADR-0088)
+gh api repos/<owner>/<repo>/issues/<n>/dependencies/blocked_by --jq '.[].number'
 # {"blocked_by":0,"blocking":0,"total_blocked_by":0,"total_blocking":0}
 ```
 

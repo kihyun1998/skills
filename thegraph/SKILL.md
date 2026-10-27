@@ -65,6 +65,68 @@ once `ask-it` has put the carried items in front of them, or once `check-it` is
 done with nothing carried, or at the confirm stop for a change that ends there, or
 once the maintainer has decided an open decision.
 
+**In a cluster run** `source` is the anchor, the step list is the current
+child's, rewritten as each child starts, and a `cluster` step **after it** stays
+`[~]` until the whole run ends. That step keeps a finished child from reading
+as the end of the run; placed last, it leaves the panel showing the step at
+hand, since the panel shows the first step under way. The children go in a
+section of their own **without checkboxes**: `thegraph-panel` reads every
+checkbox line outside `## Carried` as a step. The sheet is deleted once, after
+the final `ask-it`, not after each child.
+
+```markdown
+- [x] read-it
+- [~] make-it
+- [ ] check-it
+- [~] cluster
+
+## Children
+- #37 — done, 703ccfd
+- #38 — under way
+- #39 — stopped: needs-grill
+```
+
+## One issue, or a cluster
+
+**The tracker decides, not an argument.** Where the issue passed has open
+sub-issues, or the path passed is a folder of issue files (the shape
+`to-tickets` writes locally), this is a **cluster run**: the issue is the
+anchor, and its open children are the work. Otherwise it is one issue, as below.
+A title or a label is never read for this. A wrong call is corrected at the
+confirm stop: *"only this one"* runs the anchor alone.
+
+A cluster run is the same order once per child, in one session:
+
+- **The order of the children** follows the tracker's blocking edges, read
+  with the query the repo's tracker doc names; ties go by issue number. A
+  blocker finished earlier in this run counts as done, even though its issue
+  stays open until the push.
+- **There is one confirm stop, at the start.** `read-it` reads every child
+  first, and the stop shows each child's ① and ② in a line, the order, and what
+  is left out. It replaces each child's own confirm stop, and only that one.
+  Every other stop still stands: the signals below, `check-it`'s returns to a
+  person, and a child that **departs from the plan** (its scope, direction or
+  naming moved) or **cannot proceed**, meaning still `needs-grill`,
+  `ready-for-human` or an open decision, or its scope gone unclear. Stop there;
+  do not skip past it. The person's answer resumes the cluster, or ends it with
+  `ask-it` over the children already done. A trivial child is marked done.
+- **A child with open sub-issues of its own runs as one issue.** Clusters do not
+  nest.
+- **Each child is committed locally** as it finishes, closing its issue in the
+  message. Nothing is pushed and nothing is filed before the end.
+- **`ask-it` runs once, at the end**, over what every child carried, and the
+  push goes through it.
+- **The anchor gets the result**, written back the way `ask-it` writes back to
+  an anchor: the root confirmed or falsified, what was measured, and what is
+  still open. Whether to close it is asked then. `to-tickets` never closes it,
+  and nothing else will. A local folder has no anchor file, so there the result
+  goes in the closing report, and each child is closed by its own `Status:` line
+  in its local commit.
+
+One session for the whole cluster diverges on purpose from `wayfinder`'s one
+ticket per session
+([ADR-0088](../docs/adr/0088-thegraph-takes-a-cluster.md)).
+
 ## The order
 
 ### 1. Call `read-it`

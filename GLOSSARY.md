@@ -174,6 +174,13 @@ tracker, the commit.
 _Avoid_: run state (the retired sixteen-slot ledger, ADR-0071), todo, progress
 file
 
+**Cluster run** (thegraph):
+A `/thegraph` run over an **Anchor**'s open sub-issues, decided by the tracker
+rather than by an argument: the four steps once per child, in blocking order,
+in one session, with one confirm stop at the start and one `ask-it` at the end
+(ADR-0088). Its **Run sheet** lists the children without checkboxes.
+_Avoid_: batch (that is `envelope`'s word for what reaches a person), epic run
+
 **Build** (grill-the-graph):
 One repo's answer to what a person already knows and no file in it states —
 in practice the outside sources the project is built against, each marked what it

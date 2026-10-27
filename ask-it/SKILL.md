@@ -15,6 +15,10 @@ settle, what the release will oblige.
 asked, and nothing may evaporate into a pull-request body or a code comment on
 the way — those are buried on merge.
 
+**In a cluster run it runs once, at the end**, over what every child carried.
+The children's local commits are pushed only on that approval, so no child's
+issue closes before the person has seen the batch.
+
 ## Collecting and presenting
 
 **`envelope` owns this**, and it is most of the job: collect rather than file as

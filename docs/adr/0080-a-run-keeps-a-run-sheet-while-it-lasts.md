@@ -1,5 +1,10 @@
 # ADR-0080 — A run keeps a run sheet while it lasts, outside the repository
 
+> **Extended by [ADR-0088](0088-thegraph-takes-a-cluster.md).** A cluster run keeps
+> one sheet too: `source` is the anchor, a `cluster` step stays open until the end,
+> and the children are listed without checkboxes so `thegraph-panel` does not read
+> them as steps.
+
 **Status:** accepted. Amends [ADR-0071](0071-thegraph-is-four-skills-in-order.md),
 which left `thegraph` with no run state.
 
