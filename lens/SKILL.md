@@ -23,13 +23,13 @@ action"*, which is the part that pays.
 
 ## Workflow
 
-1. **Assemble the brief, and check it carries four things.** The corpora; the
-   grade table below; the **tie-breaker** — what wins when prior art and this
-   project's own evidence disagree; and the **list of divergences that are
-   deliberate**, each with the record that decided it. The last two are what a
-   finding is graded *against*. A pass never given them reports a divergence on a
-   layer where the reference has no vote at all, and reports it as urgent,
-   because from inside the brief it is.
+1. **Check the brief carries what only the caller can supply.** The corpora,
+   and the **list of divergences that are deliberate**, each with the record that
+   decided it. The grade table is this skill's own, below. The list is what a
+   finding is graded *against*: where a record has already settled a clash
+   between the reference and this project, the record governs. A pass never
+   given the list reports a divergence on a layer where the reference has no
+   vote at all, and reports it as urgent, because from inside the brief it is.
 
 2. **Read every corpus end to end.** Both this codebase's siblings — the features
    that already solve the adjacent problem — and the named prior art,
@@ -47,8 +47,8 @@ action"*, which is the part that pays.
    > it. If the reference cannot be removed from the sentence, it is a **design
    > proposal**, not a defect.
 
-   This narrows the **grade**, never the reading. A layer where the tie-breaker
-   gives the reference no authority is still a layer where the reference knows
+   This narrows the **grade**, never the reading. A layer where the records
+   give the reference no authority is still a layer where the reference knows
    things nobody else does; *"the reference cannot win here"* is the same skip as
    *"the change is small"* in better clothes.
 
