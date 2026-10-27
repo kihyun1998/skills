@@ -1,0 +1,6 @@
+{
+  "name": "thegraph-evals",
+  "version": "0.1.0",
+  "description": "Regression cases for /thegraph's reading step, run with claude plugin eval",
+  "experimental": { "evals": "cases" }
+}

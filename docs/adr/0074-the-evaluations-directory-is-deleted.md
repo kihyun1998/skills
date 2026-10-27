@@ -1,5 +1,11 @@
 # ADR-0074 — The evaluations directory is deleted, and its measured failures are kept here
 
+> **Amended by [ADR-0087](0087-thegraph-reading-step-has-a-regression-suite.md).**
+> `/thegraph`'s reading step has a regression suite again, in `read-it/evals/`
+> beside the step it measures, run with `claude plugin eval`. That tool's
+> isolation closes most of the findings below by construction; the ones about
+> criteria still bind. The root `evaluations/` stays deleted.
+
 **Status:** accepted.
 
 `evaluations/` is deleted. It held one file: a README describing an instrument

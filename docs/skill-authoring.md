@@ -200,10 +200,14 @@ anywhere as a list.
 Unverified, and left that way: nothing has established whether the platform's
 validator would treat a placeholder as a tag. Nothing has rejected them.
 
-**Evaluations do not run themselves.** L774: *"There is not currently a built-in
-way to run these evaluations. Users can create their own evaluation system."*
-Whatever #44 produces is executed by hand or by something this repo writes; a
-file count satisfies the checklist and nothing else.
+**The guidance still says evaluations do not run themselves; Claude Code now runs
+them.** L778 (re-read 2026-10-27): *"There is not currently a built-in way to run
+these evaluations."* That is about the platform API. Claude Code 2.1.311 ships
+`claude plugin eval`, which runs each case in an isolated session and again with
+no plugin loaded. `/thegraph`'s reading step is measured that way, in
+`read-it/evals/` ([ADR-0087](adr/0087-thegraph-reading-step-has-a-regression-suite.md)).
+A file count still satisfies the checklist and nothing else; a case with a
+baseline arm is what measures.
 
 **The `description` field has an opposing position in the wild, and this repo
 does not take it.** The skill collection at `github.com/obra/superpowers` holds
