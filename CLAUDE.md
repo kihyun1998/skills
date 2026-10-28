@@ -68,4 +68,6 @@ Single-context: one `GLOSSARY.md` + `docs/adr/` at the repo root. See `docs/agen
 
 `docs/environment/` records global Claude Code setup that lives outside any repo
 (`~/.claude/settings.json` and friends), with the measurements behind each choice.
-Currently: `usage-band.md`.
+Currently: `usage-band.md`, and `CLAUDE.md`, the user-level instructions
+`scripts/install-skills.sh` links into `~/.claude` and `$CODEX_HOME`, with where
+each line came from in `user-instructions.md`.

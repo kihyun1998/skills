@@ -42,7 +42,8 @@ skill directory, where Claude Code and Codex discover them.
 
 ## Install
 
-To sync the skills and the mods in one go — `--dry-run` previews both:
+To sync the skills and the mods in one go — `--dry-run` previews both, and
+`--claude` or `--codex` limits the skills to that agent:
 
 ```sh
 ./scripts/sync.sh                  # runs install-skills.sh, then install-mods.sh
@@ -64,6 +65,12 @@ skills are picked up automatically on re-run. It creates links — a directory
 junction on Windows, a symlink on Unix — not copies, so edits made in this
 repo are live in both agents immediately. No Developer Mode or elevation is
 needed.
+
+It also links [`docs/environment/CLAUDE.md`](docs/environment/CLAUDE.md), the
+maintainer's user-level instructions, to `~/.claude/CLAUDE.md` and
+`$CODEX_HOME/AGENTS.md`, so every session on the machine loads it. A real file
+already there is reported and left alone; `--replace-copies` moves it aside. On
+Windows that link is a file symlink, which needs Developer Mode.
 
 Skills install into both agents by default. Put `codex` or `claude` on separate
 lines in `agents/install-targets` to restrict a skill to those targets; the next

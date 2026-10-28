@@ -57,6 +57,7 @@ cite it.
 | [0090](0090-four-delegates-retire-into-their-callers.md) | `redden`, `spine`, `bare` and `boundary` retire into `make-it`, `read-it`, `check-it` and `thegraph`, which a transcript audit showed already did their work; `security-review` leaves `check-it`'s `requires:` |
 | [0091](0091-lens-runs-in-a-fresh-agent.md) | `lens` runs in a fresh agent (`context: fork`): the brief is its argument, the report its result, saved and re-checked by the caller; `check-it` runs it on every change and reports any skip. `disallowed-tools` was measured not to reach the fork, so read-only rests on `lens`'s own sentence |
 | [0092](0092-assay-silt-and-decant-retire.md) | `assay` and `silt` retire into `check-it`'s review and cost checks; `decant` retires on the maintainer's call, and the comment rule no longer names it. `sweep` and `firsthand` stay |
+| [0093](0093-user-level-instructions-are-distilled-from-feedback.md) | The maintainer's cross-project preferences, distilled once from feedback memories and a month of corrections, live in `docs/environment/CLAUDE.md` (20 lines) and are linked to `~/.claude/CLAUDE.md` and `$CODEX_HOME/AGENTS.md`; duplicate memories are deleted |
 
 ### `gate` — the Acceptance Gate
 

@@ -54,7 +54,9 @@ Run again on a repo it already set up, it also repoints lines elsewhere that
 point at what it wrote (*Repoint what points at the setup*). In your own
 repository holding a Dart package for pub.dev, it asks whether `pub-ready` is
 this repo's release bar, and where it is, offers to replace the older copies of
-that bar with a pointer (*Release*). It touches nothing else.
+that bar with a pointer (*Release*). On update, it offers to remove a line of the
+project's `CLAUDE.md` that only restates the user-level instructions file (*What
+this never writes*). It touches nothing else.
 
 ## What the build is
 
@@ -281,6 +283,8 @@ person already answered.
   the settings block hook by hook, the `pre-push` hook, the exclude lines, the
   `CLAUDE.local.md` rule. Which `pre-push` is setup's own is *Contributor
   mode*'s rule.
+- **A line that only restates the user-level instructions file** is shown as a
+  removal (*What this never writes*).
 - **Then the links** — *Repoint what points at the setup*.
 
 Show each change as old line and new, get approval, write, and run §5's check.
@@ -491,8 +495,14 @@ question nobody can answer, and condition 2 is what it fails.
   falls behind it.
 - **A copy of anything the repo states** — command lists, surface lists, record
   numbers, directory rules, tracker capabilities, node rosters.
+- **A line that only restates the user-level instructions file**
+  (`~/.claude/CLAUDE.md`, or `AGENTS.md` in `$CODEX_HOME`, by default `~/.codex`),
+  which every session on the maintainer's machine loads already. A line that adds
+  something for this repository is not a restatement: the comment rule names this
+  repository's destinations, and an exception departs from the user file. In a
+  repository you contribute to, its `CLAUDE.md` is the owners', so nothing is removed.
 - **A line nothing reads.**
 
-Each of these was in the previous version, and each went for one reason: it was a
+The first four were each in the previous version, and each went for one reason: it was a
 second copy of a fact, with nothing keeping the two in agreement. That is the
 whole class.

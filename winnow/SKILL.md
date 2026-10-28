@@ -43,6 +43,12 @@ carries two verdicts. Each part gets one bin.
 | `ROSTER` | a list or count the environment already answers | replaced by the command that derives it |
 | `HISTORY` | a date, a correction of this document, an incident story, how something came to be | version control; the commit message if the story matters |
 
+In a repository's `CLAUDE.md` or `AGENTS.md`, a part that only restates the
+user-level instructions file (`~/.claude/CLAUDE.md`, or `AGENTS.md` in
+`$CODEX_HOME`, by default `~/.codex`) is said elsewhere already: its destination
+is that file. A part that adds something for this repository is sorted as usual.
+A skill body keeps its copies.
+
 Ask in order; the first yes decides.
 
 1. **Does one command answer it** — `ls`, `--help`, a config file? → `ROSTER`,
@@ -80,7 +86,8 @@ Report, in this order:
 3. **Every `HISTORY` part, quoted in one line.** This is what the maintainer
    signs off on; a count alone hides it.
 4. **Every `DETAIL` destination** — an existing file, or a proposed new one
-   named for the task branch that needs it.
+   named for the task branch that needs it — and every part whose destination is
+   the user-level instructions file, quoted in one line.
 5. **The pointer wording** for each destination.
 
 Then **ask for approval** with the tool that renders a question

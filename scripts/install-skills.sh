@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Sync every top-level SKILL.md directory into Claude Code and/or Codex.
+# Sync every top-level SKILL.md directory into Claude Code and/or Codex, and link
+# docs/environment/CLAUDE.md as each one's user-level instructions file.
 # Default destinations: ~/.claude/skills and ${CODEX_HOME:-~/.codex}/skills.
 
 set -euo pipefail
@@ -86,7 +87,44 @@ sync_skills() {
     local prefix='' summary; [ "$dry_run" -eq 1 ] && prefix='[dry-run] '; summary="${prefix}Done. $linked linked/relinked, $pruned pruned"; [ "$shadowed" -gt 0 ] && [ "$replace_copies" -eq 0 ] && summary="$summary, $shadowed SHADOWED ($differing differing from the repo)"; echo "$summary in $skills_home."
     [ "$shadowed" -eq 0 ] || [ "$replace_copies" -eq 1 ] || echo "Re-run with --replace-copies to move shadowed folders to $backup_home (never deleted)."
 }
+# The user-level instructions file (docs/environment/CLAUDE.md) is linked where each agent
+# reads its global instructions. A real file there is never overwritten: it is reported, and
+# moved aside only with --replace-copies. Git Bash makes a native file symlink only when
+# asked to, and fails rather than copying; a failed link is reported and the run goes on.
+link_file() {
+    local target="$1" link="$2"
+    case "$(uname -s)" in
+        MINGW*|MSYS*|CYGWIN*) MSYS=winsymlinks:nativestrict ln -s "$target" "$link" 2>/dev/null ;;
+        *) ln -s "$target" "$link" 2>/dev/null ;;
+    esac
+    [ -L "$link" ] || { echo "  fail  $(basename "$link") - could not link it (on Windows, turn on Developer Mode); skipped" >&2; return 1; }
+}
+sync_instructions() {
+    local link="$1" backup_home="$2" source="$repo_root/docs/environment/CLAUDE.md" name stamp
+    name="$(basename "$link")"
+    [ -f "$source" ] || return 0
+    if [ -L "$link" ]; then
+        [ "$(readlink "$link")" = "$source" ] && { echo "  ok    $name - already linked"; return; }
+        echo "  relink $name - was -> $(readlink "$link")"; run rm "$link"; run link_file "$source" "$link" || true; return
+    fi
+    if [ -e "$link" ]; then
+        if [ "$replace_copies" -eq 0 ]; then
+            echo "  shadow $name - a real file is there, and it is what loads" >&2
+            echo "         re-run with --replace-copies to move it to $backup_home (not deleted)"; return
+        fi
+        stamp="$(date -u +%Y%m%d-%H%M%S)"; echo "  replace $name - moving it to $backup_home/$name-$stamp (not deleted)"
+        run mkdir -p "$backup_home"; run mv "$link" "$backup_home/$name-$stamp"
+    fi
+    echo "  link  $name -> $source"; run mkdir -p "$(dirname "$link")"; run link_file "$source" "$link" || true
+}
 for agent in "${targets[@]}"; do
     case "$agent" in claude) agent_home="$HOME/.claude" ;; codex) agent_home="${CODEX_HOME:-$HOME/.codex}" ;; esac
     echo "[$agent]"; sync_skills "$agent_home" "$agent"
+    case "$agent" in
+        claude) sync_instructions "$agent_home/CLAUDE.md" "$agent_home/skills-replaced" ;;
+        codex)
+            sync_instructions "$agent_home/AGENTS.md" "$agent_home/skills-replaced"
+            # Codex reads only the first non-empty of AGENTS.override.md and AGENTS.md here.
+            [ ! -s "$agent_home/AGENTS.override.md" ] || echo "  note  AGENTS.override.md is non-empty, so Codex reads it instead of AGENTS.md" >&2 ;;
+    esac
 done
