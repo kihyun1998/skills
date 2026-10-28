@@ -346,14 +346,14 @@ as well. Either finding is the old build. A stamped `docs/agents/thegraph.md`
 would read as *update* in the table above; the check before the table sends it
 here instead.
 
-A `docs/agents/theflow.md` is the older bindings file. Some repositories still
-cite it or run checks against it, so it does not stop the run: say once that it
-is there and that `salvage` clears it when the maintainer asks.
-
-That is not an earlier setup in *Update*'s sense: **do not read
+An old build is not an earlier setup in *Update*'s sense: **do not read
 it as input, do not update it, do not rebuild over it, and do not delete it.** Some of what is in there is a person's answer and the rest is a copy of the
 repo, and telling those apart is `salvage`'s job. Say what you found, point at
 `salvage`, and stop.
+
+A `docs/agents/theflow.md` is the older bindings file. Some repositories still
+cite it or run checks against it, so it does not stop the run: say once that it
+is there and that `salvage` clears it when run.
 
 ### 3. The map, and the comment rule
 

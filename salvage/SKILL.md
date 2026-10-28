@@ -15,7 +15,7 @@ This removes the old one. **The whole job is telling two things apart** — what
 person sat down and answered, which has to survive, and what was copied out of
 the repository, which is why the old build went. What survives does not all go to
 the same place: some belongs in the new build, some in `CLAUDE.md`, some in a
-decision record.
+decision record, and a `theflow.md`'s mostly in the map.
 
 Leave nothing behind. A half-cleared repo is worse than an uncleared one: it has
 a hook calling a script that no longer exists.
@@ -43,16 +43,16 @@ already removed. **A stamped file the manifest does not name is the one that
 matters** — the manifest is a copy, and this repo has measured that class of copy
 going out of date on its own.
 
-**A `docs/agents/theflow.md`, the older bindings file, joins the list only when
-the maintainer asks.** It carries no stamp and is in no manifest, so add it to the
-paths by hand, and ③ then finds what still cites it or runs against it: a gate
-script, a CI step, a test, a decision record. Its tables are a person's answers
-(Step 1's sources, a gate matrix): before the file goes, each moves to where it
-now belongs, the build's references, `CLAUDE.md` or a decision record, in the
-current `docs/agents/thegraph.md` where there is no old one to replace.
+**A `docs/agents/theflow.md` joins the paths whenever it is there** — the
+bindings file of the retired `theflow`, cleared by the rules in *A left
+`theflow.md`* below. It carries no stamp and is in no manifest, so add it by hand;
+③ then finds what still cites it or runs against it.
 
-**③ Grep the whole tree for the paths ① and ② just gave you.** Every hit is one
-of two things, and the difference is what it does with the path:
+**③ Grep the whole tree for the paths ① and ② just gave you**, the map's notes
+included: a note that asserts something about a file being removed (that a
+pointer to it dangles, that it is *to be deleted*) turns false the moment it
+goes. Every hit is one of two things, and the difference is what it does with
+the path:
 
 - it **calls** what you are removing — a hook, a CI step, a task runner
 - it is **about** what you are removing — a document auditing the build slot by
@@ -106,14 +106,72 @@ work. Ask; never assume.
 **Outside — do not touch.**
 Decision records, even ones whose links this breaks: a record describes the world
 when it was written. Commit history. Anything carrying neither a stamp nor a
-manifest entry, except a `theflow.md` the maintainer asked to clear.
+manifest entry, except a `theflow.md`.
+
+## A left `theflow.md`
+
+The bindings file the retired `theflow` read: Steps 1 to 7, written by
+`grill-the-flow` from a person's answers. Three repositories retired theirs by
+hand, and all three moved its content into **the map** (ADR-0096). **Three
+things stop the `theflow.md` part before anything of it is deleted**, each said
+with what was found. The run still shows everything it found, and an old build's
+part goes on by its own rules:
+
+- **No map with notes in it** (`docs/map/`), or no `docs/agents/thegraph.md` to
+  take Step 1: say to run `grill-the-graph`, which writes the build and the map's
+  hub, then `grill-map`, which writes the notes. The content has nowhere else to
+  go that is not loaded on every run. A `theflow.md` that only points elsewhere
+  (below) has nothing to move, so this stop does not apply to it.
+- **Code that reads the file at run time** (a test, a script, a CI step that opens
+  it): name the code and propose its new source of truth, usually the map note the
+  matching Step moves to. Whether that code changes is the maintainer's.
+- **A recorded decision to keep it**: a `CLAUDE.md` line or a decision record
+  saying the file stays. Show it and skip the file, unless the maintainer says to
+  clear it now. A line that only points at the file, or says `theflow` still
+  runs, is not one: it is repointed (below).
+
+Otherwise each part goes where the repositories that did this sent it:
+
+| `theflow.md` part | Goes to |
+|---|---|
+| the project's identity, where `CLAUDE.md` lacks it | `CLAUDE.md` |
+| the prior art it cross-checks, Step 1's reference routing | the References in `docs/agents/thegraph.md`, in its shape (*Into the new build* below) |
+| the deliberate divergences | the map, or the record that decided each where one did |
+| the tie-breaker, which source wins where they disagree | the Binding column of those References: a person answered it, layer by layer where it was |
+| the hidden-state list, branch and PR rules | the map notes they describe; branch and PR rules to `CLAUDE.md` where it states none |
+| module map, Step 2's boundary rule, Step 4's proofs, Step 6's surfaces, Step 7's gates, release and downstream loop | the map notes they describe, a territory or an invariant |
+| Step 5's sacred paths, as `theflow.md` itself lists them | map invariant notes: a person answered them, so they are kept. A line that only points at an old build's list leaves that list to *Salvage the answers* |
+| what the repository already states (CI commands, a boundary `CLAUDE.md` holds, a module list `ls` gives) | dropped, saying where it is stated |
+| the war-story index | `lessons.md`, re-indexed or merged into the map |
+
+**A part the table does not name moves**, to the map note it describes, and is
+shown as such: a `theflow.md` holds only what a person answered.
+
+**A `theflow.md` that only points elsewhere** (every Step a pointer into an old
+`thegraph.md`) has nothing of its own to move: the content is the old build's,
+and goes by *Salvage the answers*. It is cleared in the same run as that build,
+or it would be left pointing at what the run removed.
+
+**What stays behind is pinned, not rewritten.** A map note's provenance (*"theflow
+Step 4, maintainer, <date>"*) names the commit before the deletion, and the map's
+README says once how to read it (`git show <rev>:docs/agents/theflow.md`). A
+decision record stays as written. **A line elsewhere that points at the file is
+repointed, not deleted**, to the note its part went to: that is what the
+repositories that did this did, and a line can carry a rule beside its pointer. A
+line that names the file as the source of truth (a comment in a gate script, a CI
+header) is ring 3, and moves with that source.
+
+**The file itself is the run's to clear**, as ring 1 is, but Process 2 does not
+apply: every `theflow.md` was edited by a person after it was written, which is
+what it is for.
 
 ## Process
 
 ### 1. Find
 
 All three searches, in order: the stamp marker, the build document's manifest,
-then the tree grepped for every path those two returned. Build the ring lists
+then the tree grepped for every path those two returned, with a left
+`theflow.md` added to them. Build the ring lists
 from what came back rather than from the tables above. **Say which search found
 each file**, and name anything the first two disagreed on — a stamped file the
 manifest missed is the interesting one.
@@ -125,6 +183,9 @@ has touched it. If one has, move it to ring 3. This is cheap and it is the only
 thing standing between a cleanup and deleting a person's edits.
 
 ### 3. Salvage the answers — three destinations, and only one is the build
+
+This is for an old `thegraph.md`. A left `theflow.md` goes by its own table
+(*A left `theflow.md`*), after its three stops.
 
 **Into the new build**: the reference sources, how each is reached, which are
 marked summarized, and the peer names a maintainer confirmed. The shape to write
@@ -158,7 +219,7 @@ read from now.
 - **The repository already answers it** — command lists, surface lists, record
   numbers, tracker capabilities, node rosters and counts, the manifest itself.
   A run reads these now.
-- **Nobody could answer it** — the sacred-path list and the tie-breaker. A person
+- **Nobody could answer it** — an old build's sacred-path list and the tie-breaker. A person
   ratified each, but the builder drafted it, which is what made it a copy rather
   than knowledge. The tie-breaker in particular was one sentence for a whole
   repository: a truism, or wrong case by case.
@@ -175,7 +236,8 @@ dropping one is that nobody knows it was ever answered.
 ### 4. One list, one approval
 
 Show all of it on one screen: ring 1 and ring 2 to be removed, ring 3 to be
-decided, and the salvaged file as it will be written. Ask once, with the tool
+decided, and the salvaged file as it will be written. For a left `theflow.md`,
+each part with where it goes, the lines to repoint, and any stop that fired. Ask once, with the tool
 that renders a question.
 
 **Not file by file.** Sequencing removals one at a time spends the reader's
@@ -184,8 +246,9 @@ part worth reading closely, and it is one page.
 
 ### 5. Remove, then write
 
-Ring 1 and ring 2, then the salvaged build document in its place. Ring 3 only
-where the answer said so.
+Ring 1 and ring 2, then the salvaged build document in its place. Then a left
+`theflow.md`'s parts into their destinations, the pointing lines repointed, and
+the file last. Ring 3 only where the answer said so.
 
 ### 6. Verify, and report what is left
 

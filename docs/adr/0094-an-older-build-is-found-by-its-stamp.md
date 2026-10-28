@@ -3,6 +3,9 @@
 **Status:** accepted. Implements #35. Corrects the factual premise of
 [ADR-0067](0067-the-theflow-migration-path-is-gone.md), not its decision.
 
+> **Amended by [ADR-0096](0096-salvage-clears-a-left-theflow-md.md).** `salvage` now
+> takes a left `theflow.md` by default, into the map, with three stops.
+
 `grill-the-graph` §2 and `salvage` recognise an older generated build by a build
 stamp that carries a revision, with a case-sensitive
 `git grep -l -E '(Build stamp|Built from thegraph|빌드 스탬프)[^<]{0,40}[0-9a-f]{7}'`.

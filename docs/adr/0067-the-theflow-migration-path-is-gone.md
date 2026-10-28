@@ -5,7 +5,7 @@
 > **Premise corrected by [ADR-0094](0094-an-older-build-is-found-by-its-stamp.md).**
 > Repositories holding `theflow.md` did exist: #35 named seven, and four are on
 > disk on 2026-10-28. The decision stands; a left `theflow.md` is reported, and
-> `salvage` clears it on request.
+> `salvage` clears it when run ([ADR-0096](0096-salvage-clears-a-left-theflow-md.md)).
 
 `grill-the-graph` had two first-build paths: compile a repo's existing
 `docs/agents/theflow.md` bindings, or derive from the repository. The first is
