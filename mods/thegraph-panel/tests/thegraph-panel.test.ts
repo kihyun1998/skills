@@ -2,7 +2,7 @@ import { describe, expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { CONFIRM, DECIDE, addLog, gantt, stepAt, trail, turnSummary, isSheetPath, sheetLog, testCounts, testOf, labelOf, onAnswer, onEdit, onSkill, parseSheet, stepsOf, onTurnEnd, signalSummary, startRun, stateOf } from '../hooks/run'
+import { CONFIRM, DECIDE, addLog, gantt, stepAt, trail, turnSummary, isSheetPath, sheetLog, testCounts, testOf, labelOf, onAnswer, onEdit, onSkill, parseSheet, stepsOf, onTurnEnd, signalSummary, startRun, stateOf, keepTurnLine, turnLineOf } from '../hooks/run'
 
 const MIN = 60_000
 
@@ -128,6 +128,26 @@ const wrapOf = (node: unknown, start: string): unknown => {
 
 const band = ($: Engine) => $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'AbovePrompt', props: BAND })
 
+describe('turn lines', () => {
+  test('keep the latest turns, not the longest, and a repeated duration moves to the end', () => {
+    let lines: Record<string, string> = {}
+    for (const ms of [5000, 20, 999]) lines = keepTurnLine(lines, ms, `line ${ms}`, 2)
+    expect(turnLineOf(lines, 5000)).toBe(undefined)
+    expect(turnLineOf(lines, 20)).toBe('line 20')
+    expect(turnLineOf(lines, 999)).toBe('line 999')
+    lines = keepTurnLine(lines, 20, 'again', 2)
+    lines = keepTurnLine(lines, 7, 'line 7', 2)
+    expect(turnLineOf(lines, 999)).toBe(undefined)
+    expect(turnLineOf(lines, 20)).toBe('again')
+    expect(turnLineOf(lines, 7)).toBe('line 7')
+    // A duration seen again counts as the newest, so the oldest other line goes first.
+    let three: Record<string, string> = {}
+    for (const ms of [20, 999, 20, 7, 8]) three = keepTurnLine(three, ms, `line ${ms}`, 3)
+    expect(turnLineOf(three, 20)).toBe('line 20')
+    expect(turnLineOf(three, 999)).toBe(undefined)
+  })
+})
+
 describe('thegraph-panel', () => {
   test('draws nothing until /thegraph runs', async ($, on) => {
     await start($, on)
@@ -155,8 +175,8 @@ describe('thegraph-panel', () => {
     expect(flat(await ui.drawn())).toContain('confirm ✓ › make-it › check-it')
     expect(flat(await ui.drawn())).not.toContain('◐')
     await skill($, 'make-it')
-    await skill($, 'redden')
-    await skill($, 'redden')
+    await skill($, 'firsthand')
+    await skill($, 'firsthand')
     const text = flat(await ui.drawn())
     expect(text).toContain('make-it ◐ › check-it › ask-it · <1m   ⚑2')
     // Its line sits over the band beneath, which still draws.
@@ -317,7 +337,7 @@ describe('thegraph-panel', () => {
     await start($, on)
     await say($, '/thegraph')
     await skill($, 'thegraph')
-    for (const sk of ['read-it', 'redden', 'firsthand', 'boundary', 'redden', 'firsthand', 'boundary', 'redden']) await skill($, sk)
+    for (const sk of ['read-it', 'firsthand', 'firsthand', 'firsthand', 'firsthand', 'firsthand', 'firsthand', 'firsthand']) await skill($, sk)
     const pane = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS })
     const text = flat(await pane.drawn())
     // read-it has run the whole time so far; nothing else has begun.
@@ -326,9 +346,9 @@ describe('thegraph-panel', () => {
     expect(text).toContain('time step       what')
     // The step names its first row; the rows under it carry a rule.
     expect(text).toContain('read-it    ▸ read-it')
-    expect(text).toContain('│          ⚑ redden')
+    expect(text).toContain('│          ⚑ firsthand')
     // Nine lines logged, every one of them drawn.
-    expect((text.match(/⚑ (redden|firsthand|boundary)/g) ?? []).length).toBe(7)
+    expect((text.match(/⚑ firsthand/g) ?? []).length).toBe(7)
   })
 
   test('the band carries a button that opens and closes the checklist pane', async ($, on) => {
@@ -662,7 +682,7 @@ describe('thegraph-panel', () => {
     await skill($, 'read-it')
     await endTurn($)
     await say($, 'ok')
-    for (const s of ['make-it', 'redden', 'check-it', 'ask-it']) await skill($, s)
+    for (const s of ['make-it', 'firsthand', 'check-it', 'ask-it']) await skill($, s)
     await $.tool.call({ tool: 'AskUserQuestion', questions: [{ question: '이슈로?', header: '정리', options: [], multiSelect: false }] })
     expect(flat(await ui.drawn())).toContain('thegraph #1')
     // The next run's prompt replaces the first whole, before its skill expands.
@@ -710,7 +730,7 @@ describe('thegraph-panel', () => {
     await skill($, 'read-it')
     await endTurn($)
     await say($, '진행')
-    for (const s of ['make-it', 'check-it', 'lens', 'boundary']) await skill($, s)
+    for (const s of ['make-it', 'check-it', 'lens', 'firsthand']) await skill($, s)
     const text = flat(await ui.drawn())
     expect(text).toContain('check-it ◐ › ask-it')
     expect(text).toContain('⚑1')
@@ -924,7 +944,7 @@ describe('run', () => {
     r = onSkill(r, 'make-it', 3 * MIN)
     r = onSkill(r, 'check-it', 6 * MIN)
     r = onSkill(r, 'make-it', 8 * MIN)
-    r = onSkill(r, 'redden', 9 * MIN)
+    r = onSkill(r, 'firsthand', 9 * MIN)
     const text = (run: typeof r) => trail(run, 10 * MIN).map(x => x.text).join('')
     expect(text(r)).toBe('read-it ✓ › confirm ✓ › make-it×2 ◐ › check-it › ask-it · 5m   ⚑1')
     // Only the last test speaks: red while it failed, gone once one passes.
@@ -944,9 +964,11 @@ describe('run', () => {
     expect(turnSummary(log, 5, 'make-it').map(s => s.text).join('')).toBe(' · thegraph make-it  ✎1  ✓ 48 pass  ◆1')
   })
 
-  test('signals count in the order they first fired', () => {
+  test('signals count in the order they first fired, and a skill that is no signal adds none', () => {
     let r = startRun(null, 0)
-    for (const s of ['firsthand', 'redden', 'firsthand', 'unrelated']) r = onSkill(r, s, 0)
-    expect(signalSummary(r)).toBe('firsthand×2 redden')
+    for (const s of ['firsthand', 'unrelated', 'firsthand']) r = onSkill(r, s, 0)
+    expect(signalSummary(r)).toBe('firsthand×2')
+    const at = 0
+    expect(signalSummary({ ...r, signals: [{ skill: 'b', at }, { skill: 'a', at }, { skill: 'b', at }] })).toBe('b×2 a')
   })
 })

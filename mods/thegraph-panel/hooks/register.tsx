@@ -22,6 +22,8 @@ import {
   stepAt,
   trail,
   turnSummary,
+  keepTurnLine,
+  turnLineOf,
   addLog,
   bandName,
   runName,
@@ -315,8 +317,7 @@ export const register: Register = on => {
       const focus = focusOf(r)
       const step = focus?.key ?? r.log.findLast(l => l.kind === 'step')?.text ?? null
       const line = turnSummary(r.log, since, step)
-      const key = String(e.durationMs)
-      await update($, turnLines, lines => Object.fromEntries([...Object.entries(lines), [key, line]].slice(-TURN_LINES_MAX)))
+      await update($, turnLines, lines => keepTurnLine(lines, e.durationMs, line, TURN_LINES_MAX))
       lastTurnEnd = t
       await update($, run, r2 => (r2 === null ? r2 : onTurnEnd(r2, t)))
       await update($, now, () => t)
@@ -337,7 +338,7 @@ export const register: Register = on => {
 
   // A turn's closing line keeps what that turn did, beside the engine's own words.
   on('ui.render', { component: 'TurnDuration' }, async ($, e, next) => {
-    const line = (await read($, turnLines))[String(e.props.durationMs)]
+    const line = turnLineOf(await read($, turnLines), e.props.durationMs)
     if (line === undefined) return next(e)
     const { Box, Text } = $.ui.resolve(e)
     const theirs = await next(e)

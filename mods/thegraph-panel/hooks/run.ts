@@ -8,7 +8,7 @@ export const DECIDE = 'decide'
 const STEP_SKILLS = ['read-it', 'lens', 'make-it', 'check-it', 'ask-it']
 
 /** Skills that interrupt the order whenever their moment comes. */
-export const SIGNAL_SKILLS = ['redden', 'firsthand', 'boundary']
+export const SIGNAL_SKILLS = ['firsthand']
 
 /** The steps a route walks; before the route is known, the build one. */
 export const plan = (route: Route | null): string[] =>
@@ -391,9 +391,21 @@ export const stepMs = (run: Run, key: string, now: number): number | null => {
 
 export const minutes = (ms: number): string => (ms < 60_000 ? '<1m' : `${Math.round(ms / 60_000)}m`)
 
-/** `redden×2 firsthand`, in the order each first fired. */
+/** `firsthand×2 lens`, in the order each first fired. */
 export const signalSummary = (run: Run): string => {
   const counts = new Map<string, number>()
   for (const s of run.signals) counts.set(s.skill, (counts.get(s.skill) ?? 0) + 1)
   return [...counts].map(([k, n]) => (n > 1 ? `${k}×${n}` : k)).join(' ')
 }
+
+/** A turn's key: its duration, the only id its closing line carries. A bare number
+ *  would be an integer key, which objects order by size rather than by insertion. */
+const turnKey = (durationMs: number) => `ms${durationMs}`
+
+/** A turn's closing line, the latest `max` kept. */
+export const keepTurnLine = <T>(lines: Record<string, T>, durationMs: number, line: T, max: number): Record<string, T> => {
+  const key = turnKey(durationMs)
+  return Object.fromEntries([...Object.entries(lines).filter(([k]) => k !== key), [key, line] as const].slice(-max))
+}
+
+export const turnLineOf = <T>(lines: Record<string, T>, durationMs: number): T | undefined => lines[turnKey(durationMs)]
