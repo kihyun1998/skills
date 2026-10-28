@@ -59,6 +59,7 @@ cite it.
 | [0092](0092-assay-silt-and-decant-retire.md) | `assay` and `silt` retire into `check-it`'s review and cost checks; `decant` retires on the maintainer's call, and the comment rule no longer names it. `sweep` and `firsthand` stay |
 | [0093](0093-user-level-instructions-are-distilled-from-feedback.md) | The maintainer's cross-project preferences, distilled once from feedback memories and a month of corrections, live in `docs/environment/CLAUDE.md` (20 lines) and are linked to `~/.claude/CLAUDE.md` and `$CODEX_HOME/AGENTS.md`; duplicate memories are deleted |
 | [0094](0094-an-older-build-is-found-by-its-stamp.md) | `grill-the-graph` §2 and `salvage` find an older build by a stamp carrying a revision, as well as by two paths; a left `theflow.md` is reported, not stopped on, and `salvage` clears it on request; ADR-0067's premise corrected |
+| [0095](0095-check-it-reviews-in-a-fresh-agent.md) | `check-it`'s review and harm checks run in one fresh agent on every code change, briefed and handled as `lens` is; cost stays with the writing session |
 
 ### `gate` — the Acceptance Gate
 

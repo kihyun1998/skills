@@ -21,9 +21,9 @@ a waste, so it goes first.
 | 1 | Did every check actually run, and pass | — | the project has checks |
 | 2 | Did the files land where the rule said they would | — | the change added or moved a file |
 | 3 | Does it work against something real | — | the change compiles or runs |
-| 4 | Does the code hold up, and does it do what was asked | — | ” |
+| 4 | Does the code hold up, and does it do what was asked | the reviewer, a fresh agent | ” — always; a skip is reported with its reason |
 | 5 | Will it get slower | — | the change adds state, loops, or I/O |
-| 6 | Is it open to somebody who means harm | — | ” |
+| 6 | Is it open to somebody who means harm | the same reviewer | as 4 |
 | 7 | What is missing | `lens`, in a fresh agent | always; a skip is reported with its reason |
 | 8 | Which surfaces now describe it wrongly | `sweep` | always |
 
@@ -36,31 +36,34 @@ a hook to turn one green, and report a check not run, with why. **The same
 failure surviving three fixes stops the repairs** and goes to a person as a
 design question.
 
-**Review (4)** is two readers at once, each given the **whole** diff and one
-axis. One asks whether the code holds up against what this repo wrote down: its
-`CLAUDE.md`, decision records and conventions. Where it wrote nothing, the
-baseline is the well-known code smells (Fowler's catalogue). The other asks whether it does
-what the issue asked: what is missing, what crept in that nobody asked for, and
-what looks done but is done wrongly. Each finding is graded **violation** (cite
-the rule), **judgement**, or **already decided** (a record settled it; one line).
-The two axes are reported apart, each with its own worst finding, never merged
-into one ranking. A clean axis is a result.
+**Review (4)** is one fresh agent, given the **whole** diff, the issue, and what
+this repo wrote down: its `CLAUDE.md`, decision records and conventions. It is
+briefed and handled as `lens` is (*Briefing the reviewer and the completeness
+read*), and it answers three questions, reported apart, each with its own worst
+finding and never merged into one ranking:
+
+- **Does it hold up** against what this repo wrote down? Where it wrote nothing,
+  the baseline is the well-known code smells (Fowler's catalogue).
+- **Does it do what the issue asked?** What is missing, what crept in that nobody
+  asked for, and what looks done but is done wrongly.
+- **Harm (6):** who could reach this, what they control, and what it exposes.
+  *"Nothing here to reach"* is that agent's answer to give, not this session's.
+
+Each finding is graded **violation** (cite the rule), **judgement**, or **already
+decided** (a record settled it; one line). A clean answer is a result.
 
 **Cost (5)**: no defect without a number. A slowdown that was measured, with
 something to compare it against, is a defect. A shape nobody measured is a
 question, and it is asked as one.
 
-**Harm (6)** is asked by `check-it` itself, of the same diff, after 4's
-readers return: who could reach this, what they control, and what it exposes.
-4's readers are not given it.
-
 **A prose change runs 7 and 8 — plus 2, where it added or moved a file — and
-nothing else.** There are no gates to run, no round trip to prove, no code for 4's
-readers — and a run that reports those as passed has reported on work it did
+nothing else.** There are no gates to run, no round trip to prove, no code for the
+reviewer — and a run that reports those as passed has reported on work it did
 not do.
 
-**4, 5 and 6 read the same diff and ask different questions**, so they run at the
-same time. That is not splitting material; it is the opposite.
+**The reviewer and the cost check (5) read the same diff and ask different
+questions**, so they run at the same time. That is not splitting material; it is
+the opposite.
 
 ### Where the files landed
 
@@ -163,16 +166,21 @@ conditional deciding it for them.
 you are right not to trust. That does not answer *"if X behaved correctly"*, so it
 does not fire. Anything genuinely ambiguous goes out as a question, not a verdict.
 
-## Briefing the completeness read
+## Briefing the reviewer and the completeness read
 
-**`lens` runs in a fresh agent** that never saw this session (ADR-0091). That is
-the point: the hand that shaped the change is the worst judge of it. So the
-brief is all it gets. Pass it as the skill's argument. **Save the report it
-returns** beside the run sheet (`<run sheet>.lens.md`), or in the OS temp folder
-when there is no run sheet, so a compaction does not lose it. Then **re-open every `CONFIRMED` citation at its source** before acting
-on it: a finding is a candidate until you have reproduced it. **It runs on every
-change.** A skip, such as a two-sentence change with nothing to enumerate, is
-reported with its reason, never silent.
+**The reviewer and `lens` each run in a fresh agent** that never saw this
+session (ADR-0091, ADR-0095). That is the point: the hand that shaped the change
+is the worst judge of it. So the brief is all it gets: for `lens`, the skill's
+argument; for the review, the prompt of a newly started general-purpose agent
+(not a fork, which inherits this conversation), told to edit nothing and write no
+file. That prompt names the diff as `git diff HEAD` plus every untracked file, so
+a new file is in it; it points at the issue and this repo's records; and it quotes
+Review (4)'s three questions and its grade line as written here. **Save each report it returns** beside the run sheet
+(`<run sheet>.lens.md`, `<run sheet>.review.md`), or in the OS temp folder when
+there is no run sheet, so a compaction does not lose it. Then **re-open every `CONFIRMED` citation, and every
+finding you will act on, at its source**: a finding is a candidate until you have reproduced it. **`lens` runs on every
+change, the reviewer on every code change.** A skip, such as a two-sentence
+change with nothing to enumerate, is reported with its reason, never silent.
 
 `lens` needs three things or it reports a divergence on a layer where the
 reference has no vote at all — and reports it as urgent, because from inside the

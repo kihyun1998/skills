@@ -4,6 +4,9 @@
 [ADR-0090](0090-four-delegates-retire-into-their-callers.md). The retirement
 follows [ADR-0027](0027-retirement-moves-a-skill-to-the-retired-folder.md).
 
+> **Amended by [ADR-0095](0095-check-it-reviews-in-a-fresh-agent.md).** Review is
+> one fresh agent answering both axes and harm, not two readers.
+
 | Retired | Into | What moved |
 |---|---|---|
 | `assay` | `check-it`'s review (4) | two readers at once, each given the whole diff and one axis: does it hold up against what the repo wrote down, and does it do what the issue asked (missing, crept in, done wrongly). Grades: violation, judgement, already decided. The axes are reported apart, each with its own worst finding |

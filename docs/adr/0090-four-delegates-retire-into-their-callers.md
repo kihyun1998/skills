@@ -6,6 +6,9 @@ established. This reverses part of [ADR-0042](0042-a-nodes-method-leaves-its-bou
 which extracted them as methods *"borrowed back"* by the steps; measured, the
 steps never borrowed them.
 
+> **Amended by [ADR-0095](0095-check-it-reviews-in-a-fresh-agent.md).** Harm is no
+> longer asked by `check-it` itself: one fresh agent, the reviewer, asks it with review.
+
 The rules that bound now sit where the work happens:
 
 | Retired | Into | What moved |

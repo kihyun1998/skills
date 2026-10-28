@@ -221,6 +221,13 @@ or `DELIBERATE`. A grade **routes** a finding; it does not discharge it. Owned b
 the grades are.
 _Avoid_: Verdict (the Acceptance Gate's term)
 
+**Reviewer** (thegraph):
+The fresh agent [`check-it`](check-it/) starts on every code change. It reads the
+whole diff, the issue and the repository's records, and answers apart whether the
+change holds up, whether it does what was asked, and whether it is open to harm
+([ADR-0095](docs/adr/0095-check-it-reviews-in-a-fresh-agent.md)).
+_Avoid_: review agent (see the Acceptance Gate)
+
 **Brief** (thegraph):
 The three things [`check-it`](check-it/) assembles and hands to `lens` — this repo's
 siblings, the reference implementations, and **what this project diverges from on
@@ -230,7 +237,8 @@ belongs to the caller while reading it belongs to the method. A fourth used to s
 here, a tie-breaker for what wins when prior art and this project disagree; it was
 one sentence for a whole repository, which is either a truism or wrong case by
 case, and it now lives as a habit with the records governing any clash they have
-already settled.
+already settled. The **Reviewer** gets a brief of its own: the whole diff, the
+issue, the repository's records, and its three questions as `check-it` words them.
 _Avoid_: Build (the repo-scoped one)
 
 **Anchor** (read-it):
@@ -451,7 +459,7 @@ _Avoid_: cwd (the absolute path it is read from — not what is shown), session 
   |---|---|
   | [`read-it`](read-it/) | `firsthand` (`spine` absorbed, ADR-0090) |
   | [`make-it`](make-it/) | `tdd` (`redden` absorbed, ADR-0090) |
-  | [`check-it`](check-it/) | `lens`, `sweep` (`bare` and `boundary` absorbed, ADR-0090; `assay` and `silt` absorbed, ADR-0092; the security pass asked by `check-it` itself) |
+  | [`check-it`](check-it/) | `lens`, `sweep` (`bare` and `boundary` absorbed, ADR-0090; `assay` and `silt` absorbed, ADR-0092; review and harm in one fresh agent, ADR-0095) |
   | [`ask-it`](ask-it/) | — (`envelope` and `byartifact` were absorbed, ADR-0089) |
 
   The seam is the same every time: **a method governs work of its kind anywhere;
