@@ -441,8 +441,8 @@ _Avoid_: cwd (the absolute path it is read from — not what is shown), session 
   (ADR-0027), along with `grill-the-flow`. The migration path that read their
   output — `docs/agents/theflow.md` as a build input — went too
   ([ADR-0067](docs/adr/0067-the-theflow-migration-path-is-gone.md)): a build now
-  derives from the repository, and a repo still holding that file gets the path
-  written back on request.
+  derives from the repository. A repo still holding that file is told so, and
+  `salvage` clears it on request ([ADR-0094](docs/adr/0094-an-older-build-is-found-by-its-stamp.md)).
 - **`thegraph` calls skills and holds no method of its own.** Its four steps each
   invoke the siblings that own the work, and run the method inline while saying so
   where one is not installed (ADR-0042):

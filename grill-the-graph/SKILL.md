@@ -335,9 +335,22 @@ default. It stays a recommendation — whether a team accepts commits to
 
 ### 2. An older generated build goes to `salvage`, not to Update
 
-`scripts/thegraph/` or `.claude/agents/thegraph-*` means this repo was built by
-an earlier version of this skill, which generated code and copied repo facts into
-a long document. That is not an earlier setup in *Update*'s sense: **do not read
+A tracked file carrying a build stamp means this repo was built by an earlier
+version of this skill, which generated code and copied repo facts into a long
+document. The stamp took several forms and languages, in scripts, agents and the
+build document itself, under whatever names that version chose. Search it with
+its revision, so a document that only describes a stamp is not a hit, and keep
+the search case-sensitive, since `grill-map` writes a lowercase stamp of its own:
+`git grep -l -E '(Build stamp|Built from thegraph|빌드 스탬프)[^<]{0,40}[0-9a-f]{7}'`. `scripts/thegraph/` or `.claude/agents/thegraph-*` counts
+as well. Either finding is the old build. A stamped `docs/agents/thegraph.md`
+would read as *update* in the table above; the check before the table sends it
+here instead.
+
+A `docs/agents/theflow.md` is the older bindings file. Some repositories still
+cite it or run checks against it, so it does not stop the run: say once that it
+is there and that `salvage` clears it when the maintainer asks.
+
+That is not an earlier setup in *Update*'s sense: **do not read
 it as input, do not update it, do not rebuild over it, and do not delete it.** Some of what is in there is a person's answer and the rest is a copy of the
 repo, and telling those apart is `salvage`'s job. Say what you found, point at
 `salvage`, and stop.
