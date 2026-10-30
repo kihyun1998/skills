@@ -61,6 +61,7 @@ cite it.
 | [0094](0094-an-older-build-is-found-by-its-stamp.md) | `grill-the-graph` §2 and `salvage` find an older build by a stamp carrying a revision, as well as by two paths; a left `theflow.md` is reported, not stopped on, and `salvage` clears it on request; ADR-0067's premise corrected |
 | [0095](0095-check-it-reviews-in-a-fresh-agent.md) | `check-it`'s review and harm checks run in one fresh agent on every code change, briefed and handled as `lens` is; cost stays with the writing session |
 | [0096](0096-salvage-clears-a-left-theflow-md.md) | `salvage` clears a left `theflow.md` by default, into the map by a table, stopping for no map, a run-time reader, or a recorded keep |
+| [0097](0097-a-new-screen-is-agreed-before-it-is-drawn.md) | A new screen is agreed before it is drawn: `design-it` takes a design brief and hands it to `prototype`, which stays upstream's and unedited; `make-it` calls it for a new screen, writes the picked design test-first, and the brief and the variants wait for `ask-it` |
 
 ### `gate` — the Acceptance Gate
 

@@ -1,6 +1,6 @@
 ---
 name: make-it
-requires: [tdd]
+requires: [tdd, design-it]
 description: "Write the change, test-first where it compiles or runs. Use as the writing step of `thegraph`, after `read-it` has named a route."
 ---
 
@@ -12,6 +12,16 @@ route being walked.
 **It does not decide it is done.** That is `check-it`, and the two are kept apart on
 purpose: the hand that shaped a thing is the worst judge of whether it is
 finished.
+
+## A new screen
+
+When the change adds a screen or reshapes one's structure, call `design-it`
+before the first test. A style fix or a bug in an existing screen is not one.
+The design the person picks, its look included, is what this step then writes,
+test-first; the prototype's code is not promoted. The variant files stay as they
+are, apart from what this step writes, with one `## Carried` line naming them:
+committing them to a throwaway branch waits for the person, and `ask-it` offers
+it with a pointer on the issue.
 
 ## Tests
 

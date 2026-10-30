@@ -241,6 +241,14 @@ already settled. The **Reviewer** gets a brief of its own: the whole diff, the
 issue, the repository's records, and its three questions as `check-it` words them.
 _Avoid_: Build (the repo-scoped one)
 
+**Design brief** (design-it):
+What a new screen is for, confirmed by the person before any variant is drawn:
+its job, who reaches it and in what situation, the one thing they must do and
+how success would show, the real content at minimum, typical and maximum, the
+states that matter, scope, constraints, taste in words, and what stays open.
+[`design-it`](design-it/) writes it and `prototype` builds to it.
+_Avoid_: Brief (what `check-it` hands to `lens`), spec
+
 **Anchor** (read-it):
 The issue holding a cluster's suspected shared root. Its body is a **hypothesis**,
 not a finding — falsifying it is the more valuable of the two outcomes. Its roster
@@ -458,7 +466,7 @@ _Avoid_: cwd (the absolute path it is read from — not what is shown), session 
   | Step | What it calls |
   |---|---|
   | [`read-it`](read-it/) | `firsthand` (`spine` absorbed, ADR-0090) |
-  | [`make-it`](make-it/) | `tdd` (`redden` absorbed, ADR-0090) |
+  | [`make-it`](make-it/) | `tdd` (`redden` absorbed, ADR-0090); `design-it` for a new screen (ADR-0097) |
   | [`check-it`](check-it/) | `lens`, `sweep` (`bare` and `boundary` absorbed, ADR-0090; `assay` and `silt` absorbed, ADR-0092; review and harm in one fresh agent, ADR-0095) |
   | [`ask-it`](ask-it/) | — (`envelope` and `byartifact` were absorbed, ADR-0089) |
 
