@@ -17,7 +17,8 @@ design brief and the framing around them.
 Gather what the brief can learn without the person: the issue, the page the
 screen lives in or beside, the data it can reach, the design system or
 component library, and any screen in the product that already does a similar
-job.
+job. Inside a `thegraph` run, the reading confirmed at its confirm stop is a
+source too: what it settled is not asked again.
 
 ## 2. Draft the design brief
 
@@ -59,26 +60,33 @@ reading and mark it *assumed*; a field step 1 settled carries its source.
 
 ## 3. Ask what would change it most, then confirm
 
-Show the whole draft, every field with its source or its *assumed* mark, and
-with the question tool ask the two or three questions whose answers would
-change the screen most, each naming why. The questions go out beside the draft,
-never alone: the draft is what lets the person correct an assumption nobody
-asked about. The rest of the assumptions stand unless the person corrects them.
-Ask a second round only when the answers expose a material gap.
+**This step stops for the person, even when every field has a source.** A field
+filled from the confirm stop or the code is still this skill's reading of it, and
+the brief is the person's to confirm. Nothing is recorded and no variant is drawn
+before their yes.
 
-Then show the brief again for a yes or one round of correction. An answer that
-corrects or adds to it is a correction, not a yes: show the corrected brief and
-ask again. Variants wait for the yes, and the brief is confirmed then, with every
-field the person's answer, a source, an assumption they let stand, or open by
-their word.
+Show the whole draft, every field with its source or its *assumed* mark. Pick
+the two or three questions whose answers would change the screen most and ask
+them one at a time with the question tool, in the order the answers depend on
+each other, each naming why and how many remain
+([ADR-0064](../docs/adr/0064-a-human-stop-asks-one-reply-at-a-time.md)). The
+draft stays in view while they are asked: it is what lets the person correct an
+assumption nobody asked about. The rest of the assumptions stand unless the
+person corrects them. Ask more only when an answer exposes a material gap.
+
+Then show the brief again and ask for a yes. An answer that corrects or adds to
+it is a correction, not a yes: show the corrected brief and ask again. Variants
+wait for the yes, and the brief is confirmed then, with every field the person's
+answer, a source, an assumption they let stand, or open by their word.
 
 Record the confirmed brief:
 
-- **Called from `make-it` on a run sheet**: as indented lines under the
-  `make-it` line, with no heading, plus one `## Carried` line pointing at it,
-  e.g. `- Design brief for <issue>, under make-it: record on the issue?`.
-  `ask-it` offers it; nothing goes on the issue from here.
-- **Called from `make-it` with no run sheet**: in the report to the person.
+- **On a run sheet**: in a `.design/` folder beside it
+  (`<run sheet>.design/brief.md`), plus one `## Carried` line pointing at it,
+  e.g. `- Design brief for <issue> in <path>: record on the issue?`. Nothing goes
+  on the issue from here; `ask-it` offers it.
+- **Called from `make-it` with no run sheet**: the same folder under
+  `design-it/` in the OS temp directory, named in the report to the person.
 - **Otherwise**: as a comment on the issue the work belongs to, or with no issue,
   at the top of the prototype's entry file.
 
@@ -88,10 +96,10 @@ Run `prototype`'s UI branch with the confirmed design brief as its question.
 Where the screen has no web route for its `?variant=` switch (a mod panel, a
 Flutter or native screen), the variants go in one HTML file with the same
 switcher that opens without installing anything. Every variant holds the job,
-renders the real content at typical and maximum amounts, and reaches the states
-the brief lists. Variants differ in structure, and each is labelled with the bet
-it makes against the brief, e.g. "B: the one thing is the first thing seen,
-history moves to a drawer".
+renders the real content at typical and maximum amounts, reaches the states the
+brief lists, and keeps its constraints. Variants differ in structure, and each is
+labelled with the bet it makes against the brief, e.g. "B: the one thing is the
+first thing seen, history moves to a drawer".
 
 ## 5. Frame the hand-over
 
@@ -99,19 +107,28 @@ Hand the variants over with four lines before the URL:
 
 - who the screen is for and what they are trying to do;
 - the fidelity: structure and flow are under judgement, colour, spacing and
-  copy are placeholders unless the brief said otherwise;
-- what to judge: each variant against the brief's one thing, proof and states;
+  copy are placeholders unless the brief's constraints or taste fix them;
+- what to judge: each variant against the brief's one thing, proof, states and
+  constraints;
 - what to ignore at this stage.
 
 Ask for reactions in terms of the brief ("B hides the one thing below the
 fold") rather than liking. When a reaction contradicts the brief, the brief was
 wrong: correct it where it was recorded first, then the variants. The verdict is
 one variant, a mix ("A's summary with C's undo"), or none; none goes back to
-step 3 for what the brief missed. It is recorded beside the brief with the brief
-lines it won on, and on a run sheet the verdict gets its own `## Carried` line.
+step 3 for what the brief missed. It is recorded in the brief with the brief
+lines it won on.
 
-## Called from `make-it`
+## 6. After the verdict
 
-Inside a `thegraph` run, the reading confirmed at its confirm stop is a source
-for step 1: what it settled is not asked again. `prototype` stops at its
-hand-over; its step 6 is `make-it`'s and `ask-it`'s.
+`prototype`'s own step 6 (fold the winner in, keep the variants on a throwaway
+branch, point the issue at it) splits by where this was called from.
+
+- **On a run sheet, or called from `make-it`**: move the variant files into the
+  `.design/` folder from step 3. Where the prototype edited a file that already
+  existed, save its diff there and restore the file. The working tree then holds
+  nothing of the prototype, and `make-it` writes the picked design test-first.
+  The `## Carried` line gains the variants: `ask-it` offers keeping them on a
+  throwaway branch, with a pointer on the issue.
+- **Otherwise**: step 6 runs as `prototype` says, and its commit waits for the
+  person's yes.

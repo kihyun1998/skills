@@ -18,10 +18,8 @@ finished.
 When the change adds a screen or reshapes one's structure, call `design-it`
 before the first test. A style fix or a bug in an existing screen is not one.
 The design the person picks, its look included, is what this step then writes,
-test-first; the prototype's code is not promoted. The variant files stay as they
-are, apart from what this step writes, with one `## Carried` line naming them:
-committing them to a throwaway branch waits for the person, and `ask-it` offers
-it with a pointer on the issue.
+test-first; the prototype's code is not promoted. `design-it` has already moved
+the variants out of the working tree, beside the run sheet.
 
 ## Tests
 

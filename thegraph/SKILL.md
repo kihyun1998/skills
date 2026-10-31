@@ -63,7 +63,9 @@ named moves its content there and deletes the old file.
 **Delete it when the run ends, after the last person has seen what it carried:**
 once `ask-it` has put the carried items in front of them, or once `check-it` is
 done with nothing carried, or at the confirm stop for a change that ends there, or
-once the maintainer has decided an open decision.
+once the maintainer has decided an open decision. A `.design/` folder beside it
+(`design-it`'s brief and variants) goes with it, once `ask-it` has kept what the
+person chose to keep.
 
 **In a cluster run** `source` is the anchor, the step list is the current
 child's, rewritten as each child starts, and a `cluster` step **after it** stays
