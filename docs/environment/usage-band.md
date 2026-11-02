@@ -38,7 +38,8 @@ its days) with the money. The heads are cut or padded
 to their gauge's width, so a head that grows (the forecast) never pushes the next
 column. A session on an API key has no limits and drops both their columns; the
 money then goes after the last head. A login's limit with no reading yet keeps its
-column, empty: `no reading yet` over `–%` (below).
+column, empty: `no reading yet` over `–%` (below). A plan with no 5-hour limit
+drops that column once a response reports the week alone.
 
 The 5-hour gauge carries `┊` where an even pace would have it: the share of the
 window already gone. A bar past the mark is spending faster than time passes. The
@@ -153,8 +154,12 @@ idle shows without a turn. This lives in `$.state`, so a `/clear` forgets it.
 
 A limit never seen draws as waiting, `no reading yet` over `–%`, when the session
 holds a login (`$.session.authorize()` answers `bearer`); with an API key there
-are no limits to wait for and the columns go. A login without plan limits would
-wait for ever; none is known here.
+are no limits to wait for and the columns go. A reading that reports the week and
+no 5-hour limit is a plan without one, and the 5-hour column goes: one response
+carries every limit the plan has, and a 5-hour limit seen earlier in the session
+would still be there, started over (above). Before the first response the plan
+cannot be told, so the 5-hour column waits like any other. A login without any
+plan limit would still wait for ever; none is known here.
 
 Effort is the value the request is **sent** with, after any downgrade for the
 model. It changes on the next request after `/effort`, not at the command. Before

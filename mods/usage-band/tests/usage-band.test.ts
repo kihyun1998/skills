@@ -232,6 +232,17 @@ describe('usage-band', () => {
     expect(week).toMatch(/^wk {2}─+ {3}–%$/)
   })
 
+  test('a plan whose response reports the week and no 5-hour limit has no 5-hour column', async ($, on) => {
+    const weekOnly = { ...withWeek(30), rateLimits: [withWeek(30).rateLimits[1]!] }
+    await start($, on, weekOnly, { burn: 10, today: 5, argv: [] })
+    const ui = await mount($)
+    const [top, bottom] = await rows(ui)
+    const heads = top?.split(DIV).map(h => h.trim()) ?? []
+    expect(heads).toHaveLength(2)
+    expect(heads[1]).toMatch(/^\d+\.\d%\/day · today \$5\.00 · \$10\.00\/h$/)
+    expect(bottom).not.toContain('5h')
+  })
+
   test('a limit whose reset passes with no response since, which the engine then drops, draws as started over', async ($, on) => {
     const clock = await start($, on, withWeek(30), { burn: 10, today: 5, argv: [] })
     const ui = await mount($)

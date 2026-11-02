@@ -304,14 +304,16 @@ export const register: Register = on => {
     ]
 
     // A login's limit with no reading yet (a new session, before its first response) keeps its
-    // column, empty and waiting; an API key has none, and its columns go.
+    // column, empty and waiting; an API key has none, and its columns go. A reading with the week
+    // and no 5-hour limit is a plan without one, and that column goes.
     const isLogin = (await read($, credential)) === 'bearer'
+    const hasNoFive = !five && seven !== undefined
     const waiting = (label: string) => ({ label, used: null, mark: null, head: [{ text: 'no reading yet', dim: true }] })
     // The gauges: the 5-hour one marked where an even pace would have it; the week's has no mark.
     const gauges: { label: string; used: number | null; mark: number | null; head: Seg[] }[] = [
       { label: 'ctx', used: contextUsed(l.context), mark: null, head: contextHead },
       ...(five ? [{ label: '5h', used: five.percentUsed, mark: evenPace(five.resetsAt, WINDOW_MS.fiveHour, now), head: fiveHead ?? [] }]
-        : isLogin ? [waiting('5h')] : []),
+        : isLogin && !hasNoFive ? [waiting('5h')] : []),
       ...(seven ? [{ label: 'wk', used: seven.percentUsed, mark: null, head: weekLead }]
         : isLogin ? [waiting('wk')] : []),
     ]
