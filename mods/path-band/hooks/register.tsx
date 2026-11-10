@@ -107,7 +107,7 @@ export const register: Register = on => {
           <Text backgroundColor="suggestion" color="inverseText">{` ${shown.path} `}</Text>
           {shown.branch !== null && <Text> </Text>}
           {shown.branch !== null && (
-            <Text backgroundColor="subtle" color={isDetached ? 'warning' : 'text'}>{` ${shown.branch} `}</Text>
+            <Text backgroundColor={isDetached ? 'warning' : 'success'} color="inverseText">{` ${shown.branch} `}</Text>
           )}
           {isDetached && <Text dimColor> detached</Text>}
         </Text>
