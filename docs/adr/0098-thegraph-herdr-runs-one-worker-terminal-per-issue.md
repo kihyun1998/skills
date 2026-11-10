@@ -91,6 +91,25 @@ tab on Opus 5.5 at medium effort and ended, and that tab reached the confirm sto
 chosen model then runs from its first token, and a `hc` child would end with the
 session that started it.
 
+**The first tab is left open, and the way back is asked at the end.** The
+maintainer's, on 2026-11-10. A run on a different model ended in the new tab, with
+nothing leading back to the tab it started in. `tab.close` ends every terminal in
+a tab and the skill does not know what else is in the first one, so the only tab
+it closes is the one it opened. The new tab receives the first tab's id and, as
+its last act, asks whether to go back and close, go back and keep, or stay. It is
+asked rather than done on its own because a person answering is at the window and
+has read the closing report, where a screen moved unasked could send typing to the
+wrong tab. `hc send` to the first tab was set aside: an idle session would spend a
+turn of the weekly limit on being told.
+
+Checked on 2026-11-10 with a throwaway tab running a script in the same space:
+`tab.select` to the first tab returned `ok`, `tab.close --confirmed true` of its own
+tab returned `ok` and ended the script, and `herdr-app ls` then showed the first
+tab active in its space and the throwaway tab gone. An unknown tab id returned `no
+such tab` and exit 1. The window was on another space during the check, so what it
+showed was not seen, and whether `tab.select` also changes the shown space is not
+known. The run needs only the same space, since step 0 opens the tab there.
+
 ## Not measured
 
 - Whether the conductor's model changes how well an issue is read. Count the
@@ -101,6 +120,7 @@ session that started it.
 - A real issue through `make-it` and `check-it` in a worker.
 - `--label herdr.space=<id>` placing a worker in the window: the test ran hidden.
 - A tool permission prompt in a worker. The test ran in auto mode and raised none.
+- The way back at the end of a real run, from a Claude session in the new tab.
 - Whether a cluster gains anything from this over one session. ADR-0088's three
   counts (offloading, overreach, outcome) still apply.
 

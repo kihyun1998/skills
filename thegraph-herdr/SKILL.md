@@ -42,8 +42,8 @@ or worker on a model only once the person has answered for it.
 
 The conductor's model has to be set before anything is read, so this comes first.
 **Where the text you were invoked with includes `Conductor chosen:`**, the person
-has answered this in an earlier tab: copy that onto the sheet's `conductor` line
-and go to step 1.
+has answered this in an earlier tab: copy that onto the sheet's `conductor` line,
+copy what follows `Origin tab:` onto its `origin tab` line, and go to step 1.
 
 1. Fetch the issue's title and body and its number of open sub-issues, with the
    query the repo's tracker doc names.
@@ -58,13 +58,13 @@ and go to step 1.
    session is on, and say so where the rule disagrees with Haiku.
 
 Where the answer is this session's model, go on, and write all three on the sheet's
-`conductor` line. Where it differs, open the conductor on the chosen model in a new
-tab of this space, passing the answers on one line, then tell the person the tab
-is open and end here:
+`conductor` line, with `none` on its `origin tab` line. Where it differs, open the
+conductor on the chosen model in a new tab of this space, passing the answers and
+this tab's id on one line, then tell the person the tab is open and end here:
 
 ```sh
-hc get $HC_TERMINAL_ID --json   # labels."herdr.space" is this session's space
-herdr-app do tab.new --name "<issue>" --space <id> --folder <repo> --argv '["claude","--model","<alias>","--effort","medium","/thegraph-herdr <issue> Conductor chosen: <alias> (Haiku: <its recommendation>, rule: <the rule'"'"'s answer>)"]'
+hc get $HC_TERMINAL_ID --json   # labels."herdr.space" is this session's space, labels."herdr.tab" its tab
+herdr-app do tab.new --name "<issue>" --space <id> --folder <repo> --argv '["claude","--model","<alias>","--effort","medium","/thegraph-herdr <issue> Conductor chosen: <alias> (Haiku: <its recommendation>, rule: <the rule'"'"'s answer>) Origin tab: <this tab>"]'
 ```
 
 ### 1. Call `read-it`
@@ -136,6 +136,25 @@ Over the carried items of every worker, in this session. The push, and the
 question of closing the anchor, belong to the last one. The closing report states
 the `conductor` line and which proposed worker models the person changed.
 
+### 6. Offer the way back to the first tab
+
+**Where the sheet's `origin tab` is an id**, step 0 opened this tab and the person
+started in that other one. This is the last thing a run does, wherever it ended:
+after the closing report and the deletion of the sheet, keeping the id in hand.
+
+Ask with the question tool, and act on the answer:
+
+| Answer | Do |
+|---|---|
+| **Go back and close this tab** (recommended: the run is over and nothing is left here) | `herdr-app do tab.select --id <origin tab>`, then, once that has succeeded, `herdr-app do tab.close --id <this tab> --confirmed true` |
+| **Go back and keep this tab** | `herdr-app do tab.select --id <origin tab>` |
+| **Stay here** | nothing |
+
+`<this tab>` is `labels."herdr.tab"` from `hc get $HC_TERMINAL_ID --json`. Closing
+ends this session, so it comes last, and the only tab this run closes is the one
+step 0 opened. Where `tab.select` fails, the first tab is gone: say so and leave
+this tab open.
+
 ## The worker's brief
 
 ```markdown
@@ -186,6 +205,7 @@ source: <owner/repo#number, or the issue file's absolute path>
 repo: <the working tree's absolute path>
 route: <read-it's label>
 conductor: <the person's choice> (Haiku: <its recommendation>, rule: <the rule's answer>)
+origin tab: <the tab step 0 was answered in, or none>
 
 - [x] read-it
 - [x] confirm
