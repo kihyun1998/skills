@@ -597,7 +597,7 @@ export function inspectPrePush(lines, cwd, { git }) {
       const [, local, remoteRef, remote] = line.trim().split(/\s+/);
       if (!local || ZERO.test(local)) continue;
       acc.branches.push(remoteRef.replace(/^refs\/heads\//, ''));
-      const range = ZERO.test(remote) ? unpushedRange([local], git, cwd) : ['--end-of-options', `${remote}..${local}`];
+      const range = ZERO.test(remote) ? unpushedRange([local], git, cwd) : ['--not', '--remotes', '--not', '--end-of-options', `${remote}..${local}`];
       acc.format.push(git(cwd, ['log', '--format=%B%x00', ...range]));
     }
     return judge(acc);

@@ -680,11 +680,11 @@ test('pre-push lets a branch deletion through', () => {
   assert.equal(prePush(`(delete) ${Z} refs/heads/claude/old ${B}\n`), 'pass');
 });
 
-test('pre-push reads an existing branch as a range and a new one against the remotes', () => {
+test('pre-push reads both an existing and a new branch against the remotes', () => {
   const seen = [];
   const d = deps();
   const git = d.git;
   d.git = (cwd, args) => { if (args[0] === 'log') seen.push(args.slice(2).join(' ')); return git(cwd, args); };
   prePush(`refs/heads/a ${A} refs/heads/a ${B}\nrefs/heads/n ${A} refs/heads/n ${Z}\n`, d);
-  assert.deepEqual(seen, [`--end-of-options ${B}..${A}`, `--not --remotes --not --end-of-options ${A}`]);
+  assert.deepEqual(seen, [`--not --remotes --not --end-of-options ${B}..${A}`, `--not --remotes --not --end-of-options ${A}`]);
 });
