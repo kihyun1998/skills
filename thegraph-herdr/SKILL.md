@@ -15,8 +15,9 @@ The same four steps as `thegraph`, with the work of each issue moved into its ow
 - **A worker** is one interactive agent in one `hc` terminal, for one issue. It
   runs `make-it` and `check-it`, commits locally, and reports to the conductor.
 
-Before the first `hc` or `herdr-app` command, read `hc --skill` and
-`herdr-app --skill`: the installed binaries are the authority for their syntax.
+The commands this run needs are written out below. Where one fails, or the run
+needs one this file does not show, read `hc --skill` or `herdr-app --skill`,
+whichever owns it: the installed binary is the authority for its syntax.
 
 **`$HC_TERMINAL_ID` must be set.** Where it is empty, this session is outside
 herdr-core: say so and stop. `/thegraph` is the one that runs in a single session.
@@ -29,7 +30,42 @@ hold them for the whole run: **The signals that do not wait for their turn**,
 decides which this is and the order of the children. Where that section or
 **The order** says *one session*, this file replaces it.
 
+## Who picks a model
+
+**A person picks every model.** Haiku and this session propose, and a proposal
+reaches the person as a question with the recommendation first. Start a session
+or worker on a model only once the person has answered for it.
+
 ## The order
+
+### 0. Ask which model conducts
+
+The conductor's model has to be set before anything is read, so this comes first.
+**Where the text you were invoked with includes `Conductor chosen:`**, the person
+has answered this in an earlier tab: copy that onto the sheet's `conductor` line
+and go to step 1.
+
+1. Fetch the issue's title and body and its number of open sub-issues, with the
+   query the repo's tracker doc names.
+2. Give those to one subagent with `model: haiku`, and nothing else: it reads no
+   files. Ask it for `fable` or `opus` and one sentence why, on this ground:
+   `fable` where reading the work needs wide judgement (many sub-issues, a root
+   cause nobody has confirmed, a change across several layers), `opus` otherwise.
+3. Work out the plain rule as well: `fable` at two or more open sub-issues,
+   otherwise `opus`.
+4. Put the choice to the person with the question tool: Fable 5.2 and Opus 5.5, at
+   `medium`, Haiku's recommendation first with its sentence. Say which model this
+   session is on, and say so where the rule disagrees with Haiku.
+
+Where the answer is this session's model, go on, and write all three on the sheet's
+`conductor` line. Where it differs, open the conductor on the chosen model in a new
+tab of this space, passing the answers on one line, then tell the person the tab
+is open and end here:
+
+```sh
+hc get $HC_TERMINAL_ID --json   # labels."herdr.space" is this session's space
+herdr-app do tab.new --name "<issue>" --space <id> --folder <repo> --argv '["claude","--model","<alias>","--effort","medium","/thegraph-herdr <issue> Conductor chosen: <alias> (Haiku: <its recommendation>, rule: <the rule'"'"'s answer>)"]'
+```
 
 ### 1. Call `read-it`
 
@@ -40,8 +76,18 @@ issue (below).
 ### 2. Stop, and have the reading confirmed
 
 **The one guaranteed stop**, with what `read-it` says it has to carry, for a
-cluster each child in a line plus the order and what is left out. Check `confirm`
-on the sheet with what it changed written under it.
+cluster each child in a line plus the order and what is left out. Each issue also
+shows its route and the worker model and effort proposed for it, with the reason:
+
+| The issue | Proposed |
+|---|---|
+| route **prose** | `sonnet`, `medium` |
+| route **code** | `opus`, `medium` |
+| route **code**, and one of: a bug whose cause is unconfirmed; a change to a public API or a boundary between modules; code with no test to lean on | `opus`, `high` |
+
+The worker runs on what the person's answer leaves standing. Any other model or
+effort runs only where the person names it. Check `confirm` on the sheet with what
+it changed written under it.
 
 ### 3. Follow the route
 
@@ -63,7 +109,7 @@ For each issue:
 2. **Start it**, visible in the person's window:
    ```sh
    hc get $HC_TERMINAL_ID --json   # labels."herdr.space" is this session's space
-   hc run --bg --name c<issue> --cwd <repo> --label herdr.space=<id> claude "Read <brief path> and do what it says."
+   hc run --bg --name c<issue> --cwd <repo> --label herdr.space=<id> claude --model <alias> --effort <level> "Read <brief path> and do what it says."
    ```
    Read `first_message.sent` in the reply. Where it is false, follow `hc`'s manual
    for recovering a launch.
@@ -77,7 +123,7 @@ For each issue:
    |---|---|
    | `done <report path>` | Read the report. Read the commit with `git log` and the tree with `git status`. Copy its carried items under `## Carried`, update `## Children`, then `hc kill` and `hc rm` the worker |
    | `question <report path>` | Put it to the person with the question tool, then `hc send c<issue> "<their answer>"` and wait again |
-   | `stuck <report path>` | The issue departed from the plan or cannot proceed. Stop and put it to the person: their answer resumes the cluster, or ends it with `ask-it` over the children done |
+   | `stuck <report path>` | The issue departed from the plan or cannot proceed. Stop and put it to the person: their answer resumes the cluster, or ends it with `ask-it` over the children done. Where the model fell short, including the same failure surviving three fixes, offer a new worker one step up as an option |
    | `blocked`, `error`, or exit from `hc` | `hc read` the worker. An approval prompt goes to the person, who answers in the window or tells you which key to send with `hc keys`. Any other cause is treated as `stuck` |
 
    A report is a claim until the commit and the tree have been read. Reports
@@ -87,7 +133,8 @@ For each issue:
 ### 5. Call `ask-it`
 
 Over the carried items of every worker, in this session. The push, and the
-question of closing the anchor, belong to the last one.
+question of closing the anchor, belong to the last one. The closing report states
+the `conductor` line and which proposed worker models the person changed.
 
 ## The worker's brief
 
@@ -138,6 +185,7 @@ issue: <the issue as read-it resolved it> — <its title>
 source: <owner/repo#number, or the issue file's absolute path>
 repo: <the working tree's absolute path>
 route: <read-it's label>
+conductor: <the person's choice> (Haiku: <its recommendation>, rule: <the rule's answer>)
 
 - [x] read-it
 - [x] confirm
@@ -145,9 +193,9 @@ route: <read-it's label>
 - [ ] ask-it
 
 ## Children
-- #37 — done, 703ccfd
-- #38 — c38 under way
-- #39 — waiting
+- #37 — opus medium, done, 703ccfd
+- #38 — opus high, c38 under way
+- #39 — sonnet medium, waiting
 
 ## Carried
 - <anything worth a person's attention, not acted on>

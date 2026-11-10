@@ -47,8 +47,57 @@ One test worker in a throwaway repository, on Windows, `hc` 0.1.19, `herdr-app`
 - The folder trust prompt in a new directory was **not** reported as blocked: the
   wait returned `timeout` with the worker at turn 0.
 
+## Which model sits where
+
+The maintainer's, on 2026-11-10, with the weekly usage limit as what is being
+protected. The facts behind it are in
+[`docs/research/thegraph-herdr-models-context.md`](../research/thegraph-herdr-models-context.md).
+
+- **A person picks every model.** Haiku and the conductor propose, by question,
+  with the recommendation first. Nothing starts on a model without an answer. This
+  adds a question before `read-it`, on top of the one guaranteed stop.
+- **The conductor is Fable 5.2 or Opus 5.5, at `medium`, by question.** A Haiku
+  subagent recommends from the issue's text and its count of open sub-issues, since
+  nothing has been read yet. The plain rule (`fable` at two or more open
+  sub-issues) is recorded beside it, to show whether Haiku adds anything to it.
+- **"Judging is for Opus" applies to code review.** `check-it`'s reviewer and `lens`
+  inherit the worker's model, so a code worker stays on Opus 5.5. The statement in
+  ADR-0087 was made about an eval's judge; this extends it.
+- **Workers:** route `prose` proposes Sonnet 5.5 `medium`; route `code` proposes
+  Opus 5.5 `medium`, or `high` on a checkable signal. `xhigh` and Fable are not
+  proposed. A worker's model and effort are always passed explicitly, since the
+  user-level default would otherwise decide them.
+
+Derived, on Anthropic's own figures, none measured on this method: SWE-bench Pro
+over 463 problems has Opus 5.5 at 93.1% and $0.22 per solved task at its default,
+95.5% and $0.30 at `high`, 96.5% and $0.75 at `xhigh`, and Fable 5.2 `high` at 96.3%
+and $1.39. Internal defect search, on planted defects at 22M tokens, scores F1 0.760
+for Sonnet 5.5, 0.827 and 0.850 for Opus 5.5 `medium` and `high`, and 0.909 for
+Fable 5.2 `high`. Cost in a subscription's limit per model is not published, so
+list prices stand in for it.
+
+Checked on 2026-11-10: `hc run … claude --model opus --effort medium` started a
+terminal showing Opus 5.5 at medium effort, and one Haiku 5.5 subagent returned a
+recommendation and its reason for a real issue. A tab opened with `herdr-app do
+tab.new --argv`, whose first message was `/thegraph-herdr <issue file> Conductor
+chosen: …`, ran the skill, skipped step 0, wrote the `conductor` line, ran `read-it`
+and stopped at the confirm question, reported by `hc` as `blocked` with `kind:
+question`. Started without that line, on a no-op issue, the skill put the conductor
+question with Haiku's recommendation first. Answered with the session's own model
+(Opus) it went on in the same tab. A Sonnet session answered with Opus opened a new
+tab on Opus 5.5 at medium effort and ended, and that tab reached the confirm stop.
+
+**A different conductor opens in a new tab**, not by `/model` in the session: the
+chosen model then runs from its first token, and a `hc` child would end with the
+session that started it.
+
 ## Not measured
 
+- Whether the conductor's model changes how well an issue is read. Count the
+  readings corrected at the confirm stop, by conductor model.
+- Whether Haiku's recommendation differs from the plain rule.
+- Whether the signals for `high` predict the issues that go `stuck` or need rework.
+- What one worker uses of the weekly limit, by model.
 - A real issue through `make-it` and `check-it` in a worker.
 - `--label herdr.space=<id>` placing a worker in the window: the test ran hidden.
 - A tool permission prompt in a worker. The test ran in auto mode and raised none.
