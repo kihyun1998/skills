@@ -77,6 +77,16 @@ An adversarial read of the skill against the steps it calls and `hc --skill`
 - **More than four children's models** go to the person in several question calls,
   the tool's limit.
 
+**The signals for `high` were defined**, the maintainer's call on 2026-11-11, after
+the first runs: three of six model questions proposed Opus `high`. Two rested on a
+cause read as unconfirmed only because it had not been reproduced, though
+`read-it` had traced it to the code path (just-tooltip #111, flutter-table-plus
+#225), and #225 gave its other ground only in that repository's own term. A cause
+traced to a code path that explains every symptom now counts as confirmed, since
+the signal guards against a worker chasing the wrong cause and `make-it`'s first
+failing test checks the trace. A test that passes regardless counts as no test.
+Each model question names its row in the table's words.
+
 Known and kept: every code worker relays `tdd`'s seam confirmation at least once,
 and a visual choice `design-it` would show cannot pass through a report file.
 

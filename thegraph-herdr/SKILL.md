@@ -77,7 +77,18 @@ shows its route and the worker model and effort proposed for it, with the reason
 | route **code**, and one of: a bug whose cause is unconfirmed; a change to a public API or a boundary between modules; code with no test to lean on | `opus`, `high`, with `fable`, `medium` offered beside it |
 | route **code**, and a large refactor, a migration, or an architecture change | `fable`, `medium`, with `opus`, `high` offered beside it |
 
-Where both of the last two rows apply, the last one does. The question tool takes
+Where both of the last two rows apply, the last one does. Two of the signals are
+read narrowly:
+
+- **A cause is confirmed** where it was reproduced, a failing test shows it, or
+  `read-it` traced it to a code path that explains every symptom the issue
+  reports. Only a cause with none of these is unconfirmed.
+- **There is no test to lean on** where no test runs the code being changed and
+  would go red if it broke. A test that passes whether or not that code works
+  counts as none.
+
+Each model question names the row it rests on, in the table's words, with the
+evidence for each signal, or says that no signal applies. The question tool takes
 at most four questions a call: the reading goes first, then the children's models
 in order, in as many calls as that takes. The worker runs on what the person's
 answers leave standing. Any other model or effort runs only where the person names
