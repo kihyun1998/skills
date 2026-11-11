@@ -62,7 +62,7 @@ cite it.
 | [0095](0095-check-it-reviews-in-a-fresh-agent.md) | `check-it`'s review and harm checks run in one fresh agent on every code change, briefed and handled as `lens` is; cost stays with the writing session |
 | [0096](0096-salvage-clears-a-left-theflow-md.md) | `salvage` clears a left `theflow.md` by default, into the map by a table, stopping for no map, a run-time reader, or a recorded keep |
 | [0097](0097-a-new-screen-is-agreed-before-it-is-drawn.md) | A new screen is agreed before it is drawn: `design-it` takes a design brief and hands it to `prototype`, which stays upstream's and unedited; `make-it` calls it for a new screen and writes the picked design test-first; the brief and the variants wait beside the run sheet for `ask-it`, and the questions go one at a time (ADR-0064) |
-| [0098](0098-thegraph-herdr-runs-one-worker-terminal-per-issue.md) | `thegraph-herdr` is a separate skill for runs inside Herdr: the conductor reads, confirms once and asks; one worker terminal per issue, in sequence, writes and checks; a person picks every model, from Haiku's and the conductor's proposals |
+| [0098](0098-thegraph-herdr-runs-one-worker-terminal-per-issue.md) | `thegraph-herdr` is a separate skill for runs inside Herdr: the conductor reads, confirms once and asks; one worker terminal per issue, in sequence, writes and checks; the conductor is the invoked session, and a person picks each worker's model from the conductor's proposal |
 
 ### `gate` — the Acceptance Gate
 

@@ -31,8 +31,54 @@ Derived:
   and a merge step.
 - **Only the conductor talks to the person and writes the run sheet**, so there is
   one list of carried items and one writer.
-- **A worker ends with its conductor**, since it would otherwise have nowhere to
-  put a question.
+- **A worker is started without `--outlive-parent`**, since it would otherwise
+  have nowhere to put a question. `hc` ends it when the parent's *program* ends.
+  In a Herdr tab that program is the shell (`hc get` on the conductor showed
+  `argv: ["/bin/zsh", "-l"]` with `claude` in `foreground`, 2026-11-11), so a
+  worker can outlive the conductor's Claude session. A continued run therefore
+  looks for its live workers by name prefix before anything else.
+
+## Hardened on 2026-11-11
+
+An adversarial read of the skill against the steps it calls and `hc --skill`
+(hc 0.1.20) found these, now in the skill:
+
+- **A worker runs with the conductor's permission flag**, the maintainer's call.
+  Started with none, as before, it stops at every edit and command where user
+  settings set no mode and allow nothing, which they did on this machine, and the
+  person relays each approval. The 2026-11-10 test ran in auto mode and hid this.
+- **The tree is checked before every worker and on continuing.** A worker closed
+  after `stuck`, `error` or the conductor's end leaves its uncommitted edits, which
+  the next worker's review (`git diff HEAD` plus untracked files) and commit would
+  take in. The person decides: set aside with `git stash`, hand over, or stop.
+- **A `done` report is checked against the commit and the tree before the worker
+  is closed**, and a mismatch goes back to the same worker.
+- **A turn that ends without a report is handled**, since `hc wait --children any`
+  returns on any turn end, not only on a message.
+- **Names carry the run id** (`tg-<run id>-<slug>`): `hc` names are unique among
+  every live terminal and take only `a-z 0-9 - _`, which an issue file's name or a
+  second run on the same number would break.
+- **Each worker gets its own run-sheet name** for the skills it calls, since
+  `check-it` saves `<run sheet>.review.md` and `.lens.md` and a second worker
+  overwrote the first.
+- **Carried items are written as they arise**, in the report's `## Carried`, as
+  `thegraph` requires of the run sheet, so a compaction in a long worker does not
+  lose them. Answers the person gives mid-worker go on the sheet under `## Answers`.
+- **A worker's measurements are reproduced or marked as reported** before
+  `ask-it`, which counts a subagent's probe as unmeasured until reproduced.
+- **The brief names thegraph's path and the closing line**, which it had taken
+  from the repo path and from a tracker doc that has no commit rule.
+- **Waits run under the shell tool's limit** (`--timeout 100`), and ten silent
+  check-ins in a row are told to the person.
+- **A continued run after `ask-it`'s *needed, now*** gets a confirm with a model
+  proposal per new issue, and the sheet is deleted only after the last `ask-it`.
+- **Launch recovery puts the trust prompt to the person** instead of following the
+  manual's `hc keys … down enter`.
+- **More than four children's models** go to the person in several question calls,
+  the tool's limit.
+
+Known and kept: every code worker relays `tdd`'s seam confirmation at least once,
+and a visual choice `design-it` would show cannot pass through a report file.
 
 ## What it was decided on
 
@@ -53,20 +99,68 @@ The maintainer's, on 2026-11-10, with the weekly usage limit as what is being
 protected. The facts behind it are in
 [`docs/research/thegraph-herdr-models-context.md`](../research/thegraph-herdr-models-context.md).
 
-- **A person picks every model.** Haiku and the conductor propose, by question,
-  with the recommendation first. Nothing starts on a model without an answer. This
-  adds a question before `read-it`, on top of the one guaranteed stop.
-- **The conductor is Fable 5.2 or Opus 5.5, at `medium`, by question.** A Haiku
-  subagent recommends from the issue's text and its count of open sub-issues, since
-  nothing has been read yet. The plain rule (`fable` at two or more open
-  sub-issues) is recorded beside it, to show whether Haiku adds anything to it.
+- **A person picks every model.** The conductor proposes each worker's model at
+  the confirm stop, by question, with the recommendation first. Nothing starts on
+  a model without an answer.
+- **The conductor is the session the person invoked the skill in**, on the model
+  they started it on. The skill names the issues worth conducting on Fable 5.2 (a
+  root cause nobody has confirmed in a change across several layers, a large
+  refactor, a migration or an architecture decision, or an earlier attempt that
+  failed) and Opus 5.5 `medium` otherwise, for the person to settle before
+  invoking.
 - **"Judging is for Opus" applies to code review.** `check-it`'s reviewer and `lens`
   inherit the worker's model, so a code worker stays on Opus 5.5. The statement in
   ADR-0087 was made about an eval's judge; this extends it.
 - **Workers:** route `prose` proposes Sonnet 5.5 `medium`; route `code` proposes
-  Opus 5.5 `medium`, or `high` on a checkable signal. `xhigh` and Fable are not
-  proposed. A worker's model and effort are always passed explicitly, since the
+  Opus 5.5 `medium`, or `high` on a checkable signal with Fable 5.2 `medium`
+  offered beside it. A large refactor, a migration or an architecture change
+  proposes Fable 5.2 `medium` first, with Opus 5.5 `high` beside it. `xhigh` is
+  not proposed. A worker's model and effort are always passed explicitly, since the
   user-level default would otherwise decide them.
+- **A worker that falls short is offered the steps in order:** a way to check its
+  own work, where it has none; one effort level up on the same model, as far as
+  `high`; then the next model up, one effort level below the level that fell short.
+
+### Revised on 2026-11-11
+
+The maintainer's, after reading Anthropic's
+[Which Claude model should you build with?](https://claude.dev/blog/which-claude-model-should-you-build-with/)
+(2026-11-09) and weighing quality beside the weekly limit:
+
+- **The conductor question and its new tab were removed.** Until this revision the
+  run began by asking which model conducts, on a Haiku recommendation and a rule of
+  `fable` at two or more open sub-issues, and opened a different choice in a new
+  tab with a way back at the end. The post's default is Opus 5.5 `medium`, and its
+  Fable rows are the hardest technical work, Opus at `high` falling short, and
+  leading many subagents; it advises against a lead and workers for one chain of
+  dependent steps, and workers here run in sequence. On Anthropic's defect search,
+  Fable 5.2 as orchestrator in Opus 5.5's place cost 19% more for the same score.
+  So most runs answered the question with the session's own model, while the
+  person had already chosen a model by starting the session. A switch before
+  invoking costs little, since the post's switching cost is rewriting the
+  conversation into the new model's cache, and no worker exists yet to end with
+  the session.
+- **Fable 5.2 `medium` sits beside Opus 5.5 `high`.** On Anthropic's internal
+  agentic coding, Opus 5.5 `high` is about 88.4% at about $1.39 per attempt
+  (derived from the advisor row: 90.1% less 1.7 points, $2.92 over 2.1), and Fable
+  5.2 `medium` 88.9% at $1.34 in a single run. On defect search Fable 5.2 `medium`
+  scores F1 0.877 against 0.850, 2.7 points (1.5 to 3.8), for 1.6 times the cost.
+  Opus `high` stays first on the signal row to spare Fable's share of the limit.
+- **The escalation order** is the post's: self-verification, then effort, then the
+  next model at lower effort.
+- **Rejected:** a Sonnet 5.5 row for well-scoped code, which the post suggests for
+  cost. On SWE-bench Pro Sonnet 5.5 `high` solves 87.6% at $0.11 per solved task
+  against Opus 5.5 `medium` at 92.8% and $0.22, and the reviewer would inherit
+  Sonnet. Opus 5.5 `high` as the code default (+2.5 points on SWE-bench Pro for
+  about 1.4 times the cost) was weighed and left at `medium`. A Haiku `Explore`
+  for workers: the post suggests one for cheap exploration, while Haiku subagents
+  cost 4.2 points (1.3 to 7.1) on Anthropic's coding tasks. Checked on 2026-11-11
+  in Claude Code 2.1.322 on a subscription: a Fable 5.2 session's built-in
+  `Explore` ran on Opus 5.5, so it is not left on Fable.
+
+All figures are Anthropic's, from the post and
+[Optimizing for cost and intelligence](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence);
+none is measured on this method.
 
 Derived, on Anthropic's own figures, none measured on this method: SWE-bench Pro
 over 463 problems has Opus 5.5 at 93.1% and $0.22 per solved task at its default,
@@ -77,50 +171,22 @@ Fable 5.2 `high`. Cost in a subscription's limit per model is not published, so
 list prices stand in for it.
 
 Checked on 2026-11-10: `hc run … claude --model opus --effort medium` started a
-terminal showing Opus 5.5 at medium effort, and one Haiku 5.5 subagent returned a
-recommendation and its reason for a real issue. A tab opened with `herdr-app do
-tab.new --argv`, whose first message was `/thegraph-herdr <issue file> Conductor
-chosen: …`, ran the skill, skipped step 0, wrote the `conductor` line, ran `read-it`
-and stopped at the confirm question, reported by `hc` as `blocked` with `kind:
-question`. Started without that line, on a no-op issue, the skill put the conductor
-question with Haiku's recommendation first. Answered with the session's own model
-(Opus) it went on in the same tab. A Sonnet session answered with Opus opened a new
-tab on Opus 5.5 at medium effort and ended, and that tab reached the confirm stop.
-
-**A different conductor opens in a new tab**, not by `/model` in the session: the
-chosen model then runs from its first token, and a `hc` child would end with the
-session that started it.
-
-**The first tab is left open, and the way back is asked at the end.** The
-maintainer's, on 2026-11-10. A run on a different model ended in the new tab, with
-nothing leading back to the tab it started in. `tab.close` ends every terminal in
-a tab and the skill does not know what else is in the first one, so the only tab
-it closes is the one it opened. The new tab receives the first tab's id and, as
-its last act, asks whether to go back and close, go back and keep, or stay. It is
-asked rather than done on its own because a person answering is at the window and
-has read the closing report, where a screen moved unasked could send typing to the
-wrong tab. `hc send` to the first tab was set aside: an idle session would spend a
-turn of the weekly limit on being told.
-
-Checked on 2026-11-10 with a throwaway tab running a script in the same space:
-`tab.select` to the first tab returned `ok`, `tab.close --confirmed true` of its own
-tab returned `ok` and ended the script, and `herdr-app ls` then showed the first
-tab active in its space and the throwaway tab gone. An unknown tab id returned `no
-such tab` and exit 1. The window was on another space during the check, so what it
-showed was not seen, and whether `tab.select` also changes the shown space is not
-known. The run needs only the same space, since step 0 opens the tab there.
+terminal showing Opus 5.5 at medium effort.
 
 ## Not measured
 
 - Whether the conductor's model changes how well an issue is read. Count the
   readings corrected at the confirm stop, by conductor model.
-- Whether Haiku's recommendation differs from the plain rule.
+- Whether a Fable 5.2 worker on the signal row needs less rework than Opus 5.5
+  `high`.
 - Whether the signals for `high` predict the issues that go `stuck` or need rework.
 - What one worker uses of the weekly limit, by model.
 - A real issue through `make-it` and `check-it` in a worker.
 - `--label herdr.space=<id>` placing a worker in the window: the test ran hidden.
-- A tool permission prompt in a worker. The test ran in auto mode and raised none.
-- The way back at the end of a real run, from a Claude session in the new tab.
+- A worker started with the conductor's permission flag, end to end.
+- That a worker outlives a Herdr tab's Claude session: inferred from `hc run
+  --help` and the conductor's `argv`, not run.
+- Answering a question dialog in a worker with `hc keys`.
 - Whether a cluster gains anything from this over one session. ADR-0088's three
   counts (offloading, overreach, outcome) still apply.
 
