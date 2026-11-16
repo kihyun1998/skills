@@ -11,9 +11,9 @@ const panelChip = { plugin: 'thegraph-panel', key: 'chip' } as const
 /** Blank cells at the line's left and right, as usage-band keeps, so the bands share their edges. */
 const LEFT = 2
 const RIGHT = 1
-/** A checkout made outside the session (another terminal) shows within this. */
-const TICK_MS = 30_000
-/** Inside the hook of the call that ran a `cd`, the session's directory still reads the old one; it is read again this much later. */
+/** A checkout made outside the session (another terminal), or a move no row told of, shows within this. */
+const TICK_MS = 5_000
+/** Right after the call that ran a `cd`, the session's directory can still read the old one; it is read again this much later. */
 const SETTLE_MS = 1_000
 
 // The folder the line was last worked out for, and the working tree found above it.
@@ -99,14 +99,15 @@ export const register: Register = on => {
     return result
   }).catch(($, e, next) => next(e))
 
-  // A checkout, a worktree entered, a `cd`: each happens under a tool call.
-  on('tool.call', async ($, e, next) => {
-    const result = await next(e)
+  // A checkout, a worktree entered, a `cd`: each happens under a tool call, seen as the row its
+  // result is kept in. No tool event is hooked: one would keep Code Mode from starting.
+  on('session.append', { door: 'tool-result' }, async ($, e, next) => {
+    const stored = await next(e)
     if (e.agentId === undefined) {
       await check($)
       $.clock.after(SETTLE_MS, () => void check($).catch(() => undefined))
     }
-    return result
+    return stored
   }).catch(($, e, next) => next(e))
 
   // One line over whatever the other bands draw: the working location and its branch, two chips,

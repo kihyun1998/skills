@@ -6,6 +6,11 @@
 > The panel no longer cuts a run name at 40, so the branch's 40-cell limit below
 > stands on its own.
 
+> **Amended on 2026-11-16 (#57).** The line is no longer refreshed from a
+> `tool.call` hook: a mod that hooks `tool.call` keeps Code Mode from starting
+> (#56). See *Refresh without a tool hook* at the end; the measurements below
+> stand as they were taken.
+
 **Status:** accepted.
 
 A new mod, `path-band`, shows **where the agent is working now** and on which
@@ -78,3 +83,21 @@ after every main-thread tool call:
     that one-second recheck, and on a 30-second tick.
   - `HEAD` is re-read only when that time changes.
   - No process is started.
+
+## Refresh without a tool hook
+
+Decided by the maintainer in #56 (2026-11-16): `path-band` and `thegraph-panel`
+drop every `tool.call` hook. Claude Code 2.1.325 refuses Code Mode at startup
+when an enabled mod hooks `tool.call` or one of 14 other events, by event name
+alone ([`mods/ENGINE-NOTES.md`](../../mods/ENGINE-NOTES.md) lists them).
+
+- **What prompts a look now.** Each main-thread row of door `tool-result` that
+  `session.append` reports: the row a call's result is kept in. Under Code Mode
+  the calls the model's code makes report such rows too (measured on 2.1.325).
+- **The one-second recheck stays.** That `cwd()` lags inside the hook was
+  measured for `tool.call`. For the `session.append` hook of the same call it is
+  not measured, so the directory is still read again a second after each row.
+- **The tick is 5 seconds, not 30.** It now also covers a move that no row of
+  this session told of. Each tick reads `cwd()` and one `stat` of `HEAD`; no
+  process is started. The interval is a derivation, not a judgement: nothing was
+  shown to the maintainer for it.

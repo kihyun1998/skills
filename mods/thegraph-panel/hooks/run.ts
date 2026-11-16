@@ -137,6 +137,21 @@ export const onIssueClosed = (run: Run, now: number): Run =>
 export const onDismiss = (run: Run): Run => (run.doneAt !== null ? run : { ...run, isWaiting: true, isDismissed: true })
 
 /**
+ * A question's result: each question's line, newest first, gets `detailOf` its question.
+ * Put away, the run waits unanswered; else the reply is the person's answer, though a
+ * finished run is moved on from by a prompt, never by a question inside the turn.
+ */
+export const onReply = (run: Run, questions: readonly string[], isDismissed: boolean, detailOf: (question: string) => string, now: number): Run => {
+  const log = [...run.log]
+  for (const q of questions) {
+    const i = log.findLastIndex(l => l.kind === 'ask' && l.text === q && l.detail === null)
+    const entry = log[i]
+    if (entry) log[i] = { ...entry, detail: detailOf(q) }
+  }
+  return isDismissed ? onDismiss({ ...run, log }) : (onAnswer({ ...run, log }, now) ?? { ...run, log })
+}
+
+/**
  * A main-thread file edit. Right after the confirm, with nothing begun, it is
  * make-it's work started without its skill being expanded: an inference, so it
  * only ever opens make-it there, and never on the decision route.
@@ -426,6 +441,43 @@ export const testCounts = (output: string): string | null => {
   return parts.length === 0 ? null : parts.join(' · ')
 }
 
+// --- the session's rows --------------------------------------------------------------------
+
+/** The text of a block's `content`: a string, or its text blocks joined. */
+const contentText = (content: unknown): string =>
+  typeof content === 'string'
+    ? content
+    : Array.isArray(content)
+      ? content.map((b: unknown) => (b !== null && typeof b === 'object' && 'text' in b && typeof b.text === 'string' ? b.text : '')).join('')
+      : ''
+
+/** The tool calls a response row carries: each tool_use block's id, tool and arguments. */
+export const usesIn = (content: readonly Record<string, unknown>[]): { id: string; tool: string; input: Record<string, unknown> }[] =>
+  content.flatMap(b =>
+    b.type === 'tool_use' && typeof b.id === 'string' && typeof b.name === 'string'
+      ? [{ id: b.id, tool: b.name, input: b.input !== null && typeof b.input === 'object' ? (b.input as Record<string, unknown>) : {} }]
+      : [],
+  )
+
+/** The results a tool-result row carries: each tool_result block's call id, the text the model reads, whether it is an error. */
+export const resultsIn = (content: readonly Record<string, unknown>[]): { id: string; text: string; isError: boolean }[] =>
+  content.flatMap(b =>
+    b.type === 'tool_result' && typeof b.tool_use_id === 'string' ? [{ id: b.tool_use_id, text: contentText(b.content), isError: b.is_error === true }] : [],
+  )
+
+/**
+ * What the transcript stored for a call, on its tool_use's entry, newest message first: the
+ * tool's own record, or its error text. Undefined where nothing was stored, as for a call
+ * made from code under Code Mode.
+ */
+export const recordIn = (messages: readonly { toolUses: readonly { tool_use_id: string; result?: unknown }[] }[], id: string): unknown => {
+  for (const m of messages.toReversed()) {
+    const kept = m.toolUses.find(u => u.tool_use_id === id)?.result
+    if (kept !== undefined) return kept
+  }
+  return undefined
+}
+
 // --- the gantt ---------------------------------------------------------------------------
 
 /** Each step's colour: its bar on the gantt, its name in a turn's closing line. */
@@ -472,7 +524,10 @@ export const turnSummary = (log: readonly LogEntry[], since: number, step: strin
   const segs: Seg[] = [{ text: ' · thegraph ', color: null }]
   if (step !== null) segs.push({ text: step, color: STEP_COLOR[step] ?? null })
   if (edits > 0) segs.push({ text: `  ✎${edits}`, color: 'blue' })
-  if (test) segs.push({ text: `  ${test.isOk ? '✓' : '✗'}${test.detail === null ? '' : ` ${test.detail}`}`, color: test.isOk ? 'success' : 'error' })
+  if (test) {
+    const mark = test.isOk === undefined ? '–' : test.isOk ? '✓' : '✗'
+    segs.push({ text: `  ${mark}${test.detail === null ? '' : ` ${test.detail}`}`, color: test.isOk === undefined ? null : test.isOk ? 'success' : 'error' })
+  }
   if (asks > 0) segs.push({ text: `  ◆${asks}`, color: 'warning' })
   if (signals > 0) segs.push({ text: `  ⚑${signals}`, color: 'magenta' })
   return segs

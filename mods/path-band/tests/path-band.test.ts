@@ -64,7 +64,6 @@ const start = async ($: Engine, on: On, cwd: { now: string }) => {
   on('session.start', (_$, e) => ({ cwd: e.cwd }))
   on('session.cwd', () => ({ value: cwd.now }))
   on('env.get', (_$, e) => ({ value: e.name === 'HOME' ? '/home/u' : undefined }))
-  on('tool.call', () => ({ result: { stdout: '', stderr: '', interrupted: false } }))
   on('ui.render', { component: 'AbovePrompt' }, () => ({ type: 'Text', props: {}, children: ['BELOW'] }))
   await $.session.start({ cwd: cwd.now, surface: 'terminal', isInteractive: true })
   await clock.settle()
@@ -99,7 +98,16 @@ const CONDUCTOR = runChip({
 })
 
 const band = ($: Engine, props = {}) => $.ui.mount({ plugin: 'path-band', surface: 'terminal', component: 'AbovePrompt', props: { ...BAND, ...props } })
-const toolCall = ($: Engine) => $.tool.call({ tool: 'Bash', command: 'git switch dev' })
+// A tool call as the session keeps it: the row its result comes back in, a subagent's with its id.
+let rows = 0
+const toolCall = ($: Engine, agentId?: string) =>
+  $.session.append({
+    message: { type: 'user', role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: '' }] },
+    door: 'tool-result',
+    origin: { kind: 'tool', tool: 'Bash' },
+    uuid: `row-${++rows}`,
+    ...(agentId === undefined ? {} : { agentId }),
+  })
 
 // A repository at /w/skills on main, and a worktree of it at /w/wt-path on feat/path-band.
 const repo = (on: On) => {
@@ -259,8 +267,20 @@ describe('path-band', () => {
     const clock = await start($, on, { now: '/w/skills' })
     const ui = await band($)
     fs.write('/w/skills/.git/HEAD', 'ref: refs/heads/other\n')
-    await clock.advance(30_000)
+    await clock.advance(4_000)
+    expect(flat(await ui.drawn())).toBe(line('skills', 'main'))
+    await clock.advance(1_000)
     expect(flat(await ui.drawn())).toBe(line('skills', 'other'))
+  })
+
+  test("a subagent's call is not this session's move: the line waits for the tick", async ($, on) => {
+    const fs = repo(on)
+    const clock = await start($, on, { now: '/w/skills' })
+    const ui = await band($)
+    fs.write('/w/skills/.git/HEAD', 'ref: refs/heads/dev\n')
+    await toolCall($, 'agent-1')
+    await clock.advance(1_000)
+    expect(flat(await ui.drawn())).toBe(line('skills', 'main'))
   })
 
   test('a move under a tool call shows at once when the directory has moved by the hook', async ($, on) => {
@@ -278,7 +298,7 @@ describe('path-band', () => {
     const cwd = { now: '/w/skills' }
     const clock = await start($, on, cwd)
     const ui = await band($)
-    // Measured: inside the hook of the call that ran `cd`, the session's directory is still the old one.
+    // Measured for a tool.call hook, and kept for this one: in the hook of the call that ran `cd`, the session's directory is still the old one.
     await toolCall($)
     cwd.now = '/w/skills/mods'
     expect(flat(await ui.drawn())).toBe(line('skills', 'main'))

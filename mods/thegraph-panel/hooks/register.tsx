@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { EngineInterface, Register, SessionMessage } from 'claude-code'
 
 import {
   closesIssue,
@@ -12,8 +12,8 @@ import {
   labelOf,
   minutes,
   onAnswer,
-  onDismiss,
   onEdit,
+  onReply,
   onSkill,
   onTurnEnd,
   parseSheet,
@@ -45,8 +45,11 @@ import {
   reportOf,
   runIdOf,
   workerOf,
+  usesIn,
+  resultsIn,
+  recordIn,
 } from './run'
-import type { Kind, Run } from '../types'
+import type { Call, Kind, Run } from '../types'
 
 const run = atom({ plugin: 'thegraph-panel', key: 'run' } as const, null)
 const isPaneOpen = atom({ plugin: 'thegraph-panel', key: 'isPaneOpen' } as const, false)
@@ -54,10 +57,17 @@ const now = atom({ plugin: 'thegraph-panel', key: 'now' } as const, 0)
 const turnLines = atom({ plugin: 'thegraph-panel', key: 'turnLines' } as const, {})
 const workers = atom({ plugin: 'thegraph-panel', key: 'workers' } as const, [])
 const chip = atom({ plugin: 'thegraph-panel', key: 'chip' } as const, null)
+const calls = atom({ plugin: 'thegraph-panel', key: 'calls' } as const, {})
 
 const PANE = 'thegraph'
 /** A running step's minutes redraw this often while nothing else happens. */
 const TICK_MS = 30_000
+/** The sheet, the issue file, the workers and a worker's brief are looked at this often with no row to prompt it. */
+const RECHECK_MS = 5_000
+/** A call's stored record is looked for this long after its result's row: inside that row's hook the transcript does not hold it yet. */
+const SETTLE_MS = 300
+/** A result whose record has not shown by now has none, and is applied without it. */
+const STALE_MS = 2_000
 
 /** Cells for a step's name: before its gantt bar, and in the log's step column. */
 const STEP_CELLS = 10
@@ -117,9 +127,13 @@ const setNow = async ($: EngineInterface, t: number) => {
   await syncChip($)
 }
 
-// A run started afresh: no workers from the one before.
+// A run started afresh: no workers and no calls from the one before. The calls go in their
+// turn, after any result being applied, so none of the old run's lands in the new one's log.
 const beginRun = async ($: EngineInterface, next: Run) => {
   await update($, workers, () => [])
+  await inOrder(async () => {
+    await update($, calls, () => ({}))
+  })
   await setRun($, () => next)
 }
 
@@ -297,17 +311,45 @@ const checkSheet = async ($: EngineInterface) => {
   await readSheet($, path)
 }
 
+// What a tool call, or another process, can have changed: the sheet, the issue file, the
+// workers, and the brief a worker has not found yet.
+const lookAgain = async ($: EngineInterface) => {
+  await checkSheet($)
+  await checkIssueFile($)
+  await refreshWorkers($)
+  const r = await read($, run)
+  if (r !== null && r.kind === 'worker' && r.sheet === null) await findBrief($)
+}
+
+// The look under way: one asked for meanwhile joins it rather than starting another.
+let looking: Promise<void> | null = null
+const recheck = ($: EngineInterface): Promise<void> =>
+  (looking ??= lookAgain($)
+    .catch(() => undefined)
+    .finally(() => {
+      looking = null
+    }))
+
+// After a call has run: a look begun before it ended may have missed what it wrote, so one more follows.
+const recheckAfterCall = async ($: EngineInterface) => {
+  if (looking !== null) await looking
+  await recheck($)
+}
+
 const tick = async ($: EngineInterface) => {
   const r = await read($, run)
   if (r !== null && r.doneAt === null) {
-    const t = await $.clock.now()
-    await setNow($, t)
-    // A write the tool hooks did not see (another process, a missed call) still shows within a tick.
-    await checkSheet($)
-    await checkIssueFile($)
+    await setNow($, await $.clock.now())
     await checkIssueGh($)
-    await refreshWorkers($)
   }
+}
+
+// A write no row told of (another process, a call made in a subagent) shows within this tick,
+// and a result still waiting for a record that is not coming is applied.
+const recheckTick = async ($: EngineInterface) => {
+  await inOrder(() => settle($, false))
+  const r = await read($, run)
+  if (r !== null && r.doneAt === null) await recheck($)
 }
 
 // This plugin's own ui.close hook does not run under its own call, so the flag is cleared here.
@@ -355,10 +397,142 @@ const togglePane = async ($: EngineInterface) => {
   if (!opened.isPlaced) $.ui.toast(`thegraph: the pane waits (${opened.reason})`)
 }
 
-// A field of a tool's result, which reaches this module untyped.
+// A field of a tool's record, which reaches this module untyped.
 const field = (value: unknown, key: string): unknown =>
   value !== null && typeof value === 'object' && key in value ? (value as Record<string, unknown>)[key] : undefined
-const resultOf = (result: object): unknown => ('result' in result ? result.result : undefined)
+
+/** The tools that write a file. */
+const EDIT_TOOLS = ['Edit', 'Write', 'NotebookEdit']
+
+// Keeps a call until its result is applied. In $.state, so a reload between the two neither loses it nor applies it twice.
+const keepCall = ($: EngineInterface, id: string, call: Call) => update($, calls, c => ({ ...c, [id]: call }))
+const dropCall = ($: EngineInterface, id: string) => update($, calls, c => Object.fromEntries(Object.entries(c).filter(([k]) => k !== id)))
+
+// Rows are handled one at a time, so no result is applied twice or while another is being applied.
+let rows: Promise<void> = Promise.resolve()
+const inOrder = (work: () => Promise<void>): Promise<void> => (rows = rows.then(work).catch(() => undefined))
+
+// A main-thread tool call as the model made it, before it runs.
+const onUse = async ($: EngineInterface, use: { id: string; tool: string; input: Record<string, unknown> }) => {
+  const r = await read($, run)
+  if (r === null) return
+  const t = await $.clock.now()
+  if (use.tool === 'AskUserQuestion') {
+    // A question put to the person inside a turn: the confirm stop is often asked this way.
+    const asked: unknown = use.input.questions
+    const questions = (Array.isArray(asked) ? asked : []).flatMap((q: unknown) => {
+      const text = field(q, 'question')
+      return typeof text === 'string' ? [text] : []
+    })
+    await setRun($, r2 =>
+      r2 === null ? r2 : questions.reduce((acc, q) => addLog(acc, { at: t, kind: 'ask', text: q, detail: null }), onTurnEnd(r2, t)),
+    )
+    await keepCall($, use.id, { kind: 'ask', questions, back: null })
+  } else if (EDIT_TOOLS.includes(use.tool)) {
+    const path = typeof use.input.file_path === 'string' ? use.input.file_path : undefined
+    if (path !== undefined && isSheetPath(path)) {
+      // The run named its own sheet (no path was handed to it, or it kept an older one): follow it.
+      await setRun($, r2 => (r2 === null || r2.sheetPath === path ? r2 : { ...r2, sheetPath: path }))
+      sheetSeen = -1
+      return
+    }
+    // Any other file edit right after the confirm is make-it begun without its skill.
+    await setRun($, r2 => (r2 === null ? r2 : onEdit(r2, t)))
+    if (path !== undefined) await keepCall($, use.id, { kind: 'edit', name: baseName(path) || path, back: null })
+  } else if (use.tool === 'Bash') {
+    const command = typeof use.input.command === 'string' ? use.input.command : ''
+    const runner = testOf(command)
+    const issue = issueOf(r.sheet?.source, cwd)
+    const isClose = issue?.kind === 'github' && closesIssue(command, issue.number)
+    const report = r.kind === 'worker' ? reportOf(command) : null
+    const ends = report === 'done' || report === 'stuck' ? report : null
+    if (runner !== null || isClose || ends !== null) await keepCall($, use.id, { kind: 'shell', runner, isClose, report: ends, back: null })
+  }
+}
+
+// A kept call's result came: what its row carried is kept with the call until its record can be read.
+const noteResult = async ($: EngineInterface, result: { id: string; text: string; isError: boolean }) => {
+  const at = await $.clock.now()
+  await update($, calls, c => {
+    const call = c[result.id]
+    return call === undefined ? c : { ...c, [result.id]: { ...call, back: { text: result.text, isError: result.isError, at } } }
+  })
+}
+
+// A call's result, as its row carried it (`back`) and as the transcript stored it (`record`, undefined with none).
+const applyResult = async ($: EngineInterface, call: Call, back: NonNullable<Call['back']>, record: unknown) => {
+  if ((await read($, run)) === null) return
+  const t = back.at
+  if (call.kind === 'ask') {
+    // The person's reply is the answer no prompt would bring.
+    const answers = (field(record, 'answers') ?? {}) as Record<string, string>
+    // Esc puts the box away with nothing answered, however the engine words it (an error, no
+    // answers). With no record stored, a result that is no error is an answer nobody can read.
+    const isDismissed = back.isError || (record !== undefined && !call.questions.some(q => answers[q] !== undefined))
+    const detailOf = (q: string) => (isDismissed ? 'dismissed' : (answers[q] ?? (record === undefined ? 'answered' : 'no answer')))
+    await setRun($, r => (r === null ? r : onReply(r, call.questions, isDismissed, detailOf, t)))
+    await setNow($, await $.clock.now())
+  } else if (call.kind === 'edit') {
+    if (!back.isError) {
+      const isNew = field(record, 'type') === 'create'
+      await setRun($, r => (r === null ? r : addLog(r, { at: t, kind: 'edit', text: call.name, detail: null, isOk: isNew })))
+    }
+  } else {
+    // What the command printed: the record's streams where one was stored, and the text the model read.
+    const out = `${String(field(record, 'stdout') ?? '')}\n${String(field(record, 'stderr') ?? '')}\n${back.text}`
+    const isOk = !back.isError && field(record, 'interrupted') !== true
+    // No record, no text and no error mark: the command ran, and how it went cannot be read.
+    const isKnown = record !== undefined || back.text !== '' || back.isError
+    const runner = call.runner
+    if (runner !== null) {
+      await setRun($, r => (r === null ? r : addLog(r, { at: t, kind: 'test', text: runner, detail: testCounts(out), ...(isKnown ? { isOk } : {}) })))
+    }
+    if (call.isClose && isKnown && isOk) await closeByIssue($)
+    // A close that cannot be read is checked with gh at once, without holding the rows behind this one.
+    if (call.isClose && !isKnown) {
+      ghAskedAt = null
+      void checkIssueGh($).catch(() => undefined)
+    }
+    // Sent to the conductor: the worker's run ends with this turn, unless it takes a step up again.
+    const ends = call.report
+    if (ends !== null && isOk) await setRun($, r => (r === null || r.doneAt !== null ? r : { ...r, reported: ends }))
+  }
+}
+
+// Applies the results that have come, in the order their calls were made, each with what the
+// transcript stored for it. One whose record is not there yet waits, and those after it with it, unless `isFinal`
+// (something later has happened: no record is coming) or it has waited STALE_MS.
+const settle = async ($: EngineInterface, isFinal: boolean) => {
+  const back = Object.entries(await read($, calls)).filter(([, c]) => c.back !== null)
+  if (back.length === 0) return
+  let messages: SessionMessage[] = []
+  try {
+    messages = await $.session.messages()
+  } catch {
+    // The transcript cannot be read: the results stand without their records.
+  }
+  const now = await $.clock.now()
+  for (const [id, call] of back) {
+    if (call.back === null) continue
+    const record = recordIn(messages, id)
+    if (record === undefined && !isFinal && now - call.back.at < STALE_MS) return
+    await dropCall($, id)
+    await applyResult($, call, call.back, record)
+  }
+}
+
+// The person typed with no turn running: the results that came are applied as they stand, a
+// question still up was put away, and no result is coming for the rest.
+const dropCalls = async ($: EngineInterface) => {
+  await settle($, true)
+  const open = Object.values(await read($, calls))
+  if (open.length === 0) return
+  await update($, calls, () => ({}))
+  const questions = open.flatMap(c => (c.kind === 'ask' ? c.questions : []))
+  if (questions.length === 0) return
+  const t = await $.clock.now()
+  await setRun($, r => (r === null ? r : onReply(r, questions, true, () => 'dismissed', t)))
+}
 
 // Reads the run sheet as the model left it; one that cannot be read leaves what was there.
 const readSheet = async ($: EngineInterface, path: string) => {
@@ -384,6 +558,7 @@ export const register: Register = on => {
     cwd = e.cwd
     const result = await next(e)
     $.clock.every(TICK_MS, () => void tick($))
+    $.clock.every(RECHECK_MS, () => void recheckTick($))
     await identifyWorker($)
     // A reload keeps the run but not the chip's shape: path-band draws what is written now.
     await syncChip($)
@@ -412,15 +587,19 @@ export const register: Register = on => {
       } else {
         pendingLabel = null
         await shutOrphanPane($)
+        // Typed over a running turn, a prompt says nothing of the calls under way: their results still come.
+        if (e.turnId === undefined) await inOrder(() => dropCalls($))
         const t = await $.clock.now()
-        const before = await read($, run)
         // A slash command (/reload-plugins, /context) answers nothing, though it does move on from a finished run.
         const isCommand = e.text.trimStart().startsWith('/')
-        if (before !== null && (!isCommand || before.doneAt !== null)) {
-          const after = onAnswer(before, t)
-          await setRun($, () => after)
-          if (after === null) await closePane($)
-        }
+        let isMovedOn = false
+        await setRun($, r => {
+          if (r === null || (isCommand && r.doneAt === null)) return r
+          const after = onAnswer(r, t)
+          isMovedOn = after === null
+          return after
+        })
+        if (isMovedOn) await closePane($)
       }
     }
     return next(e)
@@ -449,6 +628,8 @@ export const register: Register = on => {
   })
 
   on('turn.complete', async ($, e, next) => {
+    // The turn's last results count in its summary.
+    if (e.agentId === undefined) await inOrder(() => settle($, true))
     const r = await read($, run)
     if (e.agentId === undefined && !e.isAborted && r !== null) {
       const t = await $.clock.now()
@@ -491,99 +672,34 @@ export const register: Register = on => {
     )
   })
 
-  // A question put to the person inside a turn: the confirm stop is often asked this way,
-  // and its reply is the answer no prompt would bring.
-  on('tool.call', { tool: 'AskUserQuestion' }, async ($, e, next) => {
-    if (e.agentId !== undefined || (await read($, run)) === null) return next(e)
-    const asked = await $.clock.now()
-    const questions = e.questions.map(q => q.question)
-    await setRun($, r =>
-      r === null ? r : questions.reduce((acc, q) => addLog(acc, { at: asked, kind: 'ask', text: q, detail: null }), onTurnEnd(r, asked)),
-    )
-    const result = await next(e)
-    const t = await $.clock.now()
-    const answers = (field(resultOf(result), 'answers') ?? {}) as Record<string, string>
-    // Esc puts the box away with nothing answered, however the engine words it (a deny, an error,
-    // no answers): no answer at all, and the run is not taken as answered.
-    const isDismissed = !questions.some(q => answers[q] !== undefined)
-    await setRun($, r => {
-      if (r === null) return r
-      // Each question's line, newest first, gets its answer; one left unanswered says so.
-      const log = [...r.log]
-      for (const q of questions) {
-        const i = log.findLastIndex(l => l.kind === 'ask' && l.text === q && l.detail === null)
-        const entry = log[i]
-        if (entry) log[i] = { ...entry, detail: isDismissed ? 'dismissed' : (answers[q] ?? 'no answer') }
-      }
-      // A finished run is moved on from by a prompt, never by a question inside the turn.
-      return isDismissed ? onDismiss({ ...r, log }) : (onAnswer({ ...r, log }, t) ?? { ...r, log })
-    })
-    await setNow($, t)
-    return result
-  }).catch(($, e, next) => next(e))
-
-  // A write to the run sheet is the run's own account: read it back once written.
-  // Any other file edit right after the confirm is make-it begun without its skill.
-  on('tool.call', { tool: ['Edit', 'Write', 'NotebookEdit'] }, async ($, e, next) => {
-    if (e.agentId !== undefined || (await read($, run)) === null) return next(e)
-    const path = 'file_path' in e ? e.file_path : undefined
-    if (path !== undefined && isSheetPath(path)) {
-      // The run named its own sheet (no path was handed to it, or it kept an older one): follow it.
-      await setRun($, r => (r === null || r.sheetPath === path ? r : { ...r, sheetPath: path }))
-      sheetSeen = -1
-      return next(e)
-    }
-    const t = await $.clock.now()
-    await setRun($, r => (r === null ? r : onEdit(r, t)))
-    const result = await next(e)
-    if (path !== undefined && !('deny' in result && result.deny !== undefined)) {
-      const isNew = field(resultOf(result), 'type') === 'create'
-      const name = path.split(/[\\/]/).filter(Boolean).at(-1) ?? path
-      await setRun($, r => (r === null ? r : addLog(r, { at: t, kind: 'edit', text: name, detail: null, isOk: isNew })))
-    }
-    return result
-  }).catch(($, e, next) => next(e))
-
-  // A shell command that runs tests: its result goes in the log, with the counts it printed.
-  // One that closes the run's GitHub issue ends the run.
-  on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
-    const r = e.agentId === undefined ? await read($, run) : null
-    const runner = testOf(e.command)
-    const issue = r === null ? null : issueOf(r.sheet?.source, cwd)
-    const isClose = issue?.kind === 'github' && closesIssue(e.command, issue.number)
-    const report = r?.kind === 'worker' ? reportOf(e.command) : null
-    const ends = report === 'done' || report === 'stuck' ? report : null
-    if (r === null || (runner === null && !isClose && ends === null)) return next(e)
-    const result = await next(e)
-    const t = await $.clock.now()
-    const done = resultOf(result)
-    const out = `${String(field(done, 'stdout') ?? '')}\n${String(field(done, 'stderr') ?? '')}`
-    const isOk = done !== undefined && !('isError' in result && result.isError === true) && field(done, 'interrupted') !== true
-    if (runner !== null) await setRun($, r2 => (r2 === null ? r2 : addLog(r2, { at: t, kind: 'test', text: runner, detail: testCounts(out), isOk })))
-    if (isClose && isOk) await closeByIssue($)
-    // Sent to the conductor: the worker's run ends with this turn, unless it takes a step up again.
-    if (ends !== null && isOk) await setRun($, r2 => (r2 === null || r2.doneAt !== null ? r2 : { ...r2, reported: ends }))
-    return result
-  }).catch(($, e, next) => next(e))
-
-  // A worker reading its brief: the brief names the worker's issue.
-  on('tool.call', { tool: 'Read' }, async ($, e, next) => {
-    const result = await next(e)
-    const herd = e.agentId === undefined ? (await read($, run))?.herd : null
-    if (herd != null && isBriefOf(e.file_path, herd.runId, herd.slug)) await readBrief($, e.file_path)
-    return result
-  }).catch(($, e, next) => next(e))
-
-  // Whatever tool wrote it (Bash, Write, a script), the sheet changes only under a tool call:
-  // look at its modification time once each main-thread call has run, and at the workers.
-  on('tool.call', async ($, e, next) => {
-    const result = await next(e)
+  // The model's tool calls, seen as the rows the session keeps: a response row carries the
+  // tool_use, a tool-result row its result, paired by the call's id. No tool event is hooked:
+  // one would keep Code Mode from starting.
+  on('session.append', { door: 'response' }, async ($, e, next) => {
+    const stored = await next(e)
     if (e.agentId === undefined) {
-      await checkSheet($)
-      await checkIssueFile($)
-      await refreshWorkers($)
+      // The model has gone on: what came before is settled first, with or without its record.
+      await inOrder(async () => {
+        await settle($, true)
+        for (const use of usesIn(e.message.content)) await onUse($, use)
+      })
     }
-    return result
+    return stored
+  }).catch(($, e, next) => next(e))
+
+  // Whatever tool wrote it (Bash, Write, a script), the sheet changes under a tool call: once
+  // each main-thread call's result is kept, look at the sheet, the issue file and the workers.
+  on('session.append', { door: 'tool-result' }, async ($, e, next) => {
+    const stored = await next(e)
+    if (e.agentId === undefined) {
+      await inOrder(async () => {
+        for (const result of resultsIn(e.message.content)) await noteResult($, result)
+        await settle($, false)
+      })
+      $.clock.after(SETTLE_MS, () => void inOrder(() => settle($, false)))
+      await recheckAfterCall($)
+    }
+    return stored
   }).catch(($, e, next) => next(e))
 
   // The person's close (its mark, ctrl+x x, Esc) as much as the button's.
@@ -658,7 +774,7 @@ export const register: Register = on => {
           {l.kind === 'edit' && <Text color="blue">{`${l.isOk ? '+' : '✎'} ${l.text}`}</Text>}
           {l.kind === 'test' && (
             <Text>
-              <Text color={l.isOk ? 'success' : 'error'}>{l.isOk ? '✓ ' : '✗ '}</Text>
+              {l.isOk === undefined ? <Text dimColor>– </Text> : <Text color={l.isOk ? 'success' : 'error'}>{l.isOk ? '✓ ' : '✗ '}</Text>}
               <Text>{l.text}</Text>
               {l.detail !== null && <Text dimColor>{` ${l.detail}`}</Text>}
             </Text>

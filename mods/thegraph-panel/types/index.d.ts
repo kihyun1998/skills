@@ -85,8 +85,25 @@ export type LogEntry = {
   text: string
   /** The answer to a question, a test's counts; null while a question waits. */
   detail: string | null
-  /** A test that passed, a file the write created. */
+  /** A test that passed, a file the write created. Absent on a test whose outcome could not be read. */
   isOk?: boolean
+}
+
+/**
+ * A main-thread tool call the run follows, kept from its tool_use until its result is
+ * applied: a question put to the person, a file edit, or a shell command that runs tests,
+ * closes the run's issue or reports to the conductor.
+ */
+export type Call = (
+  | { kind: 'ask'; questions: string[] }
+  | { kind: 'edit'; name: string }
+  | { kind: 'shell'; runner: string | null; isClose: boolean; report: 'done' | 'stuck' | null }
+) & {
+  /**
+   * The call's result as its row carried it, once that came: the text the model read,
+   * whether it was an error, and when. Null while the call runs.
+   */
+  back: { text: string; isError: boolean; at: number } | null
 }
 
 /** A piece of a line drawn in one colour (a theme key or a colour name, or none for the default), bold or dim. */
@@ -137,6 +154,8 @@ declare module 'claude-code' {
       workers: Terminal[]
       /** The run as path-band's chip draws it; null with no run. */
       chip: Chip | null
+      /** The calls whose results are not applied yet, by tool_use id; one is taken out as its result is applied. */
+      calls: Record<string, Call>
     }
   }
 }
