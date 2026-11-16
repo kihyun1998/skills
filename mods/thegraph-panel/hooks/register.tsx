@@ -20,12 +20,10 @@ import {
   STEP_COLOR,
   gantt,
   stepAt,
-  trail,
   turnSummary,
   keepTurnLine,
   turnLineOf,
   addLog,
-  bandName,
   runName,
   sheetLog,
   testCounts,
@@ -37,17 +35,27 @@ import {
   startRun,
   stepLabel,
   stepsOf,
+  childrenOf,
+  isBriefOf,
+  chipOf,
+  pressOf,
+  kindOfPrompt,
+  parseBrief,
+  parseTerminals,
+  reportOf,
+  runIdOf,
+  workerOf,
 } from './run'
+import type { Kind, Run } from '../types'
 
 const run = atom({ plugin: 'thegraph-panel', key: 'run' } as const, null)
 const isPaneOpen = atom({ plugin: 'thegraph-panel', key: 'isPaneOpen' } as const, false)
 const now = atom({ plugin: 'thegraph-panel', key: 'now' } as const, 0)
 const turnLines = atom({ plugin: 'thegraph-panel', key: 'turnLines' } as const, {})
+const workers = atom({ plugin: 'thegraph-panel', key: 'workers' } as const, [])
+const chip = atom({ plugin: 'thegraph-panel', key: 'chip' } as const, null)
 
 const PANE = 'thegraph'
-/** Blank cells at the line's left and right, as usage-band keeps, so both share their edges. */
-const LEFT = 2
-const RIGHT = 1
 /** A running step's minutes redraw this often while nothing else happens. */
 const TICK_MS = 30_000
 
@@ -62,6 +70,11 @@ let lastTurnEnd = 0
 
 // What followed /thegraph on the prompt, waiting for the skill to expand. Lost on a reload: the run starts unlabelled.
 let pendingLabel: string | null = null
+
+/** hc and herdr-app get this long to answer. */
+const HC_MS = 5_000
+// This session's hc terminal, from $HC_TERMINAL_ID: unset outside Herdr, and then hc is never asked.
+let hcId: string | null = null
 
 // The session's folder, whose name heads each sheet's file name; and the OS temp folder, asked once.
 let cwd: string | null = null
@@ -85,10 +98,123 @@ const forgetWatch = () => {
   ghAskedAt = null
 }
 
+// The chip path-band draws, worked out again from the run, its workers and the clock; written only when it changed.
+const syncChip = async ($: EngineInterface) => {
+  const r = await read($, run)
+  const next = chipOf(r, await read($, workers), Math.max(await read($, now), r?.startedAt ?? 0))
+  if (JSON.stringify(await read($, chip)) !== JSON.stringify(next)) await update($, chip, () => next)
+}
+
+// Writes the run, and the chip after it.
+const setRun = async ($: EngineInterface, fn: (r: Run | null) => Run | null) => {
+  await update($, run, fn)
+  await syncChip($)
+}
+
+// Moves the clock the step's minutes are counted on, and the chip after it.
+const setNow = async ($: EngineInterface, t: number) => {
+  await update($, now, () => t)
+  await syncChip($)
+}
+
+// A run started afresh: no workers from the one before.
+const beginRun = async ($: EngineInterface, next: Run) => {
+  await update($, workers, () => [])
+  await setRun($, () => next)
+}
+
+// A herdr conductor's live workers, as hc lists them; a failed or garbled answer leaves the last one.
+const refreshWorkers = async ($: EngineInterface) => {
+  const r = await read($, run)
+  const runId = r === null || r.kind !== 'herdr' || r.doneAt !== null ? null : runIdOf(r.sheetPath)
+  if (hcId === null || runId === null) return
+  let found
+  try {
+    const out = await $.process.run(['hc', 'ls', '--json'], { timeoutMs: HC_MS })
+    found = out.exitCode === 0 ? parseTerminals(out.stdout) : null
+  } catch {
+    return
+  }
+  if (found == null) return
+  const ours = found.filter(t => workerOf(t.name)?.runId === runId)
+  if (JSON.stringify(ours) !== JSON.stringify(await read($, workers))) await update($, workers, () => ours)
+  await syncChip($)
+}
+
+// Brings a terminal's tab to the front; one gone since the last refresh leaves everything as it is.
+const focusTerminal = async ($: EngineInterface, address: string) => {
+  try {
+    await $.process.run(['herdr-app', 'do', 'agent.focus', '--terminal', address], { timeoutMs: HC_MS })
+  } catch {
+    // No herdr-app here, or the terminal ended: nothing to bring forward.
+  }
+}
+
+// A worker's issue, from its brief; one that cannot be read leaves what was there.
+const readBrief = async ($: EngineInterface, path: string) => {
+  let text: string
+  try {
+    text = await $.fs.read(path)
+  } catch {
+    return
+  }
+  const sheet = parseBrief(path, text)
+  if (sheet.issue === null) return
+  await setRun($, r => (r === null || r.kind !== 'worker' ? r : { ...r, sheet }))
+}
+
+// The worker's brief in the thegraph temp folder, named after the run id and slug.
+const findBrief = async ($: EngineInterface) => {
+  const herd = (await read($, run))?.herd
+  const temp = herd == null ? null : await askTempDir($)
+  if (herd == null || temp === null) return
+  const sep = temp.includes('\\') ? '\\' : '/'
+  const dir = `${temp.replace(/[\\/]+$/, '')}${sep}thegraph`
+  let names: string[]
+  try {
+    names = (await $.fs.list(dir)).filter(f => f.kind === 'file').map(f => f.name)
+  } catch {
+    return
+  }
+  const name = names.find(n => isBriefOf(n, herd.runId, herd.slug))
+  if (name !== undefined) await readBrief($, `${dir}${sep}${name}`)
+}
+
+// A session in a worker terminal (`tg-<run id>-<slug>`) is that worker's run, with no prompt.
+const identifyWorker = async ($: EngineInterface) => {
+  try {
+    hcId = (await $.env.get('HC_TERMINAL_ID')) || null
+  } catch {
+    hcId = null
+  }
+  if (hcId === null) return
+  let self: Record<string, unknown>
+  try {
+    const out = await $.process.run(['hc', 'get', hcId, '--json'], { timeoutMs: HC_MS })
+    if (out.exitCode !== 0) return
+    self = JSON.parse(out.stdout) as Record<string, unknown>
+  } catch {
+    return
+  }
+  const w = workerOf(self.name)
+  if (w === null) return
+  const r = await read($, run)
+  // A reload keeps the worker's run; a run the person started here stands.
+  if (r !== null && (r.kind !== 'worker' || (r.herd?.runId === w.runId && r.herd.slug === w.slug))) {
+    if (r.kind === 'worker' && r.sheet === null) await findBrief($)
+    return
+  }
+  const t = await $.clock.now()
+  const herd = { ...w, conductor: typeof self.parent === 'string' ? self.parent : null }
+  await beginRun($, { ...startRun(null, t, 'worker'), herd })
+  await setNow($, t)
+  await findBrief($)
+}
+
 const closeByIssue = async ($: EngineInterface) => {
   const t = await $.clock.now()
-  await update($, run, r => (r === null ? r : onIssueClosed(r, t)))
-  await update($, now, () => t)
+  await setRun($, r => (r === null ? r : onIssueClosed(r, t)))
+  await setNow($, t)
 }
 
 // A local issue file marked done, or gone once seen (archived, moved): the run's issue is closed.
@@ -175,11 +301,12 @@ const tick = async ($: EngineInterface) => {
   const r = await read($, run)
   if (r !== null && r.doneAt === null) {
     const t = await $.clock.now()
-    await update($, now, () => t)
+    await setNow($, t)
     // A write the tool hooks did not see (another process, a missed call) still shows within a tick.
     await checkSheet($)
     await checkIssueFile($)
     await checkIssueGh($)
+    await refreshWorkers($)
   }
 }
 
@@ -243,13 +370,13 @@ const readSheet = async ($: EngineInterface, path: string) => {
   }
   const sheet = parseSheet(path, text)
   const t = await $.clock.now()
-  await update($, run, r => (r === null ? r : sheetLog(r.sheet, sheet, t).reduce(addLog, { ...r, sheet })))
+  await setRun($, r => (r === null ? r : sheetLog(r.sheet, sheet, t).reduce(addLog, { ...r, sheet })))
 }
 
-// The person gave the run up: the line goes, and the pane with it.
+// The person gave the run up from the pane: the chip goes, and the pane with it.
 const dismiss = async ($: EngineInterface) => {
-  await closePane($)
-  await update($, run, () => null)
+  await shutPane($)
+  await setRun($, () => null)
 }
 
 export const register: Register = on => {
@@ -257,20 +384,31 @@ export const register: Register = on => {
     cwd = e.cwd
     const result = await next(e)
     $.clock.every(TICK_MS, () => void tick($))
+    await identifyWorker($)
+    // A reload keeps the run but not the chip's shape: path-band draws what is written now.
+    await syncChip($)
     return result
   })
+
+  // /clear, /resume and /branch start $.state over without a session.start: a worker is told again.
+  on('classic.SessionStart', { source: ['clear', 'resume', 'fork'] }, async ($, e, next) => {
+    const result = await next(e)
+    await identifyWorker($)
+    return result
+  }).catch(($, e, next) => next(e))
 
   on('prompt.submit', async ($, e, next) => {
     // The person's own words, typed here or through Remote Control; not a notification or another plugin's.
     if (e.origin.kind === 'composer' || e.origin.kind === 'bridge') {
       const label = labelOf(e.text)
-      if (label !== null) {
+      const kind = kindOfPrompt(e.text)
+      if (label !== null && kind !== null) {
         // The new run starts here, whatever the first left: its skill restarts it, named, if it expands.
         pendingLabel = label
         const t = await $.clock.now()
-        await update($, run, () => startRun(label, t))
+        await beginRun($, startRun(label, t, kind))
         forgetWatch()
-        await update($, now, () => t)
+        await setNow($, t)
       } else {
         pendingLabel = null
         await shutOrphanPane($)
@@ -280,7 +418,7 @@ export const register: Register = on => {
         const isCommand = e.text.trimStart().startsWith('/')
         if (before !== null && (!isCommand || before.doneAt !== null)) {
           const after = onAnswer(before, t)
-          await update($, run, () => after)
+          await setRun($, () => after)
           if (after === null) await closePane($)
         }
       }
@@ -290,22 +428,23 @@ export const register: Register = on => {
 
   on('skill.prompt', async ($, e, next) => {
     const t = await $.clock.now()
-    if (e.skill === 'thegraph') {
+    if (e.skill === 'thegraph' || e.skill === 'thegraph-herdr') {
       // Name this run's sheet now and tell the run, so the one file is known to be ours.
+      const kind: Kind = e.skill === 'thegraph' ? 'thegraph' : 'herdr'
       const temp = await askTempDir($)
       const hex = Math.floor(Math.random() * 0x100000000).toString(16).padStart(8, '0')
       const sheetPath = temp === null ? null : sheetPathFor(temp, baseName(cwd ?? '') || 'repo', t, hex)
-      await update($, run, () => ({ ...startRun(pendingLabel, t), sheetPath }))
+      await beginRun($, { ...startRun(pendingLabel, t, kind), sheetPath })
       pendingLabel = null
       forgetWatch()
-      await update($, now, () => t)
+      await setNow($, t)
       const result = await next(e)
       return sheetPath === null ? result : { ...result, text: result.text + sheetLine(sheetPath) }
     }
     if ((await read($, run)) !== null) {
-      await update($, run, r => (r === null ? r : onSkill(r, e.skill, t)))
+      await setRun($, r => (r === null ? r : onSkill(r, e.skill, t)))
     }
-    await update($, now, () => t)
+    await setNow($, t)
     return next(e)
   })
 
@@ -319,8 +458,8 @@ export const register: Register = on => {
       const line = turnSummary(r.log, since, step)
       await update($, turnLines, lines => keepTurnLine(lines, e.durationMs, line, TURN_LINES_MAX))
       lastTurnEnd = t
-      await update($, run, r2 => (r2 === null ? r2 : onTurnEnd(r2, t)))
-      await update($, now, () => t)
+      await setRun($, r2 => (r2 === null ? r2 : onTurnEnd(r2, t)))
+      await setNow($, t)
     }
     return next(e)
   })
@@ -358,7 +497,7 @@ export const register: Register = on => {
     if (e.agentId !== undefined || (await read($, run)) === null) return next(e)
     const asked = await $.clock.now()
     const questions = e.questions.map(q => q.question)
-    await update($, run, r =>
+    await setRun($, r =>
       r === null ? r : questions.reduce((acc, q) => addLog(acc, { at: asked, kind: 'ask', text: q, detail: null }), onTurnEnd(r, asked)),
     )
     const result = await next(e)
@@ -367,7 +506,7 @@ export const register: Register = on => {
     // Esc puts the box away with nothing answered, however the engine words it (a deny, an error,
     // no answers): no answer at all, and the run is not taken as answered.
     const isDismissed = !questions.some(q => answers[q] !== undefined)
-    await update($, run, r => {
+    await setRun($, r => {
       if (r === null) return r
       // Each question's line, newest first, gets its answer; one left unanswered says so.
       const log = [...r.log]
@@ -379,7 +518,7 @@ export const register: Register = on => {
       // A finished run is moved on from by a prompt, never by a question inside the turn.
       return isDismissed ? onDismiss({ ...r, log }) : (onAnswer({ ...r, log }, t) ?? { ...r, log })
     })
-    await update($, now, () => t)
+    await setNow($, t)
     return result
   }).catch(($, e, next) => next(e))
 
@@ -390,17 +529,17 @@ export const register: Register = on => {
     const path = 'file_path' in e ? e.file_path : undefined
     if (path !== undefined && isSheetPath(path)) {
       // The run named its own sheet (no path was handed to it, or it kept an older one): follow it.
-      await update($, run, r => (r === null || r.sheetPath === path ? r : { ...r, sheetPath: path }))
+      await setRun($, r => (r === null || r.sheetPath === path ? r : { ...r, sheetPath: path }))
       sheetSeen = -1
       return next(e)
     }
     const t = await $.clock.now()
-    await update($, run, r => (r === null ? r : onEdit(r, t)))
+    await setRun($, r => (r === null ? r : onEdit(r, t)))
     const result = await next(e)
     if (path !== undefined && !('deny' in result && result.deny !== undefined)) {
       const isNew = field(resultOf(result), 'type') === 'create'
       const name = path.split(/[\\/]/).filter(Boolean).at(-1) ?? path
-      await update($, run, r => (r === null ? r : addLog(r, { at: t, kind: 'edit', text: name, detail: null, isOk: isNew })))
+      await setRun($, r => (r === null ? r : addLog(r, { at: t, kind: 'edit', text: name, detail: null, isOk: isNew })))
     }
     return result
   }).catch(($, e, next) => next(e))
@@ -412,24 +551,37 @@ export const register: Register = on => {
     const runner = testOf(e.command)
     const issue = r === null ? null : issueOf(r.sheet?.source, cwd)
     const isClose = issue?.kind === 'github' && closesIssue(e.command, issue.number)
-    if (r === null || (runner === null && !isClose)) return next(e)
+    const report = r?.kind === 'worker' ? reportOf(e.command) : null
+    const ends = report === 'done' || report === 'stuck' ? report : null
+    if (r === null || (runner === null && !isClose && ends === null)) return next(e)
     const result = await next(e)
     const t = await $.clock.now()
     const done = resultOf(result)
     const out = `${String(field(done, 'stdout') ?? '')}\n${String(field(done, 'stderr') ?? '')}`
     const isOk = done !== undefined && !('isError' in result && result.isError === true) && field(done, 'interrupted') !== true
-    if (runner !== null) await update($, run, r2 => (r2 === null ? r2 : addLog(r2, { at: t, kind: 'test', text: runner, detail: testCounts(out), isOk })))
+    if (runner !== null) await setRun($, r2 => (r2 === null ? r2 : addLog(r2, { at: t, kind: 'test', text: runner, detail: testCounts(out), isOk })))
     if (isClose && isOk) await closeByIssue($)
+    // Sent to the conductor: the worker's run ends with this turn, unless it takes a step up again.
+    if (ends !== null && isOk) await setRun($, r2 => (r2 === null || r2.doneAt !== null ? r2 : { ...r2, reported: ends }))
+    return result
+  }).catch(($, e, next) => next(e))
+
+  // A worker reading its brief: the brief names the worker's issue.
+  on('tool.call', { tool: 'Read' }, async ($, e, next) => {
+    const result = await next(e)
+    const herd = e.agentId === undefined ? (await read($, run))?.herd : null
+    if (herd != null && isBriefOf(e.file_path, herd.runId, herd.slug)) await readBrief($, e.file_path)
     return result
   }).catch(($, e, next) => next(e))
 
   // Whatever tool wrote it (Bash, Write, a script), the sheet changes only under a tool call:
-  // look at its modification time once each main-thread call has run.
+  // look at its modification time once each main-thread call has run, and at the workers.
   on('tool.call', async ($, e, next) => {
     const result = await next(e)
     if (e.agentId === undefined) {
       await checkSheet($)
       await checkIssueFile($)
+      await refreshWorkers($)
     }
     return result
   }).catch(($, e, next) => next(e))
@@ -440,54 +592,20 @@ export const register: Register = on => {
     return next(e)
   }).catch(($, e, next) => next(e))
 
-  // One line over whatever the other bands draw: the steps in order, each marked, the time in
-  // the one at hand, a failed last test and the signals; and at the right edge, lined up with
-  // the band's beneath, the pane's button and ×.
-  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    const below = await next(e)
-    const r = await read($, run)
-    if (r === null || e.props.hasSurvey) return below
-
-    const isOpen = await read($, isPaneOpen)
-    const { Box, Button, Text } = $.ui.resolve(e)
-    const t = Math.max(await read($, now), r.startedAt)
-    const segs = trail(r, t)
-    const name = runName(r)
-    const line = (
-      <Box flexDirection="row" justifyContent="space-between" paddingLeft={LEFT} paddingRight={RIGHT}>
-        <Text wrap="truncate-end">
-          <Text bold>thegraph</Text>
-          {name !== null && <Text dimColor>{` ${bandName(name)}`}</Text>}
-          <Text>{'  '}</Text>
-          {segs.map(g => <Text color={g.color ?? undefined} bold={g.bold} dimColor={g.dim}>{g.text}</Text>)}
-        </Text>
-        <Box flexDirection="row" flexShrink={0}>
-          <Text>{'  '}</Text>
-          <Button key="pane" variant="primary" hotkey="g" onPress={() => togglePane($)}>
-            {isOpen ? '▾ close pane' : '▸ pane'}
-          </Button>
-          <Text> </Text>
-          <Button key="dismiss" role="dismiss" hotkey="x" dimColor onPress={() => dismiss($)}>
-            ×
-          </Button>
-          {/* The main screen reports no clicks: name the keys that press them there (ctrl+x tab focuses the band). */}
-          {e.viewport?.isFullscreen === false && <Text dimColor> ^x⇥ g·x</Text>}
-        </Box>
-      </Box>
-    )
-    return (
-      <Box flexDirection="column">
-        {line}
-        {below}
-      </Box>
-    )
-  })
+  // path-band draws the run's chip and its buttons on its line (ADR-0099); a press on one is this plugin's to act on.
+  on('ui.press', { plugin: 'path-band' }, async ($, e, next) => {
+    const act = pressOf(e.element, await read($, chip))
+    if (act === null) return next(e)
+    if (act.kind === 'pane') await togglePane($)
+    else await focusTerminal($, act.address)
+    return { element: e.element }
+  }).catch(($, e, next) => next(e))
 
   // The pane: a header, a gantt of the steps, then the log as a table, oldest first, opened at its end.
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Button, Text } = $.ui.resolve(e)
     const r = await read($, run)
-    // The pane's own way out: the band's button goes with the run, and /clear takes the run.
+    // The pane's own way out: path-band's chip goes with the run, and /clear takes the run.
     const close = (
       <Box flexDirection="row" flexShrink={0}>
         <Text> </Text>
@@ -568,6 +686,13 @@ export const register: Register = on => {
         {r.sheet?.source != null && <Text dimColor wrap="wrap">{r.sheet.source}</Text>}
         <Text dimColor>{'─'.repeat(Math.max(8, Math.min(40, e.props.bodyColumns)))}</Text>
         {bars}
+        {/* Gives the run up: the pane closes and the chip goes. */}
+        <Box flexDirection="row">
+          <Button key="clear" hotkey="x" dimColor onPress={() => dismiss($)}>
+            clear run ×
+          </Button>
+          {e.viewport?.isFullscreen === false && <Text dimColor>x</Text>}
+        </Box>
         <Text> </Text>
         <Text dimColor>{`time ${'step'.padEnd(STEP_CELLS + 1)}what`}</Text>
         {lines.length === 0 ? <Text dimColor>Nothing logged yet.</Text> : lines}

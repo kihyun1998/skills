@@ -1,10 +1,12 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Head } from '../types'
+import type { Chip, Head } from '../types'
 import { fit, gitdirOf, headOf, locationOf, parentOf, sepOf } from './where'
 
 const where = atom({ plugin: 'path-band', key: 'where' } as const, null)
+/** thegraph-panel's run as its chip draws (ADR-0099); undefined while that mod is absent. */
+const panelChip = { plugin: 'thegraph-panel', key: 'chip' } as const
 
 /** Blank cells at the line's left and right, as usage-band keeps, so the bands share their edges. */
 const LEFT = 2
@@ -22,6 +24,21 @@ let headPath: string | null = null
 let headSeen = -1
 let head: Head | null = null
 let home: string | null | undefined
+
+// A chip as thegraph-panel writes it; anything else (an older shape, no run) draws none.
+const chipOf = (value: unknown): Chip | null =>
+  value !== null &&
+  typeof value === 'object' &&
+  'head' in value &&
+  typeof value.head === 'string' &&
+  'conductor' in value &&
+  'children' in value &&
+  Array.isArray(value.children)
+    ? (value as Chip)
+    : null
+
+// thegraph-panel's ui.press hook takes each press on the run's buttons, so their own closure has nothing to do.
+const pressedByPanel = () => undefined
 
 const statOf = ($: EngineInterface, path: string) => $.fs.stat(path).catch(() => null)
 
@@ -92,15 +109,19 @@ export const register: Register = on => {
     return result
   }).catch(($, e, next) => next(e))
 
-  // One line over whatever the other bands draw: the working location and its branch, two chips.
+  // One line over whatever the other bands draw: the working location and its branch, two chips,
+  // and while a thegraph run is open its chip, a conductor's children and a worker's way back.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const below = await next(e)
     const w = await read($, where)
     if (w === null || e.props.hasSurvey) return below
 
-    const { Box, Text } = $.ui.resolve(e)
-    const shown = fit(w, e.props.bodyColumns - LEFT - RIGHT)
+    const { Box, Button, Text } = $.ui.resolve(e)
+    // The main screen reports no clicks: each button's hotkey is drawn after it (ctrl+x tab focuses the band).
+    const isMain = e.viewport?.isFullscreen === false
+    const shown = fit(w, e.props.bodyColumns - LEFT - RIGHT, chipOf(await read($, panelChip)), isMain)
     const isDetached = w.head !== null && w.head.branch === null
+    const hint = (key: string | null) => (isMain && key !== null ? <Text dimColor>{key}</Text> : null)
     const line = (
       <Box flexDirection="row" paddingLeft={LEFT} paddingRight={RIGHT}>
         <Text wrap="truncate-end">
@@ -111,6 +132,35 @@ export const register: Register = on => {
           )}
           {isDetached && <Text dimColor> detached</Text>}
         </Text>
+        {shown.chip !== null && <Text> </Text>}
+        {shown.chip !== null && (
+          <Button key="thegraph" variant="primary" hotkey="g" onPress={pressedByPanel}>
+            {shown.chip}
+          </Button>
+        )}
+        {shown.chip !== null && hint('g')}
+        {shown.children.map(c => (
+          <Box flexDirection="row">
+            <Text> </Text>
+            {c.address === null ? (
+              <Text color={c.state === 'done' ? 'success' : c.state === 'blocked' ? 'warning' : undefined} dimColor={c.state === 'waiting'}>
+                {c.text}
+              </Text>
+            ) : (
+              <Button key={`thegraph-worker-${c.address}`} variant="primary" hotkey={c.hotkey ?? undefined} onPress={pressedByPanel}>
+                {c.text}
+              </Button>
+            )}
+            {c.address !== null && hint(c.hotkey)}
+          </Box>
+        ))}
+        {shown.back !== null && <Text> </Text>}
+        {shown.back !== null && (
+          <Button key="thegraph-conductor" hotkey="c" dimColor onPress={pressedByPanel}>
+            {shown.back}
+          </Button>
+        )}
+        {shown.back !== null && hint('c')}
       </Box>
     )
     return (

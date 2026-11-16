@@ -2,7 +2,8 @@ import { describe, expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { BRANCH_MAX, cells, fit, gitdirOf, headOf, locationOf, parentOf } from '../hooks/where'
+import { BRANCH_MAX, ISSUE_MAX, PATH_MIN, cells, fit, gitdirOf, headOf, locationOf, parentOf } from '../hooks/where'
+import type { Chip } from '../types'
 
 const BAND = {
   hasSurvey: false,
@@ -19,11 +20,16 @@ const SHA = 'b62786b0c1d2e3f405162738495a6b7c8d9e0f12'
 const line = (path: string, branch?: string, tail = '') =>
   ` ${path} ` + (branch === undefined ? '' : `  ${branch} `) + tail + 'BELOW'
 
-// A drawn tree's text, its string children joined in order.
+const isButton = (n: unknown): n is { props: { label: string } } =>
+  n !== null && typeof n === 'object' && 'type' in n && n.type === 'Button'
+
+// A drawn tree's text, its string children joined in order, a Button as the terminal draws it.
 const flat = (node: unknown): string =>
   typeof node === 'string'
     ? node
-    : node !== null && typeof node === 'object' && 'children' in node && Array.isArray(node.children)
+    : isButton(node)
+      ? `[ ${node.props.label} ]`
+      : node !== null && typeof node === 'object' && 'children' in node && Array.isArray(node.children)
       ? node.children.map(flat).join('')
       : ''
 
@@ -64,6 +70,33 @@ const start = async ($: Engine, on: On, cwd: { now: string }) => {
   await clock.settle()
   return clock
 }
+
+// thegraph-panel's chip as path-band reads it: undefined stands for the panel not installed.
+const panelChip = (on: On, value: unknown) => {
+  const chip = { value }
+  on('state.get', (_$, e, next) =>
+    e.plugin === 'thegraph-panel' && e.key === 'chip' ? { value: { value: chip.value as Chip | null, version: chip.value === undefined ? 0 : 1 } } : next(e),
+  )
+  return chip
+}
+
+// A run's chip as thegraph-panel writes it: a plain /thegraph unless told otherwise.
+const runChip = (over: Partial<Chip> = {}): Chip => ({
+  head: 'thegraph', issue: '#52', step: 'make-it ◐', time: '4m', children: [], conductor: null, ...over,
+})
+
+// A conductor at work on its second child of three.
+const CONDUCTOR = runChip({
+  head: 'herdr',
+  issue: '#38',
+  step: 'workers ◐',
+  time: '12m',
+  children: [
+    { label: '#37', state: 'done', address: null },
+    { label: '#38', state: 'working', address: 't38' },
+    { label: '#39', state: 'waiting', address: null },
+  ],
+})
 
 const band = ($: Engine, props = {}) => $.ui.mount({ plugin: 'path-band', surface: 'terminal', component: 'AbovePrompt', props: { ...BAND, ...props } })
 const toolCall = ($: Engine) => $.tool.call({ tool: 'Bash', command: 'git switch dev' })
@@ -119,6 +152,65 @@ describe('where', () => {
 
     const long = fit({ path: 'skills', head: { branch: 'x'.repeat(60), sha: null } }, 200)
     expect(cells(long.branch ?? '')).toBe(BRANCH_MAX)
+  })
+
+  test("a run's chip takes its cells from the path, and a long issue file name is cut at its end", () => {
+    const where = { path: 'skills-thegraph-panel/mods/thegraph-panel/hooks/tests', head: { branch: 'main', sha: null } as const }
+    const shown = fit(where, 60, runChip())
+    expect(shown.chip).toBe('thegraph #52 make-it ◐ 4m')
+    // [ path ] [ main ] [ chip ]: the chip a button, `[ text ]`, and the spaces between fill the width exactly.
+    expect(cells(shown.path) + 2 + 1 + cells('main') + 2 + 1 + cells('thegraph #52 make-it ◐ 4m') + 4).toBe(60)
+    expect(fit(where, 60).chip).toBe(null)
+    const named = fit({ path: 'skills', head: null }, 200, runChip({ issue: `0${'x'.repeat(40)}` }))
+    expect(named.chip).toContain(`0${'x'.repeat(ISSUE_MAX - 2)}… `)
+  })
+
+  test('narrowing, the chip drops its time, step and head, then the plain children, then the rest; path and branch stay', () => {
+    const where = { path: 'skills/mods/path-band', head: { branch: 'main', sha: null } as const }
+    // Path whole (21 cells, over PATH_MIN) at the widest; each step down gives up the next piece.
+    const at = (w: number) => fit(where, w, CONDUCTOR, true)
+    const wide = at(120)
+    expect(wide.path).toBe('skills/mods/path-band')
+    expect(wide.chip).toBe('herdr #38 workers ◐ 12m')
+    expect(wide.children.map(c => c.text)).toEqual(['#37 ✓', '#38 ◐', '#39 ·'])
+    const seen: string[] = []
+    let last = wide
+    for (let w = 120; w >= 20; w--) {
+      const s = at(w)
+      const key = `${s.chip}|${s.children.map(c => c.text).join(',')}`
+      if (seen.at(-1) !== key) seen.push(key)
+      // The branch never gives way, and the path keeps PATH_MIN cells while the run's pieces can give any.
+      expect(s.branch).toBe('main')
+      if (s.children.length > 0 || s.chip !== '#38') expect(cells(s.path)).toBeGreaterThanOrEqual(PATH_MIN)
+      last = s
+    }
+    expect(seen).toEqual([
+      'herdr #38 workers ◐ 12m|#37 ✓,#38 ◐,#39 ·',
+      'herdr #38 workers ◐|#37 ✓,#38 ◐,#39 ·',
+      'herdr #38|#37 ✓,#38 ◐,#39 ·',
+      '#38|#37 ✓,#38 ◐,#39 ·',
+      '#38|#38 ◐',
+      '#38|',
+    ])
+    // Narrower still, only the path is cut further.
+    expect(last.chip).toBe('#38')
+    expect(cells(last.path)).toBeLessThan(PATH_MIN)
+  })
+
+  test("a worker's way back shortens to ↩ last; the children's hotkeys are a, s, d in list order of the buttons", () => {
+    const where = { path: 'skills', head: { branch: 'main', sha: null } as const }
+    const worker = runChip({ head: 'worker', issue: '#38', step: 'check-it ◐', time: '2m', conductor: 't2x' })
+    expect(fit(where, 120, worker).back).toBe('↩ conductor')
+    expect(fit(where, 30, worker).back).toBe('↩')
+    const two = runChip({
+      head: 'herdr',
+      children: [
+        { label: '#1', state: 'done', address: null },
+        { label: '#2', state: 'working', address: 't2' },
+        { label: '#3', state: 'blocked', address: 't3' },
+      ],
+    })
+    expect(fit(where, 120, two).children.map(c => c.hotkey)).toEqual([null, 'a', 's'])
   })
 })
 
@@ -192,6 +284,64 @@ describe('path-band', () => {
     expect(flat(await ui.drawn())).toBe(line('skills', 'main'))
     await clock.advance(1_000)
     expect(flat(await ui.drawn())).toBe(line('skills/mods', 'main'))
+  })
+
+  test("a run's chip after the branch while thegraph-panel has one, following it as it changes", async ($, on) => {
+    repo(on)
+    const chip = panelChip(on, runChip())
+    await start($, on, { now: '/w/skills' })
+    // A fake answer does not redraw a mounted band as the owner's write does: each value is mounted afresh.
+    const drawn = async () => flat(await (await band($)).drawn())
+    expect(await drawn()).toBe(line('skills', 'main', ' [ thegraph #52 make-it ◐ 4m ]'))
+    chip.value = runChip({ issue: '03-row-height', step: 'done', time: null })
+    expect(await drawn()).toBe(line('skills', 'main', ' [ thegraph 03-row-height done ]'))
+  })
+
+  test("a conductor's children follow its chip, a live worker's a button; a worker's way back is one", async ($, on) => {
+    repo(on)
+    const chip = panelChip(on, CONDUCTOR)
+    await start($, on, { now: '/w/skills' })
+    const ui = await band($)
+    expect(flat(await ui.drawn())).toBe(line('skills', 'main', ' [ herdr #38 workers ◐ 12m ] #37 ✓ [ #38 ◐ ] #39 ·'))
+    const keys = (await ui.findAll({ type: 'Button' })).map(b => [b.props.key, b.props.hotkey])
+    expect(keys).toEqual([['thegraph', 'g'], ['thegraph-worker-t38', 'a']])
+    chip.value = runChip({ head: 'worker', issue: '#38', step: 'check-it ◐', time: '2m', conductor: 't2x' })
+    const worker = await band($)
+    expect(flat(await worker.drawn())).toBe(line('skills', 'main', ' [ worker #38 check-it ◐ 2m ] [ ↩ conductor ]'))
+    expect((await worker.findAll({ type: 'Button' })).map(b => [b.props.key, b.props.hotkey])).toEqual([['thegraph', 'g'], ['thegraph-conductor', 'c']])
+  })
+
+  test('on the main screen, which reports no clicks, each button is followed by its hotkey', async ($, on) => {
+    repo(on)
+    panelChip(on, CONDUCTOR)
+    await start($, on, { now: '/w/skills' })
+    const at = async (isFullscreen: boolean) =>
+      flat(await (await $.ui.mount({ plugin: 'path-band', surface: 'terminal', component: 'AbovePrompt', props: BAND, viewport: { columns: 125, rows: 40, isFullscreen } })).drawn())
+    expect(await at(false)).toBe(line('skills', 'main', ' [ herdr #38 workers ◐ 12m ]g #37 ✓ [ #38 ◐ ]a #39 ·'))
+    expect(await at(true)).toBe(line('skills', 'main', ' [ herdr #38 workers ◐ 12m ] #37 ✓ [ #38 ◐ ] #39 ·'))
+  })
+
+  test('no chip while no run is open, nor without thegraph-panel, nor from a value of another shape', async ($, on) => {
+    repo(on)
+    const chip = panelChip(on, null)
+    await start($, on, { now: '/w/skills' })
+    expect(flat(await (await band($)).drawn())).toBe(line('skills', 'main'))
+    // Not installed or not enabled: the value was never written.
+    chip.value = undefined
+    expect(flat(await (await band($)).drawn())).toBe(line('skills', 'main'))
+    // An older thegraph-panel's label, and a chip missing its head.
+    chip.value = '#52'
+    expect(flat(await (await band($)).drawn())).toBe(line('skills', 'main'))
+    const { head: _head, ...headless } = runChip()
+    chip.value = headless
+    expect(flat(await (await band($)).drawn())).toBe(line('skills', 'main'))
+  })
+
+  test('outside a working tree the chip follows the path', async ($, on) => {
+    files(on)
+    panelChip(on, runChip())
+    await start($, on, { now: '/home/u/Downloads' })
+    expect(flat(await (await band($)).drawn())).toBe(line('~/Downloads', undefined, ' [ thegraph #52 make-it ◐ 4m ]'))
   })
 
   test('a survey takes the line away and leaves the bands beneath', async ($, on) => {

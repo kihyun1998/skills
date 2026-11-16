@@ -63,6 +63,7 @@ cite it.
 | [0096](0096-salvage-clears-a-left-theflow-md.md) | `salvage` clears a left `theflow.md` by default, into the map by a table, stopping for no map, a run-time reader, or a recorded keep |
 | [0097](0097-a-new-screen-is-agreed-before-it-is-drawn.md) | A new screen is agreed before it is drawn: `design-it` takes a design brief and hands it to `prototype`, which stays upstream's and unedited; `make-it` calls it for a new screen and writes the picked design test-first; the brief and the variants wait beside the run sheet for `ask-it`, and the questions go one at a time (ADR-0064) |
 | [0098](0098-thegraph-herdr-runs-one-worker-terminal-per-issue.md) | `thegraph-herdr` is a separate skill for runs inside Herdr: the conductor reads, confirms once and asks; one worker terminal per issue, in sequence, writes and checks; the conductor is the invoked session, and a person picks each worker's model from the conductor's proposal |
+| [0099](0099-a-mod-reads-another-mods-state.md) | `thegraph-panel`'s line folds into one chip on `path-band`'s line, the first mod to read another's state: the panel writes the chip (kind, issue, step, time, children, the way back) and acts on its buttons' presses through `ui.press`; `path-band` draws only that, and nothing when the panel is absent; the remaining steps are in the pane |
 
 ### `gate` — the Acceptance Gate
 

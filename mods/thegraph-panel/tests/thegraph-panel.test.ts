@@ -1,19 +1,11 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
+import type { Chip, Run } from '../types'
 
-import { CONFIRM, DECIDE, addLog, gantt, stepAt, trail, turnSummary, isSheetPath, sheetLog, testCounts, testOf, labelOf, onAnswer, onEdit, onSkill, parseSheet, stepsOf, onTurnEnd, signalSummary, startRun, stateOf, keepTurnLine, turnLineOf } from '../hooks/run'
+import { CONFIRM, DECIDE, CHIP_KEY, CONDUCTOR_KEY, WORKER_KEY, addLog, chipOf, gantt, isDone, pressOf, stepAt, turnSummary, isSheetPath, sheetLog, testCounts, testOf, labelOf, onAnswer, onEdit, onSkill, parseSheet, stepsOf, onTurnEnd, signalSummary, startRun, stateOf, keepTurnLine, turnLineOf } from '../hooks/run'
 
 const MIN = 60_000
-
-const BAND = {
-  hasSurvey: false,
-  isWorking: false,
-  maxRows: 10,
-  bodyColumns: 140,
-  scroll: { offset: 0, bodyRows: 10 },
-  view: {},
-}
 
 const PANE_PROPS = {
   title: 'thegraph',
@@ -26,6 +18,7 @@ const PANE_PROPS = {
 
 const start = async ($: Engine, on: On) => {
   const clock = mock.clock(on)
+  watch($, on)
   on('session.start', (_$, e) => ({ cwd: e.cwd }))
   on('prompt.submit', (_$, e) => ({ text: e.text }))
   on('skill.prompt', (_$, e) => ({ text: e.text }))
@@ -126,7 +119,38 @@ const wrapOf = (node: unknown, start: string): unknown => {
   return flat(node).startsWith(start) && 'wrap' in props ? props.wrap : undefined
 }
 
-const band = ($: Engine) => $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'AbovePrompt', props: BAND })
+// What the panel last wrote to its state, by key: the run, and the chip path-band draws from it.
+const written = new WeakMap<Engine, Map<string, unknown>>()
+const watch = ($: Engine, on: On) => {
+  const seen = new Map<string, unknown>()
+  written.set($, seen)
+  on('state.set', (_$, e, next) => {
+    if (e.plugin === 'thegraph-panel') seen.set(e.key, 'value' in e ? e.value : undefined)
+    return next(e)
+  })
+}
+const lastRun = ($: Engine) => (written.get($)?.get('run') ?? null) as Run | null
+const lastChip = ($: Engine) => (written.get($)?.get('chip') ?? null) as Chip | null
+
+const MARK = { done: ' ✓', run: ' ◐', wait: ' ◆', todo: '' } as const
+
+// The run as one line: the chip as path-band draws it from the panel's value (the children's states
+// spelled out, a worker's way back by its terminal), then every step in order with its mark, a step
+// begun twice counted, and `done` at the end; `BELOW` with no run, as the band beneath shows alone.
+const lineOf = ($: Engine): string => {
+  const r = lastRun($)
+  const c = lastChip($)
+  if (r === null || c === null) return 'BELOW'
+  const chip = [c.head, c.issue, c.step, c.time].filter(w => w !== null && w !== '').join(' ')
+  const kids = c.children.map(k => (k.address === null ? ` ${k.label} ${k.state}` : ` [ ${k.label} ${k.state} ]`)).join('')
+  const back = c.conductor === null ? '' : ` [ ↩ ${c.conductor} ]`
+  const steps = stepsOf(r).map(({ key, state }) => {
+    const n = r.steps.filter(x => x.key === key).length
+    return `${key}${n > 1 ? `×${n}` : ''}${MARK[state]}`
+  })
+  return `[ ${chip} ]${kids}${back}  ${steps.join(' › ')}${isDone(r) ? '  done' : ''}`
+}
+const band = async ($: Engine) => ({ drawn: async () => lineOf($) })
 
 describe('turn lines', () => {
   test('keep the latest turns, not the longest, and a repeated duration moves to the end', () => {
@@ -149,6 +173,16 @@ describe('turn lines', () => {
 })
 
 describe('thegraph-panel', () => {
+  test('a run kept in state from before runs had a kind is followed as /thegraph, its chip written at the reload', async ($, on) => {
+    // The state a reload keeps, written by the version before kinds: no `kind`, `herd` or `reported`.
+    const { kind: _kind, herd: _herd, reported: _reported, ...old } = { ...startRun('#7', 0), steps: [{ key: 'read-it', startedAt: 0, endedAt: null }] }
+    // Until the panel writes a run of its own, a read of it answers the kept one.
+    const isKept = () => !(written.get($)?.has('run') ?? false)
+    on('state.get', (_$, e, next) => (isKept() && e.plugin === 'thegraph-panel' && e.key === 'run' ? { value: { value: old as Run, version: 1 } } : next(e)))
+    await start($, on)
+    expect(lastChip($)).toMatchObject({ head: 'thegraph', issue: '#7', step: 'read-it ◐' })
+  })
+
   test('draws nothing until /thegraph runs', async ($, on) => {
     await start($, on)
     const ui = await band($)
@@ -161,7 +195,7 @@ describe('thegraph-panel', () => {
     await say($, '/thegraph #42 band redraw')
     await skill($, 'thegraph')
     await skill($, 'read-it')
-    expect(flat(await ui.drawn())).toContain('thegraph #42 band redraw  read-it ◐ › confirm › make-it › check-it › ask-it · <1m')
+    expect(flat(await ui.drawn())).toContain('[ thegraph #42 band redraw read-it ◐ <1m ]  read-it ◐ › confirm › make-it › check-it › ask-it')
 
     await clock.advance(3 * MIN)
     await endTurn($)
@@ -178,12 +212,12 @@ describe('thegraph-panel', () => {
     await skill($, 'firsthand')
     await skill($, 'firsthand')
     const text = flat(await ui.drawn())
-    expect(text).toContain('make-it ◐ › check-it › ask-it · <1m   ⚑2')
-    // Its line sits over the band beneath, which still draws.
-    expect(text.endsWith('BELOW')).toBe(true)
-    // The clock's tick redraws the step's minutes while nothing else happens.
+    expect(text).toContain('[ thegraph #42 band redraw make-it ◐ <1m ]  ')
+    expect(text).toContain('make-it ◐ › check-it › ask-it')
+    expect(lastRun($)?.signals.length).toBe(2)
+    // The clock's tick moves the chip's minutes in the step while nothing else happens.
     await clock.advance(12 * MIN)
-    expect(flat(await ui.drawn())).toContain('ask-it · 12m')
+    expect(flat(await ui.drawn())).toContain('make-it ◐ 12m ]')
   })
 
   test('a confirm asked in a question box waits, and its reply answers it; an edit then begins make-it', async ($, on) => {
@@ -236,7 +270,7 @@ describe('thegraph-panel', () => {
     expect(log).not.toContain('git status')
   })
 
-  test('a sheet the run names and writes itself is followed and read back, and the line and pane draw from it', async ($, on) => {
+  test('a sheet the run names and writes itself is followed and read back, and the chip and pane draw from it', async ($, on) => {
     const fs = sheetFiles(on)
     on('tool.call', { tool: 'Write' }, (_$, e) => {
       fs.write(e.file_path, e.content)
@@ -287,15 +321,13 @@ describe('thegraph-panel', () => {
     expect(flat(await ui.drawn())).toContain('ask-it ✓  done')
   })
 
-  test('the pane closes itself: its own button, Esc, and the keys named on the main screen', async ($, on) => {
+  test('the pane closes itself: its own button, and the keys named on the main screen', async ($, on) => {
     const host = paneHost(on)
     await start($, on)
     await say($, '/thegraph')
     await skill($, 'thegraph')
     await skill($, 'read-it')
-    const ui = await band($)
-    await ui.press({ key: 'pane' })
-    expect(host.opened.at(-1)?.closeOnEscape).toBe(true)
+    host.panes.add('thegraph')
     const pane = await $.ui.mount({
       plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS,
       viewport: { columns: 145, rows: 40, isFullscreen: false },
@@ -303,7 +335,6 @@ describe('thegraph-panel', () => {
     expect(flat(await pane.drawn())).toContain('[ close ] ^x x')
     await pane.press({ key: 'close' })
     expect([...host.panes]).toEqual([])
-    expect(flat(await ui.drawn())).toContain('▸ pane')
   })
 
   test('a pane left open with no run says so, offers its close, and goes at the next prompt', async ($, on) => {
@@ -351,37 +382,24 @@ describe('thegraph-panel', () => {
     expect((text.match(/⚑ firsthand/g) ?? []).length).toBe(7)
   })
 
-  test('the band carries a button that opens and closes the checklist pane', async ($, on) => {
-    // The surface's panes, as the engine keeps them.
-    const panes = new Set<string>()
-    on('ui.open', (_$, e) => {
-      panes.add(e.id)
-      return { value: { isPlaced: true as const } }
-    })
-    on('ui.close', (_$, e) => {
-      panes.delete(e.id)
-      return { value: undefined }
-    })
+  test("path-band's buttons press through to the pane and to the terminals the chip names, nothing else", async ($, on) => {
     await start($, on)
     await say($, '/thegraph')
     await skill($, 'thegraph')
-    await skill($, 'read-it')
-    const ui = await band($)
-    expect(flat(await ui.drawn())).toContain('▸ pane')
-
-    await ui.press({ key: 'pane' })
-    expect([...panes]).toEqual(['thegraph'])
-    expect(flat(await ui.drawn())).toContain('▾ close pane')
-
-    const pane = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS })
-    expect(flat(await pane.drawn())).toContain('▸ read-it')
-
-    await ui.press({ key: 'pane' })
-    expect([...panes]).toEqual([])
-    expect(flat(await ui.drawn())).toContain('▸ pane')
+    const chip = lastChip($)
+    expect(pressOf(CHIP_KEY, chip)).toEqual({ kind: 'pane' })
+    // A plain run has no children and no conductor: their keys are no press of this plugin's.
+    expect(pressOf(CONDUCTOR_KEY, chip)).toBe(null)
+    expect(pressOf(`${WORKER_KEY}t30`, chip)).toBe(null)
+    expect(pressOf('dismiss', chip)).toBe(null)
+    expect(pressOf(CHIP_KEY, null)).toBe(null)
+    const herd = { ...(chip as Chip), children: [{ label: '#38', state: 'working' as const, address: 't30' }, { label: '#39', state: 'waiting' as const, address: null }], conductor: 't2x' }
+    expect(pressOf(`${WORKER_KEY}t30`, herd)).toEqual({ kind: 'focus', address: 't30' })
+    expect(pressOf(`${WORKER_KEY}t31`, herd)).toBe(null)
+    expect(pressOf(CONDUCTOR_KEY, herd)).toEqual({ kind: 'focus', address: 't2x' })
   })
 
-  test('a finished run stays until the next prompt, then the line goes', async ($, on) => {
+  test('a finished run stays until the next prompt, then the chip goes', async ($, on) => {
     await start($, on)
     const ui = await band($)
     await say($, '/thegraph')
@@ -395,7 +413,8 @@ describe('thegraph-panel', () => {
     await endTurn($)
     expect(flat(await ui.drawn())).toContain('check-it ✓ › ask-it ◆')
     await say($, '1번만 이슈로')
-    expect(flat(await ui.drawn())).toContain('ask-it ✓  done · ')
+    expect(flat(await ui.drawn())).toContain('[ thegraph done ]  ')
+    expect(flat(await ui.drawn())).toContain('ask-it ✓  done')
     await say($, '다음 거 하자')
     expect(flat(await ui.drawn())).toBe('BELOW')
   })
@@ -426,7 +445,7 @@ describe('thegraph-panel', () => {
     await say($, '/thegraph #2')
     await skill($, 'read-it')
     const line = flat(await ui.drawn())
-    expect(line).toContain('thegraph #2  read-it ◐ › confirm')
+    expect(line).toContain('[ thegraph #2 read-it ◐ <1m ]')
     expect(line).not.toContain('#1')
   })
 
@@ -446,7 +465,7 @@ describe('thegraph-panel', () => {
     expect(flat(await ui.drawn())).toContain('make-it ◐')
     expect(flat(await ui.drawn())).not.toContain('done')
     await $.tool.call({ tool: 'Bash', command: 'gh issue close #42 -R kihyun1998/penterm --comment "done"' })
-    expect(flat(await ui.drawn())).toContain('done · ')
+    expect(flat(await ui.drawn())).toContain('  done')
     const pane = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS })
     expect(flat(await pane.drawn())).toContain('✓ issue closed')
     // Ended, it goes at the next prompt like any finished run.
@@ -477,7 +496,7 @@ describe('thegraph-panel', () => {
     expect(asked.some(a => a[0] === 'gh' && a.includes('42') && a.includes('kihyun1998/penterm'))).toBe(true)
     state = 'CLOSED'
     await clock.advance(6 * MIN)
-    expect(flat(await ui.drawn())).toContain('done · ')
+    expect(flat(await ui.drawn())).toContain('  done')
   })
 
   test('a local issue file marked done, or moved away once seen, ends the run', async ($, on) => {
@@ -501,7 +520,7 @@ describe('thegraph-panel', () => {
       if (finish === 'status') fs.write(ISSUE, issueText('done'))
       else fs.remove(ISSUE)
       await $.tool.call({ tool: 'Bash', command: 'true' })
-      expect(flat(await ui.drawn())).toContain('done · ')
+      expect(flat(await ui.drawn())).toContain('  done')
       await say($, '다음')
       expect(flat(await ui.drawn())).toBe('BELOW')
     }
@@ -534,10 +553,10 @@ describe('thegraph-panel', () => {
     const ui = await band($)
     await say($, '/thegraph #42 band redraw')
     await skill($, 'thegraph')
-    expect(flat(await ui.drawn())).toContain('thegraph #42 band redraw  ')
+    expect(flat(await ui.drawn())).toContain('[ thegraph #42 band redraw read-it ]')
     await $.tool.call({ tool: 'Write', file_path: SHEET, content: sheetText('~', 'kihyun1998/penterm#42') })
     const line = flat(await ui.drawn())
-    expect(line).toContain('thegraph #42 설정 행 높이 통일  ')
+    expect(line).toContain('[ thegraph #42 make-it ◐')
     expect(line).not.toContain('band redraw')
     const pane = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS })
     const text = flat(await pane.drawn())
@@ -557,15 +576,15 @@ describe('thegraph-panel', () => {
     const ui = await band($)
     await say($, '/thegraph')
     await skill($, 'thegraph')
-    expect(flat(await ui.drawn())).toContain('thegraph  read-it')
+    expect(flat(await ui.drawn())).toContain('[ thegraph read-it ]')
     const ISSUE = 'D:\\github\\penterm\\.scratch\\settings\\issues\\03-row-height.md'
     await $.tool.call({ tool: 'Write', file_path: SHEET, content: sheetText('~', ISSUE) })
-    expect(flat(await ui.drawn())).toContain('thegraph 03-row-height 설정 행 높이 통일  ')
+    expect(flat(await ui.drawn())).toContain('[ thegraph 03-row-height make-it ◐')
     const pane = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS })
     expect(flat(await pane.drawn())).toContain(ISSUE)
   })
 
-  test('a sheet issue with no title is named by its number; one with no source by its whole line, cut on the band', async ($, on) => {
+  test("a sheet issue with no title is named by its number; one with no source by its line, the chip by the line's issue", async ($, on) => {
     const fs = sheetFiles(on)
     on('tool.call', { tool: 'Write' }, (_$, e) => {
       fs.write(e.file_path, e.content)
@@ -578,16 +597,16 @@ describe('thegraph-panel', () => {
     const issueLine = (issue: string, source?: string) =>
       sheetText('~', source).replace(/^issue: .*$/m, `issue: ${issue}`)
     await $.tool.call({ tool: 'Write', file_path: SHEET, content: issueLine('#7', '#7') })
-    expect(flat(await ui.drawn())).toContain('thegraph #7  read-it')
-    // An older sheet, before `source:`: the issue line whole, cut to 40 on the band.
+    expect(flat(await ui.drawn())).toContain('[ thegraph #7 make-it ◐')
+    // An older sheet, before `source:`: the chip names the issue before its title, the pane the whole line.
     const old = '.scratch/settings/issues/03-row-height.md — 설정 행 높이 통일'
     await $.tool.call({ tool: 'Write', file_path: SHEET, content: issueLine(old) })
-    expect(flat(await ui.drawn())).toContain(`thegraph ${[...old].slice(0, 40).join('')}…  `)
+    expect(flat(await ui.drawn())).toContain('[ thegraph 03-row-height make-it ◐')
     const pane = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS })
     expect(flat(await pane.drawn())).toContain(`thegraph ${old} · prose`)
   })
 
-  test('a long title is cut at 40 characters on the band, whole in the pane', async ($, on) => {
+  test('a long title stays off the chip, and is whole in the pane', async ($, on) => {
     const fs = sheetFiles(on)
     on('tool.call', { tool: 'Write' }, (_$, e) => {
       fs.write(e.file_path, e.content)
@@ -601,8 +620,8 @@ describe('thegraph-panel', () => {
     const name = `#1043 ${title}`
     await $.tool.call({ tool: 'Write', file_path: SHEET, content: sheetText('~', 'o/r#1043').replace(/^issue: .*$/m, `issue: #1043 — ${title}`) })
     const line = flat(await ui.drawn())
-    expect(line).toContain(`thegraph ${[...name].slice(0, 40).join('')}…  `)
-    expect(line).not.toContain([...name].slice(0, 41).join(''))
+    expect(line).toContain('[ thegraph #1043 make-it ◐')
+    expect(line).not.toContain('세션')
     const pane = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS })
     const drawn = await pane.drawn()
     expect(flat(drawn)).toContain(`thegraph ${name} · prose`)
@@ -621,7 +640,7 @@ describe('thegraph-panel', () => {
     await say($, '/thegraph #5')
     await skill($, 'thegraph')
     await $.tool.call({ tool: 'Write', file_path: SHEET, content: sheetText('~').replace(/^issue: .*$/m, "issue: <the issue as read-it resolved it> — <its title>") })
-    expect(flat(await ui.drawn())).toContain('thegraph #5  ')
+    expect(flat(await ui.drawn())).toContain('[ thegraph #5 make-it ◐')
     expect(flat(await ui.drawn())).not.toContain('<the issue')
   })
 
@@ -692,8 +711,8 @@ describe('thegraph-panel', () => {
     await skill($, 'thegraph')
     await skill($, 'read-it')
     const line = flat(await ui.drawn())
-    expect(line).toContain('thegraph #2  read-it ◐ › confirm › make-it › check-it › ask-it')
-    expect(line).not.toContain('⚑')
+    expect(line).toContain('[ thegraph #2 read-it ◐ <1m ]  read-it ◐ › confirm › make-it › check-it › ask-it')
+    expect(lastRun($)?.signals).toEqual([])
     const pane = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS })
     expect(flat(await pane.drawn())).not.toContain('이슈로?')
     // And the second runs to its end as any run does.
@@ -733,21 +752,13 @@ describe('thegraph-panel', () => {
     for (const s of ['make-it', 'check-it', 'lens', 'firsthand']) await skill($, s)
     const text = flat(await ui.drawn())
     expect(text).toContain('check-it ◐ › ask-it')
-    expect(text).toContain('⚑1')
+    expect(lastRun($)?.signals.length).toBe(1)
     const pane = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS })
     expect(flat(await pane.drawn())).toContain('thegraph · prose/code')
   })
 
-  test('× gives a run up: the line goes and its pane closes', async ($, on) => {
-    const panes = new Set<string>()
-    on('ui.open', (_$, e) => {
-      panes.add(e.id)
-      return { value: { isPlaced: true as const } }
-    })
-    on('ui.close', (_$, e) => {
-      panes.delete(e.id)
-      return { value: undefined }
-    })
+  test('`clear run ×` in the pane gives the run up: the chip goes and the pane closes', async ($, on) => {
+    const host = paneHost(on)
     await start($, on)
     await say($, '/thegraph')
     await skill($, 'thegraph')
@@ -755,35 +766,20 @@ describe('thegraph-panel', () => {
     await endTurn($)
     await say($, '진행')
     await skill($, 'make-it')
-    const ui = await band($)
-    await ui.press({ key: 'pane' })
-    expect([...panes]).toEqual(['thegraph'])
-
-    await ui.press({ key: 'dismiss' })
-    expect(flat(await ui.drawn())).toBe('BELOW')
-    expect([...panes]).toEqual([])
+    host.panes.add('thegraph')
+    const pane = await $.ui.mount({
+      plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS,
+      viewport: { columns: 145, rows: 40, isFullscreen: false },
+    })
+    // On the main screen its hotkey follows it, as on path-band's line.
+    expect(flat(await pane.drawn())).toContain('[ clear run × ]x')
+    await pane.press({ key: 'clear' })
+    expect(flat(await (await band($)).drawn())).toBe('BELOW')
+    expect(lastChip($)).toBe(null)
+    expect([...host.panes]).toEqual([])
     // The skills that come after it start nothing; only a new /thegraph does.
     await skill($, 'check-it')
-    expect(flat(await ui.drawn())).toBe('BELOW')
-  })
-
-  test('on the main screen, which reports no clicks, the button says which keys press it', async ($, on) => {
-    await start($, on)
-    await say($, '/thegraph')
-    await skill($, 'thegraph')
-    const at = (isFullscreen: boolean) =>
-      $.ui.mount({
-        plugin: 'thegraph-panel',
-        surface: 'terminal',
-        component: 'AbovePrompt',
-        props: BAND,
-        viewport: { columns: 145, rows: 40, isFullscreen },
-      })
-    expect(flat(await (await at(false)).drawn())).toContain('[ ▸ pane ] [ × ] ^x⇥ g·x')
-    expect(flat(await (await at(true)).drawn())).not.toContain('^x⇥')
-    // The buttons sit at the right edge, lined up with the band beneath.
-    const boxes = await (await at(true)).findAll({ type: 'Box' })
-    expect(boxes.some(b => b.props.justifyContent === 'space-between' && b.props.paddingRight === 1)).toBe(true)
+    expect(flat(await (await band($)).drawn())).toBe('BELOW')
   })
 })
 
@@ -935,23 +931,23 @@ describe('run', () => {
     expect(stepAt(r, 9 * MIN)).toBe('make-it #2')
   })
 
-  test('the trail: each step and its mark, a step run twice counted, the time in the step, a red last test, the signals', () => {
+  test('the chip: the step at hand with its mark and the time in it over every round, a waiting step, done', () => {
     const MIN = 60_000
-    let r = startRun(null, 0)
+    let r = startRun('#9 x', 0)
+    expect(chipOf(r, [], 0)).toEqual({ head: 'thegraph', issue: '#9 x', step: 'read-it', time: null, children: [], conductor: null })
     r = onSkill(r, 'read-it', 0)
     r = onTurnEnd(r, 2 * MIN)
+    expect(chipOf(r, [], 2 * MIN)?.step).toBe('confirm ◆')
     r = onAnswer(r, 3 * MIN) ?? r
     r = onSkill(r, 'make-it', 3 * MIN)
     r = onSkill(r, 'check-it', 6 * MIN)
     r = onSkill(r, 'make-it', 8 * MIN)
-    r = onSkill(r, 'firsthand', 9 * MIN)
-    const text = (run: typeof r) => trail(run, 10 * MIN).map(x => x.text).join('')
-    expect(text(r)).toBe('read-it ✓ › confirm ✓ › make-it×2 ◐ › check-it › ask-it · 5m   ⚑1')
-    // Only the last test speaks: red while it failed, gone once one passes.
-    r = addLog(r, { at: 9 * MIN, kind: 'test', text: 'vitest', detail: '1 fail', isOk: false })
-    expect(text(r)).toBe('read-it ✓ › confirm ✓ › make-it×2 ◐ › check-it › ask-it · 5m   ✗ 1 fail  ⚑1')
-    r = addLog(r, { at: 9 * MIN + 1, kind: 'test', text: 'vitest', detail: '2 pass', isOk: true })
-    expect(text(r)).toBe('read-it ✓ › confirm ✓ › make-it×2 ◐ › check-it › ask-it · 5m   ⚑1')
+    // make-it ran 3 minutes, then 2 so far.
+    expect(chipOf(r, [], 10 * MIN)).toMatchObject({ step: 'make-it ◐', time: '5m' })
+    // A sheet that puts make-it back to do: no mark, and no time, though it ran before.
+    expect(chipOf({ ...r, sheet: parseSheet(SHEET, sheetText(' ')) }, [], 10 * MIN)).toMatchObject({ step: 'make-it', time: null })
+    expect(chipOf({ ...r, doneAt: 11 * MIN }, [], 12 * MIN)).toMatchObject({ step: 'done', time: null })
+    expect(chipOf(null, [], 0)).toBe(null)
   })
 
   test("a turn's summary counts only what the turn did", () => {
@@ -970,5 +966,309 @@ describe('run', () => {
     expect(signalSummary(r)).toBe('firsthand×2')
     const at = 0
     expect(signalSummary({ ...r, signals: [{ skill: 'b', at }, { skill: 'a', at }, { skill: 'b', at }] })).toBe('b×2 a')
+  })
+})
+
+// --- /thegraph-herdr: the conductor and its workers ----------------------------------------
+
+const OK = { exitCode: 0, stderr: '', isStdoutTruncated: false, isStderrTruncated: false }
+
+// The herdr run's sheet, as the conductor writes it, with its children.
+const herdSheet = (children: string[] | null) => [
+  '# thegraph-herdr run sheet',
+  'issue: #50 — herdr follow-up',
+  'source: kihyun1998/skills#50',
+  'repo: /w',
+  'route: code',
+  'conductor: opus medium',
+  '',
+  '- [x] read-it',
+  '- [x] confirm',
+  '- [~] workers',
+  '- [ ] ask-it',
+  ...(children === null ? [] : ['', '## Children', ...children]),
+  '',
+  '## Carried',
+  '- one thing',
+].join('\n')
+
+// hc and herdr-app as the session finds them: `ls` answers what `terminals` holds; every argv is recorded.
+const herdr = ($: Engine, on: On, opts: { terminals?: unknown[]; self?: unknown; env?: Record<string, string> } = {}) => {
+  const h = { terminals: opts.terminals ?? [], argv: [] as string[][], isBroken: false }
+  // Inside Herdr unless a test says otherwise: hc answers for terminal t1, which is no worker.
+  on('env.get', (_$, e) => ({ value: (opts.env ?? { HC_TERMINAL_ID: 't1' })[e.name] }))
+  on('process.run', (_$, e) => {
+    const argv = [...e.argv]
+    h.argv.push(argv)
+    if (h.isBroken && (argv[0] === 'hc' || argv[0] === 'herdr-app')) throw new Error('spawn hc ENOENT')
+    if (argv[0] === 'hc' && argv[1] === 'ls') return { value: { ...OK, stdout: JSON.stringify({ hidden_finished: 0, terminals: h.terminals }) } }
+    if (argv[0] === 'hc' && argv[1] === 'get') return { value: { ...OK, stdout: JSON.stringify(opts.self ?? {}) } }
+    if (argv[0] === 'herdr-app') return { value: { ...OK, stdout: '{"ok": true}' } }
+    return { value: { ...OK, stdout: '/tmp\n' } }
+  })
+  return h
+}
+
+const term = (address: string, name: string, status: string) => ({ address, name, parent: 't1', state: 'live', status, agent: 'claude-code' })
+
+// The issue the chip names, as the panel last wrote it; null with no chip.
+const issueChip = async ($: Engine) => lastChip($)?.issue ?? null
+
+// A conductor run under way: /thegraph-herdr typed, its skill expanded, its sheet written by the shell.
+const conduct = async ($: Engine, on: On, fs: ReturnType<typeof sheetFiles>, children: string[] | null) => {
+  on('tool.call', { tool: 'Bash' }, () => ({ result: { stdout: '', stderr: '', interrupted: false, isImage: false } }))
+  const clock = await start($, on)
+  await say($, '/thegraph-herdr #50')
+  const told = (await $.skill.prompt({ skill: 'thegraph-herdr', text: 'BODY' })).text
+  const path = /This run's run sheet: (\S+)/.exec(told)?.[1] ?? ''
+  fs.write(path, herdSheet(children))
+  await $.tool.call({ tool: 'Bash', command: 'true' })
+  return { clock, path }
+}
+
+describe('thegraph-herdr', () => {
+  test('a typed /thegraph-herdr starts a conductor run named as such, on its own steps, and its skill is told the sheet', async ($, on) => {
+    herdr($, on)
+    on('tool.call', { tool: 'Write' }, (_$, e) => ({ result: { type: 'create', filePath: e.file_path, content: e.content, structuredPatch: [], originalFile: null } }))
+    await start($, on)
+    const ui = await band($)
+    await say($, '/thegraph-herdr #50')
+    const told = (await $.skill.prompt({ skill: 'thegraph-herdr', text: 'BODY' })).text
+    const path = /This run's run sheet: (\S+)/.exec(told)?.[1] ?? ''
+    expect(told.startsWith('BODY')).toBe(true)
+    expect(isSheetPath(path)).toBe(true)
+    await skill($, 'read-it')
+    const line = flat(await ui.drawn())
+    expect(line).toContain('[ herdr #50 read-it ◐ <1m ]  read-it ◐ › confirm › workers › ask-it')
+    expect(line).not.toContain('make-it')
+    await endTurn($)
+    expect(flat(await ui.drawn())).toContain('read-it ✓ › confirm ◆ › workers › ask-it')
+    // Writing a brief after the confirm is the conductor's work, not make-it begun.
+    await say($, '진행')
+    await $.tool.call({ tool: 'Write', file_path: '/tmp/thegraph/w-20261116-0925-e5cec753.50.brief.md', content: 'x' })
+    expect(flat(await ui.drawn())).not.toContain('make-it')
+    const pane = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS })
+    const log = flat(await pane.drawn())
+    expect(log).toContain('▸ read-it')
+    expect(log).not.toContain('make-it')
+  })
+
+  test('/thegraph-codex is still not followed', async ($, on) => {
+    herdr($, on)
+    await start($, on)
+    const ui = await band($)
+    await say($, '/thegraph-codex #50')
+    await skill($, 'thegraph-codex')
+    await skill($, 'read-it')
+    expect(flat(await ui.drawn())).toBe('BELOW')
+  })
+
+  test("the conductor's chip carries every child with its state, a live worker's with its terminal to focus", async ($, on) => {
+    const fs = sheetFiles(on)
+    const h = herdr($, on)
+    const { path } = await conduct($, on, fs, ['- #37 — opus medium, done, 703ccfd', '- #38 — opus high, under way', '- #39 — sonnet medium, waiting'])
+    const id = /([0-9a-f]{8})\.md$/.exec(path)?.[1] ?? ''
+    // Another run's terminal for the same issue, listed first, and this run's worker.
+    h.terminals = [term('t9', 'tg-0badc0de-38', 'idle'), term('t30', `tg-${id}-38`, 'working')]
+    await $.tool.call({ tool: 'Bash', command: 'hc run' })
+    const ui = await band($)
+    const text = flat(await ui.drawn())
+    expect(text).toContain('[ herdr #38 workers ◐ ] #37 done [ #38 working ] #39 waiting  read-it ✓ › confirm ✓ › workers ◐ › ask-it')
+    // Only this run's worker: the other run's terminal for #38 is no press.
+    expect(pressOf(`${WORKER_KEY}t30`, lastChip($))).toEqual({ kind: 'focus', address: 't30' })
+    expect(pressOf(`${WORKER_KEY}t9`, lastChip($))).toBe(null)
+    // The chip names the child being worked on.
+    expect(await issueChip($)).toBe('#38')
+  })
+
+  test('the list follows hc after tool calls and on the timer; with no live worker the chip names the anchor', async ($, on) => {
+    const fs = sheetFiles(on)
+    const h = herdr($, on)
+    const { clock, path } = await conduct($, on, fs, ['- #37 — done', '- #38 — under way'])
+    const id = /([0-9a-f]{8})\.md$/.exec(path)?.[1] ?? ''
+    h.terminals = [term('t30', `tg-${id}-38`, 'working')]
+    await $.tool.call({ tool: 'Bash', command: 'hc run' })
+    const ui = await band($)
+    expect(flat(await ui.drawn())).toContain('[ #38 working ]')
+    h.terminals = [term('t30', `tg-${id}-38`, 'blocked')]
+    await clock.advance(30_000)
+    expect(flat(await ui.drawn())).toContain('[ #38 blocked ]')
+    expect(await issueChip($)).toBe('#38')
+    // Done but not yet removed: still a button, and no longer the issue being worked on.
+    h.terminals = [term('t30', `tg-${id}-38`, 'done')]
+    await clock.advance(30_000)
+    expect(flat(await ui.drawn())).toContain('[ #38 done ]')
+    expect(await issueChip($)).toBe('#50')
+    // Killed and removed: gone from hc, so no button, and the sheet's line says where it stands.
+    h.terminals = []
+    await $.tool.call({ tool: 'Bash', command: 'hc rm t30' })
+    const text = flat(await ui.drawn())
+    expect(text).toContain('#38 waiting')
+    expect(text).not.toContain('[ #38')
+    expect(await issueChip($)).toBe('#50')
+  })
+
+  test('a single issue with no children shows the one worker found under its run id', async ($, on) => {
+    const fs = sheetFiles(on)
+    const h = herdr($, on)
+    const { path } = await conduct($, on, fs, null)
+    const id = /([0-9a-f]{8})\.md$/.exec(path)?.[1] ?? ''
+    h.terminals = [term('t31', `tg-${id}-50`, 'idle'), term('t1', 'other', 'working')]
+    await $.tool.call({ tool: 'Bash', command: 'hc run' })
+    const ui = await band($)
+    // Idle, a question waiting on the person, is still at work.
+    expect(flat(await ui.drawn())).toContain('[ #50 working ]')
+    expect(await issueChip($)).toBe('#50')
+  })
+
+  test('a failed hc leaves the chip as it was', async ($, on) => {
+    const fs = sheetFiles(on)
+    const h = herdr($, on)
+    const { clock, path } = await conduct($, on, fs, ['- #38 — under way'])
+    const id = /([0-9a-f]{8})\.md$/.exec(path)?.[1] ?? ''
+    h.terminals = [term('t30', `tg-${id}-38`, 'working')]
+    await $.tool.call({ tool: 'Bash', command: 'hc run' })
+    const ui = await band($)
+    h.isBroken = true
+    await clock.advance(30_000)
+    expect(flat(await ui.drawn())).toContain('[ #38 working ]')
+  })
+
+  test('with no hc a herdr run shows its chip and its children, none with a terminal', async ($, on) => {
+    const fs = sheetFiles(on)
+    const h = herdr($, on)
+    h.isBroken = true
+    await conduct($, on, fs, ['- #38 — under way'])
+    const text = flat(await (await band($)).drawn())
+    expect(text).toContain('workers ◐')
+    expect(text).toContain('#38 waiting')
+  })
+
+  test('the chip names a plain /thegraph run by its issue, a local issue by its file name, says done at its end, and goes after', async ($, on) => {
+    const fs = sheetFiles(on)
+    herdr($, on)
+    on('tool.call', { tool: 'Write' }, (_$, e) => {
+      fs.write(e.file_path, e.content)
+      return { result: { type: 'create', filePath: e.file_path, content: e.content, structuredPatch: [], originalFile: null } }
+    })
+    await start($, on)
+    await say($, '/thegraph')
+    await skill($, 'thegraph')
+    // Never written yet is no chip too.
+    expect((await issueChip($)) ?? null).toBe(null)
+    await $.tool.call({ tool: 'Write', file_path: SHEET, content: sheetText('~', 'D:\\github\\penterm\\.scratch\\settings\\issues\\03-row-height.md') })
+    expect(await issueChip($)).toBe('03-row-height')
+    await $.tool.call({ tool: 'Write', file_path: SHEET, content: sheetText('~', 'kihyun1998/penterm#42') })
+    expect(await issueChip($)).toBe('#42')
+    await $.tool.call({ tool: 'Write', file_path: SHEET, content: sheetText('x', 'kihyun1998/penterm#42') })
+    expect(lastChip($)).toMatchObject({ issue: '#42', step: 'done', time: null })
+    await say($, '다음')
+    expect(lastChip($)).toBe(null)
+  })
+})
+
+describe('a herdr worker', () => {
+  const BRIEF = 'C:\\Temp\\thegraph\\skills-20261116-0925-e5cec753.52.brief.md'
+  const briefText = [
+    'You are the worker for one issue of a /thegraph-herdr run.',
+    '',
+    'Conductor terminal: t2x',
+    'Repo: D:\\github\\skills',
+    'Issue: kihyun1998/skills#52 — panel follows herdr',
+    'Route: code',
+  ].join('\n')
+  const SELF = { address: 't33', name: 'tg-e5cec753-52', parent: 't2x', state: 'live', status: { app: 'claude-code', msg: '', state: 'working' } }
+
+  const asWorker = async ($: Engine, on: On, opts: { isListed?: boolean } = {}) => {
+    const fs = sheetFiles(on)
+    fs.write(BRIEF, briefText)
+    const listed = opts.isListed === false ? [] : [{ name: 'skills-20261116-0925-e5cec753.52.brief.md', kind: 'file' as const, size: 1, mtimeMs: 1, isLink: false }]
+    on('fs.list', () => ({ value: listed }))
+    on('tool.call', { tool: 'Read' }, () => ({ result: { type: 'text', file: { filePath: BRIEF, content: briefText, numLines: 6, startLine: 1, totalLines: 6 } } }))
+    on('tool.call', { tool: 'Bash' }, () => ({ result: { stdout: '', stderr: '', interrupted: false, isImage: false } }))
+    on('classic.SessionStart', () => ({}))
+    const h = herdr($, on, { self: SELF, env: { HC_TERMINAL_ID: 't33' } })
+    const clock = await start($, on)
+    return { h, fs, clock }
+  }
+
+  test('is told from its terminal name with no prompt, names its issue from the brief, and walks make-it and check-it', async ($, on) => {
+    const { clock } = await asWorker($, on)
+    const ui = await band($)
+    expect(flat(await ui.drawn())).toContain('[ worker #52 make-it ] [ ↩ t2x ]  make-it › check-it')
+    expect(await issueChip($)).toBe('#52')
+    await say($, `Read ${BRIEF} and do what it says.`)
+    await skill($, 'make-it')
+    await clock.advance(3 * MIN)
+    expect(flat(await ui.drawn())).toContain('[ worker #52 make-it ◐ 3m ]')
+    await skill($, 'check-it')
+    await skill($, 'make-it')
+    expect(flat(await ui.drawn())).toContain('make-it×2 ◐ › check-it')
+  })
+
+  test('takes its issue from the read of its brief when no listing found it', async ($, on) => {
+    await asWorker($, on, { isListed: false })
+    const ui = await band($)
+    expect(flat(await ui.drawn())).toContain('[ worker make-it ] [ ↩ t2x ]  make-it › check-it')
+    await $.tool.call({ tool: 'Read', file_path: BRIEF })
+    expect(flat(await ui.drawn())).toContain('[ worker #52 make-it ]')
+  })
+
+  test("its way back names the conductor's terminal, its hc parent", async ($, on) => {
+    await asWorker($, on)
+    expect(lastChip($)?.conductor).toBe('t2x')
+    expect(pressOf(CONDUCTOR_KEY, lastChip($))).toEqual({ kind: 'focus', address: 't2x' })
+  })
+
+  test('its done report ends it at the end of that turn, unless a skill follows; more work takes it up again', async ($, on) => {
+    const { clock } = await asWorker($, on)
+    const ui = await band($)
+    await skill($, 'make-it')
+    await clock.advance(MIN)
+    await skill($, 'check-it')
+    await clock.advance(MIN)
+    // A question sent up waits on the answer; it is no end.
+    await $.tool.call({ tool: 'Bash', command: 'hc send t2x "question C:\\Temp\\x.report.md"' })
+    await endTurn($)
+    expect(flat(await ui.drawn())).not.toContain('  done')
+    await say($, 'answer')
+    await $.tool.call({ tool: 'Bash', command: 'hc send t2x "done C:\\Temp\\x.report.md"' })
+    await skill($, 'make-it')
+    await endTurn($)
+    expect(flat(await ui.drawn())).not.toContain('  done')
+    await say($, 'go on')
+    await $.tool.call({ tool: 'Bash', command: 'hc send t2x "done C:\\Temp\\x.report.md"' })
+    await endTurn($)
+    expect(flat(await ui.drawn())).toContain('[ worker #52 done ]')
+    expect(flat(await ui.drawn())).toContain('  done')
+    // The conductor sends back what differs: the worker is at it again.
+    await say($, 'the commit touches files left alone')
+    expect(flat(await ui.drawn())).toContain('[ worker #52 ')
+    expect(flat(await ui.drawn())).not.toContain('  done')
+  })
+
+  test('a session whose terminal is no worker has no chip, and hc failing breaks nothing', async ($, on) => {
+    sheetFiles(on)
+    herdr($, on, { self: { address: 't2x', state: 'live' }, env: { HC_TERMINAL_ID: 't2x' } })
+    await start($, on)
+    expect(flat(await (await band($)).drawn())).toBe('BELOW')
+  })
+
+  test('outside Herdr hc is never asked', async ($, on) => {
+    sheetFiles(on)
+    const h = herdr($, on, { env: {} })
+    await start($, on)
+    expect(flat(await (await band($)).drawn())).toBe('BELOW')
+    expect(h.argv.some(a => a[0] === 'hc')).toBe(false)
+  })
+
+  test('after /clear the worker is told again', async ($, on) => {
+    await asWorker($, on)
+    // As /clear leaves it: the run gone from the state.
+    const pane = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS })
+    await pane.press({ key: 'clear' })
+    expect(flat(await (await band($)).drawn())).toBe('BELOW')
+    await $.classic.SessionStart({ source: 'clear' })
+    expect(flat(await (await band($)).drawn())).toContain('[ worker #52 make-it ]')
   })
 })

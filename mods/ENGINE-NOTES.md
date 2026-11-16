@@ -23,6 +23,8 @@ How each entry was found:
 | On the terminal, a mouse click reaches a `Button` only in the fullscreen layout. Turn that on with `/tui fullscreen`; `/tui default` turns it off. On the main screen the person presses a Button with `ctrl+x tab` (focus the band), then its `hotkey` or Enter. | types (`ButtonProps`, "where the surface reports clicks (the fullscreen terminal)"); measured; `/tui` from the binary's own usage text |
 | `e.viewport.isFullscreen` tells the layouts apart: `false` on the main screen, fixed for the session. Test for `=== false`, because a remote surface can leave it absent until its client reports. | types (`RenderViewport`) |
 | A `Button`'s `hotkey` is one digit or one lowercase letter. It works only while the band or pane holds the keyboard, never from the composer, with one exception: a bare digit in an empty composer presses a band button. | types |
+| A `Button` takes no background colour. `variant="primary"` draws `[ label ]` in the accent colour; `dimColor` draws it dim. | types (`ButtonProps`) |
+| One plugin acts on another's `Button` by hooking `ui.press` with `{ plugin: '<the one that drew it>' }` and returning `{ element: e.element }`, which takes the press: the drawer's own `onPress` does not run. A matcher leaf is `===` or a RegExp tested against the value as a string, so `element: /^prefix-/` narrows to a family of keys; what the hook does not act on it passes on with `next(e)`. Not yet seen in a terminal. | types (`UiPressArgument`, `Matcher`) |
 
 ## Sharing the band above the prompt
 
@@ -76,6 +78,9 @@ How each entry was found:
 | The test's `$.tool.call` cannot set `agentId`, so a hook's subagent filter on `tool.call` cannot be reached from a test. | test |
 | A hand-written fake can carry the module's own mistake, and then the test passes. `$.fs.stat`'s `kind` is `'dir'`, not `'directory'`. A module and its fake both wrote `'directory'` and every test passed, which would have meant no branch in a real repository. Only type-checking the tests against the API caught it, so run `tsc` over `tests` too. | test (`path-band`) |
 | `expect` has no `toBeCloseTo`. | test |
+| The test's `$` has no `state`: `$.state.get` there throws. To see a value the plugin writes, hook `state.set` beneath it and call `next(e)`; to stand in for another mod's value, hook `state.get` and answer `{ value: { value, version } }`. | test (`thegraph-panel`, `path-band`, 2.1.325) |
+| A value answered by a test's `state.get` hook does not redraw a tree already mounted, as the owner's own write would. Mount again to see a changed value. | test (`path-band`, 2.1.325) |
+| A test's own hooks cannot draw a `Button` ("is not held by a plugin of this chain"), and a test loads only the mod under test, so a press on another mod's Button cannot be made in a test. Keep what such a press does in a function the test calls directly. | test (`thegraph-panel`, 2.1.325) |
 
 ## Workflow
 

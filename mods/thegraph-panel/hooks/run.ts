@@ -1,4 +1,4 @@
-import type { LogEntry, Route, Run, Seg, Sheet, SheetStep, StepRec } from '../types'
+import type { Child, Chip, Kind,LogEntry, Route, Run, Seg, Sheet, SheetStep, StepRec, Terminal } from '../types'
 
 /** The stops where a person answers: after read-it, and after lens. */
 export const CONFIRM = 'confirm'
@@ -10,22 +10,41 @@ const STEP_SKILLS = ['read-it', 'lens', 'make-it', 'check-it', 'ask-it']
 /** Skills that interrupt the order whenever their moment comes. */
 export const SIGNAL_SKILLS = ['firsthand']
 
-/** The steps a route walks; before the route is known, the build one. */
-export const plan = (route: Route | null): string[] =>
-  route === 'decision' ? ['read-it', CONFIRM, 'lens', DECIDE] : ['read-it', CONFIRM, 'make-it', 'check-it', 'ask-it']
+/** The step a /thegraph-herdr conductor takes while its workers make and check. */
+export const WORKERS = 'workers'
+
+/**
+ * The steps a run walks before its sheet says: an open decision's, a herdr conductor's,
+ * a herdr worker's, or the build route's.
+ */
+export const plan = (kind: Kind, route: Route | null): string[] => {
+  if (route === 'decision') return ['read-it', CONFIRM, 'lens', DECIDE]
+  if (kind === 'herdr') return ['read-it', CONFIRM, WORKERS, 'ask-it']
+  if (kind === 'worker') return ['make-it', 'check-it']
+  return ['read-it', CONFIRM, 'make-it', 'check-it', 'ask-it']
+}
 
 /** How the pane names a route: read-it says prose or code only in its text, which no event carries. */
 export const routeName = (route: Route): string => (route === 'decision' ? 'open decision' : 'prose/code')
 
-/** `/thegraph #42 band redraw` → `#42 band redraw`; null for a prompt that does not start one. */
+/** Which run a prompt starts: `/thegraph` or `/thegraph-herdr`; null for any other, `/thegraph-codex` included. */
+export const kindOfPrompt = (text: string): Kind | null => {
+  const m = /^\/thegraph(-herdr)?(?![\w-])/.exec(text.trim())
+  return m === null ? null : m[1] === undefined ? 'thegraph' : 'herdr'
+}
+
+/** `/thegraph #42 band redraw` → `#42 band redraw`; null for a prompt that does not start a run. */
 export const labelOf = (text: string): string | null => {
-  const m = /^\/thegraph(?![\w-])\s*(.*)$/s.exec(text.trim())
-  if (!m) return null
-  const rest = (m[1] ?? '').split('\n')[0]?.trim() ?? ''
+  const kind = kindOfPrompt(text)
+  if (kind === null) return null
+  const rest = text.trim().slice(kind === 'herdr' ? '/thegraph-herdr'.length : '/thegraph'.length).split('\n')[0]?.trim() ?? ''
   return rest === '' ? '' : [...rest].slice(0, 40).join('')
 }
 
-export const startRun = (label: string | null, now: number): Run => ({
+export const startRun = (label: string | null, now: number, kind: Kind = 'thegraph'): Run => ({
+  kind,
+  herd: null,
+  reported: null,
   label: label === '' ? null : label,
   startedAt: now,
   route: null,
@@ -70,7 +89,8 @@ export const onSkill = (run: Run, skill: string, now: number): Run => {
     return run
   }
   const route: Route | null = skill === 'read-it' ? run.route : (run.route ?? 'build')
-  return logged({ ...run, route, isWaiting: false, steps: begin(run, skill, now) }, now, 'step', skill)
+  // A worker that takes up a step after reporting has not finished.
+  return logged({ ...run, route, isWaiting: false, reported: null, steps: begin(run, skill, now) }, now, 'step', skill)
 }
 
 /**
@@ -79,10 +99,14 @@ export const onSkill = (run: Run, skill: string, now: number): Run => {
  */
 export const onTurnEnd = (run: Run, now: number): Run => {
   if (run.doneAt !== null) return run
+  // A worker's turn that ends on its report, with no step taken up since, is the worker's end.
+  if (run.kind === 'worker' && run.reported !== null) {
+    return logged({ ...run, isWaiting: false, steps: closeAll(run.steps, now), doneAt: now }, now, 'end', run.reported)
+  }
   const open = openStep(run)
   if (open?.key === 'read-it') return logged({ ...run, isWaiting: true, steps: begin(run, CONFIRM, now) }, now, 'step', CONFIRM)
   if (open?.key === 'lens') return logged({ ...run, isWaiting: true, steps: begin(run, DECIDE, now) }, now, 'step', DECIDE)
-  // Anything else, a trivial end after the confirm included, is the person's to say: the run waits, and × ends it.
+  // Anything else, a trivial end after the confirm included, is the person's to say: the run waits, and the pane's `clear run ×` ends it.
   return { ...run, isWaiting: true }
 }
 
@@ -91,6 +115,8 @@ export const onTurnEnd = (run: Run, now: number): Run => {
  * run has been moved on from, finished by its events or by its sheet checked off whole.
  */
 export const onAnswer = (run: Run, now: number): Run | null => {
+  // A worker's session is for its one issue: what reaches it after its report is more of that work.
+  if (run.kind === 'worker' && run.doneAt !== null) return { ...run, doneAt: null, reported: null, isWaiting: false, isDismissed: false }
   if (isDone(run)) return null
   // After a question put away, the person's words take the step up again: no stop closes, nothing ends.
   if (run.isDismissed) return { ...run, isWaiting: false, isDismissed: false }
@@ -116,7 +142,7 @@ export const onDismiss = (run: Run): Run => (run.doneAt !== null ? run : { ...ru
  * only ever opens make-it there, and never on the decision route.
  */
 export const onEdit = (run: Run, now: number): Run =>
-  run.doneAt === null && run.route !== 'decision' && isAtRoute(run) ? onSkill(run, 'make-it', now) : run
+  run.kind === 'thegraph' && run.doneAt === null && run.route !== 'decision' && isAtRoute(run) ? onSkill(run, 'make-it', now) : run
 
 export type StepState = 'done' | 'run' | 'wait' | 'todo'
 
@@ -128,7 +154,7 @@ export type StepState = 'done' | 'run' | 'wait' | 'todo'
 export const stateOf = (run: Run, key: string): StepState => {
   const rec = run.steps.findLast(s => s.key === key)
   if (!rec) return 'todo'
-  const keys = plan(run.route)
+  const keys = plan(run.kind, run.route)
   const earlier = keys.slice(0, keys.indexOf(key))
   if (run.steps.some(s => earlier.includes(s.key) && s.startedAt > rec.startedAt)) return 'todo'
   if (rec.endedAt !== null) return 'done'
@@ -166,14 +192,20 @@ const SHEET_MARK: Record<string, SheetStep['mark']> = { ' ': 'todo', '~': 'doing
 
 /** Reads a run sheet's text; lines it does not know are skipped. */
 export const parseSheet = (path: string, text: string): Sheet => {
-  const sheet: Sheet = { path, issue: null, source: null, route: null, steps: [], carried: [] }
-  let isCarried = false
+  const sheet: Sheet = { path, issue: null, source: null, route: null, steps: [], carried: [], children: [] }
+  let section: 'carried' | 'children' | null = null
   for (const line of text.split(/\r?\n/)) {
     const field = /^(issue|source|route):\s*(.*\S)\s*$/.exec(line)
     const step = /^- \[([ ~xX])\]\s+(\S+)/.exec(line)
     const note = /^\s+→\s*(.*\S)\s*$/.exec(line)
-    if (/^##\s/.test(line)) isCarried = /^##\s+Carried\b/i.test(line)
-    else if (isCarried && /^- /.test(line)) sheet.carried.push(line.slice(2).trim())
+    if (/^##\s/.test(line)) section = /^##\s+Carried\b/i.test(line) ? 'carried' : /^##\s+Children\b/i.test(line) ? 'children' : null
+    else if (section === 'carried' && /^- /.test(line)) sheet.carried.push(line.slice(2).trim())
+    else if (section === 'children' && /^- \S/.test(line)) {
+      // Only the address before ` — ` is the panel's to read; the rest is the conductor's prose.
+      const body = line.slice(2).trim()
+      const at = body.indexOf(' — ')
+      sheet.children.push({ address: at < 0 ? (body.split(/\s/)[0] ?? body) : body.slice(0, at).trim(), text: at < 0 ? '' : body.slice(at + 3) })
+    }
     // A template placeholder (`<read-it's label ...>`) is no value yet.
     else if (field?.[1] === 'issue') sheet.issue = (field[2] ?? '').startsWith('<') ? null : (field[2] ?? null)
     else if (field?.[1] === 'route') sheet.route = (field[2] ?? '').startsWith('<') ? null : (field[2] ?? null)
@@ -221,9 +253,6 @@ export const issueOf = (source: string | null | undefined, cwd: string | null): 
   return { kind: 'file', path: `${cwd.replace(/[\\/]+$/, '')}${sep}${source}` }
 }
 
-/** The band's cut of a run name: this many characters, then `…`. */
-const NAME_MAX = 40
-
 /**
  * What the panel calls the run: once the sheet names an issue, its number (or its file's
  * name) and the title after ` — `; the whole issue line when the sheet has no source;
@@ -241,10 +270,139 @@ export const runName = (run: Run): string | null => {
   return title === '' ? front : `${front} ${title}`
 }
 
-/** A run name as the band draws it: cut on whole characters, `…` where it was cut. */
-export const bandName = (name: string): string => {
-  const chars = [...name]
-  return chars.length <= NAME_MAX ? name : `${chars.slice(0, NAME_MAX).join('')}…`
+/**
+ * An issue's address as a short label: `#42` for a GitHub issue, an issue file's name
+ * without its extension.
+ */
+export const issueLabelOf = (address: string): string => {
+  const gh = /#(\d+)$/.exec(address)
+  return gh ? `#${gh[1]}` : baseName(address).replace(/\.[^.]+$/, '')
+}
+
+/** An issue's slug, as thegraph-herdr names a worker after it: its number, or its file's name made safe and cut to 18. */
+export const slugOf = (address: string): string => {
+  const gh = /#(\d+)$/.exec(address)
+  if (gh) return gh[1] ?? ''
+  return issueLabelOf(address).toLowerCase().replace(/[^a-z0-9_-]/g, '-').slice(0, 18)
+}
+
+/** The run id: the 8 hex digits that end a run sheet's name. */
+export const runIdOf = (sheetPath: string | null): string | null =>
+  sheetPath === null ? null : (/-([0-9a-f]{8})\.md$/i.exec(sheetPath)?.[1]?.toLowerCase() ?? null)
+
+/** A worker terminal's name, `tg-<run id>-<slug>`, taken apart; null for any other name. */
+export const workerOf = (name: unknown): { runId: string; slug: string } | null => {
+  const m = typeof name === 'string' ? /^tg-([0-9a-f]{8})-([a-z0-9_-]{1,18})$/.exec(name) : null
+  return m === null ? null : { runId: m[1] ?? '', slug: m[2] ?? '' }
+}
+
+/** Whether a file is this worker's brief: the run sheet's name without `.md`, then `.<slug>.brief.md`. */
+export const isBriefOf = (path: string, runId: string, slug: string): boolean =>
+  baseName(path).toLowerCase().endsWith(`-${runId}.${slug}.brief.md`)
+
+/** A worker's brief, read as the sheet it stands in for: the `Issue:` line names the issue, its address before ` — ` the source. */
+export const parseBrief = (path: string, text: string): Sheet => {
+  const issue = /^Issue:\s*(.*\S)\s*$/m.exec(text)?.[1] ?? null
+  const route = /^Route:\s*(.*\S)\s*$/m.exec(text)?.[1] ?? null
+  const at = issue?.indexOf(' — ') ?? -1
+  const source = issue === null ? null : at < 0 ? issue : issue.slice(0, at).trim()
+  return { path, issue, source, route, steps: [], carried: [], children: [] }
+}
+
+/** The live, named terminals in `hc ls --json`'s answer; null for an answer that is not one. */
+export const parseTerminals = (stdout: string): Terminal[] | null => {
+  let data: unknown
+  try {
+    data = JSON.parse(stdout)
+  } catch {
+    return null
+  }
+  const list: unknown = Array.isArray(data) ? data : data !== null && typeof data === 'object' && 'terminals' in data ? data.terminals : null
+  if (!Array.isArray(list)) return null
+  return list.flatMap((t: unknown) => {
+    if (t === null || typeof t !== 'object') return []
+    const r = t as Record<string, unknown>
+    return typeof r.address === 'string' && typeof r.name === 'string' && r.state !== 'finished'
+      ? [{ address: r.address, name: r.name, status: typeof r.status === 'string' ? r.status : null }]
+      : []
+  })
+}
+
+/**
+ * The conductor's children, each with where it stands: a live worker's status from hc
+ * (and its terminal, to focus), else `done` where the sheet's line says so, else `waiting`.
+ * With no `## Children` section, the workers found under the run id.
+ */
+export const childrenOf = (run: Run, terminals: readonly Terminal[]): Child[] => {
+  const runId = runIdOf(run.sheetPath)
+  if (run.kind !== 'herdr' || runId === null) return []
+  const ours = terminals.filter(t => workerOf(t.name)?.runId === runId)
+  const listed = run.sheet?.children ?? []
+  if (listed.length === 0) {
+    return ours.map(t => {
+      const slug = workerOf(t.name)?.slug ?? ''
+      return { label: /^\d+$/.test(slug) ? `#${slug}` : slug, state: liveState(t.status), address: t.address }
+    })
+  }
+  return listed.map(c => {
+    const t = ours.find(w => workerOf(w.name)?.slug === slugOf(c.address))
+    if (t !== undefined) return { label: issueLabelOf(c.address), state: liveState(t.status), address: t.address }
+    return { label: issueLabelOf(c.address), state: /\bdone\b/i.test(c.text) ? 'done' : 'waiting', address: null }
+  })
+}
+
+/** A live worker's hc status as a child's state: `idle` (a question waiting on the person) still works. */
+const liveState = (status: string | null): Child['state'] =>
+  status === 'done' ? 'done' : status === 'blocked' || status === 'error' ? 'blocked' : 'working'
+
+/** The keys of path-band's Buttons for the run: the chip, a child's worker, a worker's conductor. */
+export const CHIP_KEY = 'thegraph'
+export const WORKER_KEY = 'thegraph-worker-'
+export const CONDUCTOR_KEY = 'thegraph-conductor'
+
+const STEP_MARK: Record<StepState, string> = { done: ' ✓', run: ' ◐', wait: ' ◆', todo: '' }
+
+/**
+ * The run as path-band's chip draws it: the issue the branch's commits are for now (a
+ * conductor's child whose live worker is not done, else the sheet's issue by its number or
+ * file name, else the prompt's label), the step at hand and its time, the children, a
+ * worker's way back.
+ */
+export const chipOf = (run: Run | null, terminals: readonly Terminal[], now: number): Chip | null => {
+  if (run === null) return null
+  const children = childrenOf(run, terminals)
+  const live = children.find(c => c.address !== null && c.state !== 'done')
+  // An older sheet without `source:` names its issue at the front of its issue line.
+  const named = run.sheet?.source ?? run.sheet?.issue?.split(' — ')[0]?.trim() ?? null
+  const issue = live?.label ?? (named ? issueLabelOf(named) : run.label || null)
+  const done = isDone(run)
+  const focus = focusOf(run)
+  const ms = done || focus === null || focus.state === 'todo' ? null : stepMs(run, focus.key, now)
+  return {
+    // A run kept in state from before runs had a kind is a /thegraph run.
+    head: run.kind ?? 'thegraph',
+    issue,
+    step: done ? 'done' : focus === null ? null : `${focus.key}${STEP_MARK[focus.state]}`,
+    time: ms === null ? null : minutes(ms),
+    children,
+    conductor: run.kind === 'worker' ? (run.herd?.conductor ?? null) : null,
+  }
+}
+
+/** What a press on one of path-band's Buttons asks of this plugin, by its key and the chip it was drawn from. */
+export const pressOf = (element: string, chip: Chip | null): { kind: 'pane' } | { kind: 'focus'; address: string } | null => {
+  if (chip === null) return null
+  if (element === CHIP_KEY) return { kind: 'pane' }
+  if (element === CONDUCTOR_KEY) return chip.conductor === null ? null : { kind: 'focus', address: chip.conductor }
+  if (!element.startsWith(WORKER_KEY)) return null
+  const address = element.slice(WORKER_KEY.length)
+  return chip.children.some(c => c.address === address) ? { kind: 'focus', address } : null
+}
+
+/** What a shell command reports to the conductor: `hc send <t> "done …"`, `stuck` or `question`; null for any other. */
+export const reportOf = (command: string): 'done' | 'stuck' | 'question' | null => {
+  const word = /\bhc\s+send\s+\S+\s+["']?(done|stuck|question)\b/.exec(command)?.[1]
+  return word === 'done' || word === 'stuck' || word === 'question' ? word : null
 }
 
 /** Whether a shell command closes issue `n` with gh: `gh issue close 42`, `#42`, or its URL. */
@@ -266,41 +424,11 @@ export const testCounts = (output: string): string | null => {
   return parts.length === 0 ? null : parts.join(' · ')
 }
 
-// --- the trail and the gantt -----------------------------------------------------------
+// --- the gantt ---------------------------------------------------------------------------
 
 /** Each step's colour: its bar on the gantt, its name in a turn's closing line. */
 export const STEP_COLOR: Record<string, string> = {
-  'read-it': 'cyan', [CONFIRM]: 'warning', 'make-it': 'claude', 'check-it': 'success', 'ask-it': 'magenta', lens: 'blue', [DECIDE]: 'warning',
-}
-
-const TRAIL_MARK: Record<StepState, string> = { done: ' ✓', run: ' ◐', wait: ' ◆', todo: '' }
-const TRAIL_COLOR: Record<StepState, string | null> = { done: 'success', run: 'claude', wait: 'warning', todo: null }
-
-/**
- * The band's line after the run's name: every step in order with its mark, `×2` on one
- * begun twice, the time in the step at hand (or `done` and the whole run's), then the last
- * test when it failed and the count of signals.
- */
-export const trail = (run: Run, now: number): Seg[] => {
-  const segs: Seg[] = []
-  stepsOf(run).forEach(({ key, state }, i) => {
-    if (i > 0) segs.push({ text: ' › ', color: null, dim: true })
-    const n = run.steps.filter(s => s.key === key).length
-    segs.push({ text: `${key}${n > 1 ? `×${n}` : ''}${TRAIL_MARK[state]}`, color: TRAIL_COLOR[state], bold: state === 'run' || state === 'wait', dim: state === 'todo' })
-  })
-  const focus = focusOf(run)
-  if (focus === null) {
-    segs.push({ text: '  done', color: 'success', bold: true }, { text: ` · ${minutes((run.doneAt ?? now) - run.startedAt)}`, color: null, dim: true })
-  } else if (focus.state !== 'todo') {
-    const ms = stepMs(run, focus.key, now)
-    if (ms !== null) segs.push({ text: ` · ${minutes(ms)}`, color: null, dim: true })
-  }
-  const tail: Seg[] = []
-  const test = run.log.findLast(l => l.kind === 'test')
-  if (test?.isOk === false) tail.push({ text: `✗${test.detail === null ? '' : ` ${test.detail}`}`, color: 'error' })
-  if (run.signals.length > 0) tail.push({ text: `⚑${run.signals.length}`, color: 'magenta' })
-  tail.forEach((t, i) => segs.push({ ...t, text: `${i === 0 ? '   ' : '  '}${t.text}` }))
-  return segs
+  'read-it': 'cyan', [CONFIRM]: 'warning', [WORKERS]: 'blue', 'make-it': 'claude', 'check-it': 'success', 'ask-it': 'magenta', lens: 'blue', [DECIDE]: 'warning',
 }
 
 /**
@@ -351,7 +479,7 @@ export const turnSummary = (log: readonly LogEntry[], since: number, step: strin
 /** Every step's place: from the run sheet once there is one, else from the events. */
 export const stepsOf = (run: Run): { key: string; state: StepState }[] => {
   const sheet = run.sheet
-  if (sheet === null || sheet.steps.length === 0) return plan(run.route).map(key => ({ key, state: stateOf(run, key) }))
+  if (sheet === null || sheet.steps.length === 0) return plan(run.kind, run.route).map(key => ({ key, state: stateOf(run, key) }))
   const steps = sheet.steps.map(s => ({ key: s.key, state: (s.mark === 'done' ? 'done' : s.mark === 'doing' ? 'run' : 'todo') as StepState }))
   // The sheet cannot say that the person holds the move; the events can.
   if (run.isWaiting) {
@@ -367,7 +495,7 @@ export const isDone = (run: Run): boolean =>
   run.doneAt !== null || (run.sheet !== null && run.sheet.steps.length > 0 && run.sheet.steps.every(s => s.mark === 'done'))
 
 /**
- * The step the line names: the one running or waiting, else the next one to do;
+ * The step the chip and the spinner name: the one running or waiting, else the next one to do;
  * null once the run is done. `index` is its place in the plan, from 0.
  */
 export const focusOf = (run: Run): { key: string; index: number; state: StepState } | null => {

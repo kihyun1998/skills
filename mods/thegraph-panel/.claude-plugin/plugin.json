@@ -4,6 +4,6 @@
   "author": {
     "name": "Ki Hyun Park"
   },
-  "description": "While /thegraph runs: one line above the prompt with its steps in order, each marked, and the signals that fired, and a button that opens a pane with a gantt of the steps over the whole log as a table; the spinner and each turn's closing line carry the step and what the turn did.",
+  "description": "While /thegraph or /thegraph-herdr runs: a chip on path-band's line with the run's issue, step and time, which opens a pane with a gantt of the steps over the whole log as a table; the spinner and each turn's closing line carry the step and what the turn did. Inside Herdr a conductor's chip carries its workers, each a button that brings its tab to the front, and a worker's a button back to the conductor. Install path-band with it: the chip is drawn there.",
   "types": "./types/index.d.ts"
 }

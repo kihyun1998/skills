@@ -25,6 +25,53 @@ export type Sheet = {
   route: string | null
   steps: SheetStep[]
   carried: string[]
+  /** A herdr conductor's `## Children`: each line's issue address, and the prose after ` — `. */
+  children: { address: string; text: string }[]
+}
+
+/**
+ * Which run this is: a plain `/thegraph`, a `/thegraph-herdr` conductor, or one of that
+ * conductor's workers, each in its own session (ADR-0098).
+ */
+export type Kind = 'thegraph' | 'herdr' | 'worker'
+
+/** What a worker session knows of its run, from its own `hc` terminal. */
+export type Herd = {
+  /** The 8 hex digits that end the conductor's sheet name. */
+  runId: string
+  /** The issue's slug, as the worker's terminal name carries it. */
+  slug: string
+  /** The conductor's terminal address, the worker terminal's `parent`; null where hc named none. */
+  conductor: string | null
+}
+
+/** One live `hc` terminal: its address, its name, and its status (`working`, `idle`, `done`, `blocked`, `error`). */
+export type Terminal = { address: string; name: string; status: string | null }
+
+/**
+ * One child of a conductor: its label (`#37`), where it stands, and its live worker's
+ * terminal, null with none. `working` is any live worker not done, `idle` included.
+ */
+export type Child = { label: string; state: 'done' | 'working' | 'waiting' | 'blocked'; address: string | null }
+
+/**
+ * The run as path-band's chip draws it (ADR-0099). path-band draws its Buttons with the keys
+ * `thegraph` (the chip), `thegraph-worker-<address>` (a child) and `thegraph-conductor` (a
+ * worker's way back), and this plugin's `ui.press` hook acts on them.
+ */
+export type Chip = {
+  /** `thegraph`, `herdr` (a conductor) or `worker`. */
+  head: Kind
+  /** The issue the commits are for now: a conductor's child at work, else the sheet's issue, else the prompt's label. */
+  issue: string | null
+  /** The step at hand with its mark (`make-it ◐`, `confirm ◆`), `done`, or null with none. */
+  step: string | null
+  /** The time in the step at hand (`4m`); null once done or before it began. */
+  time: string | null
+  /** A conductor's children, in order. */
+  children: Child[]
+  /** A worker's conductor terminal, for its way back; null for the other kinds. */
+  conductor: string | null
 }
 
 /**
@@ -45,8 +92,13 @@ export type LogEntry = {
 /** A piece of a line drawn in one colour (a theme key or a colour name, or none for the default), bold or dim. */
 export type Seg = { text: string; color: string | null; bold?: boolean; dim?: boolean }
 
-/** One /thegraph run, as its skill calls and the turns between them showed it. */
+/** One /thegraph or /thegraph-herdr run, or a herdr worker's, as its skill calls and the turns between them showed it. */
 export type Run = {
+  kind: Kind
+  /** A worker's run and conductor; null for the other kinds. */
+  herd: Herd | null
+  /** A worker's `done` or `stuck` sent to its conductor, until a step is taken up again. */
+  reported: 'done' | 'stuck' | null
   /** What followed `/thegraph` on the prompt (an issue number), or null. */
   label: string | null
   startedAt: number
@@ -81,6 +133,10 @@ declare module 'claude-code' {
        * the closing line carries no other mark of which turn it closes.
        */
       turnLines: Record<string, Seg[]>
+      /** A herdr conductor's run's live worker terminals, as `hc ls` last answered. */
+      workers: Terminal[]
+      /** The run as path-band's chip draws it; null with no run. */
+      chip: Chip | null
     }
   }
 }

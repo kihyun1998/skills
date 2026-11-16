@@ -1,5 +1,9 @@
 # ADR-0080 — A run keeps a run sheet while it lasts, outside the repository
 
+> **Amended by [ADR-0099](0099-a-mod-reads-another-mods-state.md).** `thegraph-panel`
+> draws no line of its own now: a run is given up with `clear run ×` in its pane, and
+> the chip on `path-band`'s line goes with it.
+
 > **Extended by [ADR-0088](0088-thegraph-takes-a-cluster.md).** A cluster run keeps
 > one sheet too: `source` is the anchor, a `cluster` step stays open until the end,
 > and the children are listed without checkboxes so `thegraph-panel` does not read

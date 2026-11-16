@@ -4,6 +4,6 @@
   "author": {
     "name": "Ki Hyun Park"
   },
-  "description": "One line above the prompt with where the agent is working now and on which branch, as two chips: the worktree or repository with the path beneath it, and the branch (a short SHA when detached). It follows /cd and worktree moves; a long path gives way at its start so the branch stays whole.",
+  "description": "One line above the prompt with where the agent is working now and on which branch, as two chips: the worktree or repository with the path beneath it, and the branch (a short SHA when detached). It follows /cd and worktree moves; a long path gives way at its start so the branch stays whole. With thegraph-panel installed, a thegraph run follows as one chip, its issue, step and time, with a herdr conductor's workers and a worker's way back as buttons.",
   "types": "./types/index.d.ts"
 }

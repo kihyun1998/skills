@@ -1,5 +1,9 @@
 # ADR-0098 — `thegraph-herdr` runs one worker terminal per issue
 
+> **Amended by [ADR-0099](0099-a-mod-reads-another-mods-state.md).** `thegraph-panel`
+> now follows this skill's runs too, conductor and worker, as a chip on `path-band`'s
+> line; the Consequences line saying it does not is superseded.
+
 **Status:** proposed.
 
 `thegraph-herdr` is a separate, user-invoked skill for runs inside Herdr. The

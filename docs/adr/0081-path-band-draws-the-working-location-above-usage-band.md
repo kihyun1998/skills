@@ -1,5 +1,11 @@
 # ADR-0081 — path-band draws the working location on its own line above usage-band
 
+> **Amended by [ADR-0099](0099-a-mod-reads-another-mods-state.md).** While a thegraph
+> run is open, this line also carries `thegraph-panel`'s run as one chip after the
+> branch, with its buttons; the path keeps 12 cells and the run gives way first.
+> The panel no longer cuts a run name at 40, so the branch's 40-cell limit below
+> stands on its own.
+
 **Status:** accepted.
 
 A new mod, `path-band`, shows **where the agent is working now** and on which

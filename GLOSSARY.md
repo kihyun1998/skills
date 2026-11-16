@@ -170,7 +170,9 @@ person reads them, and as **source**, the issue's address in a form a program ca
 follow (the tracker's number, or the issue file's path). **It lives only as long as the run**, outside any
 repository; deleting it at the end loses nothing that has not already reached a
 person. Not a record — the records stay where they were: decision records, the
-tracker, the commit.
+tracker, the commit. Its readers besides the run: `thegraph-panel`, which works
+out the run's chip, the children and the issue from it, and draws the pane; and
+through the panel `path-band`, which draws that chip (ADR-0099).
 _Avoid_: run state (the retired sixteen-slot ledger, ADR-0071), todo, progress
 file
 
@@ -180,6 +182,23 @@ rather than by an argument: the four steps once per child, in blocking order,
 in one session, with one confirm stop at the start and `ask-it` at the end, the
 push going through the last one (ADR-0088, ADR-0089). Its **Run sheet** lists the children without checkboxes.
 _Avoid_: batch (the word for what reaches a person at `ask-it`), epic run
+
+**Conductor** (thegraph-herdr):
+The session a person invoked `/thegraph-herdr` in and talks to. It runs `read-it`,
+the one confirm stop and `ask-it`, writes the **Run sheet**, and hands each issue
+to a **Worker**, one at a time (ADR-0098). Its chip on `path-band`'s line carries
+its children, each live worker a button that brings that worker's tab to the front
+(ADR-0099).
+_Avoid_: orchestrator, parent (the `hc` field that names it, not the role)
+
+**Worker** (thegraph-herdr):
+One interactive agent in its own `hc` terminal, named `tg-<run id>-<slug>`, for
+one issue of a **Conductor**'s run. It runs `make-it` and `check-it`, commits
+locally and reports with `hc send`; every question goes through the conductor
+(ADR-0098). `thegraph-panel` recognises a worker's session by that terminal name,
+with no prompt, and its chip gets a button back to the conductor (ADR-0099).
+_Avoid_: AFK agent (no person is present for one; a worker's person is one tab
+away), child (the issue, not the terminal)
 
 **Build** (grill-the-graph):
 One repo's answer to what a person already knows and no file in it states —
@@ -393,7 +412,9 @@ inside a worktree, otherwise the repository's name, and the path relative to it.
 Outside any repository it is the path shortened with `~`. It is the agent's
 location, not where the session started: it moves with the agent's shell `cd`, as
 well as `/cd` and worktree moves, because it is read from `$.session.cwd()`
-(ADR-0081).
+(ADR-0081). While a thegraph run is open, the run's chip follows the branch: the
+issue the commits are for, the step at hand and, for a conductor, its children. It
+is `thegraph-panel`'s value, read with `$.state.get` (ADR-0099).
 _Avoid_: cwd (the absolute path it is read from — not what is shown), session root
 (the engine's `$.session.root()`, which a shell `cd` does not move)
 
@@ -519,3 +540,6 @@ _Avoid_: cwd (the absolute path it is read from — not what is shown), session 
 - "review agent" was used to mean both the existing **`code-review` skill** and the
   new **Acceptance Gate** — resolved: these are distinct. `code-review` reports;
   the Acceptance Gate judges and acts.
+- "worker" is what an **AFK agent** is told to avoid being called, and it is also the
+  **Worker** of a `thegraph-herdr` run — resolved: the word means only the latter.
+  A worker has a person one tab away; an AFK agent has none.
