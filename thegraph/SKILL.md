@@ -88,6 +88,17 @@ the final `ask-it`, not after each child.
 - #39 — stopped: needs-grill
 ```
 
+A child's line changes at these moments:
+
+- `under way` when the child starts, in the same write that rewrites the step
+  list for it.
+- `done, <short hash>` when its local commit lands.
+- `stopped: <reason>` when it departs from the plan or cannot proceed.
+
+`thegraph-panel` names the child whose line reads `under way`, so a line left
+behind keeps naming a finished child through `ask-it` and after the run. Once the
+last child is committed, no line reads `under way`.
+
 ## One issue, or a cluster
 
 **The tracker decides, not an argument.** Where the issue passed has open

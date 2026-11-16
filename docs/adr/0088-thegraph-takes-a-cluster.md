@@ -75,6 +75,21 @@ child that cannot proceed, so the run stops there. If the person has it decided
 in the run, the panel stops tracking the rest of the cluster, though the run
 itself goes on. That is the panel's to fix if it matters in use.
 
+## When a child's line changes
+
+The form above says what a `## Children` line reads and not when it changes.
+Since #53 the panel's chip names the child whose line reads `under way`, so a
+line nobody rewrites keeps naming a finished child through `ask-it` and after the
+run (#55). `thegraph/SKILL.md` fixes three moments: `under way` when the
+child starts, in the same write that rewrites the step list for it;
+`done, <short hash>` when its local commit lands; `stopped: <reason>` when it
+departs from the plan or cannot proceed. Once the last child is committed, no
+line reads `under way`.
+
+This is a mechanism that follows from the chip, confirmed with the maintainer at
+the run's confirm stop. It does not cover a stopped child that the person's
+answer resumes: nothing yet says its line returns to `under way`.
+
 ## What the first completeness read changed
 
 An adversarial read by a fresh agent, before this was committed, found five
