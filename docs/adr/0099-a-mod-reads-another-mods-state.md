@@ -63,8 +63,9 @@ Derived:
 - **What the chip names.**
   - The issue: for a herdr conductor, the child whose worker terminal is live and
     not `done`, else the anchor. For a herdr worker, the worker's own issue. For
-    `/thegraph`, the sheet's issue. Before any of these, what followed the command
-    on the prompt.
+    `/thegraph`, the child its sheet's `## Children` marks `under way` in a
+    cluster run, else the sheet's issue (the anchor). Before any of these, what
+    followed the command on the prompt.
   - A worker that is `idle` while its question waits on the person still counts as
     the one being worked on, because the next commit on the branch is still that
     child's.

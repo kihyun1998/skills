@@ -364,16 +364,18 @@ const STEP_MARK: Record<StepState, string> = { done: ' ✓', run: ' ◐', wait: 
 
 /**
  * The run as path-band's chip draws it: the issue the branch's commits are for now (a
- * conductor's child whose live worker is not done, else the sheet's issue by its number or
- * file name, else the prompt's label), the step at hand and its time, the children, a
- * worker's way back.
+ * conductor's child whose live worker is not done, else a plain run's child its sheet marks
+ * under way, else the sheet's issue by its number or file name, else the prompt's label),
+ * the step at hand and its time, the children, a worker's way back.
  */
 export const chipOf = (run: Run | null, terminals: readonly Terminal[], now: number): Chip | null => {
   if (run === null) return null
   const children = childrenOf(run, terminals)
   const live = children.find(c => c.address !== null && c.state !== 'done')
+  // A plain cluster run's child in hand is the one its sheet's `## Children` marks under way.
+  const underWay = run.kind === 'herdr' ? undefined : run.sheet?.children.find(c => /\bunder way\b/i.test(c.text))
   // An older sheet without `source:` names its issue at the front of its issue line.
-  const named = run.sheet?.source ?? run.sheet?.issue?.split(' — ')[0]?.trim() ?? null
+  const named = underWay?.address ?? run.sheet?.source ?? run.sheet?.issue?.split(' — ')[0]?.trim() ?? null
   const issue = live?.label ?? (named ? issueLabelOf(named) : run.label || null)
   const done = isDone(run)
   const focus = focusOf(run)

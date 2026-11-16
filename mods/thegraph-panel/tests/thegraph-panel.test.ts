@@ -950,6 +950,31 @@ describe('run', () => {
     expect(chipOf(null, [], 0)).toBe(null)
   })
 
+  test("a plain cluster run's chip names the child its sheet marks under way, else the anchor", () => {
+    const cluster = (lines: string[]) => [
+      '# thegraph run sheet',
+      'issue: kihyun1998/skills#36 — the anchor',
+      'source: kihyun1998/skills#36',
+      '',
+      '- [x] read-it',
+      '- [~] cluster',
+      '',
+      '## Children',
+      ...lines,
+    ].join('\n')
+    const run = (lines: string[]) => ({ ...startRun('', 0), sheet: parseSheet(SHEET, cluster(lines)) })
+    expect(chipOf(run(['- kihyun1998/skills#37 — done, 703ccfd', '- kihyun1998/skills#38 — under way', '- kihyun1998/skills#39 — stopped: needs-grill']), [], 0))
+      .toMatchObject({ head: 'thegraph', issue: '#38', children: [] })
+    // The template's bare number, and a local child named by its file.
+    expect(chipOf(run(['- #37 — done, 703ccfd', '- #38 — under way']), [], 0)?.issue).toBe('#38')
+    expect(chipOf(run(['- .scratch/x/issues/02-two.md — under way']), [], 0)?.issue).toBe('02-two')
+    // No child under way, or no Children section: the anchor.
+    expect(chipOf(run(['- kihyun1998/skills#37 — done, 703ccfd', '- kihyun1998/skills#39 — stopped: needs-grill']), [], 0)?.issue).toBe('#36')
+    expect(chipOf(run([]), [], 0)?.issue).toBe('#36')
+    // A herdr conductor keeps its own rule: with no live worker, the anchor, whatever the sheet says.
+    expect(chipOf({ ...run(['- kihyun1998/skills#38 — under way']), kind: 'herdr' }, [], 0)?.issue).toBe('#36')
+  })
+
   test("a turn's summary counts only what the turn did", () => {
     const log = [
       { at: 1, kind: 'edit' as const, text: 'old.ts', detail: null },
