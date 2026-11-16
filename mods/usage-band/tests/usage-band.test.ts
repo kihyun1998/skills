@@ -118,11 +118,24 @@ const flat = (node: unknown): string =>
 // The divider between two columns.
 const DIV = '  │  '
 
-// The band's own Box: the last child, under whatever the bands beneath drew.
-const own = async (ui: { drawn: () => Promise<unknown> }) => {
-  const tree = (await ui.drawn()) as { children: unknown[] }
-  return tree.children.at(-1) as { props: Record<string, unknown>; children: unknown[] }
+type Drawn = { type: string; part?: { plugin: string }; props: Record<string, unknown>; children: unknown[] }
+
+// The band's part of the drawing: the root its hook returned, which the engine stamps with its name.
+// The bands beneath come back as parts of their own beside it, so it is found by name, not by place.
+const part = async (ui: { drawn: () => Promise<unknown> }) => {
+  const find = (node: unknown): Drawn | undefined => {
+    if (node === null || typeof node !== 'object') return undefined
+    const n = node as Drawn
+    if (n.part?.plugin === 'usage-band') return n
+    return Array.isArray(n.children) ? n.children.map(find).find(p => p !== undefined) : undefined
+  }
+  const found = find(await ui.drawn())
+  if (found === undefined) throw new Error('the drawing holds no part of usage-band')
+  return found
 }
+
+// The band's own Box: the last child of its part, after where the bands beneath go.
+const own = async (ui: { drawn: () => Promise<unknown> }) => (await part(ui)).children.at(-1) as Drawn
 
 // The band's rows, each flattened.
 const rows = async (ui: { drawn: () => Promise<unknown> }) => (await own(ui)).children.map(flat)
@@ -281,12 +294,18 @@ describe('usage-band', () => {
     expect((await rows(ui))[1]?.split(DIV)[1]).toMatch(/^5h {2}─+ {3}0%$/)
   })
 
-  test('another band stays above the two rows, which keep next to the prompt', async ($, on) => {
+  // What the band controls is the order inside its own part: next(e)'s result, then the two rows.
+  // The kit draws another band as a part of its own beside this one, with an engine node standing
+  // where next(e)'s result went, so where that band lands on screen is the engine's to place, and
+  // this test cannot show it.
+  test('inside the band\'s own part, what the bands beneath draw goes before the two rows', async ($, on) => {
     const beneath: RenderElement = { type: 'Text', props: {}, children: ['thegraph #42'] }
     await start($, on, usage(30, 10, 5), { burn: 10, today: 5, argv: [], beneath })
     const ui = await mount($)
-    const tree = (await ui.drawn()) as { children: unknown[] }
-    expect(tree.children.map(flat)[0]).toBe('thegraph #42')
+    expect(await ui.keepsBeneath()).toBe(true)
+    const [first, ...after] = (await part(ui)).children
+    expect(first).toMatchObject({ type: 'engine' })
+    expect(after).toHaveLength(1)
     expect((await rows(ui))[0]?.startsWith('opus 5.5')).toBe(true)
   })
 
