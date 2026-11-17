@@ -179,7 +179,9 @@ export default class Sessions {
         ? "The save failed: " + summary.error + ". The last good save is kept."
         : summary?.unreadable
           ? "Could not read " + summary.unreadable + " session id(s). A Claude Code update may have changed its session files. The last good save is kept."
-          : "Nothing has saved for a while. The tab bar saves every minute while the session-restore layout shows."
+          : summary?.unchecked
+            ? "Could not look for the transcripts of " + summary.unchecked + " session(s) in ~/.claude/projects. They are saved anyway, and may have no conversation to reopen."
+            : "Nothing has saved for a while. The tab bar saves every minute while the session-restore layout shows."
       : null;
 
     const header = v_flex().px(14).pt(12).pb(10).flex_none().border_b(1).border_color(t.border)

@@ -46,7 +46,8 @@ two answers given while it was built.
   seconds later (measured, below), so a crash could read as `/exit`. Now:
   - each minute the save's `current` is replaced by the Claude sessions alive at
     that moment. The pid file is used only to map a live terminal to its session
-    id.
+    id and folder. A session with no conversation is left out (issue #63): no
+    `~/.claude/projects/*/<id>.jsonl` exists yet.
   - when the core holder (`hc server status` `holder.instance`) differs from the
     save's, the previous `current` is set aside into `restore`. That happens after
     a reboot or a core restart.
@@ -143,11 +144,32 @@ were in a scratch `HC_SESSION` started with every `CLAUDE*` variable and
 - PowerShell 5.1 (`powershell.exe`; this machine has no `pwsh`): `node argv.js
   '{"a":1}' 'say "hi"'` delivered `{a:1}` and `say hi`. The line `shellLine` builds
   with `--%` delivered `{"a":1}`, `say "hi" C:\dir\`, `it's`, `a b` and `tail\` exactly.
+- A Claude started and left without a message (Claude Code 2.1.326, scratch core) had
+  its pid file and no `<id>.jsonl` under any `~/.claude/projects/*`. All 25 live
+  sessions' transcripts were at `<folder>/<id>.jsonl`, `<folder>` being the pid
+  file's `cwd` with every non-alphanumeric character as `-` (`acra_client` →
+  `acra-client`). Claude's own code (`claude.exe`) cuts a name longer than 200
+  characters and adds `-` and a hash of the folder. So the folder named from `cwd`
+  is only where the save looks first; any folder holding `<id>.jsonl` counts. Listing
+  all 88 folders here took 14 to 16 ms in Node (0.37 to 0.67 s in an earlier run on a
+  busier machine). The save does it at most once per save, and only when a transcript
+  is not where `cwd` names, which is every minute while a Claude with no message is
+  open. A session whose transcript cannot be looked for (a refused or failed read) is
+  saved as before and counted as `unchecked`: the dot turns red, the panel says how
+  many, and the save goes on (the maintainer's call, 2026-11-17, over failing the whole
+  save or reusing the unreadable count, whose panel line names pid files).
 - `claude --resume` of a session that never got a message prints "No conversation
   found with session ID: …" and exits. Confirm reported it as failed with that
   line, and a session with a conversation as opened in about 3 seconds.
 
 ## Not measured
+
+- Whether the live window lets the save's `fs/promises` `exists` and `readdir`
+  read `~/.claude/projects`. Herdr's `AGENTS.md` says mods read anywhere in home;
+  `herdr-app check` grants no `fs` read at all (measured), so a check cannot show
+  it. After the edit the live save ran each minute with no error, but whether that
+  copy had reloaded the new `save.js` is not known. A refusal would keep
+  every session as before issue #63, counted as `unchecked`.
 
 - The live window. Whether Herdr reads a symlinked layout file, adopts the labels
   into panes, applies the renames, and draws the panel and the dot as the checks
@@ -169,8 +191,6 @@ were in a scratch `HC_SESSION` started with every `CLAUDE*` variable and
   reports go to the old address. In place (a kept terminal coming back as a shell)
   the address does not change.
 
-- Sessions with no conversation are saved and offered. They fail when opened, and
-  "Clear failed" removes them.
 - A session that is not in any Herdr space is saved and opened without labels, so
   it does not show in the window.
 - Remote machines' sessions are not saved: the save reads this computer's

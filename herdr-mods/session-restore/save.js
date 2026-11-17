@@ -1,11 +1,35 @@
 // The save: the Claude session each live terminal holds, and the restore list, in the app's
-// data folder. Side effects go through io ({ hc, read, write, spaces, now, home, appHome }).
+// data folder. Side effects go through io ({ hc, read, write, exists, list, spaces, now, home, appHome }).
 import { coreIdentity, isClaude, keptFlags, nextSave } from "./logic.js";
 
+const trimEnd = (path) => String(path).replace(/[\\/]+$/, "");
+
 /** Where the whole save lives. */
-export const savePath = (appHome) => String(appHome).replace(/[\\/]+$/, "") + "/data/session-restore.json";
+export const savePath = (appHome) => trimEnd(appHome) + "/data/session-restore.json";
 /** Claude Code's file for a running process: { sessionId, cwd, name, status, ... }. */
-export const pidFile = (home, pid) => String(home).replace(/[\\/]+$/, "") + "/.claude/sessions/" + pid + ".json";
+export const pidFile = (home, pid) => trimEnd(home) + "/.claude/sessions/" + pid + ".json";
+
+/** Claude Code's folder name for a project folder: every character but a letter or digit as "-". */
+const projectDir = (cwd) => String(cwd).replace(/[^a-zA-Z0-9]/g, "-");
+
+/**
+ * Whether a session has a conversation: a transcript, ~/.claude/projects/<any folder>/<id>.jsonl.
+ * Claude writes it with the first message. The folder named from cwd is looked in first; the
+ * others are listed only when it is not there, once per save through seen.
+ */
+async function hasTranscript(io, cwd, id, seen) {
+  const root = trimEnd(io.home) + "/.claude/projects";
+  if (cwd && (await io.exists(root + "/" + projectDir(cwd) + "/" + id + ".jsonl"))) return true;
+  seen.ids ??= (async () => {
+    const ids = new Set();
+    for (const dir of await io.list(root)) {
+      if (!dir.isDirectory()) continue;
+      for (const f of await io.list(root + "/" + dir.name)) if (f.name.endsWith(".jsonl")) ids.add(f.name.slice(0, -6));
+    }
+    return ids;
+  })();
+  return (await seen.ids).has(id);
+}
 
 /** A save read back, or null when there is none or it does not parse. */
 export function parseSave(text) {
@@ -23,10 +47,15 @@ async function hcJson(io, args) {
   return JSON.parse(r.stdout);
 }
 
-/** The sessionId in a Claude pid file's text, or null. */
-export const sessionIn = (text) => {
-  try { return JSON.parse(text ?? "null")?.sessionId || null; } catch { return null; }
+/** A Claude pid file's text read: { sessionId, cwd }, each null when missing. */
+const pidInfo = (text) => {
+  let info = null;
+  try { info = JSON.parse(text ?? "null"); } catch {}
+  return { sessionId: info?.sessionId || null, cwd: info?.cwd || null };
 };
+
+/** The sessionId in a Claude pid file's text, or null. */
+export const sessionIn = (text) => pidInfo(text).sessionId;
 
 /** One terminal as the save records it; space and tab names come from prior when Herdr does not list the space. */
 export function observe(t, sessionId, spaces, prior) {
@@ -70,12 +99,16 @@ async function update(io, change) {
 
 /**
  * Looks at every live terminal and writes the save: the Claude sessions alive now, and the restore
- * list (nextSave). Returns it with the number of Claude pid files that had no session id.
+ * list (nextSave); a session with no transcript is left out. Returns it with the number of Claude
+ * pid files that had no session id (unreadable) and of sessions whose transcript could not be looked
+ * for (unchecked).
  */
 export async function saveOnce(io) {
-  let unreadable = 0;
+  let unreadable = 0, unchecked = 0;
   const save = await update(io, async (prev) => {
     unreadable = 0;
+    unchecked = 0;
+    const seen = {};
     const now = io.now();
     const core = coreIdentity(await hcJson(io, ["server", "status", "--json"]), now);
     const { terminals = [] } = await hcJson(io, ["ls", "--json"]);
@@ -89,13 +122,19 @@ export async function saveOnce(io) {
       const text = await io.read(pidFile(io.home, t.foreground.pid));
       // No pid file: skipped, and not counted as unreadable.
       if (text === null) continue;
-      const id = sessionIn(text);
+      const { sessionId: id, cwd } = pidInfo(text);
       if (!id) { unreadable++; continue; }
+      // A session with no conversation yet: skipped. One whose transcript cannot be looked for:
+      // kept, and counted as unchecked.
+      let talked;
+      try { talked = await hasTranscript(io, cwd, id, seen); } catch { talked = null; }
+      if (talked === false) continue;
+      if (talked === null) unchecked++;
       observed.push(observe(t, id, io.spaces(), prior.get(id)));
     }
     return nextSave(prev, observed, { core, now });
   });
-  return { save, unreadable };
+  return { save, unreadable, unchecked };
 }
 
 /** Takes entries out of the restore list by key: the panel's remove. */

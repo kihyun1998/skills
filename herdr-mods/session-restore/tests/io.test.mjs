@@ -27,11 +27,17 @@ function machine({ terminals = [], files = {}, holder = "h1", now = 1_000_000, g
     }
     return t;
   };
-  const calls = [], ran = [];
+  const calls = [], ran = [], lists = [];
   const ok = (v) => ({ code: 0, stdout: JSON.stringify(v), stderr: "" });
   const io = {
     home: HOME, appHome: APP, now: () => now, spaces: () => SPACES, sleep: async () => {},
     read: async (p) => (p in files ? files[p] : null),
+    exists: async (p) => p in files,
+    list: async (dir) => {
+      lists.push(dir);
+      const under = Object.keys(files).filter((p) => p.startsWith(dir + "/")).map((p) => p.slice(dir.length + 1).split("/"));
+      return [...new Map(under.map((parts) => [parts[0], parts.length > 1])).entries()].map(([name, isDir]) => ({ name, isDirectory: () => isDir }));
+    },
     write: async (p, text, expected) => {
       if ((files[p] ?? null) !== expected) throw new Error("stale");
       files[p] = text;
@@ -57,7 +63,7 @@ function machine({ terminals = [], files = {}, holder = "h1", now = 1_000_000, g
       return { code: 2, stdout: "", stderr: "unexpected" };
     },
   };
-  return { io, calls, ran, files };
+  return { io, calls, ran, files, lists };
 }
 
 const claudeTerm = (address, pid, extra = {}) => ({
@@ -65,9 +71,11 @@ const claudeTerm = (address, pid, extra = {}) => ({
   foreground: { name: "claude.EXE", pid, cwd: "D:/repo", argv: ["claude", "--model", "opus", "Read brief.md and do what it says."] }, ...extra,
 });
 const pidPath = (pid) => HOME + "/.claude/sessions/" + pid + ".json";
+const pidText = (sessionId, cwd = "D:\\repo") => JSON.stringify({ sessionId, cwd });
+const transcript = (dir, id) => HOME + "/.claude/projects/" + dir + "/" + id + ".jsonl";
 
 test("saveOnce records each live Claude with its session id, flags and place", async () => {
-  const m = machine({ terminals: [claudeTerm("t4", 100)], files: { [pidPath(100)]: JSON.stringify({ sessionId: "s1" }) } });
+  const m = machine({ terminals: [claudeTerm("t4", 100)], files: { [pidPath(100)]: pidText("s1"), [transcript("D--repo", "s1")]: "{}\n" } });
   const { save } = await saveOnce(m.io);
   assert.equal(save.core, "h1");
   assert.deepEqual(save.current.map((e) => [e.sessionId, e.address, e.pid, e.spaceName, e.tabName, e.status]),
@@ -91,6 +99,47 @@ test("saveOnce after a core restart sets the last save aside as the restore list
   const { save } = await saveOnce(m.io);
   assert.equal(save.core, "h1");
   assert.deepEqual(save.restore.map((e) => e.sessionId), ["s1"]);
+});
+
+test("saveOnce leaves out a Claude whose session has no transcript yet, and counts it as nothing", async () => {
+  const m = machine({
+    terminals: [claudeTerm("t4", 100), claudeTerm("t5", 101)],
+    files: { [pidPath(100)]: pidText("s1"), [transcript("D--repo", "s1")]: "{}\n", [pidPath(101)]: pidText("fresh"), [transcript("D--repo", "other")]: "{}\n" },
+  });
+  const { save, unreadable, unchecked } = await saveOnce(m.io);
+  assert.deepEqual(save.current.map((e) => e.sessionId), ["s1"]);
+  assert.deepEqual([unreadable, unchecked], [0, 0]);
+  assert.deepEqual(JSON.parse(m.files[savePath(APP)]).current.map((e) => e.sessionId), ["s1"]);
+});
+
+test("saveOnce keeps a session whose transcript is under any project folder, and lists the folders once a save", async () => {
+  const m = machine({
+    terminals: [claudeTerm("t4", 100), claudeTerm("t5", 101), claudeTerm("t6", 102)],
+    files: {
+      // Under the folder Claude names from the cwd ("_" as "-"), under another one, and under none.
+      [pidPath(100)]: pidText("s1", "C:\\Users\\U\\my_app"), [transcript("C--Users-U-my-app", "s1")]: "{}\n",
+      [pidPath(101)]: pidText("moved"), [transcript("D--elsewhere-" + "a".repeat(210) + "-1x2y3z", "moved")]: "{}\n",
+      [pidPath(102)]: pidText("fresh"),
+    },
+  });
+  const { save } = await saveOnce(m.io);
+  assert.deepEqual(save.current.map((e) => e.sessionId), ["s1", "moved"]);
+  const root = HOME + "/.claude/projects";
+  assert.equal(m.lists.filter((d) => d === root).length, 1);
+});
+
+test("saveOnce keeps a session it cannot check, as before, and counts it as unchecked", async () => {
+  const m = machine({ terminals: [claudeTerm("t4", 100), claudeTerm("t5", 101)], files: { [pidPath(100)]: pidText("s1"), [pidPath(101)]: pidText("s2") } });
+  m.io.exists = async () => { throw new Error("outside every granted read root"); };
+  const { save, unreadable, unchecked } = await saveOnce(m.io);
+  assert.deepEqual(save.current.map((e) => e.sessionId), ["s1", "s2"]);
+  assert.deepEqual([unreadable, unchecked], [0, 2]);
+});
+
+test("saveOnce lists no folder when every session's transcript is where its cwd names", async () => {
+  const m = machine({ terminals: [claudeTerm("t4", 100)], files: { [pidPath(100)]: pidText("s1"), [transcript("D--repo", "s1")]: "{}\n" } });
+  await saveOnce(m.io);
+  assert.deepEqual(m.lists, []);
 });
 
 test("saveOnce counts a pid file without a session id as unreadable and saves nothing for it", async () => {

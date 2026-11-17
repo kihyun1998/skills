@@ -1,5 +1,6 @@
 // The herdr side of session-restore: the io save.js and open.js take, and one save with its
 // summary shared.
+import { exists, readdir } from "fs/promises";
 import { hc, readTextFile, writeTextFile, spaces, run, home, appHome, shared, setShared } from "herdr";
 import { summarize } from "./logic.js";
 import { parseSave, saveOnce, savePath } from "./save.js";
@@ -13,6 +14,8 @@ export function herdrIo(cx) {
     hc: (args) => hc(args),
     read: (path) => readTextFile(path),
     write: (path, text, expected) => writeTextFile(path, text, expected),
+    exists: (path) => exists(path),
+    list: (dir) => readdir(dir, { withFileTypes: true }),
     spaces: () => spaces(),
     run: (command, args) => run(command, args),
     sleep: (ms) => cx.sleep(ms),
@@ -29,14 +32,14 @@ export async function readSave() {
 
 /** Saves once, and sets the shared summary when it differs from the one there. */
 export async function saveAndShare(cx) {
-  let save = null, unreadable = 0, error = null;
+  let save = null, unreadable = 0, unchecked = 0, error = null;
   try {
-    ({ save, unreadable } = await saveOnce(herdrIo(cx)));
+    ({ save, unreadable, unchecked } = await saveOnce(herdrIo(cx)));
   } catch (err) {
     error = String(err?.message ?? err);
     save = await readSave();
   }
-  const summary = { ...summarize(save, { now: Date.now(), failed: Boolean(error) || unreadable > 0 }), unreadable, error };
+  const summary = { ...summarize(save, { now: Date.now(), failed: Boolean(error) || unreadable > 0 || unchecked > 0 }), unreadable, unchecked, error };
   if (JSON.stringify(shared(SHARED) ?? null) !== JSON.stringify(summary)) setShared(SHARED, summary);
   return { save, summary };
 }

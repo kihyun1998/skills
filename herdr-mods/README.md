@@ -73,7 +73,11 @@ rewritten for each Herdr version and are the truth about the API.
   command, which a `keys.json` binding can send (none is installed). For each live terminal whose foreground is Claude, it reads
   `~/.claude/sessions/<pid>.json` for the session id, and records the terminal's
   name, parent, folder, space and tab, title, status and Claude flags. The task
-  prompt at the end of a `thegraph-herdr` worker's argv is dropped.
+  prompt at the end of a `thegraph-herdr` worker's argv is dropped. A session
+  with no conversation yet is left out until it has one: no
+  `~/.claude/projects/*/<id>.jsonl` exists. The save looks first in the folder
+  Claude names from the pid file's `cwd` (every character but a letter or digit
+  as `-`) and lists the others only when the transcript is not there.
 - **The restore list** (`restore`) is the previous run's last `current`. It is set
   aside when the core holder (`hc server status` `holder.instance`) changes, as
   after a reboot. An entry leaves it when it is open again or removed by hand. A
@@ -86,7 +90,9 @@ rewritten for each Herdr version and are the truth about the API.
   whose conductor is open now has its own Open. A session counts as opened
   when its Claude has held the id for 2 seconds; otherwise the row says why.
 - **The dot** on the Sessions button is amber when something can be restored and
-  red when the save stalled (failed, unreadable pid files, or older than 3 minutes).
+  red when the save stalled (failed, unreadable pid files, sessions whose transcript
+  could not be looked for, or older than 3 minutes). A session whose transcript could
+  not be looked for is saved anyway, and the panel says how many.
   When Herdr starts, the tab bar's first successful save opens the panel once if
   there is something to restore. A core restart with the window open shows only the
   dot.
