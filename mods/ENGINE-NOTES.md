@@ -1,14 +1,30 @@
 # Engine notes for mods
 
 What Claude Code's mod engine does that its own types do not make obvious,
-found while building `usage-band` and `thegraph-panel` on **Claude Code
-2.1.292**, each with how it was found.
+found while building `path-band`, `usage-band` and `thegraph-panel`, each
+with how it was found. The entries come from several builds, 2.1.292 through
+2.1.326; where an entry depends on the build, its source column names the
+version.
 
-The API itself is not restated here. The engine writes it for each build,
-beside a loaded mod in `.claude-plugin/types/claude-code/index.d.ts`. That file
-is current, so grep it, and a copy kept here would quietly go stale. When the
-pinned version in `.github/workflows/mods.yml` moves, re-check the entries
-marked **measured**: no type will tell you that one of them changed.
+The API itself is not restated here: a copy kept here would quietly go stale.
+The engine may write it beside a loaded mod, in
+`.claude-plugin/types/claude-code/index.d.ts`, but that file is not kept
+current. Its first line names the build that wrote it
+(`// Written by Claude Code 2.1.292.`). Compare that with `claude --version`
+before trusting it. On 2.1.326 deleting the file and running `claude plugin
+validate`, `claude -p` or a `--plugin-dir` session did not write it again.
+
+When the local file is older than the installed build, take the contract from
+the binary. It carries the declarations as a zstd frame
+(`claude-code.d.ts-….txt.zst`), and Node 26's `zlib.zstdDecompressSync`
+unpacks it. Scan the `claude` binary for the magic bytes `28 b5 2f fd`,
+decompress from each hit, and keep the output that contains `keepsBeneath`
+and opens with `// Claude Code function hooks: the plugin API's TypeScript
+declarations.` (a second frame also contains the word). On 2.1.326 that is
+about 823,600 bytes.
+
+When the pinned version in `.github/workflows/mods.yml` moves, re-check the
+entries marked **measured**: no type will tell you that one of them changed.
 
 How each entry was found:
 
