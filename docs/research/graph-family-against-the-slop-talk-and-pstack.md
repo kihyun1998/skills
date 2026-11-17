@@ -320,11 +320,11 @@ All under the anchor [#71](https://github.com/kihyun1998/skills/issues/71)
 | [#72](https://github.com/kihyun1998/skills/issues/72) | who raises a repeated correction as a check, and what builds it | **closed**; decisions in its closing comment (§I) |
 | [#73](https://github.com/kihyun1998/skills/issues/73) | raise a repeated correction as a check candidate (`ask-it`, `grill-map`, `grill-the-graph`) | open; blocked by #80 |
 | [#74](https://github.com/kihyun1998/skills/issues/74) | `check-it` (3) proves against the way to the real thing a repository already records | open; ready |
-| [#75](https://github.com/kihyun1998/skills/issues/75) | amend ADR-0076, a per-diff comment check, what the map keeps | open; `needs-grill` |
+| [#75](https://github.com/kihyun1998/skills/issues/75) | the comment rule, a per-diff comment check, what the map keeps; the ADR-0076 amendment moved to #79 (2026-11-18) | open; `needs-grill` |
 | [#76](https://github.com/kihyun1998/skills/issues/76) | reviewer findings carry their reproduction; reports carry the certainty level | open; ready |
 | [#77](https://github.com/kihyun1998/skills/issues/77) | `make-it` and `check-it` use the property, fuzz and benchmark lanes a repository runs; `benchmark-checklist`'s method in `check-it` (5) | open; ready |
 | [#78](https://github.com/kihyun1998/skills/issues/78) | whether to bring formal verification in, starting with one trial | open; `needs-grill` |
-| [#79](https://github.com/kihyun1998/skills/issues/79) | how decision records are written and how much they weigh (§M) | open; `needs-grill` |
+| [#79](https://github.com/kihyun1998/skills/issues/79) | how decision records are written and how much they weigh (§M) | open; `needs-grill`; **deferred** 2026-11-18 (§M) |
 | [#80](https://github.com/kihyun1998/skills/issues/80) | `encode-it`: a skill that turns a repeated correction into a check | open; carries a *To decide* list, so grill before building |
 
 The order to take them is §O.2.
@@ -366,6 +366,16 @@ ADR-0076 does); a *what would reopen this* line on every record; hold records to
 `domain-modeling`'s three conditions; pstack keeps no records and answers *why*
 from commits and PRs. The choice is
 [#79](https://github.com/kihyun1998/skills/issues/79).
+
+**Deferred, 2026-11-18** (maintainer's call; reasons on #79). The question was
+the maintainer's own addition, and the maintainer chose to improve the family on
+the talk's claims first. Re-reading the sources for it showed two things this
+section had wrong or missing (measured here, 2026-11-18): the talk never mentions
+decision records, so every line above that applies its reasons to records is
+inference; and pstack is not record-free — `show-me-your-work` keeps a
+one-row-per-decision TSV with an evidence pointer, local by default and committed
+only when a reviewer needs it. One answer was given before the deferral: a record
+is read as grounds, not as a rule (#79's comment holds it).
 
 ## N. Open, and not verified
 
@@ -410,8 +420,11 @@ Three are decisions (`needs-grill`), one carries its own decision list, four are
 ready to build. The order below is the one recommended at the end of the
 session; only #73's place is forced (blocked by #80).
 
+**Changed 2026-11-18:** #79 is deferred (§M), so the work starts at #75. #79's
+entry is kept below for when it resumes.
+
 **1. #79 — how decision records are written and how much they weigh.**
-`/grilling 79`.
+`/grilling 79`. Deferred 2026-11-18; read #79's deferral comment first when it resumes.
 
 - *Why first:* #75 amends ADR-0076, so its result is a record edit, and #79 says
   how records are written and amended. #72's decision is waiting on #79 to say
@@ -434,8 +447,9 @@ session; only #73's place is forced (blocked by #80).
 
 **2. #75 — comments, and what the map keeps.** `/grilling 75`.
 
-- *Why second:* it waits on #79 for how ADR-0076 is amended; its outcome may hand
-  a comment allow-list to `encode-it` (#80) as a lint.
+- *Why first now:* its outcome may hand a comment allow-list to `encode-it`
+  (#80) as a lint. It no longer waits on #79: the ADR-0076 amendment moved there
+  (2026-11-18).
 - *Read:* #75's body and both comments (the map table; the maintainer's
   *no comment at all*); §E; ADR-0076 in full; ADR-0092's `decant` row;
   `grill-the-graph/SKILL.md` §3 (the comment rule table); `grill-map/NOTES.md`
@@ -514,7 +528,10 @@ instructions.
 
 **The two transcripts.** Do not commit them; they are the videos' text. `yt-dlp`
 is at `/opt/homebrew/bin/yt-dlp`; `ffmpeg` and `whisper` are not installed, which
-does not matter while the videos have auto-generated captions.
+does not matter while the videos have auto-generated captions. On Windows
+(2026-11-18) `yt-dlp` was not installed; `py -3 -m venv <scratchpad>/venv` and
+`pip install yt-dlp` (2026.10.26) fetched both caption files without a JS runtime,
+printing only warnings.
 
 ```sh
 D=<scratchpad>/yt && mkdir -p "$D" && cd "$D"
