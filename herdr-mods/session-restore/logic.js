@@ -205,6 +205,16 @@ export function openProgress(states, batch) {
   return { opened: keys.filter((k) => states.get(k)?.at === "opened").length, total: keys.length };
 }
 
+/**
+ * How the batch's open ended for its rows: { opened, failed }, each a list of keys, or null when no
+ * key of the batch is opened or failed. states maps a key to { at }.
+ */
+export function batchResult(states, batch) {
+  const keys = [...(batch ?? [])];
+  const opened = keys.filter((k) => states.get(k)?.at === "opened"), failed = keys.filter((k) => states.get(k)?.at === "failed");
+  return opened.length || failed.length ? { opened, failed } : null;
+}
+
 /** The panel's groups: one per space, spaces with restorable working sessions first. */
 export function groupsOf(entries) {
   const groups = new Map();
@@ -219,4 +229,10 @@ export function groupsOf(entries) {
     return { ...g, restorable: restorable.length, working: restorable.filter((r) => working(r.entry)).length };
   });
   return list.sort((a, b) => b.working - a.working);
+}
+
+/** A space's share of the batch being opened: { opened, total } over the group's rows in the batch. */
+export function groupProgress(group, states, batch) {
+  const keys = group.rows.map((r) => r.entry.key).filter((k) => batch?.has(k));
+  return { opened: keys.filter((k) => states.get(k)?.at === "opened").length, total: keys.length };
 }

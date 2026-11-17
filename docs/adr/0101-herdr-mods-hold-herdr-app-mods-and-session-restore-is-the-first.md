@@ -252,9 +252,13 @@ when it docked a new mod into the linked layout (seen twice on 2026-11-17).
   when it failed. The chip passes it to the panel, which judges a stall and shows
   "Saved N · …" from it. A copy re-read only when the summary's `sig` changed aged with no
   session opening or closing, and read as stalled while saves succeeded.
-- **The panel's "k/N opening…" counts the batch being opened** with `openProgress()`, as
-  the chip does, not every row an earlier open left marked.
-- **What is tested where.** `startSaving()`, `chipState()` and `openProgress()` are tested with Node, the
+- **The panel counts the batch being opened**, not every row an earlier open left marked:
+  the footer's "k/N opening…" with `openProgress()`, as the chip does, a space header's
+  k/N with `groupProgress()` over that space's rows in the batch, and the footer's
+  "N opened, M failed", "Clear failed" and whether that line shows at all with
+  `batchResult()` (issue #67).
+- **What is tested where.** `startSaving()`, `chipState()`, `openProgress()`, `groupProgress()` and
+  `batchResult()` are tested with Node, the
   first through the fake `io` with a fake timer and task, including the save it hands `share`. `main.js` (the chip),
   `panel.js` and `io.js` are covered by `herdr-app check`, which builds the first render
   and does not draw a `Popup`'s content.

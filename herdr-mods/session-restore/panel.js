@@ -3,7 +3,7 @@
 import { div, svg, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { run, theme, shared, checking } from "herdr";
-import { conductorOf, entriesOf, groupsOf, openable, openProgress, planOpen, STALE_MS } from "./logic.js";
+import { batchResult, conductorOf, entriesOf, groupProgress, groupsOf, openable, openProgress, planOpen, STALE_MS } from "./logic.js";
 import { removeEntries } from "./save.js";
 import { openSessions } from "./open.js";
 import { herdrIo, readSave, saveAndShare, SHARED } from "./io.js";
@@ -157,7 +157,7 @@ export default class Sessions {
     const groups = groupsOf(entries);
     const results = [...this.state.values()];
     const progress = this.progress(), busy = Boolean(progress);
-    const opened = results.filter((s) => s.at === "opened").length, failed = results.filter((s) => s.at === "failed").length;
+    const ended = batchResult(this.state, this.batch), opened = ended?.opened.length ?? 0, failed = ended?.failed.length ?? 0;
 
     const saveLine = !save
       ? div().text_color(t.dim).child("Not saved yet")
@@ -188,13 +188,13 @@ export default class Sessions {
 
     const groupHeader = (g) => {
       const open = g.rows.filter((r) => !r.entry.live && openable(r.entry, entries)).map((r) => r.entry);
-      const done = g.rows.filter((r) => this.state.get(r.entry.key)?.at === "opened").length;
+      const share = groupProgress(g, this.state, this.batch);
       return h_flex().id("sp-" + g.id).h(34).pt(12).pb(4).pl(14).pr(10).gap(6).flex_none().items_center().text_size(11)
         .child(div().truncate().text_size(12).text_color(t.foreground).child(g.name || "not in a space"))
         .when(g.working > 0, (el) => el.child(div().text_color(t.ansi3).child("working " + g.working)))
         .child(div().flex_1())
         .when(g.restorable > 0 && !busy, (el) => el.child(this.button(t, "open-sp-" + g.id, "Open · " + g.restorable, (cx) => this.open(open, cx), true)))
-        .when(g.restorable > 0 && busy && done > 0, (el) => el.child(div().text_color(t.muted).child(done + "/" + g.restorable)));
+        .when(busy && share.opened > 0, (el) => el.child(div().text_color(t.muted).child(share.opened + "/" + share.total)));
     };
 
     const list = v_flex().id("sessions-list").flex_1().min_h(0).pb(8).overflow_y_scrollbar()
@@ -209,13 +209,13 @@ export default class Sessions {
         .child(div().id("open-all").flex_1().h(32).flex().items_center().justify_center().rounded(7).cursor_pointer()
           .bg(t.solid).text_color(t.solid_foreground).text_size(12.5).font_semibold().hover((s) => s.opacity(0.9))
           .on_click((_e, cx) => this.open(restorable, cx)).child("Open all · " + restorable.length))
-      : results.length
+      : busy || ended
         ? h_flex().p(10).gap(8).flex_none().items_center().border_t(1).border_color(t.border).text_size(12)
           .child(div().flex_1().child(busy
             ? div().text_color(t.ansi3).child(progress.opened + "/" + progress.total + " opening…")
             : h_flex().gap(4).child(div().text_color(t.ansi2).child(opened + " opened,")).child(div().text_color(failed ? t.ansi1 : t.muted).child(failed + " failed"))))
           .when(!busy && failed > 0, (el) => el.child(this.button(t, "clear-failed", "Clear failed",
-            (cx) => this.remove([...this.state].filter(([, s]) => s.at === "failed").map(([k]) => k), cx))))
+            (cx) => this.remove(ended.failed, cx))))
         : null;
 
     return v_flex().id("sessions").size_full().min_h(0).rounded(10).overflow_hidden().bg(t.background).border_1().border_color(t.border)

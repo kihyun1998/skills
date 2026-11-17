@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  keptFlags, nextSave, coreIdentity, planOpen, placement, resumeArgv, shellLine, isClaude, isShell, summarize, linkParents, openable, groupsOf, chipState, openProgress, STALE_MS,
+  keptFlags, nextSave, coreIdentity, planOpen, placement, resumeArgv, shellLine, isClaude, isShell, summarize, linkParents, openable, groupsOf, chipState, openProgress, groupProgress, batchResult, STALE_MS,
 } from "../logic.js";
 
 const WORKER_ARGV = ["C:\\Users\\User\\.local\\bin\\claude.EXE", "--model", "opus", "--effort", "high", "--dangerously-skip-permissions",
@@ -250,4 +250,27 @@ test("openProgress counts only the batch being opened, not rows an earlier open 
   assert.deepEqual(openProgress(states, new Set(["a", "b", "c"])), { opened: 1, total: 3 });
   assert.equal(openProgress(new Map([["a", { at: "opened" }]]), new Set(["a"])), null);
   assert.equal(openProgress(states, new Set()), null);
+});
+
+test("groupProgress counts a space's rows in the batch, not rows an earlier open left opened and now live", () => {
+  // A and B were opened by an earlier batch and are live now; C is closed and is the batch being opened.
+  const all = [entry({ sessionId: "A", live: true }), entry({ sessionId: "B", live: true }), entry({ sessionId: "C" })];
+  const [g] = groupsOf(all);
+  const states = new Map([["A", { at: "opened" }], ["B", { at: "opened" }], ["C", { at: "opening" }]]);
+  assert.deepEqual(groupProgress(g, states, new Set(["C"])), { opened: 0, total: 1 });
+  states.set("C", { at: "opened" });
+  assert.deepEqual(groupProgress(g, states, new Set(["C"])), { opened: 1, total: 1 });
+  // A space with no row in the batch has nothing under way.
+  const other = groupsOf([entry({ sessionId: "D", labels: { "herdr.space": "sp2" } })])[0];
+  assert.deepEqual(groupProgress(other, states, new Set(["C"])), { opened: 0, total: 0 });
+});
+
+test("batchResult names the batch's opened and failed rows, not those of an earlier open", () => {
+  const states = new Map([["old", { at: "opened" }], ["gone", { at: "failed" }], ["a", { at: "opened" }], ["c", { at: "failed" }], ["d", { at: "opened" }]]);
+  // b was still opening when the open ended, so its state was cleared.
+  assert.deepEqual(batchResult(states, new Set(["a", "b", "c", "d"])), { opened: ["a", "d"], failed: ["c"] });
+  // Nothing in the batch has ended (cleared, never opened, or no batch): no result to show.
+  assert.equal(batchResult(states, new Set(["b"])), null);
+  assert.deepEqual(batchResult(states, new Set(["b", "c"])), { opened: [], failed: ["c"] });
+  assert.equal(batchResult(states, new Set()), null);
 });
