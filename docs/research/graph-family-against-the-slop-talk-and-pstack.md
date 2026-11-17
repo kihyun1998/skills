@@ -1,0 +1,371 @@
+# The graph family against the slop talk and pstack
+
+Everything one session found when it compared the graph family (`thegraph`,
+`thegraph-herdr`, `grill-the-graph`, `grill-map`, and the steps `read-it`,
+`make-it`, `check-it`, `ask-it`) with a conference talk and the plugin its speaker
+published. It records the sources, what each says, what the graph family has and
+lacks, which earlier decisions the comparison reopens, the corrections made along
+the way, and the issues filed. It decides nothing; the decisions are on
+[#71](https://github.com/kihyun1998/skills/issues/71) and its children.
+
+**Where this file lives.** `docs/research/` holds research kept before a decision,
+as `thegraph-herdr-models-context.md` does.
+
+**Date of every check:** 2026-11-17, on macOS, Claude Code 2.1.326, `yt-dlp`
+2026.08.19, this repository at `6574a19`.
+
+**Labels used on every claim.**
+
+| Label | Meaning |
+|---|---|
+| **measured here** | read from a file or run in this session, with the file, line, command or commit given |
+| **maintainer's call** | a choice recorded as the maintainer's, with where it is recorded |
+| **speaker-reported** | stated by the talk's speaker or by the commentary video about their own team. Not checked |
+| **inferred** | reasoning from the cited facts. Nobody measured it |
+
+## A. Sources
+
+| # | Source | How it was read | Label |
+|---|---|---|---|
+| 1 | Lauren Tan ("Potato"), *All Code Is Slop (Except Mine)*, AI Engineer, 17:31. https://youtu.be/O_zcc6Xl12g | YouTube auto-generated English captions (`en-orig`; the video has no uploaded captions), via `yt-dlp --skip-download --write-auto-subs --sub-langs en-orig --sub-format vtt`, then timestamps and repeated rolling lines stripped and grouped per minute. About 2,870 words | measured here |
+| 2 | AgentOS, *AI 코드 슬롭 안 만드는 법 — SpaceX Grok Bot 팀이 PR 1만 개를 내보내고 0.5%만 되돌린 장치들*, 22:52, Korean commentary on #1 with clips. https://youtu.be/ueA116hO_ho | auto-generated Korean captions (`ko-orig`), same procedure. About 1,700 words | measured here |
+| 3 | pstack, https://github.com/cursor/plugins/tree/main/pstack at `e1cc031` (2026-11-16 22:18 -0800) | sparse clone; files read raw with `cat` | measured here |
+
+`ffmpeg` and `whisper` are not installed on this machine, so a video without
+captions could not have been transcribed; both videos had auto-generated ones.
+Caption text is speech recognition and carries errors: names drift
+("Grokbot", "Graph Bot", "Gulp bot", "Growth Bot" for one product; "로렌타니",
+"로렌타", "로렌 탄" for the speaker), and #2's opening figure reads "19,26개",
+which is garbled. Timestamps below are the caption minute, `[mm:ss]`.
+
+**Read in pstack:** `README.md`; `skills/poteto-mode/SKILL.md`, `worker.md`,
+playbooks `bug-fix`, `feature`, `perf-issue`, `hillclimb`, `refactoring`;
+`correct`; `no-comments` and `agents/comment-sicko.md`; `create-verification-skill`;
+`maintain-verification-skill` (first 30 lines); `create-formal-verification-skill`;
+`maintain-formal-verification-skill`; `statechart` (first 40 lines);
+`benchmark-checklist`; `blast-radius`; `interrogate`; `in-your-own-words`; `tdd`;
+principles `encode-lessons-in-structure`, `never-block-on-the-human`,
+`prove-it-works`, `fix-root-causes`, `explain-the-number`,
+`test-behavior-not-implementation`; guide chapters 06, 08 and the `/correct`
+section of 09.
+
+**Not read in pstack:** the other 15 playbooks, `arena`, `swarm`, `architect`,
+`why`, `how`, `recall`, `ketchup`, `teach`, `reflect`, `sharpen`, `automate-me`,
+`show-me-your-work`, `figure-it-out`, `unslop`, `technical-writing`,
+`typescript-best-practices`, the remaining 18 principles, `setup-pstack`,
+`poteto-help`, guide chapters 01-05, 07, 10, the `benny` automations, and the
+`statechart` and `watch-pr` scripts.
+
+**Read in this repository:** `thegraph`, `thegraph-herdr`, `grill-the-graph`,
+`grill-map`, `read-it`, `make-it`, `check-it`, `ask-it` in full; ADR-0065,
+ADR-0066 (first 60 lines), ADR-0076 (first 40), ADR-0083, ADR-0091 (first 40),
+ADR-0092 (first 30); `docs/agents/issue-tracker.md`, `triage-labels.md`,
+`skill-dependencies.md` (the `tdd` row). **Not read:** `thegraph-codex` beyond its
+description, `lens`, `sweep` and `firsthand` beyond a grep, `grill-map/NOTES.md`.
+
+## B. What the talk says
+
+| # | Claim | Where | Label |
+|---|---|---|---|
+| 1 | The speaker shipped 3,000 PRs in a month; it took six months to get there | [00:00], [01:00] | speaker-reported |
+| 2 | The job is keeping or raising code quality while raising output; the speaker calls it *trust*, not a software factory: invest in the agent's environment so you can trust what it does | [01:00] | speaker-reported |
+| 3 | An inverted pyramid of where to spend: the codebase (API design, architecture, refactoring) and static analysis (lint, types, compilers, tests) are deterministic and constrain the agent; verification (runtime, formal) finds bugs and checks the agent understood the intent; a little prose (rules, skills, `AGENTS.md`) for what needs judgement. The commentary lists five layers, top down: codebase, static analysis, verification, prose, human review | [02:00]; commentary [03:00] | speaker-reported |
+| 4 | When correcting an agent, make it a deterministic check rather than another line in rules or `AGENTS.md`; code is the largest input an agent copies | [03:00] | speaker-reported |
+| 5 | Code now arrives as a stream; workarounds, anti-patterns, deprecated code and debt get copied by the next agent as the established pattern, so keep the codebase pristine | [03:00]-[04:00] | speaker-reported |
+| 6 | Dune, a client framework for Grok Bot, encodes lessons as constraints and lint rules. Anything that needs nuance to use well leads to slop: `useEffect` is banned in product code and allowed only inside Dune APIs, so the problem is gone from review | [05:00]-[06:00] | speaker-reported |
+| 7 | Context through directory structure: top-level `electron-main` and `electron-renderer` directories, imports between them banned by a dependency-graph analyser and lint rules (from Cursor's main-into-renderer imports causing jank) | [06:00] | speaker-reported |
+| 8 | Agents use Markdown — documentation, code comments, rules, skills — to write justifications for not doing the right thing, and over-rotate a small correction into a hard rule | [06:00]-[07:00] | speaker-reported |
+| 9 | Cursor example: agents patched an architecture clash (VS Code imperative vs React declarative) with `setTimeout`, `requestAnimationFrame`, `requestIdleCallback`, wrote comments justifying each, and timers spread until GC pressure hurt performance | [07:00]-[08:00]; commentary [09:00] (dates 9 Sep, 3 Oct, 17 Oct on screen) | speaker-reported |
+| 10 | Grok Bot bans 99% of comments: they go stale, humans do not read them, they give an agent an escape hatch, and they are not enforceable. Lint rules give helpful errors telling the agent to fix the root cause | [08:00]-[09:00] | speaker-reported |
+| 11 | Comments went from 65,824 (end of July) to 1,227; a step chart from 7 to 167 shown while stating the principle (axis unlabelled) | commentary [12:00] | speaker-reported, via the commentary |
+| 12 | Every correction becomes a deterministic check or is eliminated by API design or architecture; done often enough, nothing is left to review and agents merge most of their own PRs | [09:00] | speaker-reported |
+| 13 | Review shrank to verification artifacts: videos, screenshots, diagrams, formal verification | [09:00] | speaker-reported |
+| 14 | Runtime verification: the agent runs the code and uses developer tools (Chrome DevTools protocol). A *feature map* lists the app's features from the user's view, giving shared vocabulary; custom CLIs inside the skills are reused, cut tokens and are testable | [10:00] | speaker-reported |
+| 15 | Formal verification: TLA+ model-checks major flows such as notifications across devices; Lean proves algorithms, e.g. their virtualization library has no flicker or jitter. Found bugs; not a silver bullet, another layer | [10:00]-[11:00] | speaker-reported |
+| 16 | Property-based testing of UIs with Bombadil caught UI bugs | [11:00] | speaker-reported |
+| 17 | A colleague went from distrusting agents over subtle merged bugs (May) to 70% of daily tokens spent on verification (November); the speaker sees the same. These are old techniques that agents make cheap | [11:00]-[12:00]; commentary [15:00] | speaker-reported |
+| 18 | `statechart` in pstack draws state machines from the user's view; easier to review beside videos and screenshots | [13:00] | speaker-reported |
+| 19 | Grok Bot team: 11,000 PRs to production last month (the commentary instead opens with "about 20,000 merged in October", its exact figure garbled in the captions; the two were not reconciled); a stable release about once a day (slide medians 25 h September, 28 h October, per the commentary); about 227 contributors in October; reverts steady at about 0.5%; startup, typing, opening and switching chats got faster; an Electron ceiling, Rust rewrite considered | [13:00]-[15:00]; commentary [17:00]-[19:00] | speaker-reported |
+| 20 | Order: before automating, fix corrections in the codebase first — a lint to stop new occurrences, then clean the old — and make verification strong. Automating a loop that produces slop produces more slop | [15:00] | speaker-reported |
+| 21 | On each release Grok Bot starts a project that fuzzes the whole app like a user, opens fix PRs and auto-merges them | [16:00] | speaker-reported |
+
+## C. pstack, skill by skill
+
+Only what bears on the comparison.
+
+| Skill or file | What it does | Label |
+|---|---|---|
+| `poteto-mode` | Entry point. Matches the task to one of 22 playbooks and copies its steps into a todo list; triggers route to other skills (code → name the data shape; prose → `unslop`; before review → `no-comments`; a measured number → `benchmark-checklist`). Autonomy: reversible work and external actions proceed without asking; pause only for force-push, deploys, data deletion, customer messages. Fable 5.2 runs outside a panel only when named or after two failed Opus 5.5 xhigh runs; *difficulty alone never qualifies* | measured here |
+| `worker.md` | Rules every spawned agent reads first: the bar in the kickoff is the whole bar; never show a person a question; make any reversible choice and say why; PR body at most 40 lines under fixed headings | measured here |
+| `correct` | Find mistake classes (twice counts) from commits, reverts, review comments, instruction files and workaround comments. Fix at the highest level that works: architecture, then types, then a lint or CI check whose error names the fix (fail only when a change adds more where the pattern is common), then a test, docs last. Prove each check fails on a real past mistake. Keep a table pairing each rule with what enforces it; a rule nothing enforces that recurs is fixed higher; drop a rule once its mistake cannot happen | measured here |
+| `principle-encode-lessons-in-structure` | Encode a repeated instruction as a lint, metadata flag, runtime check or script; if the fix is structural, use only the structural fix | measured here |
+| `no-comments` + Comment Sicko | A separate agent reads every comment in the scope. Keeps only license headers, outside constraints we cannot reshape, `prettier-ignore`, public API doc comments, issue or RFC links. A surprise in our own code is deleted and its symbol flagged `MUST KILL` for rename, extraction, type or redesign. Long justifications are "a confession". Suppressions (`eslint-disable`, `@ts-ignore`) are audited and killed where the rule protects correctness. Constraint comments (*do not remove*) get an offered type, runtime, test or lint encoding, then are deleted | measured here |
+| `create-verification-skill` | Generates a committed project-local skill: Launch, Doctor, Drive, Evidence, Cleanup, Helpers, plus a user-view feature map (one file per feature, four fixed headings). Interviews the repo, not the user. Proven once end to end before hand-over, evidence surviving cleanup | measured here |
+| `maintain-verification-skill` | Periodic pass: one read-only reader per feature, one live pass driving every feature; outcome clean, changed (one PR of proven corrections) or blocked; never edits product code | measured here (first 30 lines) |
+| `create-formal-verification-skill` | Pick the strongest target: a promise where a break harms users and tests rarely reach. The question picks the tool (TLA+ for bad orderings, a code-level verifier for every input, a proof where a bound is not enough; generated inputs where no verifier exists). Show each property failing on a broken variant; findings stay findings; state bounds; one command to rerun; record covered code and the commit last confirmed | measured here |
+| `maintain-formal-verification-skill` | After changes that skipped the check: classify each change to covered code (no effect, model stale, promise changed on purpose with evidence, promise maybe broken); update from the code, not the result; prove the updated check can still fail; outcomes in sync, updated, bug, blocked | measured here |
+| `statechart` | Checks a TLA+ model with TLC and draws a Mermaid statechart in the reader's words, marking states that break a rule with the shortest path to each | measured here (first 40 lines) |
+| `benchmark-checklist` / `principle-explain-the-number` | Before trusting a number: write the claim; name the limiter (*why not double?*); run every side tuned like production; check physical limits; count errors; at least five alternating runs, median and range; measure end to end; confirm the work happened in the timed region. Verdict faster, slower, no measurable difference, or inconclusive | measured here |
+| `blast-radius` | Find the one fact a change is safe because of and prove it by running code. Certainty ladder: said so → pointed at the line → walked the failure → ran a script or test → reproduced in the app | measured here |
+| `interrogate` | Several models try to break a change; each finding must carry the exact command, its output and the output the intent requires; anything not run is dropped; findings are rerun to verify | measured here |
+| `principle-never-block-on-the-human` | Proceed on reversible work, present the result, let the human correct after the fact | measured here |
+| `principle-test-behavior-not-implementation` | Keep a test that fails when behaviour breaks and survives an internal change | measured here |
+| playbooks `bug-fix`, `perf-issue`, `hillclimb`, `refactoring` | Reproduce on the real surface; binary-search the cause with runtime evidence; failing repro committed before the fix. Perf: baseline trace vetted by the checklist; the "performance mantras" in order. Hillclimb: freeze a harness proven sensitive, one change per measurement, keep or revert, a decision log. Refactoring: pin behaviour with a characterization test before moving structure | measured here |
+| `tdd` (pstack's own) | Write a failing test only when the path is cheap; prefer no new test over a bad one | measured here |
+| `README.md` | No planning skills ("the best spec is code"); `automate-me` drafts a personal mode skill from transcripts | measured here |
+
+## D. What the graph family has
+
+| Idea | Graph family | Where | Label |
+|---|---|---|---|
+| Repeated correction becomes a check (B4, B12; `correct`) | **absent.** A repeat goes to `docs/agents/thegraph.md` as prose, or to an issue | `grill-the-graph/SKILL.md` *The build grows*; `ask-it/SKILL.md` | measured here |
+| A durable way to reach the real thing (B14; `create-verification-skill`) | **partial.** `check-it` (3) says prove it against something real and prefers a real consumer; it does not point at what the build or map records for that | `check-it/SKILL.md:21`, *Proving it works* | measured here |
+| Prove it on the real artifact | present | `check-it` (3), real-consumer proof | measured here |
+| Fix the root cause | present | `make-it` *"I'll just fix it up here"*; `check-it` *The shape nobody will have marked* | measured here |
+| Fewer comments (B10; `no-comments`) | **partial, policy only.** The rule `grill-the-graph` §3 writes into `CLAUDE.md` (ADR-0076). No per-diff check: `check-it` has no comment step; `sweep` stops short of a comment audit (`sweep/SKILL.md:101`); `decant` retired with *nothing* moved (ADR-0092). Lint suppressions are read by nothing | as listed | measured here |
+| The writer does not judge | present | `lens` and reviewer in fresh agents, ADR-0091, ADR-0095 | measured here |
+| A check never seen failing is not evidence | present, stricter than pstack | `make-it` test bar with five mutation patterns | measured here |
+| Findings proven by a run (`interrogate`) | **partial.** The reviewer grades (violation, judgement, already decided); the caller reproduces afterwards | `check-it` *Briefing the reviewer* | measured here |
+| The one safety fact and its certainty (`blast-radius`) | **partial.** No certainty level recorded | `lens`, `grill-map` blast edges | measured here |
+| Properties, fuzzing, benchmarks, model checking (B15-B16; formal skills, `benchmark-checklist`) | **absent from the skills.** A grep of `read-it`, `make-it`, `check-it`, `ask-it`, `lens`, `firsthand`, `thegraph` for property, fuzz, benchmark, model check, TLA, median, profile, equivalence, characterization, random finds none; `check-it` (5) is one sentence (*no defect without a number*); the `tdd` skill `make-it` calls (mattpocock) has none either | grep in this session | measured here |
+
+## E. Comments and the map
+
+The talk does not say *move comments somewhere better*. Its reasons (B10) and its
+remedy (lint plus API and architecture) leave no document in between, and B8 names
+Markdown in general as the place for justifications. Three of its four reasons —
+stale, an escape hatch, unenforceable — hold for a map note as for a comment
+(inferred). Moving a workaround's reason into the map under ADR-0076 moves the
+escape hatch instead of closing it (inferred). The talk keeps a narrow prose layer
+for judgement (B3), and pstack keeps no document for *why*: its `why` skill reads
+commits and PR discussions on demand (`README.md`, skills table). So the map is
+sorted, not abolished:
+
+| What a map note holds | Where it goes by the talk's measure | Label |
+|---|---|---|
+| a workaround's reason; a surprise in our own code explained | nowhere — the code is the thing to fix | inferred |
+| a trap (*importing X from Y breaks*) | a check or structure where one can hold it, then off the note | inferred |
+| a boundary or invariant (blast edge, invariant note) | partly as structure: B7's directories with imports banned | inferred |
+| a measured value, outside constraint, reason behind a design judgement | stays: the prose layer | inferred |
+| history | commit message, as now | measured here (ADR-0076) |
+| the navigation itself (*what else moves*) | pstack has no counterpart and the talk gives no measure; weighed on its own | measured here (absence) |
+
+ADR-0076's measurement still stands: 310 comment blocks across five repositories
+shared verbatim phrasing with a map note, and 58 of 163 notes already held the
+history a comment would duplicate (ADR-0076, *Why one bin*). It measured
+duplication; it did not consider a comment as the channel by which a workaround
+spreads (inferred: the record's grounds do not mention it).
+
+## F. The pyramid and where the graph family sits
+
+Going down B3's pyramid for each correction — can structure remove it, then a type
+or lint block it, then a test or verification catch it, only then prose — is
+pstack `correct`'s order. The graph family sits almost entirely in the bottom two
+layers: prose (map notes, decision records, `CLAUDE.md` rules, `thegraph.md`) and
+human review (the confirm stop, `ask-it`) (inferred from D). No sentence in either
+transcript says layering *produces* documents; the structure pushes documents to
+the narrowest layer. The documents pstack does produce under it are the rule and
+enforcer table (`correct`), the verification skill and feature map, and prose for
+judgement (measured here).
+
+## G. What the target repositories already run
+
+The 16 repositories under `kihyun1998` pushed most recently, checked with
+`gh api repos/kihyun1998/<repo>/contents/...` for `docs/agents/thegraph.md`, the
+`docs/map` entry count, the root manifest (grepped for `proptest`, `quickcheck`,
+`arbitrary`, `bolero`, `glados`, `fast-check`, `rapid`), and top-level `fuzz`,
+`bench`, `benches`, `benchmark` folders.
+
+| Repository | Manifest | `thegraph.md` | map entries | Property-test crates in root manifest | Top-level folders |
+|---|---|---|---|---|---|
+| justrdp | Cargo.toml | yes | 3 | `arbitrary`, `proptest` | bench, fuzz |
+| justssh | Cargo.toml | yes | 14 | `proptest` | fuzz |
+| justerm | Cargo.toml | yes | 3 | none | bench, fuzz |
+| justsftp | Cargo.toml | yes | 5 | none | — |
+| justpdf | Cargo.toml | yes | 3 | none | — |
+| gltree | Cargo.toml | yes | 8 | none | — |
+| clch | Cargo.toml | yes | 9 | none | — |
+| just-harness | Cargo.toml | yes | 8 | none | — |
+| flutter_table_plus | pubspec.yaml | yes | 3 | none | benchmark |
+| flutter_folderview | pubspec.yaml | yes | 3 | none | benchmark |
+| just_tooltip | pubspec.yaml | yes | 3 | none | — |
+| x509_cert_store | pubspec.yaml | yes | 3 | none | — |
+| flutter_smooth_wheel_scroll | pubspec.yaml | yes | 3 | none | — |
+| justable | package.json | yes | 4 | none | — |
+| just-admin-page | package.json | yes | 2 | none | — |
+| kubeckup | go.mod | yes | 3 | none | — |
+
+Workflows and builds read for three of them (measured here):
+
+- **justrdp:** 50 files under `fuzz/fuzz_targets`; workflows `coverage`, `fuzz`,
+  `overflow-32bit`, `supply-chain`, `test`. `fuzz.yml` fuzzes the untrusted-input
+  decoders (its ADR-0008, issue #99), nightly-only, as the counterpart to the
+  in-crate `proptest` no-panic properties that run in `cargo test`; `test.yml`
+  gates a fuzz roster. Its `docs/agents/thegraph.md` names the `[MS-*]` specs,
+  FreeRDP and IronRDP source, a real VM, FreeRDP as a client against the same VM
+  (procedure in `docs/map/territory/verification-harness.md`), and has a
+  *Proof of a performance claim* section: a change under `crates/justrdp-codecs/`
+  runs the codec benchmarks against master *"during `check-it`'s `silt` step"*
+  (#555). **`silt` retired into `check-it` (5) under ADR-0092**, so that line names
+  a step that no longer exists.
+- **justssh:** two fuzz targets; `fuzz.yml` nightly and on demand, never a PR
+  gate; inputs kept in `fuzz/regressions/` are replayed on every PR by
+  `crates/justssh/tests/fuzz_regressions.rs`. Its build names RFCs, OpenSSH
+  `PROTOCOL`, x/crypto/ssh, and acwbroker's `blackbox/` as the completion judge.
+- **justerm:** two fuzz targets; `fuzz.yml` fuzzes decode and feed, counterpart
+  to `proptest` properties in `tests/robustness.rs`. Its build pins every
+  reference tree by SHA and notes that `.github/scripts/cite.mjs --pins` parses
+  the table.
+
+So the repositories already work the pyramid's upper layers by hand, the skills
+name none of these lanes, and each repository fills the gap in prose — one piece
+of which is already stale (inferred from the above).
+
+`read-it`'s eval cases point at the same kind of targets: x509_cert_store (an FFI
+binding), flutter_table_plus (a benchmark issue), flutter_folderview,
+flutter_smooth_wheel_scroll, and an admin web app whose issue #17 asks to enforce a
+route wrapper *"with a test or a lint rule"* (`read-it/evals/cases/*/issue.md`,
+measured here).
+
+## H. Earlier decisions the comparison reopens
+
+The test applied to each: could what the maintainer was shown when deciding have
+revealed the new information? If not, the decision is untested on that point
+(`thegraph/SKILL.md`, *Habits*). Each is the maintainer's to reopen.
+
+| Decision | Decided on | New information | Recommendation given | Label |
+|---|---|---|---|---|
+| ADR-0076: a comment's why moves to the map | measured duplication between comments and notes | a justifying comment is how a workaround spreads (B9) | amend in part: design reasons stay in the map; a workaround's justification goes nowhere and the code is fixed | inferred |
+| ADR-0092: `decant` retires | zero invocations 2026-09-28 to 10-27 (one real bulk migration before) | B20: stop new occurrences first; no per-diff stop ever existed | keep retired; add a per-diff check to `check-it` instead | inferred |
+| `grill-map` *Scope* "Builds no tool"; `grill-the-graph` "Generated scripts or agents" (never writes) | see §I | product-code checks are not copies of the method's process | first recommended reversing; corrected in §I to *keep both* | inferred |
+| ADR-0066: there are no gates | every check in this repo compared two copies of one fact | its principle (one home per fact) matches `correct` deleting the prose rule once a check enforces it | keep; it concerns this repository | inferred |
+| ADR-0091: one reader, not N attackers | measured `lens` runs and a 32-run audit | pstack uses several models but reports no measurement | keep until compared | inferred |
+| The confirm stop; decisions put to the maintainer | the maintainer's standing instruction and `thegraph` | `never-block-on-the-human` is the opposite | keep: `read-it`'s regression cases are the misreadings the stop catches | inferred |
+
+## I. Found while grilling #72
+
+`grilling` on #72 began by reading ADR-0065 and ADR-0083 in full (measured here):
+
+- **ADR-0065** retired this repository's own build (686-line `thegraph.md`, 8
+  scripts of 2,645 lines, 4 generated agents, 3 checkers) and the gates whose
+  corpus was the skill. It gives no reason against checks in a target repository,
+  and states that the rules of ADR-0061 and ADR-0063 stay in `grill-the-graph` for
+  any future build.
+- **ADR-0083** concerns map checkers only.
+- **`grill-map`'s "Builds no tool"** came in commit `8fd14fc` (2026-10-22): runs on
+  justable and justelnet built a saved site-coverage script and an ad-hoc link
+  checker nobody asked for. The maintainer chose then that a check may be
+  **proposed** in the closing report and **built** by the maintainer's decision,
+  over banning proposals too (maintainer's call, commit message).
+- **`grill-the-graph`'s "never writes"** has been there since the initial import
+  (`cab1a0d`, 2026-09-29) and concerns what setup generates.
+
+So neither clause forbids checks in a target repository; a product check added by
+an ordinary `/thegraph` change is not blocked. The gap is that nothing in the
+family raises a repeated correction as a check, and #72's question becomes who
+raises a check and how it is built (inferred). The first round's open questions,
+not yet answered:
+
+1. Keep both clauses as they are (recommended: they block only unasked tools).
+2. The route: `ask-it` raises a check item, a kept item becomes an issue, `/thegraph`
+   builds it as an ordinary change (recommended); or `make-it` adds it inline; or a
+   `correct`-like skill.
+3. Exclude repositories in contributor mode (recommended, ADR-0079).
+
+## J. Corrections made during the session
+
+Recorded because each changed what was filed.
+
+| # | First stated | Corrected to | Ground |
+|---|---|---|---|
+| 1 | Comments: graph family *present* | *partial, policy only* | §D row; `decant` retired with nothing moved (ADR-0092) |
+| 2 | Earlier decisions were treated as constraints ("conflicts with an existing decision") | each is the maintainer's judgement and can be reopened; judged by §H's test | `thegraph/SKILL.md` *Habits*; the maintainer's instruction to improve |
+| 3 | #72 recommended *reversing* the two clauses | *keep both*; the question is who raises and builds a check | §I |
+| 4 | Formal verification and property tests dismissed as "heavy, far from library repositories" | they fit libraries and sans-IO state machines best; the target repositories already fuzz and use `proptest` | §G; B15-B16 |
+| 5 | The verification layer was folded into one item, a durable way to drive an app | four distinct things (runtime, formal, property-based, fuzzing); the app-driving item narrowed because the repositories already record the way to the real thing | B14-B16, B21; §G |
+| 6 | Issues stopped at *where it would go* | each gained *Done when* with a replay measurement | issues #72-#78 |
+
+## K. Not taken, with grounds
+
+- **Never block on the human:** contradicts the confirm stop and the maintainer's
+  instruction to have decisions put to them.
+- **pstack's model rule** against `thegraph-herdr` proposing Fable up front for
+  large refactors: no measurement on either side.
+- **Multi-model adversarial review:** ADR-0091 chose one reader on measured runs.
+- **Merging the feature map into `grill-map`:** different questions (what else
+  moves, against how to drive it).
+- **Formal verification** was first in this list and moved out to #78 (§J row 4).
+- **Release-time fuzzing** (B21): a target repository's CI choice, not a
+  graph-family step.
+
+## L. Issues filed
+
+All under the anchor [#71](https://github.com/kihyun1998/skills/issues/71)
+(sub-issue relation), filed 2026-11-17.
+
+| Issue | Subject | State at filing |
+|---|---|---|
+| [#72](https://github.com/kihyun1998/skills/issues/72) | who raises a check in a target repository and how it is built | `needs-grill`; §I recorded on it |
+| [#73](https://github.com/kihyun1998/skills/issues/73) | a repeated correction becomes a check before prose (`ask-it`, `grill-the-graph` *The build grows*) | blocked by #72 |
+| [#74](https://github.com/kihyun1998/skills/issues/74) | `check-it` (3) proves against the way to the real thing a repository already records | blocked by #72 (only its generated-skill part depends on it) |
+| [#75](https://github.com/kihyun1998/skills/issues/75) | amend ADR-0076, a per-diff comment check, what the map keeps | `needs-grill` |
+| [#76](https://github.com/kihyun1998/skills/issues/76) | reviewer findings carry their reproduction; reports carry the certainty level | ready |
+| [#77](https://github.com/kihyun1998/skills/issues/77) | `make-it` and `check-it` use the property, fuzz and benchmark lanes a repository runs; `benchmark-checklist`'s method in `check-it` (5) | ready |
+| [#78](https://github.com/kihyun1998/skills/issues/78) | whether to bring formal verification in, starting with one trial | `needs-grill` |
+| [#79](https://github.com/kihyun1998/skills/issues/79) | how decision records are written and how much they weigh (§M) | `needs-grill` |
+
+Order given: #72, then #75, then #73 and #74; #76, #77 and #78 at any time. #79
+was filed afterwards and has no place in that order.
+
+Context comments, posted as context and not as scope (2026-11-17):
+
+- #77: property-based testing where a repository has none (Bombadil, B16);
+  characterization tests before a refactor (pstack refactoring playbook); the
+  performance mantras and the hillclimb loop beyond `benchmark-checklist`.
+- #78: `statechart` as the reading half of a TLA+ check.
+- #71: release-time fuzzing, considered and not filed; decision records as
+  possible stale comments (§M).
+
+## M. Decision records as possible stale comments
+
+Raised by the maintainer: a record is written lightly but weighs a great deal
+afterwards. Measured here:
+
+- 71 records in `docs/adr/`, added 2026-09-29 to 2026-11-17; median 90 lines,
+  longest 312, 7,611 lines in all; 11 named for a retirement; 36 carry an amends,
+  amended-by, scoped-by, superseded or vacated link; 43 mention a maintainer's call.
+- They are written with mattpocock's `domain-modeling`, whose `ADR-FORMAT.md` sets
+  the template at one to three sentences and offers a record only when the
+  decision is hard to reverse, surprising without context, and the result of a
+  real trade-off ("if a decision is easy to reverse, skip it").
+- The method gives a record weight: `thegraph` *Habits* (a judgement falls only to
+  the person who made it) and `check-it` / `lens` ("where a record has already
+  settled a particular clash, the record governs"). In this session that weight
+  produced §J row 2.
+
+Against the talk's four reasons (inferred): *stale* applies only where a skill
+cites a record as a live rule; *unread* does not apply; *escape hatch* applies;
+*unenforceable* applies (ADR-0066). Directions named, none chosen: the live rule
+only in the skill and the record only for why and what it was decided on (as
+ADR-0076 does); a *what would reopen this* line on every record; hold records to
+`domain-modeling`'s three conditions; pstack keeps no records and answers *why*
+from commits and PRs. The choice is
+[#79](https://github.com/kihyun1998/skills/issues/79).
+
+## N. Open, and not verified
+
+- **Open for the maintainer:** §I's three questions; whether to lift #74's block on
+  #72; whether #72's title, still *"may graph skills leave checks in a target
+  repository"*, should change; whether to file the stale `silt` reference in
+  justrdp's `thegraph.md` there, and whether other target repositories carry the
+  same reference.
+- **Not verified:** every figure in §B is the speaker's; no pstack skill was run on
+  a real repository; only root manifests were read in §G, so property tests in
+  workspace member crates may be undercounted; workflows were read in three
+  repositories; Dart test suites were not opened; the parts of pstack and this
+  repository listed as not read in §A.
+- **Artifacts outside the repository:** the caption files, their cleaned text, the
+  pstack clone and an HTML summary page (claude.ai artifact `EEkTnChTM6WnFXZJD1Sbsq`,
+  private, not updated with §G, §I or issues #77-#78) live in the session
+  scratchpad and may be cleared. Everything they held is in this file; the captions
+  can be re-extracted with §A's command.
