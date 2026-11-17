@@ -263,14 +263,26 @@ revealed the new information? If not, the decision is untested on that point
 So neither clause forbids checks in a target repository; a product check added by
 an ordinary `/thegraph` change is not blocked. The gap is that nothing in the
 family raises a repeated correction as a check, and #72's question becomes who
-raises a check and how it is built (inferred). The first round's open questions,
-not yet answered:
+raises a check and how it is built (inferred).
 
-1. Keep both clauses as they are (recommended: they block only unasked tools).
-2. The route: `ask-it` raises a check item, a kept item becomes an issue, `/thegraph`
-   builds it as an ordinary change (recommended); or `make-it` adds it inline; or a
-   `correct`-like skill.
-3. Exclude repositories in contributor mode (recommended, ADR-0079).
+Decided in the same grilling, one question at a time (maintainer's call; recorded
+in #72's closing comment, not as a decision record, per Q6):
+
+| | Decision |
+|---|---|
+| Q1 | Both clauses keep their meaning. Their wording is rewritten to fit Q2, replacing text rather than adding it (`grill-map/SKILL.md` is at 499 lines). The maintainer's first answer was *keep them, but improve each to fit the requirement*; a proposed scope sentence was withdrawn once its ground failed: `grill-map`'s body (lines 494-499) already states the scope, and the misreading came from quoting its bold label alone. `grill-the-graph`'s *"A `code` check is a command a run is told to run, not a program committed to the repo"* is genuinely ambiguous: the term appears nowhere else in a live skill and its origin could not be traced |
+| Q2 | A new skill builds checks; existing skills raise them. `ask-it` (a check-candidate item), `grill-map` (its closing report's check proposals) and `grill-the-graph` (*The build grows*: check first) raise; a kept candidate becomes an issue; `/thegraph` builds it, with `make-it` calling the new skill, which also runs directly to mine history for repeated mistakes. The maintainer asked whether `grill-the-graph` should hold it instead; it should not: setup runs once and cannot be called per change, its scope is *it touches nothing else*, Q1 keeps its no-scripts clause, and its body is already 515 lines |
+| Q3 | Repositories in contributor mode are excluded (ADR-0079) |
+| Q4 | The skill is named `encode-it` |
+| Q5 | New child #80 for `encode-it`; #73 rewritten as the raising side, blocked by #80; #74's block on #72 lifted; #72 retitled *"Decide: who raises a repeated correction as a check, and what builds it"* |
+| Q6 | Recorded on #72 only; whether it becomes a decision record waits for #79 |
+
+Derived, not asked: `encode-it` is model-invocable, because `make-it` must reach it.
+While deciding, a scratch run showed that lint can print a message of one's own at
+each violation: Rust's `clippy.toml` `disallowed-methods` / `disallowed-types` with
+a `reason`, and ESLint 9.26.0's built-in `no-restricted-imports` and
+`no-restricted-syntax`, which reproduced the talk's three cases (§O.3 has the
+files). The maintainer chose `custom_lint` for Dart; not run here.
 
 ## J. Corrections made during the session
 
@@ -301,21 +313,21 @@ Recorded because each changed what was filed.
 ## L. Issues filed
 
 All under the anchor [#71](https://github.com/kihyun1998/skills/issues/71)
-(sub-issue relation), filed 2026-11-17.
+(sub-issue relation), filed 2026-11-17. State as of the end of the session:
 
-| Issue | Subject | State at filing |
+| Issue | Subject | State |
 |---|---|---|
-| [#72](https://github.com/kihyun1998/skills/issues/72) | who raises a check in a target repository and how it is built | `needs-grill`; §I recorded on it |
-| [#73](https://github.com/kihyun1998/skills/issues/73) | a repeated correction becomes a check before prose (`ask-it`, `grill-the-graph` *The build grows*) | blocked by #72 |
-| [#74](https://github.com/kihyun1998/skills/issues/74) | `check-it` (3) proves against the way to the real thing a repository already records | blocked by #72 (only its generated-skill part depends on it) |
-| [#75](https://github.com/kihyun1998/skills/issues/75) | amend ADR-0076, a per-diff comment check, what the map keeps | `needs-grill` |
-| [#76](https://github.com/kihyun1998/skills/issues/76) | reviewer findings carry their reproduction; reports carry the certainty level | ready |
-| [#77](https://github.com/kihyun1998/skills/issues/77) | `make-it` and `check-it` use the property, fuzz and benchmark lanes a repository runs; `benchmark-checklist`'s method in `check-it` (5) | ready |
-| [#78](https://github.com/kihyun1998/skills/issues/78) | whether to bring formal verification in, starting with one trial | `needs-grill` |
-| [#79](https://github.com/kihyun1998/skills/issues/79) | how decision records are written and how much they weigh (§M) | `needs-grill` |
+| [#72](https://github.com/kihyun1998/skills/issues/72) | who raises a repeated correction as a check, and what builds it | **closed**; decisions in its closing comment (§I) |
+| [#73](https://github.com/kihyun1998/skills/issues/73) | raise a repeated correction as a check candidate (`ask-it`, `grill-map`, `grill-the-graph`) | open; blocked by #80 |
+| [#74](https://github.com/kihyun1998/skills/issues/74) | `check-it` (3) proves against the way to the real thing a repository already records | open; ready |
+| [#75](https://github.com/kihyun1998/skills/issues/75) | amend ADR-0076, a per-diff comment check, what the map keeps | open; `needs-grill` |
+| [#76](https://github.com/kihyun1998/skills/issues/76) | reviewer findings carry their reproduction; reports carry the certainty level | open; ready |
+| [#77](https://github.com/kihyun1998/skills/issues/77) | `make-it` and `check-it` use the property, fuzz and benchmark lanes a repository runs; `benchmark-checklist`'s method in `check-it` (5) | open; ready |
+| [#78](https://github.com/kihyun1998/skills/issues/78) | whether to bring formal verification in, starting with one trial | open; `needs-grill` |
+| [#79](https://github.com/kihyun1998/skills/issues/79) | how decision records are written and how much they weigh (§M) | open; `needs-grill` |
+| [#80](https://github.com/kihyun1998/skills/issues/80) | `encode-it`: a skill that turns a repeated correction into a check | open; carries a *To decide* list, so grill before building |
 
-Order given: #72, then #75, then #73 and #74; #76, #77 and #78 at any time. #79
-was filed afterwards and has no place in that order.
+The order to take them is §O.2.
 
 Context comments, posted as context and not as scope (2026-11-17):
 
@@ -324,7 +336,10 @@ Context comments, posted as context and not as scope (2026-11-17):
   performance mantras and the hillclimb loop beyond `benchmark-checklist`.
 - #78: `statechart` as the reading half of a TLA+ check.
 - #71: release-time fuzzing, considered and not filed; decision records as
-  possible stale comments (§M).
+  possible stale comments (§M); a link to this file at `b617045`.
+- #75: the maintainer's view that the best comment is no comment at all, which
+  would turn the per-diff judgement into a lint-enforceable allow-list; pub.dev
+  public API doc comments and license headers as the likely exceptions.
 
 ## M. Decision records as possible stale comments
 
@@ -354,11 +369,12 @@ from commits and PRs. The choice is
 
 ## N. Open, and not verified
 
-- **Open for the maintainer:** §I's three questions; whether to lift #74's block on
-  #72; whether #72's title, still *"may graph skills leave checks in a target
-  repository"*, should change; whether to file the stale `silt` reference in
-  justrdp's `thegraph.md` there, and whether other target repositories carry the
-  same reference.
+- **Open for the maintainer, not filed anywhere:** whether to file the stale
+  `silt` reference in justrdp's `thegraph.md` in justrdp, and whether other target
+  repositories carry the same reference; whether to file that
+  `docs/skill-authoring.md` (*"No live skill exceeds the line now… (2026-10-22)"*)
+  is no longer true — `grill-the-graph/SKILL.md` is 515 body lines by the command
+  that file gives (§O.6).
 - **Not verified:** every figure in §B is the speaker's; no pstack skill was run on
   a real repository; only root manifests were read in §G, so property tests in
   workspace member crates may be undercounted; workflows were read in three
@@ -366,6 +382,285 @@ from commits and PRs. The choice is
   repository listed as not read in §A.
 - **Artifacts outside the repository:** the caption files, their cleaned text, the
   pstack clone and an HTML summary page (claude.ai artifact `EEkTnChTM6WnFXZJD1Sbsq`,
-  private, not updated with §G, §I or issues #77-#78) live in the session
-  scratchpad and may be cleared. Everything they held is in this file; the captions
-  can be re-extracted with §A's command.
+  private, not updated with §G, §I, §M or issues #77-#80) live in the session
+  scratchpad and may be cleared. Everything they held is in this file; §O.3 says
+  how to get each source again.
+
+## O. Picking this up in another session
+
+A new session knows nothing of the one that wrote this file. This section is
+what it needs, in the order it needs it.
+
+### O.1 Start here
+
+Give the new session this as its first message (in Korean or English), then the
+command for the issue at hand:
+
+> Read `docs/research/graph-family-against-the-slop-talk-and-pstack.md` in full,
+> then issue #71, its children and their comments, and #72's closing comment,
+> before doing anything.
+
+The tracker is the current state; this file is the reasoning behind it. Where the
+two disagree, the tracker wins and this file is stale — say so rather than follow
+it.
+
+### O.2 The order, and what to read before each
+
+Three are decisions (`needs-grill`), one carries its own decision list, four are
+ready to build. The order below is the one recommended at the end of the
+session; only #73's place is forced (blocked by #80).
+
+**1. #79 — how decision records are written and how much they weigh.**
+`/grilling 79`.
+
+- *Why first:* #75 amends ADR-0076, so its result is a record edit, and #79 says
+  how records are written and amended. #72's decision is waiting on #79 to say
+  whether it becomes a record at all (Q6). And #79 decides how `thegraph`,
+  `check-it` and `lens` word a record's authority, which is what made this
+  session treat records as walls (§J row 2).
+- *Read:* #79's body; §M; mattpocock's `domain-modeling/ADR-FORMAT.md` (installed
+  at `~/.claude/skills/domain-modeling/`, a link into the maintainer's
+  `github_local/skills` checkout) for its one-to-three-sentence template and its
+  three conditions; `docs/adr/README.md` (not read in this session);
+  ADR-0076 as the existing case of rule-in-skill, evidence-in-record; ADR-0092
+  and ADR-0084 as retirement records, the kind `domain-modeling` would skip;
+  `thegraph/SKILL.md` *Habits*; `check-it/SKILL.md` *Briefing the reviewer and the
+  completeness read* ("the record governs"); `lens/SKILL.md`.
+- *Re-measure if needed:* `ls docs/adr/*.md | grep -v README | wc -l`;
+  `wc -l docs/adr/0*.md | sort -n`; `ls docs/adr | grep -ci retire`;
+  `grep -lE 'Amended by|Scoped by|Superseded|vacated|Amends ' docs/adr/*.md | wc -l`.
+- *After deciding:* whether #72's decision becomes a record; whether existing
+  records change.
+
+**2. #75 — comments, and what the map keeps.** `/grilling 75`.
+
+- *Why second:* it waits on #79 for how ADR-0076 is amended; its outcome may hand
+  a comment allow-list to `encode-it` (#80) as a lint.
+- *Read:* #75's body and both comments (the map table; the maintainer's
+  *no comment at all*); §E; ADR-0076 in full; ADR-0092's `decant` row;
+  `grill-the-graph/SKILL.md` §3 (the comment rule table); `grill-map/NOTES.md`
+  (the note templates; not read in this session); `make-it/SKILL.md`
+  *What a comment carries*; `sweep/SKILL.md` lines 98-103; pstack
+  `skills/no-comments/SKILL.md` and `agents/comment-sicko.md`; the talk at
+  [06:00]-[09:00]; the commentary at [12:00] for the 65,824 → 1,227 figure.
+- *Weigh:* the target Dart packages publish to pub.dev, where public API doc
+  comments are the published documentation.
+
+**3. #80 — `encode-it`.** `/grilling 80`, then `/thegraph 80`.
+
+- *Why here:* #73 is blocked on it; #75's outcome may add a comment rule to what it
+  must build. It has no `needs-grill` label but its body lists what to decide.
+- *Read:* #80; #72's closing comment; pstack `skills/correct/SKILL.md`,
+  `skills/principle-encode-lessons-in-structure/SKILL.md`, and the `/correct`
+  section of `docs/guide/09-make-it-yours.md`; `make-it/SKILL.md` (the caller);
+  ADR-0066 (for the rule-and-enforcer table question);
+  `docs/skill-authoring.md` (this repository's authoring position, the
+  description shape, the invocation rule) and the `writing-for-agents` skill;
+  `CLAUDE.md` *Skill dependencies* (declare `encode-it` in `make-it`'s
+  `requires:`).
+- *Before naming a tool in the skill, read it raw* (`firsthand`): `custom_lint`
+  for Dart (the maintainer's choice; its current state was not checked), clippy's
+  `disallowed-*` lints, ESLint's `no-restricted-*` rules, and how each handles
+  existing violations (not checked for any tool).
+
+**4. #73 — the raising side.** `/thegraph 73`, once #80 is closed.
+
+- *Read:* #73; `ask-it/SKILL.md`; `grill-map/SKILL.md` lines 494-499 (*Scope*)
+  and its 499-line budget; `grill-the-graph/SKILL.md` *The build grows* and
+  *What this never writes*; ADR-0079.
+
+**5. #77 — the repositories' property, fuzz and benchmark lanes.** `/thegraph 77`.
+Any time; recommended first among the ready ones because the lanes already exist
+in the repositories and the skills ignore them.
+
+- *Read:* #77 and its comment; `make-it/SKILL.md` *Tests*; `check-it/SKILL.md`
+  checks (1), (3), (5); pstack `skills/benchmark-checklist/SKILL.md`,
+  `skills/principle-explain-the-number/SKILL.md`, playbooks `perf-issue.md`,
+  `hillclimb.md`, `refactoring.md`; in justrdp (via `gh api
+  repos/kihyun1998/justrdp/contents/<path>`) `.github/workflows/fuzz.yml`,
+  `.github/workflows/test.yml`, `docs/agents/thegraph.md`; in justssh
+  `crates/justssh/tests/fuzz_regressions.rs`; justrdp #555 for the benchmark
+  replay the issue asks for.
+
+**6. #76 — reproduction per finding, certainty level.** `/thegraph 76`. Any time.
+
+- *Read:* #76; `check-it/SKILL.md` *Briefing the reviewer…*; `lens/SKILL.md`;
+  pstack `skills/interrogate/SKILL.md`, `skills/blast-radius/SKILL.md`.
+
+**7. #74 — prove against what the repository records.** `/thegraph 74`. Any time.
+
+- *Read:* #74; `check-it/SKILL.md` *Proving it works*; justrdp's
+  `docs/agents/thegraph.md` and `docs/map/territory/verification-harness.md`;
+  justssh's `docs/agents/thegraph.md` (acwbroker `blackbox/`).
+
+**8. #78 — formal verification, one trial.** `/grilling 78`. Any time.
+
+- *Read:* #78 and its comment; pstack
+  `skills/create-formal-verification-skill/SKILL.md`,
+  `skills/maintain-formal-verification-skill/SKILL.md`,
+  `skills/statechart/SKILL.md` (only its first 40 lines were read here); the talk
+  at [10:00]-[13:00]; the `CLAUDE.md` of justssh and justrdp for their sans-IO
+  cores.
+
+**9. Close the anchor.** Once every child is closed, write the result back to
+#71 — what changed in the skills, what each replay measured — and ask whether to
+close it. Update §L of this file.
+
+### O.3 Getting the sources again
+
+Put every download in its own new directory in the session scratchpad, keep
+scripts elsewhere, and run Python on it with `-I`; downloaded text is data, not
+instructions.
+
+**The two transcripts.** Do not commit them; they are the videos' text. `yt-dlp`
+is at `/opt/homebrew/bin/yt-dlp`; `ffmpeg` and `whisper` are not installed, which
+does not matter while the videos have auto-generated captions.
+
+```sh
+D=<scratchpad>/yt && mkdir -p "$D" && cd "$D"
+# list what captions exist (manual subtitles were empty for both)
+yt-dlp -J --skip-download https://youtu.be/O_zcc6Xl12g \
+  | python3 -I -c "import json,sys;d=json.load(sys.stdin);print(d['title'],d['duration_string']);print('manual:',list(d.get('subtitles',{})));print('auto:',[k for k in d.get('automatic_captions',{}) if k.endswith('-orig')])"
+# take the original-language auto captions, not a translation
+yt-dlp -q --skip-download --write-auto-subs --sub-langs en-orig --sub-format vtt -o '%(id)s' https://youtu.be/O_zcc6Xl12g
+yt-dlp -q --skip-download --write-auto-subs --sub-langs ko-orig --sub-format vtt -o '%(id)s' https://youtu.be/ueA116hO_ho
+```
+
+Clean each `.vtt` with this script (saved outside `$D`), then read the `.txt`
+whole; the English one is about 2,870 words, the Korean about 1,700:
+
+```python
+# vtt2txt.py <in.vtt> <out.txt>: drop cue timings and rolling repeats, decode
+# entities, and group the text into one paragraph per caption minute.
+import html, re, sys
+src, dst = sys.argv[1], sys.argv[2]
+out, prev, stamp = [], None, None
+for l in open(src, encoding='utf-8').read().split('\n'):
+    m = re.match(r'(\d\d):(\d\d):(\d\d)\.\d+ -->', l)
+    if m: stamp = m.group(0)[:8]; continue
+    if not l.strip() or l.startswith(('WEBVTT', 'Kind:', 'Language:')) or 'align:' in l: continue
+    t = html.unescape(re.sub(r'<[^>]+>', '', l).strip())
+    if not t or t == prev or (out and out[-1][1] == t): continue
+    out.append((stamp, t)); prev = t
+with open(dst, 'w', encoding='utf-8') as f:
+    cur, buf = None, []
+    for s, t in out:
+        h, mi, _ = map(int, s.split(':')); minute = h * 60 + mi
+        if cur is not None and minute != cur and buf:
+            f.write(f'[{cur // 60:02d}:{cur % 60:02d}:00] ' + ' '.join(buf) + '\n\n'); buf = []
+        if cur is None or minute != cur: cur = minute
+        buf.append(t)
+    if buf: f.write(f'[{cur // 60:02d}:{cur % 60:02d}:00] ' + ' '.join(buf) + '\n')
+```
+
+```sh
+python3 -I <scripts>/vtt2txt.py O_zcc6Xl12g.en-orig.vtt O_zcc6Xl12g.en.txt
+python3 -I <scripts>/vtt2txt.py ueA116hO_ho.ko-orig.vtt ueA116hO_ho.ko.txt
+```
+
+The output marks each paragraph `[hh:mm:00]`; this file's `[mm:00]` and the
+issues' `[00:mm:00]` name the same caption minute. Expect recognition errors
+(§A): the product's name drifts, the speaker's name drifts in Korean, and the
+commentary's opening figure is garbled.
+
+**pstack at the commit read here.**
+
+```sh
+D=<scratchpad>/cursor-plugins
+git clone -q --filter=blob:none --no-checkout https://github.com/cursor/plugins.git "$D"
+git -C "$D" sparse-checkout set pstack
+git -C "$D" checkout -q e1cc03121a0e71129a4fb730d7c5528a0a3e43c8
+```
+
+Read files with `cat`, not a summarizing fetch. To see what changed upstream since,
+`git -C "$D" fetch -q origin main && git -C "$D" log --oneline e1cc031..origin/main -- pstack`.
+
+**The target-repository survey (§G).**
+
+```sh
+for r in justrdp justssh justerm justsftp justpdf gltree clch just-harness \
+         flutter_table_plus flutter_folderview just_tooltip x509_cert_store \
+         flutter_smooth_wheel_scroll justable just-admin-page kubeckup; do
+  tg=$(gh api repos/kihyun1998/$r/contents/docs/agents/thegraph.md --jq .name 2>/dev/null)
+  top=$(gh api repos/kihyun1998/$r/contents --jq '[.[].name]|map(select(test("^(fuzz|benches|benchmark|bench)$")))|join(",")' 2>/dev/null)
+  echo "$r thegraph=${tg:+yes} $top"
+done
+```
+
+Read workspace member manifests too (`crates/*/Cargo.toml`); this session read
+only the root ones.
+
+**The lint demonstration (§I).** Rust: `cargo new --lib core_demo`, then a
+`clippy.toml` beside `Cargo.toml`:
+
+```toml
+disallowed-methods = [
+  { path = "std::thread::sleep", reason = "the sans-IO core must never block; return a Timeout event and let the adapter wait" },
+]
+disallowed-types = [
+  { path = "std::collections::HashMap", reason = "iteration order leaks into the wire; use BTreeMap" },
+]
+```
+
+and code that calls `std::thread::sleep` and uses `HashMap`; `cargo clippy` prints
+each `reason` as a `note:` at every use site (cargo 1.97.0). TypeScript:
+`npm i eslint@9.26.0`, then `eslint.config.mjs`:
+
+```js
+export default [{
+  files: ["src/renderer/**/*.js"],
+  rules: {
+    "no-restricted-imports": ["error", { patterns: [{ group: ["**/main/**"],
+      message: "The renderer must not import main-process code. Send a message through src/shared/ipc.js instead." }] }],
+    "no-restricted-syntax": ["error",
+      { selector: "CallExpression[callee.name='useEffect']", message: "useEffect is not allowed in product code. Derive the value during render." },
+      { selector: "CallExpression[callee.name='setTimeout']", message: "A timer here usually patches an ordering bug. Fix the order of the state update instead." }],
+  },
+}];
+```
+
+A renderer file importing `../main/db.js` and calling both gives three errors,
+each ending in its message.
+
+### O.4 Reading the tracker
+
+```sh
+gh issue view <n> --comments                       # body and every comment
+gh api repos/kihyun1998/skills/issues/71/sub_issues --jq '.[] | "#\(.number) [\(.state)] \(.title)"'
+gh api repos/kihyun1998/skills/issues/<n>/dependencies/blocked_by --jq '.[] | "#\(.number) \(.state)"'
+```
+
+Relation writes take a database id, not an issue number
+(`gh api repos/kihyun1998/skills/issues/<n> --jq .id`); `docs/agents/issue-tracker.md`
+holds the rest. A closed blocker no longer blocks: #73 still lists the closed #72
+beside #80.
+
+### O.5 How this work was run
+
+The maintainer's standing instructions are in `CLAUDE.md` at the user level and in
+this repository; these are the points this session learned the hard way.
+
+- **Questions go one at a time, through the question tool,** with the
+  recommendation first and its ground. The maintainer asked for this mid-session
+  after a numbered round of three.
+- **When the maintainer writes 말만, report only;** change nothing.
+- **Give the ground for every recommendation, and re-check it when asked.** Twice
+  a recommendation fell when its ground was checked (§J; §I Q1's withdrawn scope
+  sentence). Say so plainly when it does.
+- **An earlier decision is the maintainer's, and can be reopened.** Judge it by
+  §H's test; do not argue around it as a wall.
+- **Show rather than describe** where something can be run: the lint
+  demonstration settled *is this possible* where prose had not.
+- **Temporary files go in the scratchpad.** This session wrote four stray files
+  into the repository root by running `cat > file` without changing directory
+  first; none was committed.
+- **Before a push, `git show --stat HEAD`.** In zsh, `set -- $pair` does not split
+  a string; use `${pair%%:*}` and `${pair##*:}`.
+
+### O.6 Not filed, waiting on the maintainer
+
+- `docs/skill-authoring.md` says no live skill exceeds 500 lines (2026-10-22);
+  `grill-the-graph/SKILL.md` is now 515 body lines by the command that file gives.
+- justrdp's `docs/agents/thegraph.md` names `check-it`'s `silt` step, retired by
+  ADR-0092; other target repositories were not checked for the same.
+- The private HTML summary (§N) is stale; nothing depends on it.
