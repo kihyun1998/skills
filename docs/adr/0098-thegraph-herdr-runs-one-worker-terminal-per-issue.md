@@ -4,6 +4,13 @@
 > now follows this skill's runs too, conductor and worker, as a chip on `path-band`'s
 > line; the Consequences line saying it does not is superseded.
 
+> **Amended on 2026-11-17.** A worker no longer copies the conductor's permission
+> flag. The confirm stop asks the person once for the run's worker permission mode:
+> approve everything, auto mode, or ask each time. The maintainer chose this. The
+> copy read `foreground.argv` from `hc get`, and on 2026-11-16 that answered the
+> Herdr tab's PowerShell, not the conductor's `claude --dangerously-skip-permissions`.
+> So that run's workers started with no flag.
+
 **Status:** proposed.
 
 `thegraph-herdr` is a separate, user-invoked skill for runs inside Herdr. The

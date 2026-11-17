@@ -92,7 +92,20 @@ evidence for each signal, or says that no signal applies. The question tool take
 at most four questions a call: the reading goes first, then the children's models
 in order, in as many calls as that takes. The worker runs on what the person's
 answers leave standing. Any other model or effort runs only where the person names
-it. Check `confirm` on the sheet with what it changed written under it.
+it.
+
+**Ask the workers' permission mode once, with the models**, for every worker of
+the run. This is the person's call on risk, so it carries no recommendation. The
+options and the flag each one starts a worker with:
+
+| Option | Flag |
+|---|---|
+| approve everything | `--dangerously-skip-permissions` |
+| auto mode | `--permission-mode auto` |
+| ask each time | `--permission-mode manual` |
+
+Check `confirm` on the sheet with what it changed written under it, the
+permission mode included.
 
 ### 3. Follow the route
 
@@ -114,15 +127,13 @@ For each issue:
    `git stash push -u -m "tg-<run id>"`, hand them to this worker as named in its
    brief, or stop the run. Nothing is discarded without the person.
 2. **Write its brief** to its brief file from the template below.
-3. **Start it**, visible in the person's window, with the permission flag this
-   session was started with:
+3. **Start it**, visible in the person's window, with the flag of the permission
+   mode step 2 confirmed:
    ```sh
-   hc get $HC_TERMINAL_ID --json   # labels."herdr.space": this session's space; foreground.argv: its claude command
+   hc get $HC_TERMINAL_ID --json   # labels."herdr.space": this session's space
    hc run --bg --name tg-<run id>-<slug> --cwd <repo> --label herdr.space=<id> claude --model <alias> --effort <level> <flag> "Read <brief path> and do what it says."
    ```
-   `<flag>` is `--dangerously-skip-permissions` or `--permission-mode <mode>`,
-   copied from `foreground.argv`, or nothing where that has neither. Read
-   `first_message.sent` in the reply. Where it is false, `hc read` the worker: a
+   Read `first_message.sent` in the reply. Where it is false, `hc read` the worker: a
    dialog on its screen, the folder trust prompt included, goes to the person, who
    answers it in the window or tells you which keys to send with `hc keys`. Once
    the screen is clear and the read shows the task did not arrive, `hc send` the
