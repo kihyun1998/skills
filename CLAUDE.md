@@ -11,6 +11,9 @@ Claude Code mods (hooks plugins), which are not skills; `mods/README.md` holds
 their layout, the install script and the check (`node scripts/check-mods.mjs`),
 and `mods/ENGINE-NOTES.md` what the engine does that its types do not show —
 read it before writing or changing a mod.
+`herdr-mods/` holds Herdr-app mods, which run in the Herdr window and are
+neither skills nor Claude Code mods; `herdr-mods/README.md` holds their layout
+and `scripts/install-herdr-mods.sh`, and ADR-0101 why they are a kind of their own.
 `.claude-plugin/marketplace.json` is generated from `mods/` by the install
 script — never edit it by hand. See `README.md` for details.
 
