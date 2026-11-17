@@ -79,8 +79,14 @@ An adversarial read of the skill against the steps it calls and `hc --skill`
   `ask-it`, which counts a subagent's probe as unmeasured until reproduced.
 - **The brief names thegraph's path and the closing line**, which it had taken
   from the repo path and from a tracker doc that has no commit rule.
-- **Waits run under the shell tool's limit** (`--timeout 100`), and ten silent
-  check-ins in a row are told to the person.
+- **Waits run under the shell tool's limit.** Amended on 2026-11-17, the
+  maintainer's call: the wait is `--timeout 590` under a 600000 ms shell timeout,
+  the shell tool's maximum, and ten silent check-ins are no longer read and told to
+  the person. `hc wait --children any` already ends on every turn end, block,
+  error, exit and message, and the worker runs in the person's window, so the
+  screen read only watched a worker that had nothing to report. The first form was
+  `--timeout 100`, under the shell tool's 120000 ms default, with that screen read
+  after ten check-ins.
 - **A continued run after `ask-it`'s *needed, now*** gets a confirm with a model
   proposal per new issue, and the sheet is deleted only after the last `ask-it`.
 - **Launch recovery puts the trust prompt to the person** instead of following the

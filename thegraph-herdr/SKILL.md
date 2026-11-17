@@ -138,12 +138,10 @@ For each issue:
    answers it in the window or tells you which keys to send with `hc keys`. Once
    the screen is clear and the read shows the task did not arrive, `hc send` the
    same task line.
-4. **Wait with `hc wait --children any --timeout 100`**, under the shell tool's own
-   limit. A `timeout` is a check-in: wait again. A worker still at turn 0 on
-   `timeout` is at a startup dialog that `hc` does not report as blocked: handle it
-   as in 3. After ten check-ins in a row with no news, `hc read` the worker and tell
-   the person in a line what its screen shows, then keep waiting unless they say
-   otherwise.
+4. **Wait with `hc wait --children any --timeout 590`**, with the shell tool's
+   timeout at its maximum, 600000 ms. A `timeout` is a check-in: wait again. A
+   worker still at turn 0 on `timeout` is at a startup dialog that `hc` does not
+   report as blocked: handle it as in 3.
 5. **Act on what arrives:**
 
    | Arrives | Do |
