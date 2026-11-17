@@ -90,6 +90,13 @@ line, a README row naming a generated artifact. These are the repo's own files
 and call other things too, so **only the lines that name what ring 1 removed
 come out.**
 
+**One exception: a line naming a file that is rewritten at the same path**, such
+as `docs/agents/thegraph.md` (a `CLAUDE.md` line, a CI header). Removing the
+file does not make the line dangle, because the new build is written there. Read
+the line against the new content: **keep it where it is still true, rewrite it
+where it describes the old content, and never delete it.** Process 4 shows both
+cases.
+
 A repo left with a hook that invokes a deleted script cannot commit. Clearing
 ring 1 and reporting ring 2 is not a cleanup, it is a break with a note attached.
 
@@ -101,7 +108,11 @@ repo's examples and the grep is the rule.
 
 **And any ring-1 file a person edited after it was generated** — a later commit
 touching a generated file makes it theirs, and deleting it would delete someone's
-work. Ask; never assume.
+work. Ask; never assume. A fix right after the build counts too: telling a pure
+bug fix from a person's edit is itself a judgement, and it is the maintainer's.
+Show each item with the **hash and subject of the commit that touched it**, and
+**group the files one commit touched into one item**, so that a commit touching
+four scripts is one question.
 
 **Outside — do not touch.**
 Decision records, even ones whose links this breaks: a record describes the world
@@ -121,7 +132,9 @@ part goes on by its own rules:
   take Step 1: say to run `grill-the-graph`, which writes the build and the map's
   hub, then `grill-map`, which writes the notes. The content has nowhere else to
   go that is not loaded on every run. A `theflow.md` that only points elsewhere
-  (below) has nothing to move, so this stop does not apply to it.
+  (below) has nothing to move, so this stop does not apply to it. **An old
+  `thegraph.md` stops on the same condition** where any of its parts would go to
+  map notes (*Salvage the answers*).
 - **Code that reads the file at run time** (a test, a script, a CI step that opens
   it): name the code and propose its new source of truth, usually the map note the
   matching Step moves to. Whether that code changes is the maintainer's.
@@ -137,12 +150,16 @@ Otherwise each part goes where the repositories that did this sent it:
 | the project's identity, where `CLAUDE.md` lacks it | `CLAUDE.md` |
 | the prior art it cross-checks, Step 1's reference routing | the References in `docs/agents/thegraph.md`, in its shape (*Into the new build* below) |
 | the deliberate divergences | the map, or the record that decided each where one did |
-| the tie-breaker, which source wins where they disagree | the Binding column of those References: a person answered it, layer by layer where it was |
+| the tie-breaker, which source wins where they disagree | the Binding column of those References: a person answered it, layer by layer where it was. An old build's one sentence for a whole repository is still dropped (*Salvage the answers*) |
 | the hidden-state list, branch and PR rules | the map notes they describe; branch and PR rules to `CLAUDE.md` where it states none |
 | module map, Step 2's boundary rule, Step 4's proofs, Step 6's surfaces, Step 7's gates, release and downstream loop | the map notes they describe, a territory or an invariant |
 | Step 5's sacred paths, as `theflow.md` itself lists them | map invariant notes: a person answered them, so they are kept. A line that only points at an old build's list leaves that list to *Salvage the answers* |
 | what the repository already states (CI commands, a boundary `CLAUDE.md` holds, a module list `ls` gives) | dropped, saying where it is stated |
 | the war-story index | `lessons.md`, re-indexed or merged into the map |
+
+**An old `thegraph.md` shares this table** rather than having its own: the same
+kind of part goes to the same place, whatever the file called it (*Salvage the
+answers*).
 
 **A part the table does not name moves**, to the map note it describes, and is
 shown as such: a `theflow.md` holds only what a person answered.
@@ -184,8 +201,9 @@ thing standing between a cleanup and deleting a person's edits.
 
 ### 3. Salvage the answers — three destinations, and only one is the build
 
-This is for an old `thegraph.md`. A left `theflow.md` goes by its own table
-(*A left `theflow.md`*), after its three stops.
+This is for an old `thegraph.md`. A left `theflow.md` goes by its table
+(*A left `theflow.md`*), after its three stops, and an old `thegraph.md`'s parts
+that the three destinations below do not name go by the same table.
 
 **Into the new build**: the reference sources, how each is reached, which are
 marked summarized, and the peer names a maintainer confirmed. The shape to write
@@ -196,9 +214,11 @@ rather than reproducing it here.
 **Two of that shape's columns the old document never had**, so they cannot be
 lifted: what each source **informs** — how the thing works, or where files go —
 and whether it **binds**, a spec that must be matched rather than an example that
-may be diverged from. **Ask for both.** Guessing them is the same act as guessing
-a sacred path, and a spec recorded as an example gets written up as a deliberate
-difference and shipped.
+may be diverged from. **Ask for both, before Process 4, one question per
+source.** They are answers, not approvals, so they are not part of Process 4's one
+approval; that approval then shows the file with them filled in. Guessing them is
+the same act as guessing a sacred path, and a spec recorded as an example gets
+written up as a deliberate difference and shipped.
 
 **Into `CLAUDE.md`**: **the seams** — which surfaces are core, which reach the
 core through a declared seam, what a consumer owns by definition. A repository
@@ -214,29 +234,48 @@ read from now.
   it**; dropping it throws away work nobody can re-derive without running that
   comparison again.
 
+**Parts none of the three destinations name** go where the `theflow.md` table
+(*A left `theflow.md`*) sends the same kind of part, and are shown as such:
+
+- a war-story section goes to `lessons.md`
+- a list of hidden state goes to the map notes it describes
+- issue-reference conventions go to `CLAUDE.md`, as branch and PR rules do
+- anything else goes to the map note it describes
+
+Where any of these would go to map notes and the repository has no map with
+notes, **stop as the `theflow.md` part does** (*A left `theflow.md`*, its first
+stop): say to run `grill-the-graph`, then `grill-map`, and clear nothing of that
+part.
+
 **Dropped, and each drop gets a reason.** Two kinds, and say which:
 
 - **The repository already answers it** — command lists, surface lists, record
   numbers, tracker capabilities, node rosters and counts, the manifest itself.
   A run reads these now.
-- **Nobody could answer it** — an old build's sacred-path list and the tie-breaker. A person
-  ratified each, but the builder drafted it, which is what made it a copy rather
-  than knowledge. The tie-breaker in particular was one sentence for a whole
-  repository: a truism, or wrong case by case.
+- **Nobody could answer it** — an old build's sacred-path list and a tie-breaker
+  that is one sentence for a whole repository. A person ratified each, but the
+  builder drafted it, which is what made it a copy rather than knowledge. That
+  sentence was a truism, or wrong case by case. **A tie-breaker written per
+  layer is not that**: it goes to the References' Binding column, as a
+  `theflow.md`'s does.
 
-**The deliberate-divergence list is the one drop that is provably safe**, and say
-so: every row carried the record that decided it, so the content is already in
-the repo's decision records. Check that before dropping it, and where a row names
-no record, put that row in front of the maintainer instead.
+**The deliberate-divergence rows that cite a decision record are the safe drop**,
+and say so: the content is already in the repo's decision records. Check that
+before dropping, and where a row names no record, put that row in front of the
+maintainer instead. **A row that cites only an issue is not that case**: an issue
+is not in the repository, so the row moves to the map **with its issue number**
+and is not dropped.
 
-**When in doubt, it moves.** This skill exists because a person's answer is the
+**When in doubt, it moves**, to the map note it describes. This skill exists because a person's answer is the
 expensive half; the cost of carrying one extra line is a line, and the cost of
 dropping one is that nobody knows it was ever answered.
 
 ### 4. One list, one approval
 
-Show all of it on one screen: ring 1 and ring 2 to be removed, ring 3 to be
-decided, and the salvaged file as it will be written. For a left `theflow.md`,
+Show all of it on one screen: ring 1 and ring 2 to be removed, the ring-2 lines
+kept or rewritten because their file is rewritten at the same path (each line
+with its new text), ring 3 to be decided, and the salvaged file as it will be
+written, **with Informs and Binds filled in from the answers already asked**. For a left `theflow.md`,
 each part with where it goes, the lines to repoint, and any stop that fired. Ask once, with the tool
 that renders a question.
 
@@ -246,7 +285,7 @@ part worth reading closely, and it is one page.
 
 ### 5. Remove, then write
 
-Ring 1 and ring 2, then the salvaged build document in its place. Then a left
+Ring 1 and ring 2 (a ring-2 line whose file is rewritten at the same path is kept or rewritten as approved, not removed), then the salvaged build document in its place. Then a left
 `theflow.md`'s parts into their destinations, the pointing lines repointed, and
 the file last. Ring 3 only where the answer said so.
 
