@@ -40,7 +40,7 @@ export const isClaude = (fg) => /^claude(\.exe)?$/i.test(program(fg)) || /^claud
 /** The terminal's foreground program is a shell. */
 export const isShell = (fg) => /^(pwsh|powershell|cmd|bash|zsh|fish|sh|dash|ksh|nu)(\.exe)?$/i.test(program(fg));
 
-/** How long a save may age before the tab bar's save reads as stalled. */
+/** How long a save may age before it reads as stalled. */
 export const STALE_MS = 3 * 60_000;
 
 /** The core holder's instance id, or the core's pid and start time when no holder is listed. */
@@ -170,7 +170,7 @@ export function shellLine(argv, shell) {
   return argv.map((w) => (SAFE.test(w) ? w : "'" + w.replace(/'/g, "'\\''") + "'")).join(" ");
 }
 
-/** What the tab bar's dot and the panel need, small enough to share; sig changes with the entries. */
+/** What the chip and the panel need, small enough to share; sig changes with the entries. */
 export function summarize(save, { now, failed }) {
   const all = entriesOf(save), restore = all.filter((e) => !e.live);
   return {
@@ -180,6 +180,29 @@ export function summarize(save, { now, failed }) {
     stalled: Boolean(failed) || (typeof save?.savedAt === "number" && now - save.savedAt > STALE_MS),
     sig: all.map((e) => e.key + ":" + (e.live ? 1 : 0)).sort().join(","),
   };
+}
+
+/**
+ * The chip's label and dot for a summary (null: no save yet), or for an open under way
+ * ({ opened, total }). sinceSave is how long ago the chip's last save ended, in ms; longer than
+ * STALE_MS reads as stalled. Red for a stalled save wins over amber for something to restore.
+ */
+export function chipState(summary, opening = null, sinceSave = 0) {
+  if (opening?.total > 0) return { label: "여는 중 · " + opening.opened + "/" + opening.total, dot: "green" };
+  if (summary?.stalled || sinceSave > STALE_MS) return { label: "save 멈춤", dot: "red" };
+  if (!summary) return { label: "save 없음", dot: "dim" };
+  if (summary.restorable > 0) return { label: "복원할 세션 " + summary.restorable, dot: "amber" };
+  return { label: "⟲ " + summary.saved, dot: "green" };
+}
+
+/**
+ * The open under way, counted over its batch (the keys it set out to open): { opened, total }, or
+ * null when no key of the batch is still opening. states maps a key to { at }.
+ */
+export function openProgress(states, batch) {
+  const keys = [...(batch ?? [])];
+  if (!keys.some((k) => states.get(k)?.at === "opening")) return null;
+  return { opened: keys.filter((k) => states.get(k)?.at === "opened").length, total: keys.length };
 }
 
 /** The panel's groups: one per space, spaces with restorable working sessions first. */

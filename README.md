@@ -122,19 +122,19 @@ Adding a mod, its layout, and the check every mod passes: [`mods/README.md`](mod
 ## Herdr-app mods
 
 `herdr-mods/` holds mods for the Herdr app — JavaScript panels it loads from
-`~/.config/herdr-app/mods/` — and the layouts that place them. They are neither
-skills nor Claude Code mods, and have their own install script, which links them
-and prints the command that switches to a layout, without running it:
+`~/.config/herdr-app/mods/`. They are neither skills nor Claude Code mods, and
+have their own install script, which links them and prints how to open a mod that
+keeps a window, without opening it:
 
 ```sh
 ./scripts/install-herdr-mods.sh    # Git Bash / macOS / Linux; --dry-run
 ```
 
-Writing one, clones of Herdr's own mods, and the checks: [`herdr-mods/README.md`](herdr-mods/README.md).
+Writing one, and the checks: [`herdr-mods/README.md`](herdr-mods/README.md).
 
 | Mod | What it does |
 | --- | --- |
-| [`session-restore`](herdr-mods/session-restore/) | After a reboot or a core restart, reopens the Claude sessions each terminal held, in place: conductors before their workers, each resumed with its flags and never its task prompt. A Sessions panel beside Files and Changes lists them by space; the tab bar saves the live sessions every minute. Shown by the `session-restore` layout ([ADR-0101](docs/adr/0101-herdr-mods-hold-herdr-app-mods-and-session-restore-is-the-first.md)). |
+| [`session-restore`](herdr-mods/session-restore/) | After a reboot or a core restart, reopens the Claude sessions each terminal held, in place: conductors before their workers, each resumed with its flags and never its task prompt. A chip, a small kept window on the person's own layout, saves the live sessions every minute and unfolds a Sessions panel that lists them by space ([ADR-0101](docs/adr/0101-herdr-mods-hold-herdr-app-mods-and-session-restore-is-the-first.md)). |
 
 ## Repo layout
 
@@ -146,6 +146,6 @@ Writing one, clones of Herdr's own mods, and the checks: [`herdr-mods/README.md`
 ├── CLAUDE.md       guidance auto-loaded by Claude Code when working in this repo
 ├── <skill>/        one folder per skill, each with a SKILL.md
 ├── mods/           Claude Code mods (hooks plugins), one folder each — see mods/README.md
-├── herdr-mods/     Herdr-app mods and their layouts — see herdr-mods/README.md
+├── herdr-mods/     Herdr-app mods — see herdr-mods/README.md
 └── retired/        skills no longer installed — not scanned, see retired/README.md
 ```

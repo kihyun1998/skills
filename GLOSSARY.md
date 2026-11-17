@@ -408,16 +408,17 @@ a decision), Gap
 
 **Herdr-app mod**:
 A JavaScript panel the Herdr app loads from `~/.config/herdr-app/mods/`, kept in
-`herdr-mods/` with the layouts that place it and linked by
+`herdr-mods/` and linked by
 `scripts/install-herdr-mods.sh` (ADR-0101). It runs inside the Herdr window, not in
 a Claude session.
 _Avoid_: mod alone where a Claude Code mod (`mods/`) could be meant
 
-**Clone** (herdr-mods):
-A copy of one of Herdr's own mods or layouts, kept in the repo and edited there.
-Herdr replaces its own files on every start and never updates a clone, so the
-mod's `clones.json` records the file it came from and the Herdr version.
-_Avoid_: fork, copy (Herdr's own word, `mod.clone`, is the one used)
+**Chip** (session-restore):
+The small kept Herdr window `session-restore` shows on the layout it was opened on,
+where the person drags it to a corner once. It runs the save, shows its state as a dot and a label, and unfolds the
+Sessions panel above itself when pressed (ADR-0101). Not the run's chip on
+`path-band`'s line.
+_Avoid_: badge, button (it is a window of its own), widget
 
 **Restore list** (session-restore):
 The Claude sessions `session-restore` offers to reopen: the last save of the

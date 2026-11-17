@@ -1,9 +1,9 @@
 // Sessions: the Claude sessions the save holds, grouped by space, to open again in place or
-// take out of the save. A block in the panel stack beside Files and Changes.
+// take out of the save. The chip (main.js) draws it above itself when unfolded.
 import { div, svg, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { run, theme, shared, appHome, readTextFile, updates, checking } from "herdr";
-import { conductorOf, entriesOf, groupsOf, openable, STALE_MS } from "./logic.js";
+import { run, theme, shared, checking } from "herdr";
+import { conductorOf, entriesOf, groupsOf, openable, openProgress, planOpen, STALE_MS } from "./logic.js";
 import { removeEntries } from "./save.js";
 import { openSessions } from "./open.js";
 import { herdrIo, readSave, saveAndShare, SHARED } from "./io.js";
@@ -25,17 +25,16 @@ const model = (e) => {
   return e.flags[i].includes("=") ? e.flags[i].split("=")[1] : e.flags[i + 1] ?? null;
 };
 
-// main.js draws this unless props say { part: "tabs" }; the View is main.js.
+// A part of the chip's View (main.js), not a View of its own.
 export default class Sessions {
   init(_props, cx) {
     this.save = null;
     this.sig = undefined;
     this.state = new Map();
+    this.batch = new Set();
     this.hovered = null;
-    this.drift = [];
     if (checking()) return;
     this.reload(cx);
-    this.checkDrift(cx);
     // Redraws every 30 s for the save's age.
     cx.timer.every(30000, (cx) => cx.notify());
   }
@@ -47,18 +46,9 @@ export default class Sessions {
     });
   }
 
-  // Lists each clone in clones.json whose Herdr version is not the running one.
-  checkDrift(cx) {
-    cx.spawn(async (cx) => {
-      const now = updates()?.app?.version;
-      const drift = [];
-      try {
-        const clones = JSON.parse((await readTextFile(appHome() + "/mods/session-restore/clones.json")) ?? "{}");
-        for (const [label, c] of Object.entries(clones)) if (now && c?.version && c.version !== now) drift.push({ label, from: c.version, now });
-      } catch {}
-      this.drift = drift;
-      cx.notify();
-    });
+  /** The open under way: { opened, total }, or null when none is. */
+  progress() {
+    return openProgress(this.state, this.batch);
   }
 
   saveNow(cx) {
@@ -71,6 +61,9 @@ export default class Sessions {
 
   open(entries, cx) {
     const all = entriesOf(this.save);
+    // A new batch unless one is still opening; it holds the conductors the entries bring along.
+    if (!this.progress()) this.batch = new Set();
+    for (const n of planOpen(entries, all)) if (!n.skip) this.batch.add(n.entry.key);
     for (const e of entries) this.state.set(e.key, { at: "opening" });
     cx.spawn(async (cx) => {
       await openSessions(herdrIo(cx), entries, all, (r) => {
@@ -157,7 +150,7 @@ export default class Sessions {
   render(cx) {
     const t = theme();
     const summary = shared(SHARED) ?? null;
-    // The tab bar saved something new: read it again.
+    // The chip saved something new: read it again.
     if (!checking() && summary?.sig !== this.sig) { this.sig = summary?.sig; this.reload(cx); }
     const save = this.save, entries = entriesOf(save);
     const now = Date.now();
@@ -181,7 +174,7 @@ export default class Sessions {
           ? "Could not read " + summary.unreadable + " session id(s). A Claude Code update may have changed its session files. The last good save is kept."
           : summary?.unchecked
             ? "Could not look for the transcripts of " + summary.unchecked + " session(s) in ~/.claude/projects. They are saved anyway, and may have no conversation to reopen."
-            : "Nothing has saved for a while. The tab bar saves every minute while the session-restore layout shows."
+            : "Nothing has saved for a while. The chip saves every minute while it is open."
       : null;
 
     const header = v_flex().px(14).pt(12).pb(10).flex_none().border_b(1).border_color(t.border)
@@ -193,9 +186,7 @@ export default class Sessions {
       .child(div().mt(3).text_size(11.5).child(saveLine))
       .when(Boolean(why), (el) => el.child(div().mt(8).text_size(12).text_color(t.ansi1).child(why)))
       .when(restorable.length > 0 && !busy && !results.length, (el) => el.child(div().mt(8).text_size(12).text_color(t.ansi3)
-        .child(restorable.length + (restorable.length === 1 ? " session" : " sessions") + " from before " + (restorable.length === 1 ? "is" : "are") + " closed")))
-      .children(this.drift.map((d) => div().mt(8).text_size(11.5).text_color(t.ansi3)
-        .child("Herdr " + d.now + " is newer than the " + d.label + " clone (" + d.from + "). Compare it with the shipped " + d.label + ".")));
+        .child(restorable.length + (restorable.length === 1 ? " session" : " sessions") + " from before " + (restorable.length === 1 ? "is" : "are") + " closed")));
 
     const groupHeader = (g) => {
       const open = g.rows.filter((r) => !r.entry.live && openable(r.entry, entries)).map((r) => r.entry);

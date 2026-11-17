@@ -1,7 +1,7 @@
 # herdr-mods
 
 Herdr-app mods: JavaScript panels the Herdr app loads from
-`~/.config/herdr-app/mods/`, and the layouts that place them. They are not skills
+`~/.config/herdr-app/mods/`. They are not skills
 and not Claude Code mods (`mods/`). Why the folder exists:
 [ADR-0101](../docs/adr/0101-herdr-mods-hold-herdr-app-mods-and-session-restore-is-the-first.md).
 
@@ -12,31 +12,20 @@ and not Claude Code mods (`mods/`). Why the folder exists:
 ```
 
 It links each `herdr-mods/<mod>/` (a folder with a `main.js`) into
-`${HERDR_APP_HOME:-~/.config/herdr-app}/mods/` and each `herdr-mods/layouts/*.json`
-into its `layouts/`. On Windows, a folder is linked with a junction and a layout
-with a file symlink, which needs Developer Mode. A real folder or file already there
-is left alone and reported. A link into this repo whose source is gone is removed.
-A linked mod reads its files from this repo, so there is nothing to reinstall
-after an edit. Whether Herdr's hot reload sees a save through the junction (the
-repo and the app's home on different drives) is not measured.
+`${HERDR_APP_HOME:-~/.config/herdr-app}/mods/`, with a junction on Windows. A real
+folder already there is left alone and reported. A link into this repo whose
+source is gone is removed, in `mods/` and in `layouts/`; that takes out the
+`session-restore` layout link an earlier install made, and the script says to
+switch to `main` if the window shows that layout. Herdr does not reload a mod
+through the junction (measured on 2026-11-17, the repo on another drive than the
+app's home), so an edit shows after Herdr starts again.
 
-The script never switches layouts; it prints the command
-(`herdr-app do layout.switch --name <layout>`). `ctrl-shift-l` cycles back.
+Nothing in this repo is a copy of Herdr's own files: Herdr's mods and layouts stay
+as Herdr ships them.
 
-## Clones
-
-Herdr replaces its own mods and layouts on every start and never updates a clone.
-A shipped file that is changed here is copied into the repo, and the mod's
-`clones.json` records where it came from and from which Herdr version:
-
-```json
-{ "tabs": { "file": "tabs.js", "from": "mods/tabs/main.js", "version": "0.1.16" } }
-```
-
-The install script warns when `herdr-app --version` differs from a clone's
-`version`. Then compare the clone with the shipped file
-(`diff --strip-trailing-cr ~/.config/herdr-app/mods/tabs/main.js herdr-mods/session-restore/tabs.js`)
-and carry the upstream change over.
+The script never switches layouts and never opens a mod. For a mod whose
+`mod.json` keeps a window, it prints how to open it once
+(`herdr-app do mod.open --name <mod>`, or a `keys.json` line).
 
 ## Writing one
 
@@ -44,8 +33,8 @@ Read `~/.config/herdr-app/AGENTS.md` and the `.d.ts` files beside it; they are
 rewritten for each Herdr version and are the truth about the API.
 
 - A mod imports only files inside its own folder. Herdr refuses `../other/x.js`,
-  even through a junction. Two parts that share code are one mod that draws by
-  `props` (as `session-restore` does).
+  even through a junction. Two parts that share code are one mod (as
+  `session-restore`'s chip and panel are).
 - Keep the logic in modules that import nothing from `herdr` or `gpui-kit`, with
   side effects through an injected `io`, and test them with Node:
 
@@ -63,14 +52,30 @@ rewritten for each Herdr version and are the truth about the API.
 
 | Mod | What it does |
 | --- | --- |
-| [`session-restore`](session-restore/) | Saves which Claude session each terminal holds, every minute, and after a reboot or a core restart reopens them in place, from a Sessions panel beside Files and Changes. Needs the `session-restore` layout, which puts this mod's tab bar (`props: {part: "tabs"}`, a clone of the shipped `tabs`) and its panel in a clone of the shipped `main`. See below. |
+| [`session-restore`](session-restore/) | Saves which Claude session each terminal holds, every minute, and after a reboot or a core restart reopens them in place. It shows as a chip, a small kept window on the layout it was opened on, dragged to a corner once; pressed, the chip unfolds the Sessions panel above itself. See below. |
 
 ### session-restore
 
+- **The chip** is a Herdr window with `key` and `keep` in its `mod.json`. Open it
+  once on `main`: `herdr-app do mod.open --name session-restore`, or a `keys.json`
+  binding such as `"alt-shift-s": "mod.open:session-restore"`. It opens in the middle
+  of the window; drag it to a corner and it opens there from then on. Herdr reopens
+  it every time it starts and every time that layout shows (kept windows are
+  recorded per layout in `windows.json`). It has no close button. To turn it off,
+  send it `session-restore.close` (`herdr-app do session-restore.close`, or a
+  `keys.json` binding), or run `mod.open` again; after Herdr reopened the chip at start, `mod.open` has to be run twice
+  (the first reopens it, the second closes it).
+- **The chip's label** is green `⟲ N` with N sessions saved, amber `복원할 세션 N`
+  when something can be restored, red `save 멈춤` when the save stalled (failed,
+  unreadable pid files, sessions whose transcript could not be looked for, or older
+  than 3 minutes), `여는 중 · k/N` while sessions reopen, and `save 없음` before the
+  first save. Red wins over amber. Pressed without moving, the chip unfolds the
+  Sessions panel above itself; pressed again, it folds it. A press that moves drags
+  the chip.
 - **The save** is in `~/.config/herdr-app/data/session-restore.json`. `current` is the
-  Claude sessions alive at the last save, replaced each minute. The tab bar runs the
-  save; the panel's button runs it at once, and so does the `session-restore.save`
-  command, which a `keys.json` binding can send (none is installed). For each live terminal whose foreground is Claude, it reads
+  Claude sessions alive at the last save, replaced each minute. The chip runs the
+  save, one at a time; the panel's button runs it at once, and so does the
+  `session-restore.save` command, which a `keys.json` binding can send (none is installed). For each live terminal whose foreground is Claude, it reads
   `~/.claude/sessions/<pid>.json` for the session id, and records the terminal's
   name, parent, folder, space and tab, title, status and Claude flags. The task
   prompt at the end of a `thegraph-herdr` worker's argv is dropped. A session
@@ -89,10 +94,7 @@ rewritten for each Herdr version and are the truth about the API.
   whose conductor is in neither list cannot be opened; its row offers only ×. A worker
   whose conductor is open now has its own Open. A session counts as opened
   when its Claude has held the id for 2 seconds; otherwise the row says why.
-- **The dot** on the Sessions button is amber when something can be restored and
-  red when the save stalled (failed, unreadable pid files, sessions whose transcript
-  could not be looked for, or older than 3 minutes). A session whose transcript could
-  not be looked for is saved anyway, and the panel says how many.
-  When Herdr starts, the tab bar's first successful save opens the panel once if
-  there is something to restore. A core restart with the window open shows only the
-  dot.
+- **Unfolding by itself.** When Herdr starts, the chip's first successful save
+  unfolds the panel once if there is something to restore and the panel has not
+  unfolded itself on that core holder yet. A core restart with the window open
+  shows only the amber chip.

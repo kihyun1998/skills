@@ -2,6 +2,13 @@
 
 **Status:** accepted.
 
+> **Amended 2026-11-17 (issue #65): the clones are gone.** `session-restore` no longer
+> ships copies of Herdr's `tabs` mod and `main` layout. It is a chip, a kept Herdr
+> window on the person's own layout, that runs the save and unfolds the Sessions panel
+> above itself. The calls below about the tab bar, the Sessions entry in the panel stack,
+> the clones, `clones.json`, the drift warning and the linked layout are history; the
+> amendment at the end holds what replaced each.
+
 `herdr-mods/` is a new top-level folder for **Herdr-app mods**: JavaScript panels the
 Herdr app loads from `~/.config/herdr-app/mods/`, and the layouts that place them.
 They are not skills, and not Claude Code mods (`mods/`), which the install script
@@ -195,3 +202,89 @@ were in a scratch `HC_SESSION` started with every `CLAUDE*` variable and
   it does not show in the window.
 - Remote machines' sessions are not saved: the save reads this computer's
   `~/.claude/sessions`.
+
+## Amendment (issue #65): a kept chip replaces the clones
+
+The maintainer's, on 2026-11-17, in issue #65 and prototype D1: no Herdr file is copied
+into the repo. The clones made the person switch to the `session-restore` layout for any
+save to happen, never took Herdr's updates (the tab bar was a 193-line copy kept to add
+one button, and the drift warning fired on every release), and Herdr wrote into the repo
+when it docked a new mod into the linked layout (seen twice on 2026-11-17).
+
+- **One mod, one face that unfolds.** `session-restore` is a Herdr `window` overlay with
+  a fixed `key` and `keep: true` in its `mod.json`, opened once with `mod.open
+  session-restore` on the person's `main` layout. Herdr reopens it on every start and
+  every time that layout shows. It draws a chip: a dot and a label from `chipState()`, a
+  pure function of the save summary and the open under way. Pressed, the same copy draws
+  the A′4 panel above the chip; pressed again, it folds it. The panel's inside is A′4 as
+  decided above, with one line changed: the stalled hint names the chip, not the tab bar.
+- **The chip runs the save.** The tab bar's tick is `startSaving()` in `save.js`, over the
+  same `io` as `saveOnce`: once at start, every minute and on the `save` command, one at
+  a time. The first successful save on a core holder the panel has not unfolded itself
+  on marks it shown and unfolds the panel when something can be restored. The save rule,
+  the restore list, the transcript check and the open path are unchanged.
+- **No close button.** `mod.open` again closes the chip and its kept entry. The chip also
+  takes a `close` command (`session-restore.close` from `keys.json` or `herdr-app do`), which closes it with
+  `closeOverlay`; a kept window closed that way stays closed (herdr.d.ts).
+- **Removed:** the tabs clone, the layout clone, `clones.json`, the window-button icons
+  copied with the tab bar, the install script's layout linking and its drift check. The
+  install script links the mod folder, prunes the leftover `session-restore` layout link
+  as a link whose source is gone, and prints how to open the chip once.
+
+### Derived
+
+- **The panel unfolds through gpui-base `Popup`**, anchored by its bottom-right corner to
+  the chip. A Herdr window is placed by its top left and is as big as its content
+  (herdr.d.ts `OverlaySpec`), so a window that grew to hold the panel would grow down and
+  right, away from a chip in the bottom corner. `Popup` paints its content in a layer
+  above the window and clamps it inside (gpui-kit.d.ts).
+- **The chip opens in the middle the first time.** `OverlaySpec.at` takes a point or the
+  pointer, and `window()` gives no size, so a mod cannot name a corner. The `key`
+  remembers where the person drops it. The panel is 640 px high for the same reason; the
+  prototype's `min(640px, 78%)` needs the window's height.
+- **A press that does not move toggles; one that moves is a drag.** The chip does not stop
+  the press, so Herdr can drag it; a release within 4 px of the press counts as a press.
+- **The chip turns red when no save has ended for 3 minutes**, as well as when the last
+  save failed. The summary carries no save time (it is shared only when it changes), so the
+  chip times its own saves; a save that never ends turns it red.
+- **What is tested where.** `startSaving()`, `chipState()` and `openProgress()` are tested with Node, the
+  first through the fake `io` with a fake timer and task. `main.js` (the chip),
+  `panel.js` and `io.js` are covered by `herdr-app check`, which builds the first render
+  and does not draw a `Popup`'s content.
+
+### Measured
+
+On 2026-11-17, Herdr 0.1.16, hc 0.1.21, before this change was built.
+
+- `mod.open` honours `overlay.key` and `overlay.keep` from `mod.json`, and records the
+  window in `windows.json` under `kept.<layout>`. The kept window came back after the
+  Herdr window was closed and reopened, with the hc core unchanged (pid 22312) and every
+  terminal still there.
+- A kept window that Herdr reopened at start needs `mod.open` twice to close: the first
+  reopens it, the second closes it.
+- A new mod folder is docked into a shown personal layout on first sight even with
+  `"place": "none"`, and was not docked into `main`.
+- Herdr does not reload a mod through the junction.
+
+### Not measured
+
+- Whether the `Popup` draws, and takes presses, outside the chip's own window in the live
+  window, and whether its bottom-right corner is pinned to the chip's top (the panel above
+  the chip, as built) or its bottom (the panel over the chip): gpui-kit.d.ts says only that
+  "the chosen corner of the content" is pinned to the trigger; whether `mod.open` takes
+  `"frame": "none"` from `mod.json` as it takes `key` and `keep` (if not, the chip gets
+  Herdr's border and shadow around its own); whether Herdr delivers the release to the chip
+  after dragging it; whether the `close` command closes the kept chip for good; whether
+  Herdr's palette offers `mod.open` for a named mod.
+- What Herdr does when the layout file it shows goes away. The live window showed the
+  `session-restore` layout through a link to this repo's file, so the file went away when
+  this change was committed, not when the install script pruned the link. AGENTS.md says a
+  broken file keeps the last good version showing; a missing one is not described. The live check at a time the maintainer picks covers these:
+  install, switch to `main`, open the chip once, see a save land, unfold and fold, close
+  and reopen the Herdr window and see the chip back.
+
+### What the calls did not cover
+
+- The chip shows only on the layout it was opened on, and saves only while it is open.
+  With the window closed and the core running, sessions started after the last save are
+  not in it when a reboot comes, as before.

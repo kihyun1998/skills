@@ -1,6 +1,7 @@
 // The save: the Claude session each live terminal holds, and the restore list, in the app's
-// data folder. Side effects go through io ({ hc, read, write, exists, list, spaces, now, home, appHome }).
-import { coreIdentity, isClaude, keptFlags, nextSave } from "./logic.js";
+// data folder, and the chip's cadence for it. Side effects go through io ({ hc, read, write,
+// exists, list, spaces, now, home, appHome }).
+import { coreIdentity, isClaude, keptFlags, nextSave, summarize } from "./logic.js";
 
 const trimEnd = (path) => String(path).replace(/[\\/]+$/, "");
 
@@ -146,4 +147,56 @@ export function removeEntries(io, keys) {
 /** Records the core holder the Sessions panel last opened itself on. */
 export function markShown(io, core) {
   return update(io, (prev) => ({ ...(prev ?? { version: 1, current: [], restore: [] }), shownCore: core }));
+}
+
+/**
+ * Saves once and summarizes: summarize()'s fields with unreadable, unchecked and the error. A save
+ * that throws leaves the file as it was, and the summary is of that file.
+ */
+export async function saveAndSummarize(io) {
+  let save = null, unreadable = 0, unchecked = 0, error = null;
+  try {
+    ({ save, unreadable, unchecked } = await saveOnce(io));
+  } catch (err) {
+    error = String(err?.message ?? err);
+    save = parseSave(await io.read(savePath(io.appHome)));
+  }
+  const failed = Boolean(error) || unreadable > 0 || unchecked > 0;
+  return { save, summary: { ...summarize(save, { now: io.now(), failed }), unreadable, unchecked, error } };
+}
+
+/** How often the chip saves. */
+export const SAVE_EVERY_MS = 60_000;
+
+/**
+ * The chip's save: once now, every SAVE_EVERY_MS, and on the "save" command; one at a time. Each
+ * summary goes to share. The first successful save on a core holder the panel has not unfolded
+ * itself on marks that holder shown, and unfolds the panel when something can be restored.
+ * every(ms, fn) and spawn(cx, job) are the host's timer and task; cx is passed through untouched.
+ */
+export function startSaving(io, { every, spawn, share, unfold }, cx) {
+  let saving = false, first = true;
+  const tick = (cx) => {
+    if (saving) return false;
+    saving = true;
+    spawn(cx, async () => {
+      try {
+        const { save, summary } = await saveAndSummarize(io);
+        share(summary);
+        if (first && !summary.error && save?.core) {
+          first = false;
+          if (save.shownCore !== save.core) {
+            await markShown(io, save.core);
+            if (summary.restorable > 0) unfold();
+          }
+        }
+      } finally {
+        saving = false;
+      }
+    });
+    return true;
+  };
+  tick(cx);
+  every(SAVE_EVERY_MS, tick);
+  return { tick, command: (name, cx) => name === "save" && tick(cx) };
 }

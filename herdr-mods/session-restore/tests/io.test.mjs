@@ -1,7 +1,7 @@
 // save.js and open.js against a fake hc and file system: run with node --test herdr-mods/session-restore/tests
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { saveOnce, savePath, removeEntries } from "../save.js";
+import { saveOnce, savePath, removeEntries, startSaving, SAVE_EVERY_MS } from "../save.js";
 import { openSessions } from "../open.js";
 
 const HOME = "C:/Users/U", APP = "C:/Users/U/.config/herdr-app";
@@ -155,6 +155,130 @@ test("removeEntries takes the named entries out of the restore list and nothing 
   await removeEntries(m.io, ["a"]);
   const after = JSON.parse(m.files[savePath(APP)]);
   assert.deepEqual([after.restore.map((e) => e.key), after.current.map((e) => e.key)], [["b"], ["c"]]);
+});
+
+// The chip's save on the fake machine: the timer and tasks are recorded, and a test fires them.
+function saver(m) {
+  const timers = [], tasks = [], shared = [];
+  let unfolds = 0;
+  const s = startSaving(m.io, {
+    every: (ms, fn) => timers.push({ ms, fn }),
+    spawn: (_cx, job) => tasks.push(job()),
+    share: (summary) => shared.push(summary),
+    unfold: () => { unfolds++; },
+  });
+  const settle = async () => { while (tasks.length) await tasks.shift(); };
+  return { s, timers, shared, settle, unfolds: () => unfolds };
+}
+const saveCount = (m) => m.calls.filter((a) => a[0] === "server").length;
+const fileOf = (m) => JSON.parse(m.files[savePath(APP)]);
+// A save from before a reboot: holder h0 had s1 open, so the save on h1 sets it aside to restore.
+const beforeReboot = (over = {}) => JSON.stringify({ version: 1, core: "h0", savedAt: 1, shownCore: null,
+  current: [{ key: "s1", sessionId: "s1", address: "t4", labels: {}, flags: [] }], restore: [], ...over });
+
+test("the chip saves once at start and again each minute", async () => {
+  const m = machine();
+  const r = saver(m);
+  await r.settle();
+  assert.equal(saveCount(m), 1);
+  assert.deepEqual(r.timers.map((t) => t.ms), [SAVE_EVERY_MS]);
+  assert.equal(SAVE_EVERY_MS, 60_000);
+  r.timers[0].fn();
+  await r.settle();
+  assert.equal(saveCount(m), 2);
+  assert.equal(r.shared.length, 2);
+});
+
+test("the chip runs one save at a time: a tick while one runs does nothing", async () => {
+  const m = machine();
+  let release;
+  const gate = new Promise((res) => { release = res; });
+  const hc = m.io.hc;
+  m.io.hc = async (args) => { if (args[0] === "server") await gate; return hc(args); };
+  const r = saver(m);
+  assert.equal(r.s.tick(), false);
+  assert.equal(r.s.command("save"), false);
+  r.timers[0].fn();
+  release();
+  await r.settle();
+  assert.equal(saveCount(m), 1);
+  assert.equal(r.s.tick(), true);
+  await r.settle();
+  assert.equal(saveCount(m), 2);
+});
+
+test("the save command saves at once, and another command does not", async () => {
+  const m = machine();
+  const r = saver(m);
+  await r.settle();
+  assert.equal(r.s.command("save"), true);
+  await r.settle();
+  assert.equal(saveCount(m), 2);
+  assert.equal(r.s.command("close"), false);
+  await r.settle();
+  assert.equal(saveCount(m), 2);
+});
+
+test("the first save on a new core holder unfolds the panel once and marks the holder shown", async () => {
+  const m = machine({ files: { [savePath(APP)]: beforeReboot() } });
+  const r = saver(m);
+  await r.settle();
+  assert.equal(r.unfolds(), 1);
+  assert.equal(fileOf(m).shownCore, "h1");
+  assert.equal(r.shared[0].restorable, 1);
+  r.s.tick();
+  await r.settle();
+  assert.equal(r.unfolds(), 1);
+});
+
+test("the chip does not unfold on a holder already shown, as after folding it and starting Herdr again", async () => {
+  const m = machine({ files: { [savePath(APP)]: beforeReboot() } });
+  await saver(m).settle();
+  const again = saver(m);
+  await again.settle();
+  assert.equal(again.unfolds(), 0);
+  assert.equal(again.shared[0].restorable, 1);
+});
+
+test("the chip marks a new holder shown without unfolding when nothing can be restored", async () => {
+  const m = machine({ files: { [savePath(APP)]: beforeReboot({ current: [] }) } });
+  const r = saver(m);
+  await r.settle();
+  assert.equal(r.unfolds(), 0);
+  assert.equal(fileOf(m).shownCore, "h1");
+});
+
+test("a failed save does not unfold or mark the holder; the next good one does", async () => {
+  const m = machine({ files: { [savePath(APP)]: beforeReboot() } });
+  const hc = m.io.hc;
+  let down = true;
+  m.io.hc = async (args) => (down && args[0] === "server" ? { code: 1, stdout: "", stderr: "core not running" } : hc(args));
+  const r = saver(m);
+  await r.settle();
+  assert.equal(r.unfolds(), 0);
+  assert.equal(fileOf(m).shownCore, null);
+  assert.match(r.shared[0].error, /core not running/);
+  assert.equal(r.shared[0].stalled, true);
+  down = false;
+  r.s.tick();
+  await r.settle();
+  assert.equal(r.unfolds(), 1);
+  assert.equal(fileOf(m).shownCore, "h1");
+});
+
+test("a core restart while the chip is open does not unfold the panel", async () => {
+  const m = machine({ files: { [savePath(APP)]: beforeReboot({ current: [], shownCore: "h0" }) } });
+  const hc = m.io.hc;
+  let holder = "h0";
+  m.io.hc = async (args) => (args[0] === "server" ? { code: 0, stdout: JSON.stringify({ holder: { current: true, instance: holder } }), stderr: "" } : hc(args));
+  const r = saver(m);
+  await r.settle();
+  m.files[savePath(APP)] = JSON.stringify({ ...fileOf(m), current: [{ key: "s1", sessionId: "s1", address: "t4", labels: {}, flags: [] }] });
+  holder = "h2";
+  r.s.tick();
+  await r.settle();
+  assert.equal(r.shared[1].restorable, 1);
+  assert.equal(r.unfolds(), 0);
 });
 
 const saved = (over) => ({ key: over.sessionId, live: false, status: "idle", flags: ["--model", "opus"], cwd: "D:/repo",

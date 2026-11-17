@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  keptFlags, nextSave, coreIdentity, planOpen, placement, resumeArgv, shellLine, isClaude, isShell, summarize, linkParents, openable, groupsOf,
+  keptFlags, nextSave, coreIdentity, planOpen, placement, resumeArgv, shellLine, isClaude, isShell, summarize, linkParents, openable, groupsOf, chipState, openProgress, STALE_MS,
 } from "../logic.js";
 
 const WORKER_ARGV = ["C:\\Users\\User\\.local\\bin\\claude.EXE", "--model", "opus", "--effort", "high", "--dangerously-skip-permissions",
@@ -220,4 +220,34 @@ test("summarize counts what can be restored and changes its sig only when that d
   assert.equal(again.sig, s.sig);
   assert.equal(summarize(save, { now: 1000 + 4 * 60_000, failed: false }).stalled, true);
   assert.equal(summarize(save, { now: 2000, failed: true }).stalled, true);
+});
+
+test("chipState: green with the count saved, amber with what can be restored, red when stalled, none before a save", () => {
+  const s = (over) => ({ restorable: 0, working: 0, saved: 0, stalled: false, sig: "", ...over });
+  assert.deepEqual(chipState(s({ saved: 18 })), { label: "⟲ 18", dot: "green" });
+  assert.deepEqual(chipState(s({ saved: 2, restorable: 5 })), { label: "복원할 세션 5", dot: "amber" });
+  assert.deepEqual(chipState(s({ saved: 2, restorable: 5, stalled: true })), { label: "save 멈춤", dot: "red" });
+  assert.deepEqual(chipState(s({ stalled: true })), { label: "save 멈춤", dot: "red" });
+  assert.deepEqual(chipState(null), { label: "save 없음", dot: "dim" });
+});
+
+test("chipState shows the open under way over every other state, and not once it has nothing left", () => {
+  const stalled = { restorable: 5, working: 0, saved: 0, stalled: true, sig: "" };
+  assert.deepEqual(chipState(stalled, { opened: 2, total: 5 }), { label: "여는 중 · 2/5", dot: "green" });
+  assert.deepEqual(chipState(null, { opened: 0, total: 1 }), { label: "여는 중 · 0/1", dot: "green" });
+  assert.deepEqual(chipState(stalled, { opened: 0, total: 0 }), { label: "save 멈춤", dot: "red" });
+});
+
+test("chipState turns red when no save has ended for longer than a stalled save may age", () => {
+  const ok = { restorable: 3, working: 0, saved: 4, stalled: false, sig: "" };
+  assert.deepEqual(chipState(ok, null, STALE_MS), { label: "복원할 세션 3", dot: "amber" });
+  assert.deepEqual(chipState(ok, null, STALE_MS + 1), { label: "save 멈춤", dot: "red" });
+  assert.deepEqual(chipState(null, null, STALE_MS + 1), { label: "save 멈춤", dot: "red" });
+});
+
+test("openProgress counts only the batch being opened, not rows an earlier open left behind", () => {
+  const states = new Map([["old", { at: "opened" }], ["gone", { at: "failed" }], ["a", { at: "opened" }], ["b", { at: "opening" }], ["c", { at: "failed" }]]);
+  assert.deepEqual(openProgress(states, new Set(["a", "b", "c"])), { opened: 1, total: 3 });
+  assert.equal(openProgress(new Map([["a", { at: "opened" }]]), new Set(["a"])), null);
+  assert.equal(openProgress(states, new Set()), null);
 });

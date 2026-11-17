@@ -2,10 +2,9 @@
 // summary shared.
 import { exists, readdir } from "fs/promises";
 import { hc, readTextFile, writeTextFile, spaces, run, home, appHome, shared, setShared } from "herdr";
-import { summarize } from "./logic.js";
-import { parseSave, saveOnce, savePath } from "./save.js";
+import { parseSave, saveAndSummarize, savePath } from "./save.js";
 
-/** The shared key the tab bar's dot and the panel read: summarize()'s fields and the last error. */
+/** The shared key the chip and the panel read: summarize()'s fields and the last error. */
 export const SHARED = "session-restore";
 
 /** save.js's and open.js's io, from the herdr module; sleep needs the task's cx. */
@@ -30,16 +29,14 @@ export async function readSave() {
   return parseSave(await readTextFile(savePath(appHome())));
 }
 
-/** Saves once, and sets the shared summary when it differs from the one there. */
-export async function saveAndShare(cx) {
-  let save = null, unreadable = 0, unchecked = 0, error = null;
-  try {
-    ({ save, unreadable, unchecked } = await saveOnce(herdrIo(cx)));
-  } catch (err) {
-    error = String(err?.message ?? err);
-    save = await readSave();
-  }
-  const summary = { ...summarize(save, { now: Date.now(), failed: Boolean(error) || unreadable > 0 || unchecked > 0 }), unreadable, unchecked, error };
+/** Sets the shared summary when it differs from the one there. */
+export function shareSummary(summary) {
   if (JSON.stringify(shared(SHARED) ?? null) !== JSON.stringify(summary)) setShared(SHARED, summary);
+}
+
+/** Saves once, and shares the summary. */
+export async function saveAndShare(cx) {
+  const { save, summary } = await saveAndSummarize(herdrIo(cx));
+  shareSummary(summary);
   return { save, summary };
 }
