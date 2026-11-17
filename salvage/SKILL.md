@@ -140,8 +140,8 @@ part goes on by its own rules:
   stops on an old build and points back here, so naming it would loop. The missing
   `docs/agents/thegraph.md` belongs to `theflow.md`'s Step 1 only.
   Where an old build and a `theflow.md` are both present, the order is:
-  `salvage` (the `theflow.md` part stops, and so does any old-build part bound
-  for map notes), then `grill-map`, then `salvage` again (clears both).
+  `salvage` (the `theflow.md` part stops, and so does the old build, which is
+  left whole where any of its parts is bound for map notes), then `grill-map`, then `salvage` again (clears both).
 - **Code that reads the file at run time** (a test, a script, a CI step that opens
   it): name the code and propose its new source of truth, usually the map note the
   matching Step moves to. Whether that code changes is the maintainer's.
@@ -282,7 +282,8 @@ dropping one is that nobody knows it was ever answered.
 Show all of it on one screen: ring 1 and ring 2 to be removed, the ring-2 lines
 kept or rewritten because their file is rewritten at the same path (each line
 with its new text), ring 3 to be decided, and the salvaged file as it will be
-written, **with Informs and Binds filled in from the answers already asked**. For a left `theflow.md`,
+written (where the old build's stop fired, say so here: ring 1, ring 2 and the
+salvaged file are not touched this run), **with Informs and Binds filled in from the answers already asked**. For a left `theflow.md`,
 each part with where it goes, the lines to repoint, and any stop that fired. Ask once, with the tool
 that renders a question.
 
@@ -291,6 +292,11 @@ attention on exactly the items already decided against; the salvaged file is the
 part worth reading closely, and it is one page.
 
 ### 5. Remove, then write
+
+**Where the old build's stop fired** (*Salvage the answers*, its last paragraph),
+nothing below applies to the old build: no ring 1 or ring 2 removal and no salvaged
+build document, so the old `docs/agents/thegraph.md` stays whole until `grill-map`
+has run and `salvage` runs again. A `theflow.md` part follows its own stops.
 
 Ring 1 and ring 2 (a ring-2 line whose file is rewritten at the same path is kept or rewritten as approved, not removed), then the salvaged build document in its place. Then a left
 `theflow.md`'s parts into their destinations, the pointing lines repointed, and

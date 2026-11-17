@@ -12,6 +12,12 @@
 > middle; it writes only a hub stub, no notes, so the second `salvage` would have
 > stopped on the same condition. Decision 7's destination, the map, is
 > unchanged.
+>
+> **Amended on 2026-11-17 (#64).** Where that stop fires on an old build, Process 5
+> now leaves the old build whole (ring 1, ring 2 and the salvaged build document)
+> until `grill-map` has run and `salvage` runs again; before, it removed ring 1 and
+> wrote the salvaged document, deleting the answers the stop said to keep. Process 4's
+> list says the old build is not cleared this run. The maintainer chose this on #64.
 
 **Status:** accepted. Implements #51. Extends [ADR-0096](0096-salvage-clears-a-left-theflow-md.md),
 whose table now serves an old `thegraph.md` as well; relates to
