@@ -133,8 +133,15 @@ part goes on by its own rules:
   hub, then `grill-map`, which writes the notes. The content has nowhere else to
   go that is not loaded on every run. A `theflow.md` that only points elsewhere
   (below) has nothing to move, so this stop does not apply to it. **An old
-  `thegraph.md` stops on the same condition** where any of its parts would go to
-  map notes (*Salvage the answers*).
+  `thegraph.md` stops on the map half of that condition only**: where any of its
+  parts would go to map notes (*Salvage the answers*) and there is no map with
+  notes, say to run `grill-map` alone. It has no stop on an old build and makes
+  the folder, the hub and the notes itself in its init mode; `grill-the-graph`
+  stops on an old build and points back here, so naming it would loop. The missing
+  `docs/agents/thegraph.md` belongs to `theflow.md`'s Step 1 only.
+  Where an old build and a `theflow.md` are both present, the order is:
+  `salvage` (the `theflow.md` part stops, and so does any old-build part bound
+  for map notes), then `grill-map`, then `salvage` again (clears both).
 - **Code that reads the file at run time** (a test, a script, a CI step that opens
   it): name the code and propose its new source of truth, usually the map note the
   matching Step moves to. Whether that code changes is the maintainer's.
@@ -243,8 +250,8 @@ read from now.
 - anything else goes to the map note it describes
 
 Where any of these would go to map notes and the repository has no map with
-notes, **stop as the `theflow.md` part does** (*A left `theflow.md`*, its first
-stop): say to run `grill-the-graph`, then `grill-map`, and clear nothing of that
+notes, **stop** (*A left `theflow.md`*, its first stop, where an old build's
+half is spelled out): say to run `grill-map` alone, and clear nothing of that
 part.
 
 **Dropped, and each drop gets a reason.** Two kinds, and say which:

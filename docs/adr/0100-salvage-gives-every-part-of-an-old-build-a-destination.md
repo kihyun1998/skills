@@ -1,5 +1,18 @@
 # ADR-0100 — `salvage` gives every part of an old build a destination
 
+> **Amended on 2026-11-17 (#62).** Point 7 below, which says to run
+> `grill-the-graph`, then `grill-map`, now holds for a `theflow.md` only. For an
+> old build, `salvage` says to run `grill-map` alone: `grill-the-graph` stops on
+> an old build and points at `salvage`, so naming it sent the maintainer between
+> the two with neither running. `grill-map` has no stop on an old build and makes
+> the folder, the hub and the notes itself in its init mode. The maintainer chose
+> this on #62; `grill-the-graph` runs after `salvage` has cleared the old build.
+> Where both an old build and a `theflow.md` are present: `salvage`, then
+> `grill-map`, then `salvage` again. The grilled order ran `grill-the-graph` in the
+> middle; it writes only a hub stub, no notes, so the second `salvage` would have
+> stopped on the same condition. Decision 7's destination, the map, is
+> unchanged.
+
 **Status:** accepted. Implements #51. Extends [ADR-0096](0096-salvage-clears-a-left-theflow-md.md),
 whose table now serves an old `thegraph.md` as well; relates to
 [ADR-0094](0094-an-older-build-is-found-by-its-stamp.md) and
