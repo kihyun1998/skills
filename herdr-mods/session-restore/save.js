@@ -170,8 +170,9 @@ export const SAVE_EVERY_MS = 60_000;
 
 /**
  * The chip's save: once now, every SAVE_EVERY_MS, and on the "save" command; one at a time. Each
- * summary goes to share. The first successful save on a core holder the panel has not unfolded
- * itself on marks that holder shown, and unfolds the panel when something can be restored.
+ * summary goes to share(summary, save), with the save it is of. The first successful save on a
+ * core holder the panel has not unfolded itself on marks that holder shown, and unfolds the panel
+ * when something can be restored.
  * every(ms, fn) and spawn(cx, job) are the host's timer and task; cx is passed through untouched.
  */
 export function startSaving(io, { every, spawn, share, unfold }, cx) {
@@ -182,7 +183,7 @@ export function startSaving(io, { every, spawn, share, unfold }, cx) {
     spawn(cx, async () => {
       try {
         const { save, summary } = await saveAndSummarize(io);
-        share(summary);
+        share(summary, save);
         if (first && !summary.error && save?.core) {
           first = false;
           if (save.shownCore !== save.core) {

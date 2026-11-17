@@ -29,21 +29,23 @@ const model = (e) => {
 export default class Sessions {
   init(_props, cx) {
     this.save = null;
-    this.sig = undefined;
     this.state = new Map();
     this.batch = new Set();
     this.hovered = null;
     if (checking()) return;
-    this.reload(cx);
+    // The save on disk, until the chip's first save hands the panel one.
+    cx.spawn(async (cx) => {
+      const save = await readSave();
+      this.save ??= save;
+      cx.notify();
+    });
     // Redraws every 30 s for the save's age.
     cx.timer.every(30000, (cx) => cx.notify());
   }
 
-  reload(cx) {
-    cx.spawn(async (cx) => {
-      this.save = await readSave();
-      cx.notify();
-    });
+  /** The save the chip's last save left: the one it wrote, or the last good one when it failed. */
+  saved(save) {
+    if (save) this.save = save;
   }
 
   /** The open under way: { opened, total }, or null when none is. */
@@ -53,8 +55,7 @@ export default class Sessions {
 
   saveNow(cx) {
     cx.spawn(async (cx) => {
-      const { save } = await saveAndShare(cx);
-      if (save) this.save = save;
+      this.saved((await saveAndShare(cx)).save);
       cx.notify();
     });
   }
@@ -72,8 +73,7 @@ export default class Sessions {
       });
       // Rows still marked opening when the open ends are cleared.
       for (const [k, s] of this.state) if (s.at === "opening") this.state.delete(k);
-      const { save } = await saveAndShare(cx);
-      if (save) this.save = save;
+      this.saved((await saveAndShare(cx)).save);
       cx.notify();
     });
     cx.notify();
@@ -83,7 +83,7 @@ export default class Sessions {
     cx.spawn(async (cx) => {
       try { this.save = await removeEntries(herdrIo(cx), keys); } catch {}
       for (const k of keys) this.state.delete(k);
-      await saveAndShare(cx);
+      this.saved((await saveAndShare(cx)).save);
       cx.notify();
     });
   }
@@ -150,15 +150,13 @@ export default class Sessions {
   render(cx) {
     const t = theme();
     const summary = shared(SHARED) ?? null;
-    // The chip saved something new: read it again.
-    if (!checking() && summary?.sig !== this.sig) { this.sig = summary?.sig; this.reload(cx); }
     const save = this.save, entries = entriesOf(save);
     const now = Date.now();
     const stalled = Boolean(summary?.stalled) || (typeof save?.savedAt === "number" && now - save.savedAt > STALE_MS);
     const restorable = entries.filter((e) => !e.live && openable(e, entries) && this.state.get(e.key)?.at !== "opened");
     const groups = groupsOf(entries);
     const results = [...this.state.values()];
-    const busy = results.some((s) => s.at === "opening");
+    const progress = this.progress(), busy = Boolean(progress);
     const opened = results.filter((s) => s.at === "opened").length, failed = results.filter((s) => s.at === "failed").length;
 
     const saveLine = !save
@@ -214,7 +212,7 @@ export default class Sessions {
       : results.length
         ? h_flex().p(10).gap(8).flex_none().items_center().border_t(1).border_color(t.border).text_size(12)
           .child(div().flex_1().child(busy
-            ? div().text_color(t.ansi3).child(opened + "/" + results.length + " opening…")
+            ? div().text_color(t.ansi3).child(progress.opened + "/" + progress.total + " opening…")
             : h_flex().gap(4).child(div().text_color(t.ansi2).child(opened + " opened,")).child(div().text_color(failed ? t.ansi1 : t.muted).child(failed + " failed"))))
           .when(!busy && failed > 0, (el) => el.child(this.button(t, "clear-failed", "Clear failed",
             (cx) => this.remove([...this.state].filter(([, s]) => s.at === "failed").map(([k]) => k), cx))))

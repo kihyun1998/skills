@@ -159,16 +159,16 @@ test("removeEntries takes the named entries out of the restore list and nothing 
 
 // The chip's save on the fake machine: the timer and tasks are recorded, and a test fires them.
 function saver(m) {
-  const timers = [], tasks = [], shared = [];
+  const timers = [], tasks = [], shared = [], saves = [];
   let unfolds = 0;
   const s = startSaving(m.io, {
     every: (ms, fn) => timers.push({ ms, fn }),
     spawn: (_cx, job) => tasks.push(job()),
-    share: (summary) => shared.push(summary),
+    share: (summary, save) => { shared.push(summary); saves.push(save); },
     unfold: () => { unfolds++; },
   });
   const settle = async () => { while (tasks.length) await tasks.shift(); };
-  return { s, timers, shared, settle, unfolds: () => unfolds };
+  return { s, timers, shared, saves, settle, unfolds: () => unfolds };
 }
 const saveCount = (m) => m.calls.filter((a) => a[0] === "server").length;
 const fileOf = (m) => JSON.parse(m.files[savePath(APP)]);
@@ -187,6 +187,28 @@ test("the chip saves once at start and again each minute", async () => {
   await r.settle();
   assert.equal(saveCount(m), 2);
   assert.equal(r.shared.length, 2);
+});
+
+test("each save hands share the save it is of: the one it wrote, or the last good one when it fails", async () => {
+  const m = machine({ terminals: [claudeTerm("t4", 100)], files: { [pidPath(100)]: pidText("s1"), [transcript("D--repo", "s1")]: "{}\n" } });
+  let now = 1_000_000, down = false;
+  m.io.now = () => now;
+  const hc = m.io.hc;
+  m.io.hc = async (args) => (down && args[0] === "server" ? { code: 1, stdout: "", stderr: "core not running" } : hc(args));
+  const r = saver(m);
+  await r.settle();
+  now += SAVE_EVERY_MS;
+  r.s.tick();
+  await r.settle();
+  // Nothing opened or closed between the two saves, so the shared summary's sig did not change.
+  assert.equal(r.shared[1].sig, r.shared[0].sig);
+  assert.deepEqual(r.saves.map((s) => [s.savedAt, s.current.length]), [[1_000_000, 1], [1_060_000, 1]]);
+  down = true;
+  now += SAVE_EVERY_MS;
+  r.s.tick();
+  await r.settle();
+  assert.equal(r.shared[2].stalled, true);
+  assert.equal(r.saves[2].savedAt, 1_060_000);
 });
 
 test("the chip runs one save at a time: a tick while one runs does nothing", async () => {

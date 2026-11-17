@@ -27,7 +27,7 @@ export default class SessionRestore extends View {
     this.saver = startSaving(herdrIo(cx), {
       every: (ms, fn) => cx.timer.every(ms, fn),
       spawn: (cx, job) => cx.spawn(async (cx) => { await job(); cx.notify(); }),
-      share: (summary) => { this.savedAt = Date.now(); shareSummary(summary); },
+      share: (summary, save) => { this.savedAt = Date.now(); this.panel.saved(save); shareSummary(summary); },
       unfold: () => { this.open = true; },
     }, cx);
     // "close" closes the chip for good (its kept entry goes with it); "save" saves now.

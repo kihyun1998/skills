@@ -247,8 +247,15 @@ when it docked a new mod into the linked layout (seen twice on 2026-11-17).
 - **The chip turns red when no save has ended for 3 minutes**, as well as when the last
   save failed. The summary carries no save time (it is shared only when it changes), so the
   chip times its own saves; a save that never ends turns it red.
+- **The panel reads the save the chip's last save left** (issue #66). Each save hands
+  `share` its save as well as its summary: the one it wrote, or the last good one on disk
+  when it failed. The chip passes it to the panel, which judges a stall and shows
+  "Saved N · …" from it. A copy re-read only when the summary's `sig` changed aged with no
+  session opening or closing, and read as stalled while saves succeeded.
+- **The panel's "k/N opening…" counts the batch being opened** with `openProgress()`, as
+  the chip does, not every row an earlier open left marked.
 - **What is tested where.** `startSaving()`, `chipState()` and `openProgress()` are tested with Node, the
-  first through the fake `io` with a fake timer and task. `main.js` (the chip),
+  first through the fake `io` with a fake timer and task, including the save it hands `share`. `main.js` (the chip),
   `panel.js` and `io.js` are covered by `herdr-app check`, which builds the first render
   and does not draw a `Popup`'s content.
 
