@@ -110,12 +110,11 @@ export const register: Register = on => {
     return stored
   }).catch(($, e, next) => next(e))
 
-  // One line over whatever the other bands draw: the working location and its branch, two chips,
-  // and while a thegraph run is open its chip, a conductor's children and a worker's way back.
+  // One line: the working location and its branch, two chips, and while a thegraph run is open
+  // its chip, a conductor's children and a worker's way back.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    const below = await next(e)
     const w = await read($, where)
-    if (w === null || e.props.hasSurvey) return below
+    if (w === null || e.props.hasSurvey) return next(e)
 
     const { Box, Button, Text } = $.ui.resolve(e)
     // The main screen reports no clicks: each button's hotkey is drawn after it (ctrl+x tab focuses the band).
@@ -123,7 +122,7 @@ export const register: Register = on => {
     const shown = fit(w, e.props.bodyColumns - LEFT - RIGHT, chipOf(await read($, panelChip)), isMain)
     const isDetached = w.head !== null && w.head.branch === null
     const hint = (key: string | null) => (isMain && key !== null ? <Text dimColor>{key}</Text> : null)
-    const line = (
+    return (
       <Box flexDirection="row" paddingLeft={LEFT} paddingRight={RIGHT}>
         <Text wrap="truncate-end">
           <Text backgroundColor="suggestion" color="inverseText">{` ${shown.path} `}</Text>
@@ -162,12 +161,6 @@ export const register: Register = on => {
           </Button>
         )}
         {shown.back !== null && hint('c')}
-      </Box>
-    )
-    return (
-      <Box flexDirection="column">
-        {line}
-        {below}
       </Box>
     )
   })

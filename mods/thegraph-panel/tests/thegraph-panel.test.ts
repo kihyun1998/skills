@@ -28,8 +28,6 @@ const start = async ($: Engine, on: On) => {
   const kept: Kept[] = []
   transcripts.set($, kept)
   on('session.messages', () => ({ value: [{ role: 'assistant' as const, text: '', toolUses: kept }] }))
-  // Another plugin's band beneath this one, as usage-band would draw.
-  on('ui.render', { component: 'AbovePrompt' }, () => ({ type: 'Text', props: {}, children: ['BELOW'] }))
   // The engine's spinner and turn line, drawn from the props they were handed.
   on('ui.render', { component: 'Spinner' }, (_$, e) => ({ type: 'Text', props: {}, children: [`${e.props.word}${e.props.suffix}`] }))
   on('ui.render', { component: 'TurnDuration' }, (_$, e) => ({ type: 'Text', props: {}, children: [`${e.props.word} for ${e.props.durationMs}ms`] }))
@@ -213,11 +211,11 @@ const MARK = { done: ' ✓', run: ' ◐', wait: ' ◆', todo: '' } as const
 
 // The run as one line: the chip as path-band draws it from the panel's value (the children's states
 // spelled out, a worker's way back by its terminal), then every step in order with its mark, a step
-// begun twice counted, and `done` at the end; `BELOW` with no run, as the band beneath shows alone.
+// begun twice counted, and `done` at the end; empty with no run, as path-band then draws no chip.
 const lineOf = ($: Engine): string => {
   const r = lastRun($)
   const c = lastChip($)
-  if (r === null || c === null) return 'BELOW'
+  if (r === null || c === null) return ''
   const chip = [c.head, c.issue, c.step, c.time].filter(w => w !== null && w !== '').join(' ')
   const kids = c.children.map(k => (k.address === null ? ` ${k.label} ${k.state}` : ` [ ${k.label} ${k.state} ]`)).join('')
   const back = c.conductor === null ? '' : ` [ ↩ ${c.conductor} ]`
@@ -263,7 +261,7 @@ describe('thegraph-panel', () => {
   test('draws nothing until /thegraph runs', async ($, on) => {
     await start($, on)
     const ui = await band($)
-    expect(flat(await ui.drawn())).toBe('BELOW')
+    expect(flat(await ui.drawn())).toBe('')
   })
 
   test('walks the code route: read-it, the confirm stop, make-it with a signal', async ($, on) => {
@@ -476,7 +474,7 @@ describe('thegraph-panel', () => {
     expect(flat(await ui.drawn())).toContain('[ thegraph done ]  ')
     expect(flat(await ui.drawn())).toContain('ask-it ✓  done')
     await say($, '다음 거 하자')
-    expect(flat(await ui.drawn())).toBe('BELOW')
+    expect(flat(await ui.drawn())).toBe('')
   })
 
   test('a run its sheet checked off whole is moved on from at the next prompt', async ($, on) => {
@@ -489,7 +487,7 @@ describe('thegraph-panel', () => {
     expect(flat(await ui.drawn())).toContain('ask-it ✓  done')
     // No event saw ask-it end; the sheet did, and that is the end.
     await say($, '다음 거 하자')
-    expect(flat(await ui.drawn())).toBe('BELOW')
+    expect(flat(await ui.drawn())).toBe('')
   })
 
   test('a /thegraph whose skill never expands still replaces the run before it', async ($, on) => {
@@ -521,7 +519,7 @@ describe('thegraph-panel', () => {
     expect(flat(await pane.drawn())).toContain('✓ issue closed')
     // Ended, it goes at the next prompt like any finished run.
     await say($, '다음')
-    expect(flat(await ui.drawn())).toBe('BELOW')
+    expect(flat(await ui.drawn())).toBe('')
   })
 
   test('the GitHub issue on the sheet closed elsewhere is found by asking gh now and then', async ($, on) => {
@@ -564,7 +562,7 @@ describe('thegraph-panel', () => {
       await bash($, 'true')
       expect(flat(await ui.drawn())).toContain('  done')
       await say($, '다음')
-      expect(flat(await ui.drawn())).toBe('BELOW')
+      expect(flat(await ui.drawn())).toBe('')
     }
   })
 
@@ -1006,7 +1004,7 @@ describe('thegraph-panel', () => {
     await say($, '그거만')
     expect(flat(await ui.drawn())).toContain('done')
     await say($, '/context')
-    expect(flat(await ui.drawn())).toBe('BELOW')
+    expect(flat(await ui.drawn())).toBe('')
   })
 
   test('a code run keeps its steps through the lens check-it runs, and the pane says prose/code', async ($, on) => {
@@ -1042,12 +1040,12 @@ describe('thegraph-panel', () => {
     // On the main screen its hotkey follows it, as on path-band's line.
     expect(flat(await pane.drawn())).toContain('[ clear run × ]x')
     await pane.press({ key: 'clear' })
-    expect(flat(await (await band($)).drawn())).toBe('BELOW')
+    expect(flat(await (await band($)).drawn())).toBe('')
     expect(lastChip($)).toBe(null)
     expect([...host.panes]).toEqual([])
     // The skills that come after it start nothing; only a new /thegraph does.
     await skill($, 'check-it')
-    expect(flat(await (await band($)).drawn())).toBe('BELOW')
+    expect(flat(await (await band($)).drawn())).toBe('')
   })
 })
 
@@ -1355,7 +1353,7 @@ describe('thegraph-herdr', () => {
     await say($, '/thegraph-codex #50')
     await skill($, 'thegraph-codex')
     await skill($, 'read-it')
-    expect(flat(await ui.drawn())).toBe('BELOW')
+    expect(flat(await ui.drawn())).toBe('')
   })
 
   test("the conductor's chip carries every child with its state, a live worker's with its terminal to focus", async ($, on) => {
@@ -1542,14 +1540,14 @@ describe('a herdr worker', () => {
     sheetFiles(on)
     herdr($, on, { self: { address: 't2x', state: 'live' }, env: { HC_TERMINAL_ID: 't2x' } })
     await start($, on)
-    expect(flat(await (await band($)).drawn())).toBe('BELOW')
+    expect(flat(await (await band($)).drawn())).toBe('')
   })
 
   test('outside Herdr hc is never asked', async ($, on) => {
     sheetFiles(on)
     const h = herdr($, on, { env: {} })
     await start($, on)
-    expect(flat(await (await band($)).drawn())).toBe('BELOW')
+    expect(flat(await (await band($)).drawn())).toBe('')
     expect(h.argv.some(a => a[0] === 'hc')).toBe(false)
   })
 
@@ -1558,7 +1556,7 @@ describe('a herdr worker', () => {
     // As /clear leaves it: the run gone from the state.
     const pane = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS })
     await pane.press({ key: 'clear' })
-    expect(flat(await (await band($)).drawn())).toBe('BELOW')
+    expect(flat(await (await band($)).drawn())).toBe('')
     await $.classic.SessionStart({ source: 'clear' })
     expect(flat(await (await band($)).drawn())).toContain('[ worker #52 make-it ]')
   })

@@ -44,6 +44,7 @@ const usage = (ctx: number, five: number, seven: number, usd = 1.42): SessionUsa
 
 const BAND = {
   hasSurvey: false,
+  isCollapsed: false,
   isWorking: false,
   maxRows: 10,
   bodyColumns: 140,
@@ -64,8 +65,8 @@ type World = {
   settings?: Record<string, unknown>
   /** What each main-thread request reports of its prompt; none by default. */
   stepUsage?: { input_tokens: number; output_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number }
-  /** What the bands beneath draw; nothing by default. */
-  beneath?: RenderElement
+  /** What is drawn beneath the band's own hook in its row; nothing by default, and no hook at all when null. */
+  beneath?: RenderElement | null
   /** The credential the session holds; a login by default. */
   credential?: 'bearer' | 'api-key' | null
 }
@@ -90,8 +91,8 @@ const start = async ($: Engine, on: On, u: SessionUsage, w: World) => {
     const usage = w.stepUsage ? { ...w.stepUsage, model: 'claude-opus-5-5' } : null
     return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'end_turn' as const, usage }
   })
-  // Whatever the bands beneath draw; nothing by default.
-  on('ui.render', { component: 'AbovePrompt' }, (): RenderElement => w.beneath ?? { type: 'Box', props: {}, children: [] })
+  // What is drawn beneath the band's own hook in its row; nothing by default.
+  if (w.beneath !== null) on('ui.render', { component: 'AbovePrompt' }, (): RenderElement => w.beneath ?? { type: 'Box', props: {}, children: [] })
   on('process.run', (_$, e) => {
     w.argv.push([...e.argv])
     const stdout = e.argv.includes('blocks') ? blocksJson(w.burn) : dailyJson(w.today)
@@ -121,7 +122,7 @@ const DIV = '  │  '
 type Drawn = { type: string; part?: { plugin: string }; props: Record<string, unknown>; children: unknown[] }
 
 // The band's part of the drawing: the root its hook returned, which the engine stamps with its name.
-// The bands beneath come back as parts of their own beside it, so it is found by name, not by place.
+// A test's own hook at the site comes back as a part of its own beside it, so it is found by name, not by place.
 const part = async (ui: { drawn: () => Promise<unknown> }) => {
   const find = (node: unknown): Drawn | undefined => {
     if (node === null || typeof node !== 'object') return undefined
@@ -134,11 +135,8 @@ const part = async (ui: { drawn: () => Promise<unknown> }) => {
   return found
 }
 
-// The band's own Box: the last child of its part, after where the bands beneath go.
-const own = async (ui: { drawn: () => Promise<unknown> }) => (await part(ui)).children.at(-1) as Drawn
-
 // The band's rows, each flattened.
-const rows = async (ui: { drawn: () => Promise<unknown> }) => (await own(ui)).children.map(flat)
+const rows = async (ui: { drawn: () => Promise<unknown> }) => (await part(ui)).children.map(flat)
 
 // The props of the innermost Text showing exactly `text`.
 const propsOf = async (ui: { findAll: (q: { type: string }) => Promise<{ text: string; props: Record<string, unknown> }[]> }, text: string) =>
@@ -165,7 +163,7 @@ describe('usage-band', () => {
       expect(ctx?.match(/━/g)?.length).toBe(Math.round(0.68 * 33))
       expect(five?.startsWith('5h  ')).toBe(true)
       expect(week).toMatch(/^wk {2}.* {2}18%$/)
-      expect((await own(ui)) as unknown).toMatchObject({ props: { paddingLeft: 2, paddingRight: 1 } })
+      expect((await part(ui)) as unknown).toMatchObject({ props: { paddingLeft: 2, paddingRight: 1 } })
       // Quiet while nothing is past 80%: the fill and the figure take the terminal's own colour.
       expect((await ui.findAll({ type: 'Text' })).find(t => t.text === '━')?.props.color).toBe(undefined)
       expect((await propsOf(ui, 'opus 5.5'))?.color).toBe('claude')
@@ -294,19 +292,37 @@ describe('usage-band', () => {
     expect((await rows(ui))[1]?.split(DIV)[1]).toMatch(/^5h {2}─+ {3}0%$/)
   })
 
-  // What the band controls is the order inside its own part: next(e)'s result, then the two rows.
-  // The kit draws another band as a part of its own beside this one, with an engine node standing
-  // where next(e)'s result went, so where that band lands on screen is the engine's to place, and
-  // this test cannot show it.
-  test('inside the band\'s own part, what the bands beneath draw goes before the two rows', async ($, on) => {
-    const beneath: RenderElement = { type: 'Text', props: {}, children: ['thegraph #42'] }
-    await start($, on, usage(30, 10, 5), { burn: 10, today: 5, argv: [], beneath })
+  // Each plugin's row is asked of it alone, so the band's part holds its two rows and nothing
+  // drawn beneath it; where the row sits among the others is the AbovePromptList hook's.
+  test('the band\'s part holds its two rows alone', async ($, on) => {
+    await start($, on, usage(30, 10, 5), { burn: 10, today: 5, argv: [] })
     const ui = await mount($)
-    expect(await ui.keepsBeneath()).toBe(true)
-    const [first, ...after] = (await part(ui)).children
-    expect(first).toMatchObject({ type: 'engine' })
-    expect(after).toHaveLength(1)
+    const drawn = await part(ui)
+    expect(drawn.children).toHaveLength(2)
+    expect(JSON.stringify(drawn)).not.toContain('"engine"')
     expect((await rows(ui))[0]?.startsWith('opus 5.5')).toBe(true)
+  })
+
+  test('a survey takes the band\'s row away, passing to what is beneath', async ($, on) => {
+    await start($, on, usage(30, 10, 5), { burn: 10, today: 5, argv: [], beneath: null })
+    const ui = await $.ui.mount({ plugin: 'usage-band', surface: 'terminal', component: 'AbovePrompt', props: { ...BAND, hasSurvey: true } })
+    expect(await ui.keepsBeneath()).toBe(true)
+    expect(flat(await ui.drawn())).toBe('')
+  })
+
+  // The band as the engine stacks it: one row per plugin, in chain order. usage-band's row goes
+  // to the end, so whatever other bands draw sits above its two rows, and they stay next to the prompt.
+  test('usage-band\'s row ends the stacked band, every other row keeping its order', async ($, on) => {
+    await start($, on, usage(30, 10, 5), { burn: 10, today: 5, argv: [] })
+    const row = (plugin: string) => ({ plugin, tree: { type: 'Text', props: {}, children: [plugin] } as RenderElement })
+    const stacked = async (rows: { plugin: string; tree: RenderElement }[]) => {
+      const ui = await $.ui.mount({ plugin: 'usage-band', surface: 'terminal', component: 'AbovePromptList', props: { ...BAND, rows } })
+      return ((await ui.drawn()) as Drawn).children.map(flat)
+    }
+    expect(await stacked([row('usage-band'), row('path-band'), row('other')])).toEqual(['path-band', 'other', 'usage-band'])
+    expect(await stacked([row('path-band'), row('usage-band'), row('other')])).toEqual(['path-band', 'other', 'usage-band'])
+    // Without a row of its own, the band is left as it came.
+    expect(await stacked([row('other'), row('path-band')])).toEqual(['other', 'path-band'])
   })
 
   test('the 5-hour limit leads with its pace: the share used over the share of its window gone', async ($, on) => {

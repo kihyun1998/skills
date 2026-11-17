@@ -11,6 +11,11 @@
 > (#56). See *Refresh without a tool hook* at the end; the measurements below
 > stand as they were taken.
 
+> **Amended on 2026-11-17 (#59).** From Claude Code 2.1.325 the band's order
+> comes from `usage-band`'s `AbovePromptList` hook, which moves its own row to
+> the end. Where a hook puts `next(e)` no longer orders the bands. See *The order
+> on 2.1.325 and after* at the end.
+
 **Status:** accepted.
 
 A new mod, `path-band`, shows **where the agent is working now** and on which
@@ -101,3 +106,36 @@ alone ([`mods/ENGINE-NOTES.md`](../../mods/ENGINE-NOTES.md) lists them).
   this session told of. Each tick reads `cwd()` and one `stat` of `HEAD`; no
   process is started. The interval is a derivation, not a judgement: nothing was
   shown to the maintainer for it.
+
+## The order on 2.1.325 and after
+
+From Claude Code 2.1.325 the engine asks `AbovePrompt` once for each plugin,
+with `e.plugin` naming it. Each hook draws only its own row, and
+`AbovePromptList` stacks the rows in chain order. The ordering rule above
+(`7cac533`) worked because the whole band was one tree. Under per-plugin rows
+it orders nothing, and on screen path-band's line sat below usage-band's two
+rows.
+
+- **The call, the maintainer's (#59, 2026-11-17).** Keep the order this ADR
+  chose: path-band's line, then usage-band's two rows, then the prompt.
+  `usage-band` owns that order. path-band does not change for it. This keeps
+  usage-band's existing promise, that every other band sits above its rows, with
+  a new mechanism. Only usage-band's place is held: "below any other band"
+  above no longer holds, and path-band's place among other bands is the
+  chain's order.
+- **The mechanism, a derivation from the 2.1.326 type contract.** `usage-band`
+  hooks `ui.render` with `{ component: 'AbovePromptList' }` and hands
+  `next(e)` the same rows with its own moved to the end. Every other row keeps
+  its order. The contract lets a rewrite hold only rows it was handed, unchanged,
+  in any order. The matcher needs no `plugin: '*'`: `claude plugin validate`
+  does not mark it with the default `plugin` key, and the contract sets
+  `plugin` only on an `AbovePrompt` row, `ContextMenu` rows and a `Pane`. A
+  test mount of `AbovePromptList` shows the reorder; it names a plugin, so it
+  does not show the matcher.
+- **`{below}` is gone from both drawings, also a derivation.** For a band's
+  row, `next(e)` answers the engine node, which the contract calls "the
+  component core draws itself". Both hooks still return `next(e)` while a
+  survey holds the band or they have nothing to draw. What core draws in that
+  node with no survey was not measured.
+- **Not verified here:** the order on a real screen. The tests show the rows'
+  order in what `next(e)` gets, not the terminal's paint.

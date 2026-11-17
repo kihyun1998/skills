@@ -18,7 +18,7 @@ const SHA = 'b62786b0c1d2e3f405162738495a6b7c8d9e0f12'
 
 // What the line reads as text: each chip its words with a space either side, one space between.
 const line = (path: string, branch?: string, tail = '') =>
-  ` ${path} ` + (branch === undefined ? '' : `  ${branch} `) + tail + 'BELOW'
+  ` ${path} ` + (branch === undefined ? '' : `  ${branch} `) + tail
 
 const isButton = (n: unknown): n is { props: { label: string } } =>
   n !== null && typeof n === 'object' && 'type' in n && n.type === 'Button'
@@ -64,7 +64,6 @@ const start = async ($: Engine, on: On, cwd: { now: string }) => {
   on('session.start', (_$, e) => ({ cwd: e.cwd }))
   on('session.cwd', () => ({ value: cwd.now }))
   on('env.get', (_$, e) => ({ value: e.name === 'HOME' ? '/home/u' : undefined }))
-  on('ui.render', { component: 'AbovePrompt' }, () => ({ type: 'Text', props: {}, children: ['BELOW'] }))
   await $.session.start({ cwd: cwd.now, surface: 'terminal', isInteractive: true })
   await clock.settle()
   return clock
@@ -223,11 +222,13 @@ describe('where', () => {
 })
 
 describe('path-band', () => {
-  test('draws the working location and its branch above the bands beneath', async ($, on) => {
+  test('draws the working location and its branch', async ($, on) => {
     repo(on)
     await start($, on, { now: '/w/skills/mods' })
-    const text = flat(await (await band($)).drawn())
-    expect(text).toBe(line('skills/mods', 'main'))
+    const ui = await band($)
+    expect(flat(await ui.drawn())).toBe(line('skills/mods', 'main'))
+    // Each plugin's row is asked of it alone, so the line holds nothing drawn beneath it.
+    expect(await ui.keepsBeneath()).toBe(false)
   })
 
   test('in a worktree it names the worktree and reads the branch from its own gitdir', async ($, on) => {
@@ -364,9 +365,11 @@ describe('path-band', () => {
     expect(flat(await (await band($)).drawn())).toBe(line('~/Downloads', undefined, ' [ thegraph #52 make-it ◐ 4m ]'))
   })
 
-  test('a survey takes the line away and leaves the bands beneath', async ($, on) => {
+  test('a survey takes the line away, passing to what is beneath', async ($, on) => {
     repo(on)
     await start($, on, { now: '/w/skills' })
-    expect(flat(await (await band($, { hasSurvey: true })).drawn())).toBe('BELOW')
+    const ui = await band($, { hasSurvey: true })
+    expect(await ui.keepsBeneath()).toBe(true)
+    expect(flat(await ui.drawn())).toBe('')
   })
 })

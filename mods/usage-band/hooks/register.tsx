@@ -227,17 +227,23 @@ export const register: Register = on => {
     return result
   })
 
+  // The band's rows, one per plugin in chain order, handed on with usage-band's moved to the end.
+  on('ui.render', { component: 'AbovePromptList' }, async ($, e, next) => {
+    const rows = e.props.rows
+    const own = rows.filter(r => r.plugin === 'usage-band')
+    return next({ ...e, props: { ...e.props, rows: [...rows.filter(r => r.plugin !== 'usage-band'), ...own] } })
+  })
+
   // Three columns, divided, each a head over its gauge: context (the model, its effort, the cache),
   // the 5-hour window (its pace or when it runs out, and its reset), and the week with the money.
   // Quiet until something needs saying: colour is kept for a limit past 80%, a pace that runs
   // out, a cold cache, a heavy day, and a week with less than a day's share to spare — or, the
   // one colour for good news, a day's share or more.
-  // Whatever other bands draw goes above, so these rows stay next to the prompt whichever hook runs first.
+  // Where the row sits among the other bands is the AbovePromptList hook's.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    const below = await next(e)
     const l = await read($, live)
     if (e.props.hasSurvey || l === null) {
-      return below
+      return next(e)
     }
 
     const eff = await read($, effort)
@@ -352,12 +358,9 @@ export const register: Register = on => {
     )
 
     return (
-      <Box flexDirection="column">
-        {below}
-        <Box flexDirection="column" paddingLeft={LEFT} paddingRight={RIGHT}>
-          {top}
-          {bottom}
-        </Box>
+      <Box flexDirection="column" paddingLeft={LEFT} paddingRight={RIGHT}>
+        {top}
+        {bottom}
       </Box>
     )
   })
