@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  keptFlags, nextSave, coreIdentity, planOpen, placement, resumeArgv, shellLine, isClaude, isShell, summarize, linkParents, openable, groupsOf, chipState, openProgress, groupProgress, batchResult, STALE_MS,
+  keptFlags, nextSave, coreIdentity, planOpen, placement, resumeArgv, shellLine, isClaude, isShell, summarize, linkParents, openable, groupsOf, chipState, openProgress, groupProgress, batchResult, startOpen, endOpen, reopenable, withMarks, settleOpen, withoutRows, STALE_MS,
 } from "../logic.js";
 
 const WORKER_ARGV = ["C:\\Users\\User\\.local\\bin\\claude.EXE", "--model", "opus", "--effort", "high", "--dangerously-skip-permissions",
@@ -273,4 +273,96 @@ test("batchResult names the batch's opened and failed rows, not those of an earl
   assert.equal(batchResult(states, new Set(["b"])), null);
   assert.deepEqual(batchResult(states, new Set(["b", "c"])), { opened: [], failed: ["c"] });
   assert.equal(batchResult(states, new Set()), null);
+});
+
+test("startOpen marks every row the open will open, workers brought along included, so the open stays under way until they end", () => {
+  // Pressing the conductor c1 brings its worker w1 along; c0 is not part of it.
+  const all = family();
+  const { states, batch } = startOpen(new Map(), new Set(), [all[2]], all, 1);
+  assert.deepEqual([...batch], ["c1", "w1"]);
+  assert.deepEqual([...states], [["c1", { at: "opening", open: 1 }], ["w1", { at: "opening", open: 1 }]]);
+  // The pressed conductor ends first: the worker it brought is still opening, so the open is too.
+  states.set("c1", { at: "opened", address: "t9" });
+  assert.deepEqual(openProgress(states, batch), { opened: 1, total: 2 });
+  // A conductor open now is skipped by the plan, so it is neither marked nor in the batch.
+  all[2].live = true;
+  const skip = startOpen(new Map(), new Set(), [all[0]], all, 2);
+  assert.deepEqual([...skip.batch], ["w1"]);
+  assert.equal(skip.states.has("c1"), false);
+});
+
+test("startOpen adds to the batch under way, and starts a new batch once the last one has ended", () => {
+  const all = family();
+  const going = startOpen(new Map([["c1", { at: "opening", open: 1 }]]), new Set(["c1", "w1"]), [all[1]], all, 2);
+  assert.deepEqual([...going.batch], ["c1", "w1", "c0"]);
+  assert.deepEqual(going.states.get("c1"), { at: "opening", open: 1 });
+  const ended = startOpen(new Map([["c1", { at: "opened" }], ["w1", { at: "failed" }]]), new Set(["c1", "w1"]), [all[1]], all, 3);
+  assert.deepEqual([...ended.batch], ["c0"]);
+  // The rows the ended batch left are kept for their marks; only the batch is new.
+  assert.deepEqual(ended.states.get("w1"), { at: "failed" });
+});
+
+test("endOpen clears only the rows its own open left opening, not those of another open still running", () => {
+  const states = new Map([["a", { at: "opening", open: 1 }], ["b", { at: "opening", open: 2 }], ["c", { at: "opened" }], ["d", { at: "failed" }]]);
+  const next = endOpen(states, 1);
+  assert.deepEqual([...next], [["b", { at: "opening", open: 2 }], ["c", { at: "opened" }], ["d", { at: "failed" }]]);
+  // Open 2 is still under way after open 1 ends.
+  assert.deepEqual(openProgress(next, new Set(["a", "b"])), { opened: 0, total: 2 });
+  assert.equal(openProgress(endOpen(next, 2), new Set(["a", "b"])), null);
+});
+
+test("a space's Open · N leaves out rows this panel opened, as Open all does", () => {
+  // A and W were opened by this panel and the save after it failed, so the save still lists them closed.
+  const all = [entry({ sessionId: "A", status: "working" }), entry({ sessionId: "W", parentSession: "A", status: "working" }), entry({ sessionId: "B" })];
+  const states = new Map([["A", { at: "opened" }], ["W", { at: "opened" }], ["B", { at: "failed" }]]);
+  const [g] = groupsOf(all, states);
+  assert.deepEqual(g.open.map(e => e.sessionId), ["B"]);
+  assert.equal(g.restorable, 1);
+  assert.equal(g.working, 0);
+  // The same rows as the footer's Open all.
+  assert.deepEqual(all.filter(e => reopenable(e, all, states)).map(e => e.sessionId), ["B"]);
+  // Without marks, every closed row that can open is counted.
+  const [fresh] = groupsOf(all);
+  assert.deepEqual([fresh.restorable, fresh.working], [3, 2]);
+});
+
+test("withMarks shows an open a row this panel opened as live at its new address, and one it is opening as live with no address", () => {
+  const all = [entry({ sessionId: "A", address: "t4" }), entry({ sessionId: "B", address: "t5" }), entry({ sessionId: "C", address: "t6" }), entry({ sessionId: "D", address: "t7" })];
+  const states = new Map([["A", { at: "opened", address: "t91" }], ["B", { at: "opening", open: 1 }], ["C", { at: "failed", reason: "x" }]]);
+  const out = withMarks(all, states);
+  assert.deepEqual(out.map(e => [e.sessionId, e.live, e.address]), [["A", true, "t91"], ["B", true, null], ["C", false, "t6"], ["D", false, "t7"]]);
+  // The save's rows are left as they were.
+  assert.deepEqual(all.map(e => [e.live, e.address]), [[false, "t4"], [false, "t5"], [false, "t6"], [false, "t7"]]);
+});
+
+test("an open planned over withMarks leaves out the rows this panel opened or another open is opening", () => {
+  // C is open in the save; open 1 brought w1 and w2 along; w1 failed and w2 is still opening; w3 was opened.
+  const all = [entry({ sessionId: "C", live: true }), entry({ sessionId: "w1", parentSession: "C" }), entry({ sessionId: "w2", parentSession: "C" }), entry({ sessionId: "w3", parentSession: "C" })];
+  const states = new Map([["w1", { at: "failed" }], ["w2", { at: "opening", open: 1 }], ["w3", { at: "opened", address: "t93" }]]);
+  const { states: next, batch } = startOpen(states, new Set(["w1", "w2", "w3"]), [all[1]], withMarks(all, states), 2);
+  assert.deepEqual(next.get("w1"), { at: "opening", open: 2 });
+  assert.deepEqual(next.get("w2"), { at: "opening", open: 1 });
+  assert.deepEqual(next.get("w3"), { at: "opened", address: "t93" });
+  assert.deepEqual([...batch], ["w1", "w2", "w3"]);
+});
+
+test("settleOpen writes a result only to a row its own open still marks, so another open stays under way", () => {
+  const states = new Map([["a", { at: "opening", open: 1 }], ["b", { at: "opening", open: 2 }]]);
+  const one = settleOpen(states, 1, { key: "a", ok: true, address: "t9" });
+  assert.deepEqual(one.get("a"), { at: "opened", address: "t9" });
+  const stray = settleOpen(one, 1, { key: "b", ok: false, reason: "late" });
+  assert.deepEqual(stray.get("b"), { at: "opening", open: 2 });
+  assert.deepEqual(openProgress(stray, new Set(["a", "b"])), { opened: 1, total: 2 });
+  // A row taken out of the panel while it opened stays out.
+  assert.equal(settleOpen(new Map(), 1, { key: "c", ok: true, address: "t1" }).has("c"), false);
+  assert.deepEqual(settleOpen(states, 2, { key: "b", ok: false, reason: "why" }).get("b"), { at: "failed", reason: "why" });
+});
+
+test("withoutRows forgets the removed rows' results and leaves an open's opening mark to that open", () => {
+  const states = new Map([["a", { at: "failed", reason: "x" }], ["b", { at: "opening", open: 2 }], ["c", { at: "opened", address: "t1" }], ["d", { at: "failed" }]]);
+  const next = withoutRows(states, ["a", "b", "c"]);
+  assert.deepEqual([...next], [["b", { at: "opening", open: 2 }], ["d", { at: "failed" }]]);
+  // Open 2 is still under way, and its own end clears the mark.
+  assert.deepEqual(openProgress(next, new Set(["b"])), { opened: 0, total: 1 });
+  assert.equal(endOpen(next, 2).has("b"), false);
 });

@@ -257,9 +257,20 @@ when it docked a new mod into the linked layout (seen twice on 2026-11-17).
   k/N with `groupProgress()` over that space's rows in the batch, and the footer's
   "N opened, M failed", "Clear failed" and whether that line shows at all with
   `batchResult()` (issue #67).
-- **What is tested where.** `startSaving()`, `chipState()`, `openProgress()`, `groupProgress()` and
-  `batchResult()` are tested with Node, the
-  first through the fake `io` with a fake timer and task, including the save it hands `share`. `main.js` (the chip),
+- **An open marks every row it will open "opening"**, the workers a conductor brings along
+  included, and clears only its own marks when it ends: each mark carries the open's
+  number (`startOpen()`, `endOpen()`), and a result lands only on a row its own open still
+  marks (`settleOpen()`); taking rows out of the panel leaves an open's mark to that open
+  (`withoutRows()`). An open is planned over the save with the panel's marks on it
+  (`withMarks()`): a row the panel opened is live at the address it opened at, and one being
+  opened is live with no address, so no open starts a session the panel opened or is opening,
+  and a worker under a conductor another open is still opening fails as its conductor did not
+  open. A space's `Open · N` leaves out the rows this panel
+  marked opened, as "Open all" does, with the same `reopenable()` (issue #68).
+- **What is tested where.** `startSaving()`, `chipState()`, `openProgress()`, `groupProgress()`,
+  `batchResult()`, `startOpen()`, `endOpen()`, `settleOpen()`, `withMarks()`, `withoutRows()` and `groupsOf()` are
+  tested with Node, the first through the fake `io` with a fake timer and task, including the
+  save it hands `share`; `openSessions()` over `withMarks()` goes through the fake `io` too. `main.js` (the chip),
   `panel.js` and `io.js` are covered by `herdr-app check`, which builds the first render
   and does not draw a `Popup`'s content.
 

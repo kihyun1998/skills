@@ -206,6 +206,58 @@ export function openProgress(states, batch) {
 }
 
 /**
+ * An open of the selected entries starting as open number id: every row planOpen will open, the
+ * conductors and workers it brings along included, marked opening by id and added to the batch
+ * under way, or to a new batch when none is. Returns the next { states, batch }.
+ */
+export function startOpen(states, batch, selected, all, id) {
+  const next = new Map(states), keys = openProgress(states, batch) ? new Set(batch) : new Set();
+  for (const n of planOpen(selected, all)) {
+    if (n.skip) continue;
+    keys.add(n.entry.key);
+    next.set(n.entry.key, { at: "opening", open: id });
+  }
+  return { states: next, batch: keys };
+}
+
+/** The states once open number id has ended: the rows it left opening cleared, another open's kept. */
+export function endOpen(states, id) {
+  return new Map([...states].filter(([, s]) => !(s.at === "opening" && s.open === id)));
+}
+
+/**
+ * The entries as an open sees them, with this panel's marks (states maps a key to { at }): a row
+ * marked opened is live at the address it opened at, and one marked opening is live with no
+ * address. planOpen skips both, and a worker under the second fails as its conductor did not open.
+ */
+export function withMarks(entries, states) {
+  return entries.map((e) => {
+    const s = states?.get(e.key);
+    if (s?.at === "opened") return { ...e, live: true, address: s.address ?? e.address };
+    if (s?.at === "opening") return { ...e, live: true, address: null };
+    return e;
+  });
+}
+
+/** The states once open number id has a result for a row: written only where that open still marks the row opening. */
+export function settleOpen(states, id, r) {
+  const s = states.get(r.key);
+  if (s?.at !== "opening" || s.open !== id) return states;
+  const next = new Map(states);
+  next.set(r.key, r.ok ? { at: "opened", address: r.address } : { at: "failed", reason: r.reason });
+  return next;
+}
+
+/** The states once rows are taken out of the panel: their results forgotten, an open's opening mark left to that open. */
+export function withoutRows(states, keys) {
+  const gone = new Set(keys);
+  return new Map([...states].filter(([k, s]) => !gone.has(k) || s.at === "opening"));
+}
+
+/** A row the panel can still open: closed, openable, and not marked opened by this panel. */
+export const reopenable = (e, all, states) => !e.live && openable(e, all) && states?.get(e.key)?.at !== "opened";
+
+/**
  * How the batch's open ended for its rows: { opened, failed }, each a list of keys, or null when no
  * key of the batch is opened or failed. states maps a key to { at }.
  */
@@ -215,8 +267,11 @@ export function batchResult(states, batch) {
   return opened.length || failed.length ? { opened, failed } : null;
 }
 
-/** The panel's groups: one per space, spaces with restorable working sessions first. */
-export function groupsOf(entries) {
+/**
+ * The panel's groups: one per space, spaces with restorable working sessions first. A group's open
+ * is the rows its Open · N opens, the ones reopenable() leaves; states maps a key to { at }.
+ */
+export function groupsOf(entries, states = new Map()) {
   const groups = new Map();
   const roots = entries.filter((e) => !conductorOf(e, entries));
   for (const root of workingFirst(roots)) {
@@ -225,8 +280,8 @@ export function groupsOf(entries) {
     for (const n of tree(root, entries)) groups.get(id).rows.push({ entry: n.entry, worker: n.depth > 0, depth: n.depth });
   }
   const list = [...groups.values()].map((g) => {
-    const restorable = g.rows.filter((r) => !r.entry.live && openable(r.entry, entries));
-    return { ...g, restorable: restorable.length, working: restorable.filter((r) => working(r.entry)).length };
+    const open = g.rows.map((r) => r.entry).filter((e) => reopenable(e, entries, states));
+    return { ...g, open, restorable: open.length, working: open.filter(working).length };
   });
   return list.sort((a, b) => b.working - a.working);
 }

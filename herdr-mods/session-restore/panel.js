@@ -3,7 +3,7 @@
 import { div, svg, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { run, theme, shared, checking } from "herdr";
-import { batchResult, conductorOf, entriesOf, groupProgress, groupsOf, openable, openProgress, planOpen, STALE_MS } from "./logic.js";
+import { batchResult, conductorOf, endOpen, entriesOf, groupProgress, groupsOf, openable, openProgress, reopenable, settleOpen, startOpen, STALE_MS, withMarks, withoutRows } from "./logic.js";
 import { removeEntries } from "./save.js";
 import { openSessions } from "./open.js";
 import { herdrIo, readSave, saveAndShare, SHARED } from "./io.js";
@@ -31,6 +31,7 @@ export default class Sessions {
     this.save = null;
     this.state = new Map();
     this.batch = new Set();
+    this.opens = 0;
     this.hovered = null;
     if (checking()) return;
     // The save on disk, until the chip's first save hands the panel one.
@@ -61,18 +62,14 @@ export default class Sessions {
   }
 
   open(entries, cx) {
-    const all = entriesOf(this.save);
-    // A new batch unless one is still opening; it holds the conductors the entries bring along.
-    if (!this.progress()) this.batch = new Set();
-    for (const n of planOpen(entries, all)) if (!n.skip) this.batch.add(n.entry.key);
-    for (const e of entries) this.state.set(e.key, { at: "opening" });
+    const all = withMarks(entriesOf(this.save), this.state), id = ++this.opens;
+    ({ states: this.state, batch: this.batch } = startOpen(this.state, this.batch, entries, all, id));
     cx.spawn(async (cx) => {
       await openSessions(herdrIo(cx), entries, all, (r) => {
-        this.state.set(r.key, r.ok ? { at: "opened", address: r.address } : { at: "failed", reason: r.reason });
+        this.state = settleOpen(this.state, id, r);
         cx.notify();
       });
-      // Rows still marked opening when the open ends are cleared.
-      for (const [k, s] of this.state) if (s.at === "opening") this.state.delete(k);
+      this.state = endOpen(this.state, id);
       this.saved((await saveAndShare(cx)).save);
       cx.notify();
     });
@@ -82,7 +79,7 @@ export default class Sessions {
   remove(keys, cx) {
     cx.spawn(async (cx) => {
       try { this.save = await removeEntries(herdrIo(cx), keys); } catch {}
-      for (const k of keys) this.state.delete(k);
+      this.state = withoutRows(this.state, keys);
       this.saved((await saveAndShare(cx)).save);
       cx.notify();
     });
@@ -153,8 +150,8 @@ export default class Sessions {
     const save = this.save, entries = entriesOf(save);
     const now = Date.now();
     const stalled = Boolean(summary?.stalled) || (typeof save?.savedAt === "number" && now - save.savedAt > STALE_MS);
-    const restorable = entries.filter((e) => !e.live && openable(e, entries) && this.state.get(e.key)?.at !== "opened");
-    const groups = groupsOf(entries);
+    const restorable = entries.filter((e) => reopenable(e, entries, this.state));
+    const groups = groupsOf(entries, this.state);
     const results = [...this.state.values()];
     const progress = this.progress(), busy = Boolean(progress);
     const ended = batchResult(this.state, this.batch), opened = ended?.opened.length ?? 0, failed = ended?.failed.length ?? 0;
@@ -187,13 +184,12 @@ export default class Sessions {
         .child(restorable.length + (restorable.length === 1 ? " session" : " sessions") + " from before " + (restorable.length === 1 ? "is" : "are") + " closed")));
 
     const groupHeader = (g) => {
-      const open = g.rows.filter((r) => !r.entry.live && openable(r.entry, entries)).map((r) => r.entry);
       const share = groupProgress(g, this.state, this.batch);
       return h_flex().id("sp-" + g.id).h(34).pt(12).pb(4).pl(14).pr(10).gap(6).flex_none().items_center().text_size(11)
         .child(div().truncate().text_size(12).text_color(t.foreground).child(g.name || "not in a space"))
         .when(g.working > 0, (el) => el.child(div().text_color(t.ansi3).child("working " + g.working)))
         .child(div().flex_1())
-        .when(g.restorable > 0 && !busy, (el) => el.child(this.button(t, "open-sp-" + g.id, "Open · " + g.restorable, (cx) => this.open(open, cx), true)))
+        .when(g.restorable > 0 && !busy, (el) => el.child(this.button(t, "open-sp-" + g.id, "Open · " + g.restorable, (cx) => this.open(g.open, cx), true)))
         .when(busy && share.opened > 0, (el) => el.child(div().text_color(t.muted).child(share.opened + "/" + share.total)));
     };
 

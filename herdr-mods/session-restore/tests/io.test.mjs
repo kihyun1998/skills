@@ -3,6 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { saveOnce, savePath, removeEntries, startSaving, SAVE_EVERY_MS } from "../save.js";
 import { openSessions } from "../open.js";
+import { withMarks } from "../logic.js";
 
 const HOME = "C:/Users/U", APP = "C:/Users/U/.config/herdr-app";
 const SPACES = [{ id: "sp1", name: "skills", named: false, folder: "", tabs: [{ id: "tb1", name: "1", named: false }] }];
@@ -374,4 +375,38 @@ test("openSessions runs the renames a missing space needs, after Herdr shows the
   assert.equal(results[0].ok, true);
   // The rename went out once the space was there, not before.
   assert.deepEqual(seen, [["space.rename", { id: "spX", name: "work" }, true]]);
+});
+
+test("an open over withMarks starts a worker under the conductor this panel opened, and does not open that conductor again", async () => {
+  // c1 opened at t81 but the save still lists it closed at t4; w1 failed then.
+  const c = saved({ sessionId: "c1", address: "t4" });
+  const w = saved({ sessionId: "w1", address: "t5", parent: "t4", parentSession: "c1" });
+  const m = machine({ terminals: [{ address: "t4", state: "finished" }, { address: "t81", state: "live", labels: {} }] });
+  const states = new Map([["c1", { at: "opened", address: "t81" }], ["w1", { at: "failed", reason: "x" }]]);
+  const results = await openSessions(m.io, [w], withMarks([c, w], states));
+  assert.deepEqual(results.map((r) => [r.key, r.ok]), [["w1", true]]);
+  const runs = m.calls.filter((a) => a[0] === "run");
+  assert.equal(runs.length, 1);
+  assert.equal(runs[0][runs[0].indexOf("--parent") + 1], "t81");
+});
+
+test("an open over withMarks does not start a worker another open is still opening", async () => {
+  const c = saved({ sessionId: "c1", address: "t4" });
+  const w1 = saved({ sessionId: "w1", address: "t5", parent: "t4", parentSession: "c1" });
+  const w2 = saved({ sessionId: "w2", address: "t6", parent: "t4", parentSession: "c1" });
+  const m = machine({ terminals: [{ address: "t4", state: "live", labels: {} }] });
+  const all = [{ ...c, live: true }, w1, w2];
+  const states = new Map([["w1", { at: "failed", reason: "x" }], ["w2", { at: "opening", open: 1 }]]);
+  const results = await openSessions(m.io, [w1], withMarks(all, states));
+  assert.deepEqual(results.map((r) => [r.key, r.ok]), [["w1", true]]);
+  assert.equal(m.calls.filter((a) => a[0] === "run").length, 1);
+});
+
+test("a worker under a conductor another open is still opening fails as its conductor did not open", async () => {
+  const c = saved({ sessionId: "c1", address: "t4" });
+  const w = saved({ sessionId: "w1", address: "t5", parent: "t4", parentSession: "c1" });
+  const m = machine({ terminals: [] });
+  const results = await openSessions(m.io, [w], withMarks([c, w], new Map([["c1", { at: "opening", open: 1 }]])));
+  assert.deepEqual(results.map((r) => [r.key, r.ok, r.reason]), [["w1", false, "its conductor did not open"]]);
+  assert.equal(m.calls.filter((a) => a[0] === "run" || a[0] === "send").length, 0);
 });
