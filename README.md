@@ -119,15 +119,33 @@ Adding a mod, its layout, and the check every mod passes: [`mods/README.md`](mod
 | --- | --- |
 | [`usage-band`](mods/usage-band/) | Two rows above the prompt in three divided columns, each a head over its gauge: context (model, effort, the prompt cache's hit rate), the 5-hour window (`%/h`, or when it runs out if before the reset, and its reset) and the week (with today's cost and `$/h`). Quiet until something needs saying: colour only for a limit past 80%, a pace that runs out, a cold cache, a heavy day. Replaces the ccusage statusline; see [`docs/environment/usage-band.md`](docs/environment/usage-band.md). |
 
+## Herdr-app mods
+
+`herdr-mods/` holds mods for the Herdr app — JavaScript panels it loads from
+`~/.config/herdr-app/mods/` — and the layouts that place them. They are neither
+skills nor Claude Code mods, and have their own install script, which links them
+and prints the command that switches to a layout, without running it:
+
+```sh
+./scripts/install-herdr-mods.sh    # Git Bash / macOS / Linux; --dry-run
+```
+
+Writing one, clones of Herdr's own mods, and the checks: [`herdr-mods/README.md`](herdr-mods/README.md).
+
+| Mod | What it does |
+| --- | --- |
+| [`session-restore`](herdr-mods/session-restore/) | After a reboot or a core restart, reopens the Claude sessions each terminal held, in place: conductors before their workers, each resumed with its flags and never its task prompt. A Sessions panel beside Files and Changes lists them by space; the tab bar saves the live sessions every minute. Shown by the `session-restore` layout ([ADR-0101](docs/adr/0101-herdr-mods-hold-herdr-app-mods-and-session-restore-is-the-first.md)). |
+
 ## Repo layout
 
 ```
 .
 ├── .claude-plugin/ marketplace.json — generated from mods/ by install-mods; do not edit
-├── scripts/        install scripts — sync.sh runs both: symlink skills, install mods
+├── scripts/        install scripts — sync.sh runs two: symlink skills, install mods; install-herdr-mods.sh runs alone
 ├── docs/agents/    config the Matt Pocock engineering skills read for this repo
 ├── CLAUDE.md       guidance auto-loaded by Claude Code when working in this repo
 ├── <skill>/        one folder per skill, each with a SKILL.md
 ├── mods/           Claude Code mods (hooks plugins), one folder each — see mods/README.md
+├── herdr-mods/     Herdr-app mods and their layouts — see herdr-mods/README.md
 └── retired/        skills no longer installed — not scanned, see retired/README.md
 ```

@@ -406,6 +406,26 @@ call.
 _Avoid_: Open question (implies it is waiting on information; this is waiting on
 a decision), Gap
 
+**Herdr-app mod**:
+A JavaScript panel the Herdr app loads from `~/.config/herdr-app/mods/`, kept in
+`herdr-mods/` with the layouts that place it and linked by
+`scripts/install-herdr-mods.sh` (ADR-0101). It runs inside the Herdr window, not in
+a Claude session.
+_Avoid_: mod alone where a Claude Code mod (`mods/`) could be meant
+
+**Clone** (herdr-mods):
+A copy of one of Herdr's own mods or layouts, kept in the repo and edited there.
+Herdr replaces its own files on every start and never updates a clone, so the
+mod's `clones.json` records the file it came from and the Herdr version.
+_Avoid_: fork, copy (Herdr's own word, `mod.clone`, is the one used)
+
+**Restore list** (session-restore):
+The Claude sessions `session-restore` offers to reopen: the last save of the
+previous run, set aside when the core holder changes (a reboot or a core restart).
+An entry leaves it when it is open again or removed by hand. A session that ended
+while Herdr ran is on it only if it ended after the run's last save.
+_Avoid_: history (there is one save, not a history), backup
+
 **Working location** (path-band):
 Where the agent is working now, as `path-band` shows it: the worktree's name
 inside a worktree, otherwise the repository's name, and the path relative to it.
