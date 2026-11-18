@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, readFileSync, existsSync, chmodSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, readFileSync, existsSync, chmodSync, mkdirSync, readdirSync, lstatSync, rmdirSync, unlinkSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,6 +19,18 @@ case "$1" in
     *) exit 2 ;;
 esac
 `;
+
+// Unlinks the links the script made into this repo, then removes the scratch root.
+function cleanup(root, home) {
+  for (const dir of ['mods', 'layouts'].map((d) => join(home, d)).filter(existsSync)) {
+    for (const name of readdirSync(dir)) {
+      const p = join(dir, name);
+      if (!lstatSync(p).isSymbolicLink()) continue;
+      try { rmdirSync(p); } catch { unlinkSync(p); }
+    }
+  }
+  rmSync(root, { recursive: true, force: true });
+}
 
 function install({ layout, overlays = [], windows, args = [], homeUnset = false }) {
   const root = mkdtempSync(join(tmpdir(), 'herdr-install-'));
@@ -38,12 +50,16 @@ function install({ layout, overlays = [], windows, args = [], homeUnset = false 
     delete env.HERDR_APP_HOME;
     env.HOME = sh(root);
   }
-  const r = spawnSync('bash', ['-c', 'PATH="$(cygpath -u "$BIN" 2>/dev/null || echo "$BIN"):$PATH" exec bash "$0" "$@"', sh(script), ...args], {
-    encoding: 'utf8',
-    env,
-  });
-  assert.equal(r.status, 0, r.stdout + r.stderr);
-  return { out: r.stdout, opened: existsSync(log) ? readFileSync(log, 'utf8').trim() : '' };
+  try {
+    const r = spawnSync('bash', ['-c', 'PATH="$(cygpath -u "$BIN" 2>/dev/null || echo "$BIN"):$PATH" exec bash "$0" "$@"', sh(script), ...args], {
+      encoding: 'utf8',
+      env,
+    });
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    return { out: r.stdout, opened: existsSync(log) ? readFileSync(log, 'utf8').trim() : '' };
+  } finally {
+    cleanup(root, home);
+  }
 }
 
 const notKept = JSON.stringify({ kept: { 'session-restore': {} }, places: {} });
