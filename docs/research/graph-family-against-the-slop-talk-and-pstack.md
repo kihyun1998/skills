@@ -327,7 +327,7 @@ All under the anchor [#71](https://github.com/kihyun1998/skills/issues/71)
 | [#74](https://github.com/kihyun1998/skills/issues/74) | `check-it` (3) proves against the way to the real thing a repository already records | open; ready |
 | [#75](https://github.com/kihyun1998/skills/issues/75) | the comment rule, a per-diff comment check, what the map keeps; the ADR-0076 amendment moved to #79 (2026-11-18) | built as `comment-it` in `8f5cf61` (closes on push); no marker word, #80 Q12 reopened; replay on justpdf on the issue |
 | [#76](https://github.com/kihyun1998/skills/issues/76) | reviewer findings carry their reproduction; reports carry the certainty level | open; ready |
-| [#77](https://github.com/kihyun1998/skills/issues/77) | `make-it` and `check-it` use the property, fuzz and benchmark lanes a repository runs; `benchmark-checklist`'s method in `check-it` (5) | open; ready |
+| [#77](https://github.com/kihyun1998/skills/issues/77) | `make-it` and `check-it` use the property, fuzz and benchmark lanes a repository runs; `benchmark-checklist`'s method as a file `check-it` reads only when a change needs it | built in `00dd86b` (closes on push); replays on the issue |
 | [#78](https://github.com/kihyun1998/skills/issues/78) | whether to bring formal verification in, starting with one trial | open; `needs-grill` |
 | [#79](https://github.com/kihyun1998/skills/issues/79) | how decision records are written and how much they weigh (§M) | open; `needs-grill`; **deferred** 2026-11-18 (§M) |
 | [#80](https://github.com/kihyun1998/skills/issues/80) | `encode-it`: a skill that turns a repeated correction into a check | **closed** 2026-11-18; built as `encode-it` in `59f7a4a`, replay on justssh recorded on the issue; its direct run reads closed issues and rules, not history, after a trial on justssh (`8b39b15`, #80 comment) |
@@ -387,7 +387,7 @@ is read as grounds, not as a rule (#79's comment holds it).
 
 ## N. Open, and not verified
 
-- **`check-it` gathers most of the new work** (2026-11-18): the comment check agent and marker script (#75, #80), the recorded way to the real thing (#74), reproduction and certainty (#76), the property, fuzz and benchmark lanes (#77). Its body was 215 lines then. Whether to split a step was weighed and not done: this repository merged small skills back three times on measured non-use (ADR-0089, ADR-0090, ADR-0092). Re-measure its length and use once those land.
+- **`check-it` gathers most of the new work** (2026-11-18): the comment check agent and marker script (#75, #80), the recorded way to the real thing (#74), reproduction and certainty (#76), the property, fuzz and benchmark lanes (#77). Its body was 215 lines then, 247 after #75 and #77 the same day. Whether to split a step was weighed and not done: this repository merged small skills back three times on measured non-use (ADR-0089, ADR-0090, ADR-0092). Re-measure its length and use once those land.
 
 - **Open for the maintainer, not filed anywhere:** whether to file the stale
   `silt` reference in justrdp's `thegraph.md` in justrdp, and whether other target
