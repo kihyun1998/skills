@@ -323,7 +323,7 @@ All under the anchor [#71](https://github.com/kihyun1998/skills/issues/71)
 | Issue | Subject | State |
 |---|---|---|
 | [#72](https://github.com/kihyun1998/skills/issues/72) | who raises a repeated correction as a check, and what builds it | **closed**; decisions in its closing comment (§I) |
-| [#73](https://github.com/kihyun1998/skills/issues/73) | raise a repeated correction as a check candidate (`ask-it`, `grill-map`, `grill-the-graph`) | open; unblocked (#80 closed 2026-11-18) |
+| [#73](https://github.com/kihyun1998/skills/issues/73) | raise a repeated correction as a check candidate (`ask-it`, `grill-map`, `grill-the-graph`) | open; unblocked (#80 closed 2026-11-18); grilled 2026-11-18 — a `thegraph` signal row catches the moment of correction, a repeat is a correction already written down (decisions on the issue) |
 | [#74](https://github.com/kihyun1998/skills/issues/74) | `check-it` (3) proves against the way to the real thing a repository already records | open; ready |
 | [#75](https://github.com/kihyun1998/skills/issues/75) | the comment rule, a per-diff comment check, what the map keeps; the ADR-0076 amendment moved to #79 (2026-11-18) | built as `comment-it` in `8f5cf61` (closes on push); no marker word, #80 Q12 reopened; replay on justpdf on the issue |
 | [#76](https://github.com/kihyun1998/skills/issues/76) | reviewer findings carry their reproduction; reports carry the certainty level | open; ready |
