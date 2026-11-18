@@ -4,15 +4,13 @@
 // draws it above itself when unfolded.
 import { div, svg, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { run, theme, shared, checking } from "herdr";
-import { batchResult, conductorOf, DEFAULT_SETTINGS, endOpen, entriesOf, groupProgress, groupsOf, keepLive, liveOf, mergeRows, openable, openProgress, overLimit, parseHistory, reopenable, settleOpen, staleAfter, startOpen, withMarks, withoutRows, withRunning } from "./logic.js";
-import { deleteSave, lookAtTerminals, mergeSaves, readHistory, readSettings, removeEntries, writeSettings } from "./save.js";
+import { run, theme, shared, checking, openOverlay, watchFolder, appHome } from "herdr";
+import { batchResult, cleanTitle as clean, conductorOf, DEFAULT_SETTINGS, endOpen, entriesOf, groupProgress, groupsOf, keepLive, liveOf, openable, openProgress, overLimit, parseHistory, reopenable, settleOpen, staleAfter, startOpen, withMarks, withoutRows, withRunning } from "./logic.js";
+import { deleteSaves, lookAtTerminals, readHistory, readSettings, removeEntries, writeSettings } from "./save.js";
 import { openSessions } from "./open.js";
 import { herdrIo, readSave, saveAndShare, SHARED } from "./io.js";
 
 
-// Same as the agents mod: drops what an agent puts before its title (a status glyph).
-const clean = (s) => (s ?? "").replace(/^[^\p{L}\p{N}\p{Ps}\p{Pi}]+/u, "").replace(/^\[ [!.] \] /, "").trim();
 
 const minutes = (n) => (n === 1 ? "minute" : n + " minutes");
 
@@ -46,7 +44,7 @@ export default class Sessions {
     this.lookAt = null;
     this.expanded = null;
     this.picked = [];
-    this.merge = null;
+    this.askDelete = false;
     this.askLimit = null;
     if (checking()) return;
     // The save, history and settings on disk, until the chip's first save hands the panel them.
@@ -57,6 +55,18 @@ export default class Sessions {
       this.history = history;
       this.settings = settings;
       cx.notify();
+    });
+    // The history and settings again whenever the data folder changes: the merge dialog's new save,
+    // a hand edit of the settings.
+    cx.spawn(async (cx) => {
+      const dir = appHome().replace(/[\\/]+$/, "") + "/data";
+      for (;;) {
+        try { await watchFolder(dir); } catch { await cx.sleep(10000); }
+        const io = herdrIo(cx);
+        try { this.history = await readHistory(io); } catch {}
+        try { this.settings = await readSettings(io); } catch {}
+        cx.notify();
+      }
     });
     // Redraws every 30 s for the save's age.
     cx.timer.every(30000, (cx) => cx.notify());
@@ -304,9 +314,8 @@ export default class Sessions {
       .child(on ? "✓" : "");
   }
 
-  // The History tab: past saves, newest first; one opens to its sessions, two ticked can merge.
+  // The History tab: past saves, newest first; one opens to its sessions, ticked ones delete or merge together.
   historyTab(t) {
-    if (this.merge) return this.mergeView(t);
     const saves = this.history.saves, now = Date.now(), live = this.liveNow();
     const what = (sv, i) => {
       if (sv.from) return "merged " + sv.from.join(" + ");
@@ -321,7 +330,8 @@ export default class Sessions {
         .when(open, (el) => el.bg(t.hover)).hover((s) => s.bg(t.hover))
         .on_click((_e, cx) => { this.expanded = open ? null : sv.id; cx.notify(); })
         .child(this.box(t, "pick-" + sv.id, this.picked.includes(sv.id), () => {
-          this.picked = this.picked.includes(sv.id) ? this.picked.filter((p) => p !== sv.id) : [...this.picked, sv.id].slice(-2);
+          this.picked = this.picked.includes(sv.id) ? this.picked.filter((p) => p !== sv.id) : [...this.picked, sv.id];
+          this.askDelete = false;
         }))
         .child(v_flex().flex_1().min_w(0)
           .child(div().text_size(12.8).child("save " + sv.id + (i === 0 ? " · latest" : "")))
@@ -331,7 +341,7 @@ export default class Sessions {
         .child(this.button(t, "del-" + sv.id, "×", (cx) => {
           this.picked = this.picked.filter((p) => p !== sv.id);
           if (this.expanded === sv.id) this.expanded = null;
-          this.changeHistory(cx, (io) => deleteSave(io, sv.id));
+          this.changeHistory(cx, (io) => deleteSaves(io, [sv.id]));
         }));
       if (!open) return [head];
       const all = withRunning(sv.entries.map((e) => ({ ...e, key: e.key ?? e.sessionId })), live);
@@ -340,54 +350,38 @@ export default class Sessions {
     });
     const empty = div().p(16).text_size(12).text_color(t.dim)
       .child("No saves yet. A save is kept here each time the list of open sessions changes.");
-    const two = this.picked.length === 2;
+    const picked = this.picked.filter((id) => saves.some((s) => s.id === id)), n = picked.length;
+    const allOn = n > 0 && n === saves.length;
+    const selectAll = h_flex().id("pick-all").gap(8).items_center().cursor_pointer()
+      .on_click((_e, cx) => { this.picked = allOn ? [] : saves.map((s) => s.id); this.askDelete = false; cx.notify(); })
+      .child(div().size(14).flex_none().rounded(3).border_1().border_color(n ? t.accent : t.input).bg(n ? t.accent : t.background)
+        .text_color(t.background).text_size(10).flex().items_center().justify_center().child(allOn ? "✓" : n ? "–" : ""))
+      .child(div().text_size(11.5).text_color(t.muted).child(n ? n + " selected" : "Select all"));
+    const foot = this.askDelete && n
+      ? h_flex().p(10).gap(8).flex_none().items_center().border_t(1).border_color(t.border)
+        .child(div().flex_1().text_size(12).child("Delete " + n + (n === 1 ? " save?" : " saves?")))
+        .child(this.button(t, "delete-yes", "Delete", (cx) => {
+          const ids = picked;
+          this.picked = [];
+          this.askDelete = false;
+          if (ids.includes(this.expanded)) this.expanded = null;
+          this.changeHistory(cx, (io) => deleteSaves(io, ids));
+        }, true))
+        .child(this.button(t, "delete-no", "Cancel", () => { this.askDelete = false; }))
+      : h_flex().p(10).gap(6).flex_none().items_center().border_t(1).border_color(t.border)
+        .child(selectAll)
+        .child(div().flex_1())
+        .when(n > 0, (el) => el.child(this.button(t, "pick-clear", "Clear", () => { this.picked = []; })))
+        .when(n > 0, (el) => el.child(this.button(t, "delete-picked", "Delete · " + n, () => { this.askDelete = true; })))
+        .when(n > 1, (el) => el.child(this.button(t, "merge", "Merge · " + n, () => this.openMerge(picked), true)));
     return v_flex().size_full().min_h(0)
       .child(saves.length ? v_flex().id("history-list").flex_1().min_h(0).pt(6).pb(8).overflow_y_scrollbar().children(rows) : div().flex_1().child(empty))
-      .child(h_flex().p(10).gap(8).flex_none().items_center().border_t(1).border_color(t.border)
-        .child(div().flex_1().text_size(11.5).text_color(t.muted).child(two ? "save " + [...this.picked].sort((a, b) => a - b).join(" + ") : "Tick two saves to merge them"))
-        .when(two, (el) => el.child(this.button(t, "merge", "Merge", () => { this.merge = { x: this.picked[0], y: this.picked[1], choices: {} }; }, true))));
+      .when(saves.length > 0, (el) => el.child(foot));
   }
 
-  // Merging two saves: each session ticked in or out, and a side picked where they differ.
-  mergeView(t) {
-    const { x, y, choices } = this.merge;
-    const sx = this.history.saves.find((s) => s.id === x), sy = this.history.saves.find((s) => s.id === y);
-    if (!sx || !sy) { this.merge = null; return this.historyTab(t); }
-    const [older, newer] = sx.at <= sy.at ? [sx, sy] : [sy, sx];
-    const rows = mergeRows(sx, sy);
-    const choice = (id) => (choices[id] ??= { include: true, pick: "newer" });
-    const list = rows.map((r) => {
-      const c = choice(r.sessionId), e = r.newer ?? r.older;
-      const where = r.older && r.newer ? (r.differs ? "differs" : "in both") : "only in save " + (r.older ? older.id : newer.id);
-      const side = (pick, sv, en) => div().id("pick-" + pick + "-" + r.sessionId).px(6).pt(2).pb(2).rounded(5).border_1().cursor_pointer().text_size(11).truncate()
-        .border_color(c.pick === pick ? t.accent : t.border).text_color(c.pick === pick ? t.foreground : t.muted)
-        .on_click((_e, cx) => { c.pick = pick; cx.notify(); })
-        .child("save " + sv.id + ": " + [clean(en.title) || en.name || en.address, en.spaceName, en.tabName ? "tab " + en.tabName : null].filter(Boolean).join(" · "));
-      return v_flex().px(12).pt(7).pb(7).gap(4).border_b(1).border_color(t.border)
-        .child(h_flex().gap(8).items_center()
-          .child(this.box(t, "inc-" + r.sessionId, c.include, () => { c.include = !c.include; }))
-          .child(div().flex_1().min_w(0).truncate().text_size(12.8).text_color(c.include ? t.foreground : t.dim).child(clean(e.title) || e.name || e.address))
-          .child(div().flex_none().text_size(11).text_color(r.differs ? t.ansi3 : t.dim).child(where)))
-        .when(r.differs && c.include, (el) => el.child(v_flex().pl(22).gap(4).child(side("older", older, r.older)).child(side("newer", newer, r.newer))));
-    });
-    const n = rows.filter((r) => choice(r.sessionId).include).length;
-    return v_flex().size_full().min_h(0)
-      .child(h_flex().px(12).pt(10).pb(8).gap(6).flex_none().items_center().border_b(1).border_color(t.border)
-        .child(div().font_semibold().child("Merge save " + older.id + " + save " + newer.id))
-        .child(div().flex_1())
-        .child(this.button(t, "merge-cancel", "Cancel", () => { this.merge = null; })))
-      .child(div().px(12).pt(6).pb(6).flex_none().text_size(11.5).text_color(t.muted).child("Tick what goes in. Where a session differs, pick a side. Both saves stay."))
-      .child(v_flex().id("merge-list").flex_1().min_h(0).overflow_y_scrollbar().children(list))
-      .child(h_flex().p(10).flex_none().border_t(1).border_color(t.border)
-        .child(div().id("merge-make").flex_1().h(32).flex().items_center().justify_center().rounded(7).cursor_pointer()
-          .bg(t.solid).text_color(t.solid_foreground).text_size(12.5).font_semibold().hover((s) => s.opacity(0.9))
-          .on_click((_e, cx) => {
-            const pick = Object.fromEntries(Object.entries(choices).map(([k, v]) => [k, { include: v.include, pick: v.pick }]));
-            this.merge = null;
-            this.picked = [];
-            this.changeHistory(cx, (io) => mergeSaves(io, x, y, pick));
-          })
-          .child("Make a new save · " + n + (n === 1 ? " session" : " sessions"))));
+  // The merge opens in a dialog of its own (merge.js).
+  openMerge(ids) {
+    openOverlay({ mod: "session-restore", props: { view: "merge", ids }, kind: "dialog", width: 760, height: 640 });
   }
 
   stepper(t, id, value, set) {
@@ -453,8 +447,8 @@ export default class Sessions {
     const bar = h_flex().px(6).pt(6).flex_none().items_center().border_b(1).border_color(t.border)
       .child(tab("sessions", "Sessions")).child(tab("history", "History · " + this.history.saves.length)).child(tab("settings", "Settings"))
       .child(div().flex_1())
-      .child(icon("refresh", "Refresh: show which sessions are open now (saves nothing)", (cx) => this.refresh(cx), div().text_size(14).child("⟳")))
-      .child(icon("save-now", "Save now", (cx) => this.saveNow(cx), svg("mods/session-restore/sessions.svg").size(14)));
+      .child(icon("refresh", "Refresh: show which sessions are open now (saves nothing)", (cx) => this.refresh(cx), svg("mods/session-restore/refresh.svg").size(14)))
+      .child(icon("save-now", "Save now", (cx) => this.saveNow(cx), svg("mods/session-restore/save.svg").size(14)));
     const body = this.tab === "history" ? this.historyTab(t) : this.tab === "settings" ? this.settingsTab(t) : this.sessionsTab(t);
     return v_flex().id("sessions").size_full().min_h(0).rounded(10).overflow_hidden().bg(t.background).border_1().border_color(t.border)
       .text_color(t.foreground).text_size(13)

@@ -1,7 +1,7 @@
 // The save: the Claude session each live terminal holds, and the restore list, in the app's
 // data folder, with the save history and the settings beside it, and the chip's cadence for it. Side effects go through io ({ hc, read, write,
 // exists, list, spaces, now, home, appHome }).
-import { coreIdentity, isClaude, keptFlags, mergeSnapshots, nextSave, parseHistory, parseSettings, staleAfter, summarize, trimHistory, withSnapshot, withoutSnapshot } from "./logic.js";
+import { coreIdentity, isClaude, keptFlags, mergeSnapshots, nextSave, parseHistory, parseSettings, staleAfter, summarize, trimHistory, withSnapshot, withoutSnapshots } from "./logic.js";
 
 const trimEnd = (path) => String(path).replace(/[\\/]+$/, "");
 
@@ -124,13 +124,13 @@ export async function writeSettings(io, settings) {
   return updateHistory(io, (h) => trimHistory(h, settings.historyLimit));
 }
 
-/** Deletes one save from the history. Returns the history. */
-export const deleteSave = (io, id) => updateHistory(io, (h) => withoutSnapshot(h, id));
+/** Deletes saves from the history by id. Returns the history. */
+export const deleteSaves = (io, ids) => updateHistory(io, (h) => withoutSnapshots(h, ids));
 
-/** Adds a save merged from two in the history (mergeSnapshots). Returns the history. */
-export async function mergeSaves(io, xId, yId, choices) {
+/** Adds a save of the kept sessions from several saves to the history (mergeSnapshots). Returns the history. */
+export async function mergeSaves(io, ids, keep) {
   const { historyLimit } = await readSettings(io);
-  return updateHistory(io, (h) => mergeSnapshots(h, xId, yId, choices, { now: io.now(), limit: historyLimit }));
+  return updateHistory(io, (h) => mergeSnapshots(h, ids, keep, { now: io.now(), limit: historyLimit }));
 }
 
 /** Each live Claude terminal in an hc ls list, with its pid file's text: [{ t, text }], text null when it has none. */

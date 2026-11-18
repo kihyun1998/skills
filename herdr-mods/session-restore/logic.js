@@ -368,36 +368,36 @@ export function withSnapshot(history, entries, { now, limit }) {
   return trimHistory({ ...history, saves: [{ id: nextId(history), at: now, entries }, ...history.saves] }, limit);
 }
 
-/** The history without one save. */
-export const withoutSnapshot = (history, id) => ({ ...history, saves: history.saves.filter((s) => s.id !== id) });
-
-// What tells two records of one session apart in a merge.
-const shape = (e) => JSON.stringify([e.title ?? null, e.spaceName ?? null, e.tabName ?? null, e.labels ?? {}, e.cwd ?? null, e.flags ?? [], e.parentSession ?? null]);
+/** The history without the saves with the given ids. */
+export const withoutSnapshots = (history, ids) => ({ ...history, saves: history.saves.filter((s) => !ids.includes(s.id)) });
 
 /**
- * Every session of two saves once, the older save's first: { sessionId, older, newer, differs },
- * older and newer its entry in each save or null, differs when it is in both and they differ.
+ * Every session of the saves once, newest save first: { entry, in }, entry its record in the newest
+ * save that has it, in the ids of the saves that have it, newest first.
  */
-export function mergeRows(x, y) {
-  const [older, newer] = x.at <= y.at ? [x, y] : [y, x];
-  const ids = [...new Set([...older.entries, ...newer.entries].map((e) => e.sessionId))];
-  return ids.map((sessionId) => {
-    const o = older.entries.find((e) => e.sessionId === sessionId) ?? null, n = newer.entries.find((e) => e.sessionId === sessionId) ?? null;
-    return { sessionId, older: o, newer: n, differs: Boolean(o && n && shape(o) !== shape(n)) };
-  });
+export function mergeSessions(saves) {
+  const rows = new Map();
+  for (const s of [...saves].sort((a, b) => b.at - a.at)) {
+    for (const e of s.entries) {
+      if (!rows.has(e.sessionId)) rows.set(e.sessionId, { entry: e, in: [] });
+      rows.get(e.sessionId).in.push(s.id);
+    }
+  }
+  return [...rows.values()];
 }
 
 /**
- * The history with a new save merged from saves xId and yId, kept to limit. choices maps a session
- * id to { include, pick }: include false leaves it out; pick "older" takes the older save's record
- * where both have it, the newer one's otherwise. The two saves stay.
+ * The history with a new save of the sessions in keep (session ids) from the saves with the given
+ * ids (mergeSessions), kept to limit; the saves stay. The same history when fewer than two of the
+ * saves are there or nothing is kept.
  */
-export function mergeSnapshots(history, xId, yId, choices, { now, limit }) {
-  const x = history.saves.find((s) => s.id === xId), y = history.saves.find((s) => s.id === yId);
-  if (!x || !y) return history;
-  const entries = mergeRows(x, y)
-    .filter((r) => choices?.[r.sessionId]?.include !== false)
-    .map((r) => (choices?.[r.sessionId]?.pick === "older" ? r.older ?? r.newer : r.newer ?? r.older));
-  const from = [x, y].sort((a, b) => a.at - b.at).map((s) => s.id);
+export function mergeSnapshots(history, ids, keep, { now, limit }) {
+  const saves = history.saves.filter((s) => ids.includes(s.id));
+  const entries = mergeSessions(saves).filter((r) => keep.includes(r.entry.sessionId)).map((r) => r.entry);
+  if (saves.length < 2 || !entries.length) return history;
+  const from = saves.map((s) => s.id).sort((a, b) => a - b);
   return trimHistory({ ...history, saves: [{ id: nextId(history), at: now, from, entries }, ...history.saves] }, limit);
 }
+
+/** A terminal title without what an agent puts before it (a status glyph, a [ ! ] mark). */
+export const cleanTitle = (s) => (s ?? "").replace(/^[^\p{L}\p{N}\p{Ps}\p{Pi}]+/u, "").replace(/^\[ [!.] \] /, "").trim();

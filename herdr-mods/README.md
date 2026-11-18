@@ -120,9 +120,13 @@ rewritten for each Herdr version and are the truth about the API.
 - **The history** is in `~/.config/herdr-app/data/session-restore.history.json`,
   newest first. Each save adds `current` to it as save N unless it lists the same
   sessions as the newest one, or none. The History tab opens a save to its
-  sessions, each with Open or Go by what is open now, deletes one with ×, and
-  merges two ticked saves: each session is ticked in or out, and where both saves
-  hold it differently one side is picked. The merge is a new save; the two stay.
+  sessions, each with Open or Go by what is open now, and deletes one with ×.
+  Saves are ticked one by one or all at once; the ticked ones are deleted
+  together (after a confirm) or merged. **Merge** opens a dialog of its own with
+  every session of the ticked saves once, grouped by space, all ticked to start;
+  the ones left ticked become a new save, and the merged saves stay. A session in
+  several saves takes its place (space, tab, flags) from the newest of them. The
+  panel reads the history and settings again whenever the data folder changes.
 - **The settings** are in `~/.config/herdr-app/data/session-restore.settings.json`:
   `saveEveryMinutes` (default 10) and `historyLimit` (default 50; `null` keeps
   every save). The Settings tab writes them; a limit below the number of saves

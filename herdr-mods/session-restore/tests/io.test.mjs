@@ -1,7 +1,7 @@
 // save.js and open.js against a fake hc and file system: run with node --test herdr-mods/session-restore/tests
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { lookAtTerminals, runningSessions, saveOnce, savePath, removeEntries, startSaving, CHECK_EVERY_MS, settingsPath, historyPath, readSettings, writeSettings, readHistory, deleteSave, mergeSaves } from "../save.js";
+import { lookAtTerminals, runningSessions, saveOnce, savePath, removeEntries, startSaving, CHECK_EVERY_MS, settingsPath, historyPath, readSettings, writeSettings, readHistory, deleteSaves, mergeSaves } from "../save.js";
 import { openSessions } from "../open.js";
 import { settleOpen, withMarks } from "../logic.js";
 
@@ -583,14 +583,14 @@ test("readSettings gives the defaults with no file, and writeSettings writes the
   assert.deepEqual(JSON.parse(m.files[settingsPath(APP)]).historyLimit, null);
 });
 
-test("deleteSave and mergeSaves change the history file", async () => {
+test("deleteSaves and mergeSaves change the history file", async () => {
   const saves = [
     { id: 2, at: 20, entries: [{ sessionId: "b", title: "new" }] },
     { id: 1, at: 10, entries: [{ sessionId: "a" }, { sessionId: "b", title: "old" }] },
   ];
   const m = machine({ files: { [historyPath(APP)]: JSON.stringify({ version: 1, saves }) } });
-  const merged = await mergeSaves(m.io, 1, 2, { b: { pick: "older" } });
-  assert.deepEqual(merged.saves[0].entries.map((e) => [e.sessionId, e.title ?? null]), [["a", null], ["b", "old"]]);
-  await deleteSave(m.io, 2);
-  assert.deepEqual((await readHistory(m.io)).saves.map((s) => s.id), [3, 1]);
+  const merged = await mergeSaves(m.io, [1, 2], ["a", "b"]);
+  assert.deepEqual(merged.saves[0].entries.map((e) => [e.sessionId, e.title ?? null]), [["b", "new"], ["a", null]]);
+  await deleteSaves(m.io, [2, 1]);
+  assert.deepEqual((await readHistory(m.io)).saves.map((s) => s.id), [3]);
 });

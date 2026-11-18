@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   keptFlags, nextSave, coreIdentity, planOpen, placement, resumeArgv, shellLine, isClaude, isShell, summarize, linkParents, openable, groupsOf, chipState, openProgress, groupProgress, batchResult, startOpen, endOpen, reopenable, withMarks, settleOpen, withoutRows, keepLive, liveOf, STALE_MS,
-  DEFAULT_SETTINGS, parseSettings, staleAfter, parseHistory, withSnapshot, overLimit, trimHistory, withoutSnapshot, mergeRows, mergeSnapshots, withRunning,
+  DEFAULT_SETTINGS, parseSettings, staleAfter, parseHistory, withSnapshot, overLimit, trimHistory, withoutSnapshots, mergeSessions, mergeSnapshots, withRunning, cleanTitle,
 } from "../logic.js";
 
 const WORKER_ARGV = ["C:\\Users\\User\\.local\\bin\\claude.EXE", "--model", "opus", "--effort", "high", "--dangerously-skip-permissions",
@@ -475,41 +475,46 @@ test("overLimit counts the saves a limit would drop, and trimHistory drops the o
   assert.equal(trimHistory(h, null), h);
 });
 
-test("withoutSnapshot deletes one save by id", () => {
-  const h = { version: 1, saves: [snap(3, 30, ["c"]), snap(2, 20, ["b"])] };
-  assert.deepEqual(withoutSnapshot(h, 3).saves.map((s) => s.id), [2]);
+test("withoutSnapshots deletes the saves with the given ids", () => {
+  const h = { version: 1, saves: [snap(3, 30, ["c"]), snap(2, 20, ["b"]), snap(1, 10, ["a"])] };
+  assert.deepEqual(withoutSnapshots(h, [3]).saves.map((s) => s.id), [2, 1]);
+  assert.deepEqual(withoutSnapshots(h, [3, 1]).saves.map((s) => s.id), [2]);
 });
 
-test("mergeRows lists every session of two saves once, and marks one that differs between them", () => {
-  const older = snap(1, 10, ["a", "b", "c"]);
-  older.entries[1] = live("b", { title: "review", tabName: "2" });
-  const newer = snap(2, 20, ["b", "c", "d"]);
-  newer.entries[0] = live("b", { title: "review round 2", tabName: "3" });
-  const rows = mergeRows(newer, older);
-  assert.deepEqual(rows.map((r) => [r.sessionId, Boolean(r.older), Boolean(r.newer), r.differs]),
-    [["a", true, false, false], ["b", true, true, true], ["c", true, true, false], ["d", false, true, false]]);
-  // Which save is older is read from at, not from the order they are passed in.
-  assert.equal(mergeRows(older, newer)[1].newer.title, "review round 2");
-});
-
-test("mergeSnapshots makes a new save of the ticked sessions, the newer side where they differ unless the older is picked", () => {
+test("mergeSessions lists every session of the saves once, with the newest save's record and the saves it is in", () => {
   const older = snap(1, 10, ["a", "b"]);
-  older.entries[1] = live("b", { title: "old title" });
+  older.entries[1] = live("b", { tabName: "2" });
   const newer = snap(2, 20, ["b", "c"]);
-  newer.entries[0] = live("b", { title: "new title" });
-  const h = { version: 1, saves: [newer, older] };
-  const plain = mergeSnapshots(h, 1, 2, {}, { now: 30, limit: 50 });
-  assert.deepEqual(plain.saves.map((s) => s.id), [3, 2, 1]);
-  assert.deepEqual(plain.saves[0].from, [1, 2]);
-  assert.equal(plain.saves[0].at, 30);
-  assert.deepEqual(plain.saves[0].entries.map((e) => [e.sessionId, e.title ?? null]), [["a", null], ["b", "new title"], ["c", null]]);
-  const picked = mergeSnapshots(h, 2, 1, { a: { include: false }, b: { pick: "older" } }, { now: 30, limit: 50 });
-  assert.deepEqual(picked.saves[0].entries.map((e) => [e.sessionId, e.title ?? null]), [["b", "old title"], ["c", null]]);
+  newer.entries[0] = live("b", { tabName: "3" });
+  const rows = mergeSessions([older, newer]);
+  assert.deepEqual(rows.map((r) => [r.entry.sessionId, r.in]), [["b", [2, 1]], ["c", [2]], ["a", [1]]]);
+  assert.equal(rows[0].entry.tabName, "3");
+});
+
+test("mergeSnapshots makes a new save of the kept sessions from several saves, and the saves stay", () => {
+  const h = { version: 1, saves: [snap(3, 30, ["c"]), snap(2, 20, ["b", "c"]), snap(1, 10, ["a"])] };
+  const next = mergeSnapshots(h, [1, 3, 2], ["a", "c"], { now: 40, limit: 50 });
+  assert.deepEqual(next.saves.map((s) => s.id), [4, 3, 2, 1]);
+  assert.deepEqual(next.saves[0].from, [1, 2, 3]);
+  assert.equal(next.saves[0].at, 40);
+  assert.deepEqual(next.saves[0].entries.map((e) => e.sessionId), ["c", "a"]);
+});
+
+test("mergeSnapshots makes nothing when nothing is kept or fewer than two saves are found", () => {
+  const h = { version: 1, saves: [snap(2, 20, ["b"]), snap(1, 10, ["a"])] };
+  assert.equal(mergeSnapshots(h, [1, 2], [], { now: 30, limit: 50 }), h);
+  assert.equal(mergeSnapshots(h, [1, 9], ["a"], { now: 30, limit: 50 }), h);
 });
 
 test("mergeSnapshots keeps the history limit, the merged save counting as one", () => {
   const h = { version: 1, saves: [snap(2, 20, ["b"]), snap(1, 10, ["a"])] };
-  assert.deepEqual(mergeSnapshots(h, 1, 2, {}, { now: 30, limit: 2 }).saves.map((s) => s.id), [3, 2]);
+  assert.deepEqual(mergeSnapshots(h, [1, 2], ["a", "b"], { now: 30, limit: 2 }).saves.map((s) => s.id), [3, 2]);
+});
+
+test("cleanTitle drops what an agent puts before its title", () => {
+  assert.equal(cleanTitle("✳ fix login"), "fix login");
+  assert.equal(cleanTitle("[ ! ] review"), "review");
+  assert.equal(cleanTitle(null), "");
 });
 
 test("withRunning marks each entry live by what the terminals hold now, at the address that holds it", () => {
