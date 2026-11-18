@@ -231,6 +231,12 @@ when it docked a new mod into the linked layout (seen twice on 2026-11-17).
   install script links the mod folder, prunes the leftover `session-restore` layout link
   as a link whose source is gone, and prints how to open the chip once.
 
+  > **Amended 2026-11-18 (#81).** The install script now opens the chip itself when
+  > `herdr-app status` shows `main` without the chip in its `overlays` and `windows.json`
+  > has no `kept.main.session-restore`;
+  > in every other case it says why and prints the command, as above. It still never
+  > switches layouts.
+
 ### Derived
 
 - **The panel unfolds through gpui-base `Popup`**, anchored by its bottom-right corner to

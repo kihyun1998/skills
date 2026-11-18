@@ -123,8 +123,9 @@ Adding a mod, its layout, and the check every mod passes: [`mods/README.md`](mod
 
 `herdr-mods/` holds mods for the Herdr app — JavaScript panels it loads from
 `~/.config/herdr-app/mods/`. They are neither skills nor Claude Code mods, and
-have their own install script, which links them and prints how to open a mod that
-keeps a window, without opening it:
+have their own install script, which links them and opens a mod that keeps a
+window when the window shows `main` and it is not open there, or else prints how to
+open it:
 
 ```sh
 ./scripts/install-herdr-mods.sh    # Git Bash / macOS / Linux; --dry-run

@@ -23,9 +23,17 @@ app's home), so an edit shows after Herdr starts again.
 Nothing in this repo is a copy of Herdr's own files: Herdr's mods and layouts stay
 as Herdr ships them.
 
-The script never switches layouts and never opens a mod. For a mod whose
-`mod.json` keeps a window, it prints how to open it once
-(`herdr-app do mod.open --name <mod>`, or a `keys.json` line).
+For a mod whose `mod.json` keeps a window, the script opens it
+(`herdr-app do mod.open --name <mod>`) when `herdr-app status` answers with
+`"layout": "main"`, its `"overlays"` do not name the mod, and `windows.json` (in the same
+home) has no `kept.main.<mod>`.
+`mod.open` toggles, and on an open window it closes it, so in every other case
+the script does not run it: it says why (already open, no window, another layout
+shown, no `node` to read them with, or `windows.json` or the status not in a form it reads)
+and prints how to open it once (the command, or a `keys.json` line). It never
+switches layouts. `windows.json` is Herdr's own file, not a documented contract.
+`node --test scripts/install-herdr-mods.test.mjs` checks that decision against a
+fake `herdr-app`.
 
 ## Writing one
 
@@ -56,8 +64,9 @@ rewritten for each Herdr version and are the truth about the API.
 
 ### session-restore
 
-- **The chip** is a Herdr window with `key` and `keep` in its `mod.json`. Open it
-  once on `main`: `herdr-app do mod.open --name session-restore`, or a `keys.json`
+- **The chip** is a Herdr window with `key` and `keep` in its `mod.json`. The
+  install script opens it when the window shows `main`; otherwise open it once on
+  `main`: `herdr-app do mod.open --name session-restore`, or a `keys.json`
   binding such as `"alt-shift-s": "mod.open:session-restore"`. It opens in the middle
   of the window; drag it to a corner and it opens there from then on. Herdr reopens
   it every time it starts and every time that layout shows (kept windows are
