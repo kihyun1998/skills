@@ -102,7 +102,11 @@ rewritten for each Herdr version and are the truth about the API.
   first, and their workers start with `--parent` the conductor's address. A worker
   whose conductor is in neither list cannot be opened; its row offers only ×. A worker
   whose conductor is open now has its own Open. A session counts as opened
-  when its Claude has held the id for 2 seconds; otherwise the row says why.
+  when its Claude has held the id for 2 seconds; otherwise the row says why, and
+  one whose terminal is still starting says so ("still starting at tN"). Before
+  opening, the panel reads which sessions live terminals hold: a session already
+  running is not opened again but shown open at its terminal, and a worker never
+  starts under a terminal that no longer holds its conductor.
 - **Unfolding by itself.** When Herdr starts, the chip's first successful save
   unfolds the panel once if there is something to restore and the panel has not
   unfolded itself on that core holder yet. A core restart with the window open

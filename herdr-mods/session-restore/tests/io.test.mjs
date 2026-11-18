@@ -1,9 +1,9 @@
 // save.js and open.js against a fake hc and file system: run with node --test herdr-mods/session-restore/tests
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { saveOnce, savePath, removeEntries, startSaving, SAVE_EVERY_MS } from "../save.js";
+import { lookAtTerminals, runningSessions, saveOnce, savePath, removeEntries, startSaving, SAVE_EVERY_MS } from "../save.js";
 import { openSessions } from "../open.js";
-import { withMarks } from "../logic.js";
+import { settleOpen, withMarks } from "../logic.js";
 
 const HOME = "C:/Users/U", APP = "C:/Users/U/.config/herdr-app";
 const SPACES = [{ id: "sp1", name: "skills", named: false, folder: "", tabs: [{ id: "tb1", name: "1", named: false }] }];
@@ -55,7 +55,8 @@ function machine({ terminals = [], files = {}, holder = "h1", now = 1_000_000, g
       if (args[0] === "send") { resume(terminals.find((x) => x.address === args[1]), args[2].split(" ")); return ok({ sent: true }); }
       if (args[0] === "run") {
         const address = "t" + (90 + calls.filter((c) => c[0] === "run").length);
-        const t = { address, state: "live", labels: {} };
+        const labels = Object.fromEntries(args.flatMap((a, i) => (a === "--label" ? [args[i + 1].split("=")] : [])));
+        const t = { address, state: "live", labels };
         terminals.push(t);
         resume(t, args.slice(args.indexOf("--") + 1));
         return ok({ address });
@@ -381,7 +382,7 @@ test("an open over withMarks starts a worker under the conductor this panel open
   // c1 opened at t81 but the save still lists it closed at t4; w1 failed then.
   const c = saved({ sessionId: "c1", address: "t4" });
   const w = saved({ sessionId: "w1", address: "t5", parent: "t4", parentSession: "c1" });
-  const m = machine({ terminals: [{ address: "t4", state: "finished" }, { address: "t81", state: "live", labels: {} }] });
+  const m = machine({ terminals: [{ address: "t4", state: "finished" }, claudeTerm("t81", 81)], files: { [pidPath(81)]: pidText("c1") } });
   const states = new Map([["c1", { at: "opened", address: "t81" }], ["w1", { at: "failed", reason: "x" }]]);
   const results = await openSessions(m.io, [w], withMarks([c, w], states));
   assert.deepEqual(results.map((r) => [r.key, r.ok]), [["w1", true]]);
@@ -394,7 +395,7 @@ test("an open over withMarks does not start a worker another open is still openi
   const c = saved({ sessionId: "c1", address: "t4" });
   const w1 = saved({ sessionId: "w1", address: "t5", parent: "t4", parentSession: "c1" });
   const w2 = saved({ sessionId: "w2", address: "t6", parent: "t4", parentSession: "c1" });
-  const m = machine({ terminals: [{ address: "t4", state: "live", labels: {} }] });
+  const m = machine({ terminals: [claudeTerm("t4", 4)], files: { [pidPath(4)]: pidText("c1") } });
   const all = [{ ...c, live: true }, w1, w2];
   const states = new Map([["w1", { at: "failed", reason: "x" }], ["w2", { at: "opening", open: 1 }]]);
   const results = await openSessions(m.io, [w1], withMarks(all, states));
@@ -409,4 +410,107 @@ test("a worker under a conductor another open is still opening fails as its cond
   const results = await openSessions(m.io, [w], withMarks([c, w], new Map([["c1", { at: "opening", open: 1 }]])));
   assert.deepEqual(results.map((r) => [r.key, r.ok, r.reason]), [["w1", false, "its conductor did not open"]]);
   assert.equal(m.calls.filter((a) => a[0] === "run" || a[0] === "send").length, 0);
+});
+
+test("a resume still starting when confirm gives up reads as such, and an open after it does not start a second terminal", async () => {
+  // t91's Claude never writes its pid file while it is watched: the seconds before it does.
+  const e = saved({ sessionId: "s1", address: "t4" });
+  const m = machine({ terminals: [{ address: "t4", state: "finished" }] });
+  const read = m.io.read;
+  m.io.read = async (p) => (p.includes("/.claude/sessions/") ? null : read(p));
+  const first = await openSessions(m.io, [e], [e]);
+  assert.deepEqual(first.map((r) => [r.key, r.ok, r.address]), [["s1", false, "t91"]]);
+  assert.equal(first[0].reason, "still starting at t91, not confirmed within 20 s");
+  const states = settleOpen(new Map([["s1", { at: "opening", open: 1 }]]), 1, first[0], 0);
+  const again = await openSessions(m.io, [e], withMarks([e], states));
+  assert.deepEqual(again.map((r) => [r.key, r.ok, r.address, r.reason]), [["s1", false, "t91", "its terminal runs a Claude that has not shown its session yet"]]);
+  // A third open, after the second failed too, still looks at t91.
+  const after = settleOpen(new Map([["s1", { at: "opening", open: 2 }]]), 2, again[0], 0);
+  const third = await openSessions(m.io, [e], withMarks([e], after));
+  assert.deepEqual(third.map((r) => [r.key, r.ok, r.address]), [["s1", false, "t91"]]);
+  assert.equal(m.calls.filter((a) => a[0] === "run" || a[0] === "send").length, 1);
+});
+
+test("openSessions does not open a session a live terminal already holds, and reports it opened there", async () => {
+  // The save still lists s1 closed at t4, and the panel has no mark for it.
+  const e = saved({ sessionId: "s1", address: "t4" });
+  const m = machine({ terminals: [{ address: "t4", state: "finished" }, claudeTerm("t7", 7)], files: { [pidPath(7)]: pidText("s1") } });
+  const results = await openSessions(m.io, [e], [e]);
+  assert.deepEqual(results.map((r) => [r.key, r.ok, r.address, r.reason]), [["s1", true, "t7", "already running at t7"]]);
+  assert.equal(m.calls.filter((a) => a[0] === "run" || a[0] === "send").length, 0);
+});
+
+test("a worker whose conductor already runs elsewhere starts under that terminal, and the conductor is not opened again", async () => {
+  const c = saved({ sessionId: "c1", address: "t4" });
+  const w = saved({ sessionId: "w1", address: "t5", parent: "t4", parentSession: "c1" });
+  const m = machine({ terminals: [{ address: "t4", state: "finished" }, claudeTerm("t7", 7)], files: { [pidPath(7)]: pidText("c1") } });
+  const results = await openSessions(m.io, [w], [c, w]);
+  assert.deepEqual(results.map((r) => [r.key, r.ok, r.address]), [["c1", true, "t7"], ["w1", true, "t91"]]);
+  const runs = m.calls.filter((a) => a[0] === "run");
+  assert.equal(runs.length, 1);
+  assert.equal(runs[0][runs[0].indexOf("--parent") + 1], "t7");
+});
+
+test("a worker is not started under a conductor the panel marked opened whose terminal no longer holds it", async () => {
+  // After a core restart t81 came back as a shell.
+  const c = saved({ sessionId: "c1", address: "t4" });
+  const w = saved({ sessionId: "w1", address: "t5", parent: "t4", parentSession: "c1" });
+  const m = machine({ terminals: [shellTerm("t81")] });
+  const results = await openSessions(m.io, [w], withMarks([c, w], new Map([["c1", { at: "opened", address: "t81" }]])));
+  assert.deepEqual(results.map((r) => [r.key, r.ok, r.reason]), [["w1", false, "its conductor no longer runs at t81"]]);
+  assert.equal(m.calls.filter((a) => a[0] === "run" || a[0] === "send").length, 0);
+});
+
+test("openSessions opens nothing when it cannot list the terminals to check which sessions run", async () => {
+  const e = saved({ sessionId: "s1", address: "t4" });
+  const m = machine({ terminals: [] });
+  const hc = m.io.hc;
+  m.io.hc = async (args) => (args[0] === "ls" ? { code: 1, stdout: "", stderr: "core not running" } : hc(args));
+  const results = await openSessions(m.io, [e], [e]);
+  assert.deepEqual(results.map((r) => [r.key, r.ok]), [["s1", false]]);
+  assert.match(results[0].reason, /could not check which sessions run: .*core not running/);
+  assert.equal(m.calls.filter((a) => a[0] === "run" || a[0] === "send").length, 0);
+});
+
+test("openSessions sends nothing to a terminal whose Claude holds another session", async () => {
+  const e = saved({ sessionId: "s1", address: "t4" });
+  const m = machine({ terminals: [claudeTerm("t4", 4)], files: { [pidPath(4)]: pidText("s9") } });
+  const results = await openSessions(m.io, [e], [e]);
+  assert.deepEqual(results.map((r) => [r.key, r.ok, r.address, r.reason]), [["s1", false, "t4", "its terminal runs another Claude session"]]);
+  assert.equal(m.calls.filter((a) => a[0] === "run" || a[0] === "send").length, 0);
+});
+
+test("openSessions keeps a blocked row's own reason when it cannot list the terminals", async () => {
+  const w = saved({ sessionId: "w1", address: "t5", parent: "t4", parentSession: "c1" });
+  const m = machine({ terminals: [] });
+  const hc = m.io.hc;
+  m.io.hc = async (args) => (args[0] === "ls" ? { code: 1, stdout: "", stderr: "core not running" } : hc(args));
+  const results = await openSessions(m.io, [w], [w]);
+  assert.deepEqual(results.map((r) => [r.key, r.ok, r.reason]), [["w1", false, "its conductor is not in the restore list"]]);
+});
+
+test("openSessions uses the look at the terminals it is given instead of making its own", async () => {
+  const e = saved({ sessionId: "s1", address: "t4" });
+  const m = machine({ terminals: [{ address: "t4", state: "finished" }] });
+  const results = await openSessions(m.io, [e], [e], () => {}, new Map([["s1", "t7"]]));
+  assert.deepEqual(results.map((r) => [r.key, r.ok, r.address]), [["s1", true, "t7"]]);
+  assert.equal(m.calls.filter((a) => a[0] === "ls" || a[0] === "run").length, 0);
+});
+
+test("lookAtTerminals stamps a look with the time before it lists the terminals", async () => {
+  const m = machine({ terminals: [claudeTerm("t7", 7)], files: { [pidPath(7)]: pidText("s1") } });
+  let clock = 100;
+  m.io.now = () => clock;
+  const hc = m.io.hc;
+  m.io.hc = async (args) => { clock += 50; return hc(args); };
+  const look = await lookAtTerminals(m.io);
+  assert.equal(look.at, 100);
+  assert.deepEqual([...look.running], [["s1", "t7"]]);
+  assert.ok(clock > 100);
+});
+
+test("runningSessions maps each session a live Claude terminal's pid file holds to that terminal", async () => {
+  const m = machine({ terminals: [claudeTerm("t7", 7), claudeTerm("t8", 8), shellTerm("t9"), { ...claudeTerm("t10", 10), state: "finished" }],
+    files: { [pidPath(7)]: pidText("s1"), [pidPath(8)]: "{}", [pidPath(10)]: pidText("s3") } });
+  assert.deepEqual([...(await runningSessions(m.io))], [["s1", "t7"]]);
 });

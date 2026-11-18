@@ -98,6 +98,36 @@ async function update(io, change) {
   }
 }
 
+/** Each live Claude terminal in an hc ls list, with its pid file's text: [{ t, text }], text null when it has none. */
+async function claudeTerminals(io, terminals) {
+  const out = [];
+  for (const listed of terminals) {
+    if (listed.state !== "live" || !/claude/i.test(listed.agent ?? "")) continue;
+    let t;
+    try { t = await hcJson(io, ["get", listed.address, "--json"]); } catch { continue; }
+    if (!isClaude(t.foreground) || t.foreground?.pid == null) continue;
+    out.push({ t, text: await io.read(pidFile(io.home, t.foreground.pid)) });
+  }
+  return out;
+}
+
+/** A look at the terminals: when it started (at, io.now() before the first hc call) and runningSessions' answer. */
+export async function lookAtTerminals(io) {
+  const at = io.now();
+  return { at, running: await runningSessions(io) };
+}
+
+/** The sessions live terminals hold now: session id to the address of the first terminal whose Claude pid file holds it. */
+export async function runningSessions(io) {
+  const { terminals = [] } = await hcJson(io, ["ls", "--json"]);
+  const running = new Map();
+  for (const { t, text } of await claudeTerminals(io, terminals)) {
+    const id = sessionIn(text);
+    if (id && !running.has(id)) running.set(id, t.address);
+  }
+  return running;
+}
+
 /**
  * Looks at every live terminal and writes the save: the Claude sessions alive now, and the restore
  * list (nextSave); a session with no transcript is left out. Returns it with the number of Claude
@@ -115,12 +145,7 @@ export async function saveOnce(io) {
     const { terminals = [] } = await hcJson(io, ["ls", "--json"]);
     const prior = new Map([...(prev?.current ?? []), ...(prev?.restore ?? [])].map((e) => [e.sessionId, e]));
     const observed = [];
-    for (const listed of terminals) {
-      if (listed.state !== "live" || !/claude/i.test(listed.agent ?? "")) continue;
-      let t;
-      try { t = await hcJson(io, ["get", listed.address, "--json"]); } catch { continue; }
-      if (!isClaude(t.foreground) || t.foreground?.pid == null) continue;
-      const text = await io.read(pidFile(io.home, t.foreground.pid));
+    for (const { t, text } of await claudeTerminals(io, terminals)) {
       // No pid file: skipped, and not counted as unreadable.
       if (text === null) continue;
       const { sessionId: id, cwd } = pidInfo(text);

@@ -229,23 +229,42 @@ export function endOpen(states, id) {
  * The entries as an open sees them, with this panel's marks (states maps a key to { at }): a row
  * marked opened is live at the address it opened at, and one marked opening is live with no
  * address. planOpen skips both, and a worker under the second fails as its conductor did not open.
+ * A row marked failed stays closed at the address the failed open watched, so the next open looks
+ * at that terminal first.
  */
 export function withMarks(entries, states) {
   return entries.map((e) => {
     const s = states?.get(e.key);
     if (s?.at === "opened") return { ...e, live: true, address: s.address ?? e.address };
     if (s?.at === "opening") return { ...e, live: true, address: null };
+    if (s?.at === "failed" && s.address) return { ...e, address: s.address };
     return e;
   });
 }
 
-/** The states once open number id has a result for a row: written only where that open still marks the row opening. */
-export function settleOpen(states, id, r) {
+/**
+ * The states once open number id has a result for a row: written only where that open still marks
+ * the row opening. An opened mark carries when it landed (now); a failed one the address it watched.
+ */
+export function settleOpen(states, id, r, now) {
   const s = states.get(r.key);
   if (s?.at !== "opening" || s.open !== id) return states;
   const next = new Map(states);
-  next.set(r.key, r.ok ? { at: "opened", address: r.address } : { at: "failed", reason: r.reason });
+  next.set(r.key, r.ok ? { at: "opened", address: r.address, since: now } : { at: "failed", reason: r.reason, ...(r.address ? { address: r.address } : {}) });
   return next;
+}
+
+/** The sessions a save lists live: session id to address. */
+export const liveOf = (save) => new Map((save?.current ?? []).map((e) => [e.sessionId, e.address]));
+
+/**
+ * The states with every opened mark that a look at the terminals made at time at shows gone: one
+ * whose session running (session id to address) does not hold at the mark's address. Other marks,
+ * and opened marks newer than the look, stay.
+ */
+export function keepLive(states, running, at) {
+  if (typeof at !== "number") return states;
+  return new Map([...states].filter(([k, s]) => !(s.at === "opened" && !(s.since > at) && running.get(k) !== s.address)));
 }
 
 /** The states once rows are taken out of the panel: their results forgotten, an open's opening mark left to that open. */

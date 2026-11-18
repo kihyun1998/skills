@@ -102,6 +102,13 @@ two answers given while it was built.
   moment later. A session counts as opened only when the terminal's Claude has held
   the saved id for 2 seconds. Otherwise the row fails, with the last line Claude
   printed.
+
+  > **Amended 2026-11-18 (issue #69).** A row whose terminal is still live with no
+  > session confirmed after 20 seconds no longer reads as an ordinary failure. Its reason is
+  > "still starting at tN, not confirmed within 20 s", apart from the terminal ending or
+  > Claude ending at once, and the panel keeps that terminal's address on the failed row, so
+  > the next open looks at that terminal first and does not start a second one there.
+  > "Amendment (issue #69)" at the end holds the rest.
 - **Worker means the parent terminal is a saved Claude** (`parentSession`), not
   that `parent` is set. A Claude started with `hc run` from a plain shell has a
   parent, and is not a worker. A chain (a worker that started its own) opens from
@@ -316,3 +323,74 @@ On 2026-11-17, Herdr 0.1.16, hc 0.1.21, before this change was built.
 - The chip shows only on the layout it was opened on, and saves only while it is open.
   With the window closed and the core running, sessions started after the last save are
   not in it when a reboot comes, as before.
+
+## Amendment (issue #69): an open checks which sessions run
+
+The maintainer's, on 2026-11-18, in issue #69:
+
+- **A confirm that times out keeps its terminal (option A).** The failed row keeps the
+  address the open watched, and `withMarks()` plans the next open over it as it does an
+  opened row's address. The timeout's reason is its own ("still starting at tN, not
+  confirmed within 20 s"), apart from the terminal ending or Claude ending at once.
+  Rejected: confirming in the background with no limit (one slow row keeps every Open
+  hidden), a pid check right after the timeout (it repeats what `confirm` just saw), and
+  only raising the 20 s limit.
+- **The open checks the result, not the cause.** A View that lost its marks (item 2) and
+  marks left after a core restart (item 3) are guarded against without first measuring
+  whether either happens: before rows are opened, a session a live terminal's Claude pid
+  file holds is not opened, and an opened mark whose terminal is not live or no longer
+  holds that session is dropped.
+
+### Derived
+
+- **Which sessions run is the save's own walk.** `runningSessions()` in `save.js` reads,
+  for each live terminal `hc ls` lists as Claude, the session its pid file holds: session
+  id to address. `saveOnce()` and it share `claudeTerminals()`.
+- **The panel looks before it marks.** `open()` reads which sessions run (`lookAtTerminals()`,
+  stamped with the time before its first hc call), drops the opened marks that look shows
+  gone (`keepLive()`; a mark that landed while the look ran is newer than it and stays), and only then plans, marks rows opening and
+  opens, handing the same look to `openSessions()`. A press while that read runs (about
+  0.6 s at 22 live Claudes, below) does nothing, so two presses cannot plan over the same
+  marks.
+- **A closed row whose session already runs reads opened there.** `openSessions()` does not
+  open it. The row reads opened at the terminal that holds it, with "already running at
+  tN", and a worker under it starts with that terminal as `--parent`. A failed row would
+  have offered Open and "Clear failed" for a session that is open.
+- **A row read as live counts as live only where its session runs.** A worker under a
+  conductor the save or a mark shows live, but no terminal holds, fails with "its conductor
+  no longer runs at tN". No worker starts under a dead or reused address. A worker under a
+  conductor another open is still opening starts under it once that conductor's pid file
+  holds its id; before that it fails as its conductor did not open.
+- **A failed row keeps the address it was tried at** on every failure, not only on a
+  timeout, so a third open after two failures still looks at the same terminal. At that
+  terminal a Claude whose pid file holds no session yet reads "its terminal runs a Claude
+  that has not shown its session yet", and one holding another session reads "its
+  terminal runs another Claude session".
+- **When the terminals cannot be listed, nothing is opened.** Every row the open would
+  have opened fails with "could not check which sessions run: …".
+- **Each save drops the opened marks it shows gone too** (`keepLive()` over `liveOf(save)`),
+  so a stale mark frees its row within a minute even when nobody presses Open. A mark is
+  judged only by a look made after it landed (its `since`), so a save already under way
+  when the mark landed cannot drop it.
+- **What is tested where.** `keepLive()`, `liveOf()`, `settleOpen()` and `withMarks()` with
+  Node; `openSessions()`'s check, the timeout and the retries after it, and
+  `runningSessions()` and `lookAtTerminals()` through the fake `io`, whose `hc run` now sets the `--label` values
+  it is given. `panel.js`'s `open()` and `saved()` are covered by `herdr-app check`.
+
+### Measured
+
+- On 2026-11-18, against the live hc core, read-only (`hc ls`, `hc get` and pid files;
+  nothing sent): `runningSessions()` mapped 22 sessions to 22 live Claude terminals with 23
+  hc calls, in 593 and 570 ms.
+
+### Not covered
+
+- The seconds before a new Claude writes its pid file (accepted). A second open in that
+  window is stopped only where the panel still marks the row: opening (the row reads live,
+  so it is skipped) or failed (the open looks at the terminal it tried first). A View that
+  lost its marks in that window can start a second terminal.
+- A terminal the look cannot read counts as holding no session: one whose `hc get` fails,
+  one `hc ls` does not list as Claude yet, or one whose pid file has no session id. Whether
+  either happens on a live terminal is not measured.
+- Whether Claude writes its pid file before a startup dialog or a large transcript load is
+  not measured.

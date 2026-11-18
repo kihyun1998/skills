@@ -3,8 +3,8 @@
 import { div, svg, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { run, theme, shared, checking } from "herdr";
-import { batchResult, conductorOf, endOpen, entriesOf, groupProgress, groupsOf, openable, openProgress, reopenable, settleOpen, startOpen, STALE_MS, withMarks, withoutRows } from "./logic.js";
-import { removeEntries } from "./save.js";
+import { batchResult, conductorOf, endOpen, entriesOf, groupProgress, groupsOf, keepLive, liveOf, openable, openProgress, reopenable, settleOpen, startOpen, STALE_MS, withMarks, withoutRows } from "./logic.js";
+import { lookAtTerminals, removeEntries } from "./save.js";
 import { openSessions } from "./open.js";
 import { herdrIo, readSave, saveAndShare, SHARED } from "./io.js";
 
@@ -32,6 +32,7 @@ export default class Sessions {
     this.state = new Map();
     this.batch = new Set();
     this.opens = 0;
+    this.checking = false;
     this.hovered = null;
     if (checking()) return;
     // The save on disk, until the chip's first save hands the panel one.
@@ -44,9 +45,14 @@ export default class Sessions {
     cx.timer.every(30000, (cx) => cx.notify());
   }
 
-  /** The save the chip's last save left: the one it wrote, or the last good one when it failed. */
+  /**
+   * The save the chip's last save left: the one it wrote, or the last good one when it failed. The
+   * opened marks it shows gone are dropped (keepLive).
+   */
   saved(save) {
-    if (save) this.save = save;
+    if (!save) return;
+    this.save = save;
+    this.state = keepLive(this.state, liveOf(save), save.savedAt);
   }
 
   /** The open under way: { opened, total }, or null when none is. */
@@ -61,14 +67,24 @@ export default class Sessions {
     });
   }
 
+  // Reads which sessions run, drops the opened marks that shows gone, then marks and opens. A press
+  // while that read runs does nothing.
   open(entries, cx) {
-    const all = withMarks(entriesOf(this.save), this.state), id = ++this.opens;
-    ({ states: this.state, batch: this.batch } = startOpen(this.state, this.batch, entries, all, id));
+    if (this.checking) return;
+    this.checking = true;
     cx.spawn(async (cx) => {
-      await openSessions(herdrIo(cx), entries, all, (r) => {
-        this.state = settleOpen(this.state, id, r);
+      const io = herdrIo(cx);
+      let look = null;
+      try { look = await lookAtTerminals(io); } catch {}
+      this.checking = false;
+      if (look) this.state = keepLive(this.state, look.running, look.at);
+      const all = withMarks(entriesOf(this.save), this.state), id = ++this.opens;
+      ({ states: this.state, batch: this.batch } = startOpen(this.state, this.batch, entries, all, id));
+      cx.notify();
+      await openSessions(io, entries, all, (r) => {
+        this.state = settleOpen(this.state, id, r, Date.now());
         cx.notify();
-      });
+      }, look?.running ?? null);
       this.state = endOpen(this.state, id);
       this.saved((await saveAndShare(cx)).save);
       cx.notify();

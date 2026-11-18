@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  keptFlags, nextSave, coreIdentity, planOpen, placement, resumeArgv, shellLine, isClaude, isShell, summarize, linkParents, openable, groupsOf, chipState, openProgress, groupProgress, batchResult, startOpen, endOpen, reopenable, withMarks, settleOpen, withoutRows, STALE_MS,
+  keptFlags, nextSave, coreIdentity, planOpen, placement, resumeArgv, shellLine, isClaude, isShell, summarize, linkParents, openable, groupsOf, chipState, openProgress, groupProgress, batchResult, startOpen, endOpen, reopenable, withMarks, settleOpen, withoutRows, keepLive, liveOf, STALE_MS,
 } from "../logic.js";
 
 const WORKER_ARGV = ["C:\\Users\\User\\.local\\bin\\claude.EXE", "--model", "opus", "--effort", "high", "--dangerously-skip-permissions",
@@ -348,8 +348,8 @@ test("an open planned over withMarks leaves out the rows this panel opened or an
 
 test("settleOpen writes a result only to a row its own open still marks, so another open stays under way", () => {
   const states = new Map([["a", { at: "opening", open: 1 }], ["b", { at: "opening", open: 2 }]]);
-  const one = settleOpen(states, 1, { key: "a", ok: true, address: "t9" });
-  assert.deepEqual(one.get("a"), { at: "opened", address: "t9" });
+  const one = settleOpen(states, 1, { key: "a", ok: true, address: "t9" }, 7);
+  assert.deepEqual(one.get("a"), { at: "opened", address: "t9", since: 7 });
   const stray = settleOpen(one, 1, { key: "b", ok: false, reason: "late" });
   assert.deepEqual(stray.get("b"), { at: "opening", open: 2 });
   assert.deepEqual(openProgress(stray, new Set(["a", "b"])), { opened: 1, total: 2 });
@@ -365,4 +365,36 @@ test("withoutRows forgets the removed rows' results and leaves an open's opening
   // Open 2 is still under way, and its own end clears the mark.
   assert.deepEqual(openProgress(next, new Set(["b"])), { opened: 0, total: 1 });
   assert.equal(endOpen(next, 2).has("b"), false);
+});
+
+test("settleOpen keeps the address a failed open watched, and withMarks plans over it as an opened row's address", () => {
+  const states = settleOpen(new Map([["a", { at: "opening", open: 1 }]]), 1, { key: "a", ok: false, address: "t91", reason: "still starting" }, 5);
+  assert.deepEqual(states.get("a"), { at: "failed", reason: "still starting", address: "t91" });
+  const [e] = withMarks([{ key: "a", sessionId: "a", address: "t4", live: false }], states);
+  assert.deepEqual([e.live, e.address], [false, "t91"]);
+});
+
+test("settleOpen stamps an opened mark with when it landed", () => {
+  const states = settleOpen(new Map([["a", { at: "opening", open: 1 }]]), 1, { key: "a", ok: true, address: "t9" }, 5);
+  assert.deepEqual(states.get("a"), { at: "opened", address: "t9", since: 5 });
+});
+
+test("keepLive drops an opened mark a later look does not show held at its address, and keeps the rest", () => {
+  const states = new Map([
+    ["gone", { at: "opened", address: "t1", since: 10 }],
+    ["moved", { at: "opened", address: "t2", since: 10 }],
+    ["here", { at: "opened", address: "t3", since: 10 }],
+    ["fresh", { at: "opened", address: "t4", since: 30 }],
+    ["opening", { at: "opening", open: 1 }],
+    ["failed", { at: "failed", reason: "x", address: "t6" }],
+    ["unstamped", { at: "opened", address: "t7" }],
+  ]);
+  const save = { savedAt: 20, current: [{ sessionId: "moved", address: "t9" }, { sessionId: "here", address: "t3" }], restore: [] };
+  assert.deepEqual([...keepLive(states, liveOf(save), save.savedAt).keys()], ["here", "fresh", "opening", "failed"]);
+  assert.equal(keepLive(states, new Map(), undefined), states);
+});
+
+test("liveOf maps each session a save lists live to its address", () => {
+  assert.deepEqual([...liveOf({ current: [{ sessionId: "a", address: "t1" }], restore: [{ sessionId: "b", address: "t2" }] })], [["a", "t1"]]);
+  assert.deepEqual([...liveOf(null)], []);
 });
