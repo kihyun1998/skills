@@ -63,7 +63,8 @@ something to compare it against, is a defect. A shape nobody measured is a
 question, and it is asked as one. **Read [benchmark.md](benchmark.md) when** the
 change claims a performance effect, a review flags a possible slowdown, or the
 repository's build guidance names the path as needing a benchmark; otherwise it
-is not read.
+is not read. The review runs beside this check, so where its finding is the first
+to flag a slowdown, run (5) again with the method once it arrives.
 
 **A prose change runs 7 and 8 — plus 2, where it added or moved a file — and
 nothing else.** There are no gates to run, no round trip to prove, no code for the
