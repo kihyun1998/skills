@@ -231,7 +231,7 @@ Route: <prose or code>
 What this issue is, as confirmed: <①>
 What this change does and leaves alone, as confirmed: <②>
 What the earlier workers changed that bears on this: <or "nothing">
-Corrections received so far in this run: <each with whether it was a repeat, or "none">
+Corrections received so far in this run, which hold for this work too: <each with whether it was a repeat, or "none">
 Earlier attempts at this issue: <or "none": what each tried and why it fell short>
 Left in the tree for you: <or "nothing": the files the person handed over>
 Report file: <its report file>
