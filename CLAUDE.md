@@ -63,6 +63,13 @@ what-clause and a Use-when clause — and the numbers that still bind — how th
 catalog compares to three others, and four things measured and disproved — and
 nothing else.
 
+### Replaying a skill in a target repository
+
+A replay that proves a skill here against a target repository leaves what it
+finds there as evidence on this repository's issue; it files nothing and commits
+nothing in the target repository. A finding there is for a run inside that
+repository to raise.
+
 ### Domain docs
 
 Single-context: one `GLOSSARY.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
