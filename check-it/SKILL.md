@@ -22,7 +22,7 @@ a waste, so it goes first.
 | 2 | Did the files land where the rule said they would | — | the change added or moved a file |
 | 3 | Does it work against something real | — | the change compiles or runs |
 | 4 | Does the code hold up, and does it do what was asked | the reviewer, a fresh agent | ” — always; a skip is reported with its reason |
-| 5 | Will it get slower | — | the change adds state, loops, or I/O |
+| 5 | Will it get slower | `benchmark.md`, when it applies | the change adds state, loops, or I/O |
 | 6 | Is it open to somebody who means harm | the same reviewer | as 4 |
 | 7 | What is missing | `lens`, in a fresh agent | always; a skip is reported with its reason |
 | 8 | Which surfaces now describe it wrongly | `sweep` | always |
@@ -32,8 +32,13 @@ a waste, so it goes first.
 list its guidance names where CI gates nothing, plus whatever those do not
 reach. Run each one **bare**: no pipe, no `| tail`, no filter, since a
 pipeline's exit status is the last command's and a red check reads green
-through it. Read every result. Never move a threshold, narrow a scope or bypass
-a hook to turn one green, and report a check not run, with why. **The same
+through it. Read every result. **The repository's own property, fuzz and
+benchmark lanes are part of the list**, nightly-only ones included: reproduce
+them locally, as long as the repository's own workflow runs them. A fuzz lane
+never ends by itself, so it is the kept inputs replayed, or the time the
+workflow gives it. A benchmark has no pass or fail of its own, so it is read
+through (5). Never move a threshold, narrow a scope or bypass a hook to turn
+one green, and report a check not run, with why. **The same
 failure surviving three fixes stops the repairs** and goes to a person as a
 design question.
 
@@ -55,7 +60,10 @@ decided** (a record settled it; one line). A clean answer is a result.
 
 **Cost (5)**: no defect without a number. A slowdown that was measured, with
 something to compare it against, is a defect. A shape nobody measured is a
-question, and it is asked as one.
+question, and it is asked as one. **Read [benchmark.md](benchmark.md) when** the
+change claims a performance effect, a review flags a possible slowdown, or the
+repository's build guidance names the path as needing a benchmark; otherwise it
+is not read.
 
 **A prose change runs 7 and 8 — plus 2, where it added or moved a file — and
 nothing else.** There are no gates to run, no round trip to prove, no code for the
@@ -107,6 +115,13 @@ Two traps, both of which look green:
   normalised by the thing it grades, or a measurement that misreads itself the
   same way the code does, agrees with anything. Nothing lists this project's
   own; name each one **in the decision record it belongs to** as you meet it.
+
+**A lane the repository already runs is something real**, unless it takes its
+expected value from the code it grades. A fuzz target or property that covers
+the changed code, run against the change, or a kept input replayed against it,
+is evidence a hand-written example is not. Where the change added a case to such
+a lane, check that it was watched failing (`make-it`); where it touched covered
+code and added none, say so.
 
 **The strongest proof runs in a real consumer.** Link this build into something
 that actually uses it and run **its** suite. The best evidence there is a

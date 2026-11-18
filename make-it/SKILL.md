@@ -38,6 +38,17 @@ clipboard, scroll, DOM, IPC — through **injected seams**, and assert against
 *structural* types the real thing already satisfies. The logic under test depends
 on no infrastructure, which is the whole reason it can be tested at a seam at all.
 
+**Where a property, a fuzz target or a kept-input corpus already covers the code
+being changed, the change extends it**: a new input class gets a property case or
+a kept input, beside the example test. A bug fix counts: the input it is
+about is a new class. The repository already runs that lane, and an example test
+alone leaves the lane blind to it. Where nothing covers the code, nothing is
+added; introducing a lane is a scope call, and scope is the maintainer's. The
+new case is watched failing like any other test, below. Where the lane cannot
+run here (a fuzz target on a nightly toolchain or another OS), add the kept
+input or the property case the lane can take, say that the case was not watched
+failing and the lane was not run, and never report it as run.
+
 **Then watch every test you write or change fail**, and every fixture, golden,
 snapshot and guard. This is the one thing `tdd` does not do: **a green from a
 test nobody ever watched fail is not evidence.**
