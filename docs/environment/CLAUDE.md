@@ -16,7 +16,7 @@
 - Prose for people follows the repository's writing guide (`VOICE.md`, `docs/writing.md` and the like) where there is one, and these lines where there is none. Reread it against that guide before handing it over.
 - When a design or a screen is being decided, build a prototype first instead of describing it.
 - Findings and progress worth keeping go in repository docs or an issue, where another session can pick them up, not in memory, `CLAUDE.md`/`AGENTS.md` or a code comment.
-- A code comment says what the code is. History, the reason for a change, old behaviour and measurements go in the commit message or the docs; where the repository's own comment rule names destinations, it wins.
+- A code comment is a license header, a public API doc comment, a tool directive, an issue or RFC link, or a note on behaviour an outside dependency forces; nothing else. Where the repository's own rule says otherwise, it wins.
 - Before a run that holds my machine for long, or one that takes the screen or keyboard, agree with me where and when it runs.
 - When the GitHub REST rate limit is hit, go around it with `gh api graphql` instead of stopping.
 - When something I assert seems to need checking, ask whether to check it. Do not simply agree, and do not stop to research on your own; I will ask too when I want it checked.
