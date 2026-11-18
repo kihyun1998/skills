@@ -8,7 +8,7 @@ description: "Put everything that has been carried in front of a person, once, a
 Everything the earlier steps carried instead of acting on arrives here: the
 sibling signal, the gap nobody could confirm, the defect seen in passing, the
 patch that stood in for a deeper fix, the finding the adversarial read could not
-settle, what the release will oblige.
+settle, the correction the person made, what the release will oblige.
 
 **This is the only door.** Nothing reaches a tracker without a person having been
 asked, and nothing may evaporate into a pull-request body or a code comment on
@@ -65,6 +65,8 @@ plain text is right.
 | Kind | What the reader is being asked |
 |---|---|
 | something to **file** — a defect, a follow-up, a deferral | file it, or drop it |
+| a **check candidate** — a repeated correction a check could hold, carried with where it was already written, or a constraint taken out of a comment | file it as an issue that `/thegraph` builds through `make-it` and `encode-it`, or drop it |
+| a **first correction** to record as a rule — carried with where the rule would go and a draft line | write the line there as drafted or reworded and commit it before the push, or drop it |
 | something to **decide** — an adversarial finding the sources could not settle, a patch standing in for a deeper fix | a judgement, not a filing |
 | something that belongs to **another repository** — a defect in the method itself rather than in this code | it is filed elsewhere, and this repository is the wrong tracker to search |
 | something the **release will oblige** | consumer work, dated by a release that has not happened |

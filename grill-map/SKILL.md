@@ -495,5 +495,5 @@ rules want an issue per hole; filing is the maintainer's.
 script, a loop that judges covered or not, a checker the repo lacks (step 4
 follows each link by hand) are not this run's to write, even when asked whether
 something can be checked: the closing report names the check, what it would
-test and the miss it would have caught, and building it is the maintainer's. A
-map checker is never one of them (ADR-0083).
+test and the miss it would have caught, written as an item in the form `ask-it`
+takes so it can be filed. A map checker is never one of them (ADR-0083).

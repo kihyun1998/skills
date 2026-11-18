@@ -325,7 +325,8 @@ fetches it), Source class (the build's term for what `reference` fetches)
 
 **Candidate** (thegraph):
 Anything headed for the maintainer's batch — a deferral, a lens's residue, a
-follow-up, an unreproduced observation. Never filed unasked, and presented with
+follow-up, an unreproduced observation, a correction the person made (a check
+candidate when it repeats, a rule to record when it is the first). Never filed unasked, and presented with
 every **Column** filled. In a cluster run it takes one answer that settles its
 filing, scope and timing together (ADR-0089).
 _Avoid_: Finding (grill-code's term for a pre-scoring scan hit; here a finding is

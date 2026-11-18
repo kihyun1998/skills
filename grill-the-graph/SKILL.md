@@ -513,10 +513,15 @@ consecutive changes has stated a standing preference, not three per-change calls
 **Wait for the repeat**: a question asked before anything has repeated is a
 question nobody can answer, and condition 2 is what it fails.
 
+**Once it has repeated, ask first whether a check can hold the answer** — a
+structure, a type, a lint, a test. Where one can, it goes to `ask-it` as a check
+candidate, for `encode-it` to build once kept; a line is written here only where
+the answer is a judgement no check can hold.
+
 ## What this never writes
 
-- **Generated scripts or agents.** A `code` check is a command a run is told to
-  run, not a program committed to the repo.
+- **Generated scripts or agents.** Setup produces none as its own output; the
+  hook contributor mode writes only calls a script this skill ships.
 - **A build stamp.** Nothing here is compiled from the catalog, so nothing here
   falls behind it.
 - **A copy of anything the repo states** — command lists, surface lists, record
