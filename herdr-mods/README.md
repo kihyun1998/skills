@@ -60,7 +60,7 @@ rewritten for each Herdr version and are the truth about the API.
 
 | Mod | What it does |
 | --- | --- |
-| [`session-restore`](session-restore/) | Saves which Claude session each terminal holds, every minute, and after a reboot or a core restart reopens them in place. It shows as a chip, a small kept window on the layout it was opened on, dragged to a corner once; pressed, the chip unfolds the Sessions panel above itself. See below. |
+| [`session-restore`](session-restore/) | Saves which Claude session each terminal holds, every 10 minutes by default, keeps a history of past saves, and after a reboot or a core restart reopens them in place. It shows as a chip, a small kept window on the layout it was opened on, dragged to a corner once; pressed, the chip unfolds the Sessions panel above itself. See below. |
 
 ### session-restore
 
@@ -77,13 +77,14 @@ rewritten for each Herdr version and are the truth about the API.
 - **The chip's label** is green `⟲ N` with N sessions saved, amber `복원할 세션 N`
   when something can be restored, red `save 멈춤` when the save stalled (failed,
   unreadable pid files, sessions whose transcript could not be looked for, or older
-  than 3 minutes), `여는 중 · k/N` while sessions reopen, and `save 없음` before the
+  than three save intervals), `여는 중 · k/N` while sessions reopen, and `save 없음` before the
   first save. Red wins over amber. Pressed without moving, the chip unfolds the
-  Sessions panel above itself; pressed again, it folds it. A press that moves drags
+  Sessions panel above itself and refreshes it; pressed again, it folds it. A press that moves drags
   the chip.
 - **The save** is in `~/.config/herdr-app/data/session-restore.json`. `current` is the
-  Claude sessions alive at the last save, replaced each minute. The chip runs the
-  save, one at a time; the panel's button runs it at once, and so does the
+  Claude sessions alive at the last save, replaced at each save. The chip runs the
+  save, one at a time, once at start and then every `saveEveryMinutes` (it looks each
+  minute whether one is due); the panel's button runs it at once, and so does the
   `session-restore.save` command, which a `keys.json` binding can send (none is installed). For each live terminal whose foreground is Claude, it reads
   `~/.claude/sessions/<pid>.json` for the session id, and records the terminal's
   name, parent, folder, space and tab, title, status and Claude flags. The task
@@ -107,6 +108,21 @@ rewritten for each Herdr version and are the truth about the API.
   opening, the panel reads which sessions live terminals hold: a session already
   running is not opened again but shown open at its terminal, and a worker never
   starts under a terminal that no longer holds its conductor.
+- **The panel** has three tabs: Sessions (the save's sessions, as above),
+  History and Settings. Its ⟳ button and every unfold **refresh** it: they read
+  which sessions live terminals hold now and show that, saving nothing, so a
+  session closed since the last save shows `closed` with Open instead of
+  `● open`.
+- **The history** is in `~/.config/herdr-app/data/session-restore.history.json`,
+  newest first. Each save adds `current` to it as save N unless it lists the same
+  sessions as the newest one, or none. The History tab opens a save to its
+  sessions, each with Open or Go by what is open now, deletes one with ×, and
+  merges two ticked saves: each session is ticked in or out, and where both saves
+  hold it differently one side is picked. The merge is a new save; the two stay.
+- **The settings** are in `~/.config/herdr-app/data/session-restore.settings.json`:
+  `saveEveryMinutes` (default 10) and `historyLimit` (default 50; `null` keeps
+  every save). The Settings tab writes them; a limit below the number of saves
+  asks before it deletes the oldest. A hand edit applies at the chip's next check.
 - **Unfolding by itself.** When Herdr starts, the chip's first successful save
   unfolds the panel once if there is something to restore and the panel has not
   unfolded itself on that core holder yet. A core restart with the window open

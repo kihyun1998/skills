@@ -1,16 +1,20 @@
-// Sessions: the Claude sessions the save holds, grouped by space, to open again in place or
-// take out of the save. The chip (main.js) draws it above itself when unfolded.
+// Sessions: three tabs. Sessions is the Claude sessions the save holds, grouped by space, to open
+// again in place or take out of the save; History is the past saves, to look into, open from,
+// delete and merge; Settings is the save interval and the history limit. The chip (main.js)
+// draws it above itself when unfolded.
 import { div, svg, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { run, theme, shared, checking } from "herdr";
-import { batchResult, conductorOf, endOpen, entriesOf, groupProgress, groupsOf, keepLive, liveOf, openable, openProgress, reopenable, settleOpen, startOpen, STALE_MS, withMarks, withoutRows } from "./logic.js";
-import { lookAtTerminals, removeEntries } from "./save.js";
+import { batchResult, conductorOf, DEFAULT_SETTINGS, endOpen, entriesOf, groupProgress, groupsOf, keepLive, liveOf, mergeRows, openable, openProgress, overLimit, parseHistory, reopenable, settleOpen, staleAfter, startOpen, withMarks, withoutRows, withRunning } from "./logic.js";
+import { deleteSave, lookAtTerminals, mergeSaves, readHistory, readSettings, removeEntries, writeSettings } from "./save.js";
 import { openSessions } from "./open.js";
 import { herdrIo, readSave, saveAndShare, SHARED } from "./io.js";
 
 
 // Same as the agents mod: drops what an agent puts before its title (a status glyph).
 const clean = (s) => (s ?? "").replace(/^[^\p{L}\p{N}\p{Ps}\p{Pi}]+/u, "").replace(/^\[ [!.] \] /, "").trim();
+
+const minutes = (n) => (n === 1 ? "minute" : n + " minutes");
 
 function ago(ms) {
   const s = Math.max(0, Math.round(ms / 1000));
@@ -34,11 +38,24 @@ export default class Sessions {
     this.opens = 0;
     this.checking = false;
     this.hovered = null;
+    this.tab = "sessions";
+    this.history = parseHistory(null);
+    this.settings = { ...DEFAULT_SETTINGS };
+    // The last refresh: session id to address, and when it looked.
+    this.running = null;
+    this.lookAt = null;
+    this.expanded = null;
+    this.picked = [];
+    this.merge = null;
+    this.askLimit = null;
     if (checking()) return;
-    // The save on disk, until the chip's first save hands the panel one.
+    // The save, history and settings on disk, until the chip's first save hands the panel them.
     cx.spawn(async (cx) => {
-      const save = await readSave();
+      const io = herdrIo(cx);
+      const [save, history, settings] = await Promise.all([readSave(), readHistory(io), readSettings(io)]);
       this.save ??= save;
+      this.history = history;
+      this.settings = settings;
       cx.notify();
     });
     // Redraws every 30 s for the save's age.
@@ -49,10 +66,40 @@ export default class Sessions {
    * The save the chip's last save left: the one it wrote, or the last good one when it failed. The
    * opened marks it shows gone are dropped (keepLive).
    */
-  saved(save) {
+  saved(save, history) {
+    if (history) this.history = history;
     if (!save) return;
     this.save = save;
     this.state = keepLive(this.state, liveOf(save), save.savedAt);
+  }
+
+  /**
+   * Refresh: looks at which sessions live terminals hold now and shows that, saving nothing. The
+   * settings are read again too, as the file may have been edited by hand.
+   */
+  refresh(cx) {
+    cx.spawn(async (cx) => {
+      const io = herdrIo(cx);
+      try {
+        const look = await lookAtTerminals(io);
+        this.running = look.running;
+        this.lookAt = look.at;
+        this.state = keepLive(this.state, look.running, look.at);
+      } catch {}
+      try { this.settings = await readSettings(io); } catch {}
+      cx.notify();
+    });
+  }
+
+  /** Which sessions are open: the last refresh when it is newer than the save, else the save. */
+  liveNow() {
+    return this.lookAt != null && this.lookAt > (this.save?.savedAt ?? 0) ? this.running : liveOf(this.save);
+  }
+
+  /** The save's entries, live as liveNow() has them. */
+  entries() {
+    const all = entriesOf(this.save);
+    return this.lookAt != null && this.lookAt > (this.save?.savedAt ?? 0) ? withRunning(all, this.running) : all;
   }
 
   /** The open under way: { opened, total }, or null when none is. */
@@ -62,14 +109,29 @@ export default class Sessions {
 
   saveNow(cx) {
     cx.spawn(async (cx) => {
-      this.saved((await saveAndShare(cx)).save);
+      const { save, history } = await saveAndShare(cx);
+      this.saved(save, history);
       cx.notify();
     });
   }
 
+  // A history change on disk, then the history shown.
+  changeHistory(cx, change) {
+    cx.spawn(async (cx) => {
+      try { this.history = await change(herdrIo(cx)); } catch {}
+      cx.notify();
+    });
+  }
+
+  setSettings(next, cx) {
+    this.settings = next;
+    this.askLimit = null;
+    this.changeHistory(cx, (io) => writeSettings(io, next));
+  }
+
   // Reads which sessions run, drops the opened marks that shows gone, then marks and opens. A press
   // while that read runs does nothing.
-  open(entries, cx) {
+  open(entries, cx, allOf = () => this.entries()) {
     if (this.checking) return;
     this.checking = true;
     cx.spawn(async (cx) => {
@@ -78,7 +140,8 @@ export default class Sessions {
       try { look = await lookAtTerminals(io); } catch {}
       this.checking = false;
       if (look) this.state = keepLive(this.state, look.running, look.at);
-      const all = withMarks(entriesOf(this.save), this.state), id = ++this.opens;
+      if (look) { this.running = look.running; this.lookAt = look.at; }
+      const all = withMarks(allOf(), this.state), id = ++this.opens;
       ({ states: this.state, batch: this.batch } = startOpen(this.state, this.batch, entries, all, id));
       cx.notify();
       await openSessions(io, entries, all, (r) => {
@@ -86,7 +149,8 @@ export default class Sessions {
         cx.notify();
       }, look?.running ?? null);
       this.state = endOpen(this.state, id);
-      this.saved((await saveAndShare(cx)).save);
+      const { save, history } = await saveAndShare(cx);
+      this.saved(save, history);
       cx.notify();
     });
     cx.notify();
@@ -96,7 +160,8 @@ export default class Sessions {
     cx.spawn(async (cx) => {
       try { this.save = await removeEntries(herdrIo(cx), keys); } catch {}
       this.state = withoutRows(this.state, keys);
-      this.saved((await saveAndShare(cx)).save);
+      const { save, history } = await saveAndShare(cx);
+      this.saved(save, history);
       cx.notify();
     });
   }
@@ -114,39 +179,38 @@ export default class Sessions {
     if (s?.at === "opening") return div().text_size(11).text_color(t.ansi3).child("opening…");
     if (s?.at === "failed") return div().id("why-" + e.key).text_size(11).text_color(t.ansi1).tooltip(s.reason ?? "").child("failed");
     if (e.live) return div().text_size(11).text_color(t.ansi2).child("● open");
+    if (this.lookAt != null) return div().text_size(11).text_color(t.dim).child("closed");
     return div().size(7).mx(3).flex_none().rounded(4).bg(e.status === "working" ? t.ansi3 : t.dim);
   }
 
-  row(t, e, depth, all) {
+  // A session row. In a history save (from set) there is no ×, and Open opens against that save's list.
+  row(t, e, depth, all, from = null) {
     const worker = depth > 0;
     const s = this.state.get(e.key);
     const title = clean(e.title) || e.name || e.address;
     const tab = e.tabNamed ? e.tabName : e.tabName ? "tab " + e.tabName : null;
-    const was = e.live ? "open" : e.status ? "was " + e.status : null;
+    const was = e.live ? "open" : "closed" + (e.status ? " · was " + e.status : "");
     const tag = model(e);
-    const hovered = this.hovered === e.key;
+    const hovered = this.hovered === (from ? "h" + from + "-" : "") + e.key;
     const actions = () => {
       if (e.live || s?.at === "opened") {
         const address = s?.address ?? e.address;
         return [this.button(t, "go-" + e.key, "Go", () => run("agent.focus", { terminal: address }), true)];
       }
-      const remove = this.button(t, "rm-" + e.key, "×", (cx) => this.remove([e.key], cx));
-      if (worker && openable(e, all) && conductorOf(e, all)?.live) return [this.button(t, "open-" + e.key, "Open", (cx) => this.open([e], cx), true), remove];
-      if (worker && openable(e, all)) return [div().px(6).text_size(11).text_color(t.dim).child("with its conductor"), remove];
-      if (!openable(e, all)) return [
-        div().px(6).text_size(11).text_color(t.dim).child("conductor not in the list"),
-        this.button(t, "rm-" + e.key, "×", (cx) => this.remove([e.key], cx)),
-      ];
-      return [
-        this.button(t, "open-" + e.key, "Open", (cx) => this.open([e], cx), true),
-        this.button(t, "rm-" + e.key, "×", (cx) => this.remove([e.key], cx)),
-      ];
+      const id = (from ? "h" + from + "-" : "") + e.key;
+      const remove = from ? [] : [this.button(t, "rm-" + id, "×", (cx) => this.remove([e.key], cx))];
+      const open = (cx) => (from ? this.open([e], cx, () => all) : this.open([e], cx));
+      if (worker && openable(e, all) && conductorOf(e, all)?.live) return [this.button(t, "open-" + id, "Open", open, true), ...remove];
+      if (worker && openable(e, all)) return [div().px(6).text_size(11).text_color(t.dim).child("with its conductor"), ...remove];
+      if (!openable(e, all)) return [div().px(6).text_size(11).text_color(t.dim).child("conductor not in the list"), ...remove];
+      return [this.button(t, "open-" + id, "Open", open, true), ...remove];
     };
-    return h_flex().id("row-" + e.key).h(worker ? 38 : 44).pl(14 + depth * 26).pr(8).mx(6).gap(9).flex_none().items_center().rounded(7)
+    const rowId = (from ? "h" + from + "-" : "") + e.key;
+    return h_flex().id("row-" + rowId).h(worker ? 38 : 44).pl(14 + depth * 26).pr(8).mx(6).gap(9).flex_none().items_center().rounded(7)
       .hover((st) => st.bg(t.hover))
       .on_hover((on, cx) => {
-        if (on) this.hovered = e.key;
-        else if (this.hovered === e.key) this.hovered = null;
+        if (on) this.hovered = rowId;
+        else if (this.hovered === rowId) this.hovered = null;
         cx.notify();
       })
       .tooltip(((e.flags ?? []).join(" ") || "no flags") + " · " + (e.cwd ?? ""))
@@ -160,12 +224,13 @@ export default class Sessions {
       .children(hovered && s?.at !== "opening" ? actions() : [this.mark(t, e)]);
   }
 
-  render(cx) {
-    const t = theme();
+  // The Sessions tab: the save's sessions, live as the last refresh saw them.
+  sessionsTab(t) {
     const summary = shared(SHARED) ?? null;
-    const save = this.save, entries = entriesOf(save);
+    const save = this.save, entries = this.entries();
     const now = Date.now();
-    const stalled = Boolean(summary?.stalled) || (typeof save?.savedAt === "number" && now - save.savedAt > STALE_MS);
+    const every = this.settings.saveEveryMinutes;
+    const stalled = Boolean(summary?.stalled) || (typeof save?.savedAt === "number" && now - save.savedAt > staleAfter(every));
     const restorable = entries.filter((e) => reopenable(e, entries, this.state));
     const groups = groupsOf(entries, this.state);
     const results = [...this.state.values()];
@@ -185,16 +250,12 @@ export default class Sessions {
           ? "Could not read " + summary.unreadable + " session id(s). A Claude Code update may have changed its session files. The last good save is kept."
           : summary?.unchecked
             ? "Could not look for the transcripts of " + summary.unchecked + " session(s) in ~/.claude/projects. They are saved anyway, and may have no conversation to reopen."
-            : "Nothing has saved for a while. The chip saves every minute while it is open."
+            : "Nothing has saved for a while. The chip saves every " + minutes(every) + " while it is open."
       : null;
 
-    const header = v_flex().px(14).pt(12).pb(10).flex_none().border_b(1).border_color(t.border)
-      .child(h_flex().gap(8).items_center()
-        .child(div().font_semibold().child("Sessions"))
-        .child(div().flex_1())
-        .child(div().id("save-now").p(4).rounded(5).cursor_pointer().text_color(t.muted).hover((s) => s.bg(t.hover).text_color(t.foreground))
-          .tooltip("Save now").on_click((_e, cx) => this.saveNow(cx)).child(svg("mods/session-restore/sessions.svg").size(14))))
-      .child(div().mt(3).text_size(11.5).child(saveLine))
+    const checked = this.lookAt != null ? " · checked " + ago(now - this.lookAt) : "";
+    const header = v_flex().px(14).pt(10).pb(10).flex_none().border_b(1).border_color(t.border)
+      .child(h_flex().gap(4).text_size(11.5).child(saveLine).child(div().text_color(t.dim).child(checked)))
       .when(Boolean(why), (el) => el.child(div().mt(8).text_size(12).text_color(t.ansi1).child(why)))
       .when(restorable.length > 0 && !busy && !results.length, (el) => el.child(div().mt(8).text_size(12).text_color(t.ansi3)
         .child(restorable.length + (restorable.length === 1 ? " session" : " sessions") + " from before " + (restorable.length === 1 ? "is" : "are") + " closed")));
@@ -213,8 +274,8 @@ export default class Sessions {
       .children(groups.flatMap((g) => [groupHeader(g), ...g.rows.map((r) => this.row(t, r.entry, r.depth, entries))]));
 
     const empty = div().p(16).text_size(12).text_color(t.dim).child(save
-      ? "Nothing is saved. Claude sessions show up here within a minute of starting."
-      : "No sessions saved yet. Claude sessions show up here within a minute of starting.");
+      ? "Nothing is saved. Claude sessions show up here at the next save, or press Save now."
+      : "No sessions saved yet. Claude sessions show up here at the next save, or press Save now.");
 
     const foot = restorable.length > 0 && !busy
       ? h_flex().p(10).flex_none().border_t(1).border_color(t.border)
@@ -230,10 +291,174 @@ export default class Sessions {
             (cx) => this.remove(ended.failed, cx))))
         : null;
 
-    return v_flex().id("sessions").size_full().min_h(0).rounded(10).overflow_hidden().bg(t.background).border_1().border_color(t.border)
-      .text_color(t.foreground).text_size(13)
+    return v_flex().size_full().min_h(0)
       .child(header)
       .child(entries.length ? list : empty)
       .when(Boolean(foot), (el) => el.child(foot));
+  }
+
+  box(t, id, on, action) {
+    return div().id(id).size(14).flex_none().rounded(3).border_1().border_color(on ? t.accent : t.input)
+      .bg(on ? t.accent : t.background).text_color(t.background).text_size(10).flex().items_center().justify_center()
+      .cursor_pointer().on_click((_e, cx) => { cx.stop_propagation(); action(cx); cx.notify(); })
+      .child(on ? "✓" : "");
+  }
+
+  // The History tab: past saves, newest first; one opens to its sessions, two ticked can merge.
+  historyTab(t) {
+    if (this.merge) return this.mergeView(t);
+    const saves = this.history.saves, now = Date.now(), live = this.liveNow();
+    const what = (sv, i) => {
+      if (sv.from) return "merged " + sv.from.join(" + ");
+      const prev = saves[i + 1];
+      if (!prev) return null;
+      const a = new Set(prev.entries.map((e) => e.sessionId)), b = new Set(sv.entries.map((e) => e.sessionId));
+      return "+" + [...b].filter((k) => !a.has(k)).length + " −" + [...a].filter((k) => !b.has(k)).length;
+    };
+    const rows = saves.flatMap((sv, i) => {
+      const open = this.expanded === sv.id;
+      const head = h_flex().id("save-" + sv.id).h(42).px(10).mx(6).gap(8).flex_none().items_center().rounded(7).cursor_pointer()
+        .when(open, (el) => el.bg(t.hover)).hover((s) => s.bg(t.hover))
+        .on_click((_e, cx) => { this.expanded = open ? null : sv.id; cx.notify(); })
+        .child(this.box(t, "pick-" + sv.id, this.picked.includes(sv.id), () => {
+          this.picked = this.picked.includes(sv.id) ? this.picked.filter((p) => p !== sv.id) : [...this.picked, sv.id].slice(-2);
+        }))
+        .child(v_flex().flex_1().min_w(0)
+          .child(div().text_size(12.8).child("save " + sv.id + (i === 0 ? " · latest" : "")))
+          .child(div().truncate().text_size(11).text_color(t.dim)
+            .child([ago(now - sv.at), sv.entries.length + (sv.entries.length === 1 ? " session" : " sessions"), what(sv, i)].filter(Boolean).join(" · "))))
+        .child(div().text_color(t.dim).child(open ? "▾" : "▸"))
+        .child(this.button(t, "del-" + sv.id, "×", (cx) => {
+          this.picked = this.picked.filter((p) => p !== sv.id);
+          if (this.expanded === sv.id) this.expanded = null;
+          this.changeHistory(cx, (io) => deleteSave(io, sv.id));
+        }));
+      if (!open) return [head];
+      const all = withRunning(sv.entries.map((e) => ({ ...e, key: e.key ?? e.sessionId })), live);
+      const marked = withMarks(all, this.state);
+      return [head, ...groupsOf(marked, this.state).flatMap((g) => g.rows.map((r) => div().pl(14).child(this.row(t, r.entry, r.depth, marked, sv.id))))];
+    });
+    const empty = div().p(16).text_size(12).text_color(t.dim)
+      .child("No saves yet. A save is kept here each time the list of open sessions changes.");
+    const two = this.picked.length === 2;
+    return v_flex().size_full().min_h(0)
+      .child(saves.length ? v_flex().id("history-list").flex_1().min_h(0).pt(6).pb(8).overflow_y_scrollbar().children(rows) : div().flex_1().child(empty))
+      .child(h_flex().p(10).gap(8).flex_none().items_center().border_t(1).border_color(t.border)
+        .child(div().flex_1().text_size(11.5).text_color(t.muted).child(two ? "save " + [...this.picked].sort((a, b) => a - b).join(" + ") : "Tick two saves to merge them"))
+        .when(two, (el) => el.child(this.button(t, "merge", "Merge", () => { this.merge = { x: this.picked[0], y: this.picked[1], choices: {} }; }, true))));
+  }
+
+  // Merging two saves: each session ticked in or out, and a side picked where they differ.
+  mergeView(t) {
+    const { x, y, choices } = this.merge;
+    const sx = this.history.saves.find((s) => s.id === x), sy = this.history.saves.find((s) => s.id === y);
+    if (!sx || !sy) { this.merge = null; return this.historyTab(t); }
+    const [older, newer] = sx.at <= sy.at ? [sx, sy] : [sy, sx];
+    const rows = mergeRows(sx, sy);
+    const choice = (id) => (choices[id] ??= { include: true, pick: "newer" });
+    const list = rows.map((r) => {
+      const c = choice(r.sessionId), e = r.newer ?? r.older;
+      const where = r.older && r.newer ? (r.differs ? "differs" : "in both") : "only in save " + (r.older ? older.id : newer.id);
+      const side = (pick, sv, en) => div().id("pick-" + pick + "-" + r.sessionId).px(6).pt(2).pb(2).rounded(5).border_1().cursor_pointer().text_size(11).truncate()
+        .border_color(c.pick === pick ? t.accent : t.border).text_color(c.pick === pick ? t.foreground : t.muted)
+        .on_click((_e, cx) => { c.pick = pick; cx.notify(); })
+        .child("save " + sv.id + ": " + [clean(en.title) || en.name || en.address, en.spaceName, en.tabName ? "tab " + en.tabName : null].filter(Boolean).join(" · "));
+      return v_flex().px(12).pt(7).pb(7).gap(4).border_b(1).border_color(t.border)
+        .child(h_flex().gap(8).items_center()
+          .child(this.box(t, "inc-" + r.sessionId, c.include, () => { c.include = !c.include; }))
+          .child(div().flex_1().min_w(0).truncate().text_size(12.8).text_color(c.include ? t.foreground : t.dim).child(clean(e.title) || e.name || e.address))
+          .child(div().flex_none().text_size(11).text_color(r.differs ? t.ansi3 : t.dim).child(where)))
+        .when(r.differs && c.include, (el) => el.child(v_flex().pl(22).gap(4).child(side("older", older, r.older)).child(side("newer", newer, r.newer))));
+    });
+    const n = rows.filter((r) => choice(r.sessionId).include).length;
+    return v_flex().size_full().min_h(0)
+      .child(h_flex().px(12).pt(10).pb(8).gap(6).flex_none().items_center().border_b(1).border_color(t.border)
+        .child(div().font_semibold().child("Merge save " + older.id + " + save " + newer.id))
+        .child(div().flex_1())
+        .child(this.button(t, "merge-cancel", "Cancel", () => { this.merge = null; })))
+      .child(div().px(12).pt(6).pb(6).flex_none().text_size(11.5).text_color(t.muted).child("Tick what goes in. Where a session differs, pick a side. Both saves stay."))
+      .child(v_flex().id("merge-list").flex_1().min_h(0).overflow_y_scrollbar().children(list))
+      .child(h_flex().p(10).flex_none().border_t(1).border_color(t.border)
+        .child(div().id("merge-make").flex_1().h(32).flex().items_center().justify_center().rounded(7).cursor_pointer()
+          .bg(t.solid).text_color(t.solid_foreground).text_size(12.5).font_semibold().hover((s) => s.opacity(0.9))
+          .on_click((_e, cx) => {
+            const pick = Object.fromEntries(Object.entries(choices).map(([k, v]) => [k, { include: v.include, pick: v.pick }]));
+            this.merge = null;
+            this.picked = [];
+            this.changeHistory(cx, (io) => mergeSaves(io, x, y, pick));
+          })
+          .child("Make a new save · " + n + (n === 1 ? " session" : " sessions"))));
+  }
+
+  stepper(t, id, value, set) {
+    return h_flex().gap(4).items_center()
+      .child(this.button(t, id + "-minus", "−", (cx) => set(value - 1, cx)))
+      .child(div().w(40).h(24).flex().items_center().justify_center().rounded(6).border_1().border_color(t.border).text_size(12.5).child(String(value)))
+      .child(this.button(t, id + "-plus", "+", (cx) => set(value + 1, cx)));
+  }
+
+  chips(t, id, values, current, label, set) {
+    return h_flex().gap(4).children(values.map((n) =>
+      div().id(id + "-" + n).px(8).h(22).flex().items_center().rounded_full().border_1().cursor_pointer().text_size(11.5)
+        .border_color(current === n ? t.accent : t.border).text_color(current === n ? t.accent : t.muted)
+        .on_click((_e, cx) => set(n, cx)).child(label(n))));
+  }
+
+  // The Settings tab: the save interval in minutes and how many saves the history keeps.
+  settingsTab(t) {
+    const s = this.settings, count = this.history.saves.length;
+    const every = (n, cx) => this.setSettings({ ...s, saveEveryMinutes: Math.max(1, Math.min(1440, n)) }, cx);
+    // A lower limit that would drop saves asks first.
+    const limit = (n, cx) => {
+      const next = { ...s, historyLimit: n == null ? null : Math.max(1, n) };
+      if (overLimit(this.history, next.historyLimit) > 0) { this.askLimit = next; cx.notify(); return; }
+      this.setSettings(next, cx);
+    };
+    const ask = this.askLimit;
+    const section = (title) => div().text_size(12.5).font_semibold().child(title);
+    return v_flex().id("settings").size_full().min_h(0).p(14).gap(10).overflow_y_scrollbar()
+      .child(section("Auto save"))
+      .child(h_flex().gap(10).items_center()
+        .child(div().text_size(12.5).text_color(t.muted).child("Every"))
+        .child(this.stepper(t, "every", s.saveEveryMinutes, every))
+        .child(div().text_size(12).text_color(t.muted).child("min")))
+      .child(this.chips(t, "every-p", [5, 10, 15, 30, 60], s.saveEveryMinutes, (n) => n + "m", every))
+      .child(div().text_size(11.5).text_color(t.dim).child("A save goes into History only when the list of open sessions changed. Refresh never saves."))
+      .child(div().h(1).mt(4).mb(4).bg(t.border))
+      .child(section("History"))
+      .child(h_flex().gap(10).items_center()
+        .child(div().text_size(12.5).text_color(t.muted).child("Keep"))
+        .when(s.historyLimit != null, (el) => el.child(this.stepper(t, "limit", s.historyLimit, limit)).child(div().text_size(12).text_color(t.muted).child("saves")))
+        .when(s.historyLimit == null, (el) => el.child(div().text_size(12.5).child("every save")))
+        .child(div().flex_1())
+        .child(this.button(t, "limit-toggle", s.historyLimit == null ? "Set a limit" : "No limit",
+          (cx) => limit(s.historyLimit == null ? DEFAULT_SETTINGS.historyLimit : null, cx))))
+      .child(div().text_size(11.5).text_color(t.dim).child(count + (count === 1 ? " save" : " saves") + " now"))
+      .when(Boolean(ask), (el) => el.child(v_flex().mt(4).p(10).gap(8).rounded(7).border_1().border_color(t.ansi3)
+        .child(div().text_size(12.5).child("Keep only the newest " + ask.historyLimit + " saves?"))
+        .child(div().text_size(11.5).text_color(t.muted).child(overLimit(this.history, ask.historyLimit) + " older saves will be deleted."))
+        .child(h_flex().gap(6)
+          .child(this.button(t, "limit-yes", "Keep the newest " + ask.historyLimit, (cx) => this.setSettings(ask, cx), true))
+          .child(this.button(t, "limit-no", "Cancel", () => { this.askLimit = null; })))))
+      .child(div().mt(6).text_size(11).text_color(t.dim).child("Stored in ~/.config/herdr-app/data/session-restore.settings.json"));
+  }
+
+  render(cx) {
+    const t = theme();
+    const tab = (id, label) => div().id("tab-" + id).px(10).h(30).flex().items_center().cursor_pointer().text_size(12.5)
+      .border_b(2).border_color(this.tab === id ? t.accent : t.background).text_color(this.tab === id ? t.foreground : t.muted)
+      .on_click((_e, cx) => { this.tab = id; cx.notify(); }).child(label);
+    const icon = (id, tip, action, child) => div().id(id).p(4).rounded(5).cursor_pointer().text_color(t.muted)
+      .hover((s) => s.bg(t.hover).text_color(t.foreground)).tooltip(tip).on_click((_e, cx) => action(cx)).child(child);
+    const bar = h_flex().px(6).pt(6).flex_none().items_center().border_b(1).border_color(t.border)
+      .child(tab("sessions", "Sessions")).child(tab("history", "History · " + this.history.saves.length)).child(tab("settings", "Settings"))
+      .child(div().flex_1())
+      .child(icon("refresh", "Refresh: show which sessions are open now (saves nothing)", (cx) => this.refresh(cx), div().text_size(14).child("⟳")))
+      .child(icon("save-now", "Save now", (cx) => this.saveNow(cx), svg("mods/session-restore/sessions.svg").size(14)));
+    const body = this.tab === "history" ? this.historyTab(t) : this.tab === "settings" ? this.settingsTab(t) : this.sessionsTab(t);
+    return v_flex().id("sessions").size_full().min_h(0).rounded(10).overflow_hidden().bg(t.background).border_1().border_color(t.border)
+      .text_color(t.foreground).text_size(13)
+      .child(bar)
+      .child(div().flex_1().min_h(0).child(body));
   }
 }

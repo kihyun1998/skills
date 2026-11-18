@@ -3,7 +3,7 @@
 import { View, div } from "gpui-kit";
 import { h_flex, v_flex, Popup } from "gpui-base";
 import { theme, props, shared, closeOverlay, nextCommand, checking } from "herdr";
-import { chipState } from "./logic.js";
+import { chipState, staleAfter } from "./logic.js";
 import { startSaving } from "./save.js";
 import { herdrIo, shareSummary, SHARED } from "./io.js";
 import Sessions from "./panel.js";
@@ -26,9 +26,9 @@ export default class SessionRestore extends View {
     if (checking()) return;
     this.saver = startSaving(herdrIo(cx), {
       every: (ms, fn) => cx.timer.every(ms, fn),
-      spawn: (cx, job) => cx.spawn(async (cx) => { await job(); cx.notify(); }),
-      share: (summary, save) => { this.savedAt = Date.now(); this.panel.saved(save); shareSummary(summary); },
-      unfold: () => { this.open = true; },
+      spawn: (cx, job) => cx.spawn(async (cx) => { await job(cx); cx.notify(); }),
+      share: (summary, save, history) => { this.savedAt = Date.now(); this.panel.saved(save, history); shareSummary(summary); },
+      unfold: (cx) => { this.open = true; if (cx) this.panel.refresh(cx); },
     }, cx);
     // "close" closes the chip for good (its kept entry goes with it); "save" saves now.
     cx.spawn(async (cx) => {
@@ -44,7 +44,8 @@ export default class SessionRestore extends View {
 
   render(cx) {
     const t = theme();
-    const { label, dot } = chipState(shared(SHARED) ?? null, this.panel.progress(), Date.now() - this.savedAt);
+    const stale = staleAfter(this.panel.settings.saveEveryMinutes);
+    const { label, dot } = chipState(shared(SHARED) ?? null, this.panel.progress(), Date.now() - this.savedAt, stale);
     // A press that does not move toggles the panel; one that moves is Herdr dragging the window.
     const chip = h_flex().id("chip").h(28).px(11).gap(7).flex_none().items_center().rounded_full()
       .bg(t.surface).border_1().border_color(t.border).shadow_md()
@@ -55,6 +56,8 @@ export default class SessionRestore extends View {
         this.down = null;
         if (!d || Math.hypot(e.position.x - d.x, e.position.y - d.y) > PRESS_SLOP) return;
         this.open = !this.open;
+        // Unfolding refreshes: the panel shows which sessions are open now, saving nothing.
+        if (this.open && !checking()) this.panel.refresh(cx);
         cx.notify();
       })
       .child(div().size(7).flex_none().rounded_full().bg(t[DOT[dot]]))

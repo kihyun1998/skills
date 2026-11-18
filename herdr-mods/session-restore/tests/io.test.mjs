@@ -1,7 +1,7 @@
 // save.js and open.js against a fake hc and file system: run with node --test herdr-mods/session-restore/tests
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { lookAtTerminals, runningSessions, saveOnce, savePath, removeEntries, startSaving, SAVE_EVERY_MS } from "../save.js";
+import { lookAtTerminals, runningSessions, saveOnce, savePath, removeEntries, startSaving, CHECK_EVERY_MS, settingsPath, historyPath, readSettings, writeSettings, readHistory, deleteSave, mergeSaves } from "../save.js";
 import { openSessions } from "../open.js";
 import { settleOpen, withMarks } from "../logic.js";
 
@@ -178,17 +178,47 @@ const fileOf = (m) => JSON.parse(m.files[savePath(APP)]);
 const beforeReboot = (over = {}) => JSON.stringify({ version: 1, core: "h0", savedAt: 1, shownCore: null,
   current: [{ key: "s1", sessionId: "s1", address: "t4", labels: {}, flags: [] }], restore: [], ...over });
 
-test("the chip saves once at start and again each minute", async () => {
+test("the chip saves once at start, then once the set interval has passed, checking each minute", async () => {
   const m = machine();
+  let now = 1_000_000;
+  m.io.now = () => now;
   const r = saver(m);
   await r.settle();
   assert.equal(saveCount(m), 1);
-  assert.deepEqual(r.timers.map((t) => t.ms), [SAVE_EVERY_MS]);
-  assert.equal(SAVE_EVERY_MS, 60_000);
+  assert.deepEqual(r.timers.map((t) => t.ms), [CHECK_EVERY_MS]);
+  assert.equal(CHECK_EVERY_MS, 60_000);
+  now += 9 * 60_000;
+  r.timers[0].fn();
+  await r.settle();
+  assert.equal(saveCount(m), 1);
+  now += 60_000;
   r.timers[0].fn();
   await r.settle();
   assert.equal(saveCount(m), 2);
   assert.equal(r.shared.length, 2);
+});
+
+test("the chip reads the interval from the settings file at each check, so a change applies without a restart", async () => {
+  const m = machine();
+  let now = 1_000_000;
+  m.io.now = () => now;
+  const r = saver(m);
+  await r.settle();
+  m.files[settingsPath(APP)] = JSON.stringify({ saveEveryMinutes: 2 });
+  now += 2 * 60_000;
+  r.timers[0].fn();
+  await r.settle();
+  assert.equal(saveCount(m), 2);
+  assert.equal(r.s.settings().saveEveryMinutes, 2);
+});
+
+test("the save command saves at once, whatever the interval", async () => {
+  const m = machine();
+  const r = saver(m);
+  await r.settle();
+  r.s.command("save");
+  await r.settle();
+  assert.equal(saveCount(m), 2);
 });
 
 test("each save hands share the save it is of: the one it wrote, or the last good one when it fails", async () => {
@@ -199,14 +229,14 @@ test("each save hands share the save it is of: the one it wrote, or the last goo
   m.io.hc = async (args) => (down && args[0] === "server" ? { code: 1, stdout: "", stderr: "core not running" } : hc(args));
   const r = saver(m);
   await r.settle();
-  now += SAVE_EVERY_MS;
+  now += 60_000;
   r.s.tick();
   await r.settle();
   // Nothing opened or closed between the two saves, so the shared summary's sig did not change.
   assert.equal(r.shared[1].sig, r.shared[0].sig);
   assert.deepEqual(r.saves.map((s) => [s.savedAt, s.current.length]), [[1_000_000, 1], [1_060_000, 1]]);
   down = true;
-  now += SAVE_EVERY_MS;
+  now += 60_000;
   r.s.tick();
   await r.settle();
   assert.equal(r.shared[2].stalled, true);
@@ -513,4 +543,54 @@ test("runningSessions maps each session a live Claude terminal's pid file holds 
   const m = machine({ terminals: [claudeTerm("t7", 7), claudeTerm("t8", 8), shellTerm("t9"), { ...claudeTerm("t10", 10), state: "finished" }],
     files: { [pidPath(7)]: pidText("s1"), [pidPath(8)]: "{}", [pidPath(10)]: pidText("s3") } });
   assert.deepEqual([...(await runningSessions(m.io))], [["s1", "t7"]]);
+});
+
+
+// ---- history and settings on disk (#83) ----
+
+const oneClaude = (id = "s1", pid = 100, address = "t4") => ({ terminals: [claudeTerm(address, pid)], files: { [pidPath(pid)]: pidText(id), [transcript("D--repo", id)]: "{}\n" } });
+
+test("saveOnce adds the sessions alive now to the history, and nothing when the list did not change", async () => {
+  const m = machine(oneClaude());
+  await saveOnce(m.io);
+  await saveOnce(m.io);
+  const h = JSON.parse(m.files[historyPath(APP)]);
+  assert.deepEqual(h.saves.map((s) => [s.id, s.entries.map((e) => e.sessionId)]), [[1, ["s1"]]]);
+  m.files[pidPath(100)] = pidText("s2");
+  m.files[transcript("D--repo", "s2")] = "{}\n";
+  await saveOnce(m.io);
+  assert.deepEqual(JSON.parse(m.files[historyPath(APP)]).saves.map((s) => s.id), [2, 1]);
+});
+
+test("saveOnce keeps the history to the limit in the settings file", async () => {
+  const m = machine(oneClaude());
+  m.files[settingsPath(APP)] = JSON.stringify({ historyLimit: 1 });
+  await saveOnce(m.io);
+  m.files[pidPath(100)] = pidText("s2");
+  m.files[transcript("D--repo", "s2")] = "{}\n";
+  await saveOnce(m.io);
+  assert.deepEqual(JSON.parse(m.files[historyPath(APP)]).saves.map((s) => s.id), [2]);
+});
+
+test("readSettings gives the defaults with no file, and writeSettings writes the file and trims the history to a lower limit", async () => {
+  const saves = [3, 2, 1].map((id) => ({ id, at: id, entries: [{ sessionId: "s" + id }] }));
+  const m = machine({ files: { [historyPath(APP)]: JSON.stringify({ version: 1, saves }) } });
+  assert.deepEqual(await readSettings(m.io), { saveEveryMinutes: 10, historyLimit: 50 });
+  await writeSettings(m.io, { saveEveryMinutes: 5, historyLimit: 2 });
+  assert.deepEqual(JSON.parse(m.files[settingsPath(APP)]), { saveEveryMinutes: 5, historyLimit: 2 });
+  assert.deepEqual((await readHistory(m.io)).saves.map((s) => s.id), [3, 2]);
+  await writeSettings(m.io, { saveEveryMinutes: 5, historyLimit: null });
+  assert.deepEqual(JSON.parse(m.files[settingsPath(APP)]).historyLimit, null);
+});
+
+test("deleteSave and mergeSaves change the history file", async () => {
+  const saves = [
+    { id: 2, at: 20, entries: [{ sessionId: "b", title: "new" }] },
+    { id: 1, at: 10, entries: [{ sessionId: "a" }, { sessionId: "b", title: "old" }] },
+  ];
+  const m = machine({ files: { [historyPath(APP)]: JSON.stringify({ version: 1, saves }) } });
+  const merged = await mergeSaves(m.io, 1, 2, { b: { pick: "older" } });
+  assert.deepEqual(merged.saves[0].entries.map((e) => [e.sessionId, e.title ?? null]), [["a", null], ["b", "old"]]);
+  await deleteSave(m.io, 2);
+  assert.deepEqual((await readHistory(m.io)).saves.map((s) => s.id), [3, 1]);
 });

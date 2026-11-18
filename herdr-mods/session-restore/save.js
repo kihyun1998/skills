@@ -1,12 +1,16 @@
 // The save: the Claude session each live terminal holds, and the restore list, in the app's
-// data folder, and the chip's cadence for it. Side effects go through io ({ hc, read, write,
+// data folder, with the save history and the settings beside it, and the chip's cadence for it. Side effects go through io ({ hc, read, write,
 // exists, list, spaces, now, home, appHome }).
-import { coreIdentity, isClaude, keptFlags, nextSave, summarize } from "./logic.js";
+import { coreIdentity, isClaude, keptFlags, mergeSnapshots, nextSave, parseHistory, parseSettings, staleAfter, summarize, trimHistory, withSnapshot, withoutSnapshot } from "./logic.js";
 
 const trimEnd = (path) => String(path).replace(/[\\/]+$/, "");
 
 /** Where the whole save lives. */
 export const savePath = (appHome) => trimEnd(appHome) + "/data/session-restore.json";
+/** Where the save history lives: past saves, newest first. */
+export const historyPath = (appHome) => trimEnd(appHome) + "/data/session-restore.history.json";
+/** Where the settings live: the save interval in minutes and the history limit. */
+export const settingsPath = (appHome) => trimEnd(appHome) + "/data/session-restore.settings.json";
 /** Claude Code's file for a running process: { sessionId, cwd, name, status, ... }. */
 export const pidFile = (home, pid) => trimEnd(home) + "/.claude/sessions/" + pid + ".json";
 
@@ -83,12 +87,14 @@ export function observe(t, sessionId, spaces, prior) {
   };
 }
 
-// Reads, changes and writes the save, again once when the write finds the file changed.
-async function update(io, change) {
-  const path = savePath(io.appHome);
+// Reads, changes and writes a file, again once when the write finds the file changed. A change
+// that returns what it was given writes nothing.
+async function updateFile(io, path, parse, change) {
   for (let attempt = 0; ; attempt++) {
     const before = await io.read(path);
-    const next = await change(parseSave(before));
+    const prev = parse(before);
+    const next = await change(prev);
+    if (next === prev) return next;
     try {
       await io.write(path, JSON.stringify(next, null, 2) + "\n", before);
       return next;
@@ -96,6 +102,35 @@ async function update(io, change) {
       if (attempt > 0) throw err;
     }
   }
+}
+
+const update = (io, change) => updateFile(io, savePath(io.appHome), parseSave, change);
+const updateHistory = (io, change) => updateFile(io, historyPath(io.appHome), parseHistory, change);
+
+/** The settings on disk, the defaults where the file has none. */
+export async function readSettings(io) {
+  return parseSettings(await io.read(settingsPath(io.appHome)));
+}
+
+/** The save history on disk. */
+export async function readHistory(io) {
+  return parseHistory(await io.read(historyPath(io.appHome)));
+}
+
+/** Writes the settings, and trims the history to their limit. Returns the history. */
+export async function writeSettings(io, settings) {
+  const path = settingsPath(io.appHome);
+  await io.write(path, JSON.stringify(settings, null, 2) + "\n", await io.read(path));
+  return updateHistory(io, (h) => trimHistory(h, settings.historyLimit));
+}
+
+/** Deletes one save from the history. Returns the history. */
+export const deleteSave = (io, id) => updateHistory(io, (h) => withoutSnapshot(h, id));
+
+/** Adds a save merged from two in the history (mergeSnapshots). Returns the history. */
+export async function mergeSaves(io, xId, yId, choices) {
+  const { historyLimit } = await readSettings(io);
+  return updateHistory(io, (h) => mergeSnapshots(h, xId, yId, choices, { now: io.now(), limit: historyLimit }));
 }
 
 /** Each live Claude terminal in an hc ls list, with its pid file's text: [{ t, text }], text null when it has none. */
@@ -130,11 +165,13 @@ export async function runningSessions(io) {
 
 /**
  * Looks at every live terminal and writes the save: the Claude sessions alive now, and the restore
- * list (nextSave); a session with no transcript is left out. Returns it with the number of Claude
+ * list (nextSave); a session with no transcript is left out. The sessions alive now go into the
+ * history when they are not the newest save's (withSnapshot). Returns it with the number of Claude
  * pid files that had no session id (unreadable) and of sessions whose transcript could not be looked
  * for (unchecked).
  */
-export async function saveOnce(io) {
+export async function saveOnce(io, settings = null) {
+  const { historyLimit } = settings ?? (await readSettings(io));
   let unreadable = 0, unchecked = 0;
   const save = await update(io, async (prev) => {
     unreadable = 0;
@@ -160,7 +197,8 @@ export async function saveOnce(io) {
     }
     return nextSave(prev, observed, { core, now });
   });
-  return { save, unreadable, unchecked };
+  const history = await updateHistory(io, (h) => withSnapshot(h, save.current, { now: save.savedAt, limit: historyLimit }));
+  return { save, history, unreadable, unchecked };
 }
 
 /** Takes entries out of the restore list by key: the panel's remove. */
@@ -175,45 +213,53 @@ export function markShown(io, core) {
 }
 
 /**
- * Saves once and summarizes: summarize()'s fields with unreadable, unchecked and the error. A save
- * that throws leaves the file as it was, and the summary is of that file.
+ * Saves once and summarizes: summarize()'s fields with unreadable, unchecked and the error, with
+ * the save and the history. A save that throws leaves the files as they were, and the summary is
+ * of that save.
  */
-export async function saveAndSummarize(io) {
-  let save = null, unreadable = 0, unchecked = 0, error = null;
+export async function saveAndSummarize(io, settings = null) {
+  let save = null, history = null, unreadable = 0, unchecked = 0, error = null;
+  settings ??= await readSettings(io);
   try {
-    ({ save, unreadable, unchecked } = await saveOnce(io));
+    ({ save, history, unreadable, unchecked } = await saveOnce(io, settings));
   } catch (err) {
     error = String(err?.message ?? err);
     save = parseSave(await io.read(savePath(io.appHome)));
+    history = await readHistory(io);
   }
   const failed = Boolean(error) || unreadable > 0 || unchecked > 0;
-  return { save, summary: { ...summarize(save, { now: io.now(), failed }), unreadable, unchecked, error } };
+  return { save, history, summary: { ...summarize(save, { now: io.now(), failed, staleMs: staleAfter(settings.saveEveryMinutes) }), unreadable, unchecked, error } };
 }
 
-/** How often the chip saves. */
-export const SAVE_EVERY_MS = 60_000;
+/** How often the chip looks whether a save is due. */
+export const CHECK_EVERY_MS = 60_000;
 
 /**
- * The chip's save: once now, every SAVE_EVERY_MS, and on the "save" command; one at a time. Each
- * summary goes to share(summary, save), with the save it is of. The first successful save on a
- * core holder the panel has not unfolded itself on marks that holder shown, and unfolds the panel
- * when something can be restored.
- * every(ms, fn) and spawn(cx, job) are the host's timer and task; cx is passed through untouched.
+ * The chip's save: once now, then whenever the settings' interval has passed since the last one
+ * (looked at every CHECK_EVERY_MS, the settings read each time), and at once on the "save" command;
+ * one at a time. Each summary goes to share(summary, save, history), with the save it is of and the history. The first
+ * successful save on a core holder the panel has not unfolded itself on marks that holder shown,
+ * and unfolds the panel when something can be restored. settings() is the settings last read.
+ * every(ms, fn) and spawn(cx, job) are the host's timer and task; cx is passed through untouched,
+ * and job and unfold get the task's context.
  */
 export function startSaving(io, { every, spawn, share, unfold }, cx) {
-  let saving = false, first = true;
-  const tick = (cx) => {
+  let saving = false, first = true, lastAt = null, settings = parseSettings(null);
+  const run = (cx, force) => {
     if (saving) return false;
     saving = true;
-    spawn(cx, async () => {
+    spawn(cx, async (taskCx) => {
       try {
-        const { save, summary } = await saveAndSummarize(io);
-        share(summary, save);
+        settings = await readSettings(io);
+        if (!force && lastAt !== null && io.now() - lastAt < settings.saveEveryMinutes * 60_000) return;
+        lastAt = io.now();
+        const { save, history, summary } = await saveAndSummarize(io, settings);
+        share(summary, save, history);
         if (first && !summary.error && save?.core) {
           first = false;
           if (save.shownCore !== save.core) {
             await markShown(io, save.core);
-            if (summary.restorable > 0) unfold();
+            if (summary.restorable > 0) unfold(taskCx);
           }
         }
       } finally {
@@ -222,7 +268,8 @@ export function startSaving(io, { every, spawn, share, unfold }, cx) {
     });
     return true;
   };
+  const tick = (cx) => run(cx, true);
   tick(cx);
-  every(SAVE_EVERY_MS, tick);
-  return { tick, command: (name, cx) => name === "save" && tick(cx) };
+  every(CHECK_EVERY_MS, (cx) => run(cx, false));
+  return { tick, command: (name, cx) => name === "save" && tick(cx), settings: () => settings };
 }

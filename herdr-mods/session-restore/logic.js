@@ -40,8 +40,29 @@ export const isClaude = (fg) => /^claude(\.exe)?$/i.test(program(fg)) || /^claud
 /** The terminal's foreground program is a shell. */
 export const isShell = (fg) => /^(pwsh|powershell|cmd|bash|zsh|fish|sh|dash|ksh|nu)(\.exe)?$/i.test(program(fg));
 
-/** How long a save may age before it reads as stalled. */
-export const STALE_MS = 3 * 60_000;
+const MIN = 60_000;
+
+/** The settings a missing or unreadable settings file stands for. historyLimit null keeps every save. */
+export const DEFAULT_SETTINGS = { saveEveryMinutes: 10, historyLimit: 50 };
+
+const whole = (v) => (typeof v === "number" && Number.isFinite(v) && Math.round(v) >= 1 ? Math.round(v) : null);
+
+/** The settings file's text read: each field its default when missing or not a positive number. */
+export function parseSettings(text) {
+  let raw = null;
+  try { raw = JSON.parse(text ?? "null"); } catch {}
+  if (!raw || typeof raw !== "object") return { ...DEFAULT_SETTINGS };
+  return {
+    saveEveryMinutes: whole(raw.saveEveryMinutes) ?? DEFAULT_SETTINGS.saveEveryMinutes,
+    historyLimit: raw.historyLimit === null ? null : whole(raw.historyLimit) ?? DEFAULT_SETTINGS.historyLimit,
+  };
+}
+
+/** How long a save may age before it reads as stalled: three save intervals. */
+export const staleAfter = (minutes) => 3 * minutes * MIN;
+
+/** The stale time of the default interval. */
+export const STALE_MS = staleAfter(DEFAULT_SETTINGS.saveEveryMinutes);
 
 /** The core holder's instance id, or the core's pid and start time when no holder is listed. */
 export function coreIdentity(status, now = Date.now()) {
@@ -171,13 +192,13 @@ export function shellLine(argv, shell) {
 }
 
 /** What the chip and the panel need, small enough to share; sig changes with the entries. */
-export function summarize(save, { now, failed }) {
+export function summarize(save, { now, failed, staleMs = STALE_MS }) {
   const all = entriesOf(save), restore = all.filter((e) => !e.live);
   return {
     restorable: restore.filter((e) => openable(e, all)).length,
     working: restore.filter((e) => openable(e, all) && working(e)).length,
     saved: all.length - restore.length,
-    stalled: Boolean(failed) || (typeof save?.savedAt === "number" && now - save.savedAt > STALE_MS),
+    stalled: Boolean(failed) || (typeof save?.savedAt === "number" && now - save.savedAt > staleMs),
     sig: all.map((e) => e.key + ":" + (e.live ? 1 : 0)).sort().join(","),
   };
 }
@@ -185,11 +206,11 @@ export function summarize(save, { now, failed }) {
 /**
  * The chip's label and dot for a summary (null: no save yet), or for an open under way
  * ({ opened, total }). sinceSave is how long ago the chip's last save ended, in ms; longer than
- * STALE_MS reads as stalled. Red for a stalled save wins over amber for something to restore.
+ * staleMs reads as stalled. Red for a stalled save wins over amber for something to restore.
  */
-export function chipState(summary, opening = null, sinceSave = 0) {
+export function chipState(summary, opening = null, sinceSave = 0, staleMs = STALE_MS) {
   if (opening?.total > 0) return { label: "여는 중 · " + opening.opened + "/" + opening.total, dot: "green" };
-  if (summary?.stalled || sinceSave > STALE_MS) return { label: "save 멈춤", dot: "red" };
+  if (summary?.stalled || sinceSave > staleMs) return { label: "save 멈춤", dot: "red" };
   if (!summary) return { label: "save 없음", dot: "dim" };
   if (summary.restorable > 0) return { label: "복원할 세션 " + summary.restorable, dot: "amber" };
   return { label: "⟲ " + summary.saved, dot: "green" };
@@ -309,4 +330,74 @@ export function groupsOf(entries, states = new Map()) {
 export function groupProgress(group, states, batch) {
   const keys = group.rows.map((r) => r.entry.key).filter((k) => batch?.has(k));
   return { opened: keys.filter((k) => states.get(k)?.at === "opened").length, total: keys.length };
+}
+
+/**
+ * The entries as the terminals hold them now: live when running (session id to address) holds the
+ * session, at that address. Nothing is saved; it is the panel's refresh.
+ */
+export const withRunning = (entries, running) =>
+  entries.map((e) => (running.has(e.sessionId) ? { ...e, live: true, address: running.get(e.sessionId) } : { ...e, live: false }));
+
+/** The save history's text read: { version, saves }, newest first, empty when there is none or it does not parse. */
+export function parseHistory(text) {
+  try {
+    const h = JSON.parse(text ?? "null");
+    if (h && Array.isArray(h.saves)) return h;
+  } catch {}
+  return { version: 1, saves: [] };
+}
+
+const idsOf = (entries) => entries.map((e) => e.sessionId).sort().join("\n");
+const nextId = (history) => Math.max(0, ...history.saves.map((s) => s.id)) + 1;
+
+/** The history with only its newest limit saves; the same history with no limit. */
+export const trimHistory = (history, limit) =>
+  limit == null || history.saves.length <= limit ? history : { ...history, saves: history.saves.slice(0, limit) };
+
+/** How many saves a limit would drop. */
+export const overLimit = (history, limit) => (limit == null ? 0 : Math.max(0, history.saves.length - limit));
+
+/**
+ * The history with the sessions alive now added as a new save, kept to limit. The same history when
+ * there are none, or when they are the same sessions as the newest save.
+ */
+export function withSnapshot(history, entries, { now, limit }) {
+  if (!entries.length) return history;
+  if (history.saves[0] && idsOf(history.saves[0].entries) === idsOf(entries)) return history;
+  return trimHistory({ ...history, saves: [{ id: nextId(history), at: now, entries }, ...history.saves] }, limit);
+}
+
+/** The history without one save. */
+export const withoutSnapshot = (history, id) => ({ ...history, saves: history.saves.filter((s) => s.id !== id) });
+
+// What tells two records of one session apart in a merge.
+const shape = (e) => JSON.stringify([e.title ?? null, e.spaceName ?? null, e.tabName ?? null, e.labels ?? {}, e.cwd ?? null, e.flags ?? [], e.parentSession ?? null]);
+
+/**
+ * Every session of two saves once, the older save's first: { sessionId, older, newer, differs },
+ * older and newer its entry in each save or null, differs when it is in both and they differ.
+ */
+export function mergeRows(x, y) {
+  const [older, newer] = x.at <= y.at ? [x, y] : [y, x];
+  const ids = [...new Set([...older.entries, ...newer.entries].map((e) => e.sessionId))];
+  return ids.map((sessionId) => {
+    const o = older.entries.find((e) => e.sessionId === sessionId) ?? null, n = newer.entries.find((e) => e.sessionId === sessionId) ?? null;
+    return { sessionId, older: o, newer: n, differs: Boolean(o && n && shape(o) !== shape(n)) };
+  });
+}
+
+/**
+ * The history with a new save merged from saves xId and yId, kept to limit. choices maps a session
+ * id to { include, pick }: include false leaves it out; pick "older" takes the older save's record
+ * where both have it, the newer one's otherwise. The two saves stay.
+ */
+export function mergeSnapshots(history, xId, yId, choices, { now, limit }) {
+  const x = history.saves.find((s) => s.id === xId), y = history.saves.find((s) => s.id === yId);
+  if (!x || !y) return history;
+  const entries = mergeRows(x, y)
+    .filter((r) => choices?.[r.sessionId]?.include !== false)
+    .map((r) => (choices?.[r.sessionId]?.pick === "older" ? r.older ?? r.newer : r.newer ?? r.older));
+  const from = [x, y].sort((a, b) => a.at - b.at).map((s) => s.id);
+  return trimHistory({ ...history, saves: [{ id: nextId(history), at: now, from, entries }, ...history.saves] }, limit);
 }

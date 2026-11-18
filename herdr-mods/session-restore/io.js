@@ -36,7 +36,7 @@ export function shareSummary(summary) {
 
 /** Saves once, and shares the summary. */
 export async function saveAndShare(cx) {
-  const { save, summary } = await saveAndSummarize(herdrIo(cx));
+  const { save, history, summary } = await saveAndSummarize(herdrIo(cx));
   shareSummary(summary);
-  return { save, summary };
+  return { save, history, summary };
 }

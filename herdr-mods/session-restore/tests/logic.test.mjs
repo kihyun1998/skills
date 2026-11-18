@@ -3,6 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   keptFlags, nextSave, coreIdentity, planOpen, placement, resumeArgv, shellLine, isClaude, isShell, summarize, linkParents, openable, groupsOf, chipState, openProgress, groupProgress, batchResult, startOpen, endOpen, reopenable, withMarks, settleOpen, withoutRows, keepLive, liveOf, STALE_MS,
+  DEFAULT_SETTINGS, parseSettings, staleAfter, parseHistory, withSnapshot, overLimit, trimHistory, withoutSnapshot, mergeRows, mergeSnapshots, withRunning,
 } from "../logic.js";
 
 const WORKER_ARGV = ["C:\\Users\\User\\.local\\bin\\claude.EXE", "--model", "opus", "--effort", "high", "--dangerously-skip-permissions",
@@ -218,7 +219,7 @@ test("summarize counts what can be restored and changes its sig only when that d
   assert.deepEqual({ ...s, sig: undefined }, { restorable: 2, working: 1, saved: 1, stalled: false, sig: undefined });
   const again = summarize({ ...save, savedAt: 1500 }, { now: 2500, failed: false });
   assert.equal(again.sig, s.sig);
-  assert.equal(summarize(save, { now: 1000 + 4 * 60_000, failed: false }).stalled, true);
+  assert.equal(summarize(save, { now: 1000 + 4 * 60_000, failed: false, staleMs: staleAfter(1) }).stalled, true);
   assert.equal(summarize(save, { now: 2000, failed: true }).stalled, true);
 });
 
@@ -240,9 +241,9 @@ test("chipState shows the open under way over every other state, and not once it
 
 test("chipState turns red when no save has ended for longer than a stalled save may age", () => {
   const ok = { restorable: 3, working: 0, saved: 4, stalled: false, sig: "" };
-  assert.deepEqual(chipState(ok, null, STALE_MS), { label: "복원할 세션 3", dot: "amber" });
-  assert.deepEqual(chipState(ok, null, STALE_MS + 1), { label: "save 멈춤", dot: "red" });
-  assert.deepEqual(chipState(null, null, STALE_MS + 1), { label: "save 멈춤", dot: "red" });
+  assert.deepEqual(chipState(ok, null, STALE_MS, STALE_MS), { label: "복원할 세션 3", dot: "amber" });
+  assert.deepEqual(chipState(ok, null, STALE_MS + 1, STALE_MS), { label: "save 멈춤", dot: "red" });
+  assert.deepEqual(chipState(null, null, STALE_MS + 1, STALE_MS), { label: "save 멈춤", dot: "red" });
 });
 
 test("openProgress counts only the batch being opened, not rows an earlier open left behind", () => {
@@ -397,4 +398,122 @@ test("keepLive drops an opened mark a later look does not show held at its addre
 test("liveOf maps each session a save lists live to its address", () => {
   assert.deepEqual([...liveOf({ current: [{ sessionId: "a", address: "t1" }], restore: [{ sessionId: "b", address: "t2" }] })], [["a", "t1"]]);
   assert.deepEqual([...liveOf(null)], []);
+});
+
+
+// ---- settings, history, merge, refresh (#83) ----
+
+test("parseSettings fills what is missing or wrong with the defaults: every 10 minutes, 50 saves kept", () => {
+  assert.deepEqual(DEFAULT_SETTINGS, { saveEveryMinutes: 10, historyLimit: 50 });
+  assert.deepEqual(parseSettings(null), DEFAULT_SETTINGS);
+  assert.deepEqual(parseSettings("not json"), DEFAULT_SETTINGS);
+  assert.deepEqual(parseSettings('{"saveEveryMinutes": 3}'), { saveEveryMinutes: 3, historyLimit: 50 });
+  assert.deepEqual(parseSettings('{"saveEveryMinutes": 0, "historyLimit": -2}'), DEFAULT_SETTINGS);
+  assert.deepEqual(parseSettings('{"saveEveryMinutes": 2.6, "historyLimit": 7.2}'), { saveEveryMinutes: 3, historyLimit: 7 });
+  assert.deepEqual(parseSettings('{"saveEveryMinutes": "5"}'), DEFAULT_SETTINGS);
+});
+
+test("parseSettings reads a null historyLimit as no limit", () => {
+  assert.deepEqual(parseSettings('{"historyLimit": null}'), { saveEveryMinutes: 10, historyLimit: null });
+});
+
+test("staleAfter is three save intervals", () => {
+  assert.equal(staleAfter(10), 30 * 60_000);
+  assert.equal(staleAfter(1), 3 * 60_000);
+});
+
+test("summarize and chipState read stalled against the stale time they are given", () => {
+  const save = { savedAt: 0, current: [entry({ sessionId: "a" })], restore: [] };
+  assert.equal(summarize(save, { now: 29 * 60_000, failed: false, staleMs: staleAfter(10) }).stalled, false);
+  assert.equal(summarize(save, { now: 31 * 60_000, failed: false, staleMs: staleAfter(10) }).stalled, true);
+  const ok = { restorable: 0, working: 0, saved: 1, stalled: false, sig: "" };
+  assert.equal(chipState(ok, null, 29 * 60_000, staleAfter(10)).dot, "green");
+  assert.equal(chipState(ok, null, 31 * 60_000, staleAfter(10)).dot, "red");
+});
+
+const snap = (id, at, ids, over = {}) => ({ id, at, entries: ids.map((s) => live(s)), ...over });
+
+test("parseHistory reads a history back, and an empty one when there is none or it does not parse", () => {
+  assert.deepEqual(parseHistory(null), { version: 1, saves: [] });
+  assert.deepEqual(parseHistory("{"), { version: 1, saves: [] });
+  assert.deepEqual(parseHistory('{"version":1,"saves":"x"}'), { version: 1, saves: [] });
+  const h = { version: 1, saves: [snap(1, 5, ["a"])] };
+  assert.deepEqual(parseHistory(JSON.stringify(h)), h);
+});
+
+test("withSnapshot adds the sessions as a new save, newest first, numbered after the highest", () => {
+  const h = { version: 1, saves: [snap(4, 10, ["a"]), snap(2, 5, ["b"])] };
+  const next = withSnapshot(h, [live("a"), live("c")], { now: 20, limit: 50 });
+  assert.deepEqual(next.saves.map((s) => [s.id, s.at, s.entries.map((e) => e.sessionId)]), [[5, 20, ["a", "c"]], [4, 10, ["a"]], [2, 5, ["b"]]]);
+});
+
+test("withSnapshot makes no new save when the session list matches the newest one, whatever else changed", () => {
+  const h = { version: 1, saves: [snap(1, 10, ["a", "b"])] };
+  // Same sessions in another order, with another title: no new save.
+  const same = withSnapshot(h, [live("b", { title: "renamed" }), live("a")], { now: 20, limit: 50 });
+  assert.equal(same, h);
+});
+
+test("withSnapshot makes no save of an empty list", () => {
+  const h = { version: 1, saves: [snap(1, 10, ["a"])] };
+  assert.equal(withSnapshot(h, [], { now: 20, limit: 50 }), h);
+  assert.deepEqual(withSnapshot({ version: 1, saves: [] }, [], { now: 20, limit: 50 }).saves, []);
+});
+
+test("withSnapshot keeps the newest limit saves, and all of them with no limit", () => {
+  const h = { version: 1, saves: [snap(3, 30, ["c"]), snap(2, 20, ["b"]), snap(1, 10, ["a"])] };
+  assert.deepEqual(withSnapshot(h, [live("d")], { now: 40, limit: 2 }).saves.map((s) => s.id), [4, 3]);
+  assert.deepEqual(withSnapshot(h, [live("d")], { now: 40, limit: null }).saves.map((s) => s.id), [4, 3, 2, 1]);
+});
+
+test("overLimit counts the saves a limit would drop, and trimHistory drops the oldest", () => {
+  const h = { version: 1, saves: [snap(3, 30, ["c"]), snap(2, 20, ["b"]), snap(1, 10, ["a"])] };
+  assert.equal(overLimit(h, 1), 2);
+  assert.equal(overLimit(h, 3), 0);
+  assert.equal(overLimit(h, null), 0);
+  assert.deepEqual(trimHistory(h, 1).saves.map((s) => s.id), [3]);
+  assert.equal(trimHistory(h, null), h);
+});
+
+test("withoutSnapshot deletes one save by id", () => {
+  const h = { version: 1, saves: [snap(3, 30, ["c"]), snap(2, 20, ["b"])] };
+  assert.deepEqual(withoutSnapshot(h, 3).saves.map((s) => s.id), [2]);
+});
+
+test("mergeRows lists every session of two saves once, and marks one that differs between them", () => {
+  const older = snap(1, 10, ["a", "b", "c"]);
+  older.entries[1] = live("b", { title: "review", tabName: "2" });
+  const newer = snap(2, 20, ["b", "c", "d"]);
+  newer.entries[0] = live("b", { title: "review round 2", tabName: "3" });
+  const rows = mergeRows(newer, older);
+  assert.deepEqual(rows.map((r) => [r.sessionId, Boolean(r.older), Boolean(r.newer), r.differs]),
+    [["a", true, false, false], ["b", true, true, true], ["c", true, true, false], ["d", false, true, false]]);
+  // Which save is older is read from at, not from the order they are passed in.
+  assert.equal(mergeRows(older, newer)[1].newer.title, "review round 2");
+});
+
+test("mergeSnapshots makes a new save of the ticked sessions, the newer side where they differ unless the older is picked", () => {
+  const older = snap(1, 10, ["a", "b"]);
+  older.entries[1] = live("b", { title: "old title" });
+  const newer = snap(2, 20, ["b", "c"]);
+  newer.entries[0] = live("b", { title: "new title" });
+  const h = { version: 1, saves: [newer, older] };
+  const plain = mergeSnapshots(h, 1, 2, {}, { now: 30, limit: 50 });
+  assert.deepEqual(plain.saves.map((s) => s.id), [3, 2, 1]);
+  assert.deepEqual(plain.saves[0].from, [1, 2]);
+  assert.equal(plain.saves[0].at, 30);
+  assert.deepEqual(plain.saves[0].entries.map((e) => [e.sessionId, e.title ?? null]), [["a", null], ["b", "new title"], ["c", null]]);
+  const picked = mergeSnapshots(h, 2, 1, { a: { include: false }, b: { pick: "older" } }, { now: 30, limit: 50 });
+  assert.deepEqual(picked.saves[0].entries.map((e) => [e.sessionId, e.title ?? null]), [["b", "old title"], ["c", null]]);
+});
+
+test("mergeSnapshots keeps the history limit, the merged save counting as one", () => {
+  const h = { version: 1, saves: [snap(2, 20, ["b"]), snap(1, 10, ["a"])] };
+  assert.deepEqual(mergeSnapshots(h, 1, 2, {}, { now: 30, limit: 2 }).saves.map((s) => s.id), [3, 2]);
+});
+
+test("withRunning marks each entry live by what the terminals hold now, at the address that holds it", () => {
+  const entries = [live("a", { live: true, address: "t1" }), live("b", { live: false, address: "t2" }), live("c", { live: true, address: "t3" })];
+  const out = withRunning(entries, new Map([["b", "t9"], ["c", "t3"]]));
+  assert.deepEqual(out.map((e) => [e.sessionId, e.live, e.address]), [["a", false, "t1"], ["b", true, "t9"], ["c", true, "t3"]]);
 });
