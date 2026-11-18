@@ -1,7 +1,7 @@
 ---
 name: encode-it
 requires: [firsthand]
-description: "Turn a repeated correction into a check at the highest level that works. Use when the change being made adds a check, or to find repeated mistakes in a repository's history."
+description: "Turn a repeated correction into a check at the highest level that works. Use when the change being made adds a check, or to find the corrections a repository keeps repeating."
 ---
 
 # encode-it — turn a repeated correction into a check
