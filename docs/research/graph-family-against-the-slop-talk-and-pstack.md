@@ -309,6 +309,11 @@ Recorded because each changed what was filed.
 - **Formal verification** was first in this list and moved out to #78 (§J row 4).
 - **Release-time fuzzing** (B21): a target repository's CI choice, not a
   graph-family step.
+- **A correction becoming a check without a person's yes** (B12; pstack
+  `never-block-on-the-human`): a candidate found while working goes to `ask-it`,
+  and a direct `encode-it` run shows its classes before building any. Ground: the
+  maintainer's standing instruction not to add or decide on their behalf (#80 Q1
+  and Q13, 2026-11-18).
 
 ## L. Issues filed
 
@@ -325,7 +330,7 @@ All under the anchor [#71](https://github.com/kihyun1998/skills/issues/71)
 | [#77](https://github.com/kihyun1998/skills/issues/77) | `make-it` and `check-it` use the property, fuzz and benchmark lanes a repository runs; `benchmark-checklist`'s method in `check-it` (5) | open; ready |
 | [#78](https://github.com/kihyun1998/skills/issues/78) | whether to bring formal verification in, starting with one trial | open; `needs-grill` |
 | [#79](https://github.com/kihyun1998/skills/issues/79) | how decision records are written and how much they weigh (§M) | open; `needs-grill`; **deferred** 2026-11-18 (§M) |
-| [#80](https://github.com/kihyun1998/skills/issues/80) | `encode-it`: a skill that turns a repeated correction into a check | open; carries a *To decide* list, so grill before building |
+| [#80](https://github.com/kihyun1998/skills/issues/80) | `encode-it`: a skill that turns a repeated correction into a check | open; decided in grilling 2026-11-18 (decisions on the issue; Dart moves to the official analyzer plugin; first check is #75's comment allow-list) |
 | [#82](https://github.com/kihyun1998/skills/issues/82) | clean up the comments target repositories carry from before #75's allow-list; sized by #75's survey (filed 2026-11-18) | open; `needs-grill`; blocked by #75 |
 
 The order to take them is §O.2.
