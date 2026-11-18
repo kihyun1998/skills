@@ -55,6 +55,10 @@ rewritten for each Herdr version and are the truth about the API.
   rows that need data, so check those in a throwaway copy with a fixture.
 - Herdr writes `gpui-kit.d.ts` and `jsconfig.json` into a mod folder; they are
   ignored here.
+- A window that is open keeps the code it was opened with: an edit to its files
+  reaches it only once it is closed and opened again (`herdr-app do mod.open
+  --name <mod>` twice for a kept window, which comes back at its spot). Confirm
+  the new code runs by something it does that the old code did not.
 
 ## Mods
 
