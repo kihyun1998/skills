@@ -26,6 +26,22 @@
 > and does not move it. Herdr has no command that opens a separate window
 > (`window.*` is close, minimize and maximize), so none is offered.
 
+> **Amended again on 2026-11-18.** The conductor no longer holds its session in
+> `hc wait --children any` while a worker runs: it ends its turn, so the person can
+> talk to it meanwhile, and acts on what `hc` types into the session. The
+> maintainer chose this for that reason. Measured that day on Windows, `hc`
+> 0.1.21, Claude Code 2.1.327, from an idle Claude conductor with a hidden child:
+> a shell child's exit arrived as `<hc>… exited (exit 0)`; a Haiku worker's
+> question tool call arrived as `<hc>… is blocked (question)`; its `hc send`
+> arrived as `<hc from="…">` with the text. Its turn ending without a report
+> sent nothing in over four minutes, with `notify: true`. So at the start of every
+> turn the conductor runs `hc get` on each live worker of the run, and a worker
+> whose `status.state` is `done` with no report since it was last sent something
+> has ended a turn without one. A silent turn end is therefore found when the
+> conductor next wakes, by a note, a report or the person, not at once; the
+> worker shows in the person's window meanwhile. The startup dialog at `turn` 0,
+> found before by a wait's `timeout`, is found by the same check.
+
 **Status:** proposed.
 
 `thegraph-herdr` is a separate, user-invoked skill for runs inside Herdr. The
@@ -80,7 +96,8 @@ An adversarial read of the skill against the steps it calls and `hc --skill`
 - **A `done` report is checked against the commit and the tree before the worker
   is closed**, and a mismatch goes back to the same worker.
 - **A turn that ends without a report is handled**, since `hc wait --children any`
-  returns on any turn end, not only on a message.
+  returns on any turn end, not only on a message. Since the second amendment of
+  2026-11-18, by the conductor's `hc get` at the start of each turn instead.
 - **Names carry the run id** (`tg-<run id>-<slug>`): `hc` names are unique among
   every live terminal and take only `a-z 0-9 - _`, which an issue file's name or a
   second run on the same number would break.
@@ -101,7 +118,8 @@ An adversarial read of the skill against the steps it calls and `hc --skill`
   error, exit and message, and the worker runs in the person's window, so the
   screen read only watched a worker that had nothing to report. The first form was
   `--timeout 100`, under the shell tool's 120000 ms default, with that screen read
-  after ten check-ins.
+  after ten check-ins. Superseded by the second amendment of 2026-11-18: no wait
+  holds the session.
 - **A continued run after `ask-it`'s *needed, now*** gets a confirm with a model
   proposal per new issue, and the sheet is deleted only after the last `ask-it`.
 - **Launch recovery puts the trust prompt to the person** instead of following the

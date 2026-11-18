@@ -162,19 +162,25 @@ For each issue:
    answers it in the window or tells you which keys to send with `hc keys`. Once
    the screen is clear and the read shows the task did not arrive, `hc send` the
    same task line.
-4. **Wait with `hc wait --children any --timeout 590`**, with the shell tool's
-   timeout at its maximum, 600000 ms. A `timeout` is a check-in: wait again. A
-   worker still at turn 0 on `timeout` is at a startup dialog that `hc` does not
-   report as blocked: handle it as in 3.
+4. **End the turn, and let the workers' news come to this session.** `hc` types
+   into this session, tagged `<hc …>`, every report a worker sends with `hc send`,
+   and a note when a worker is blocked or exits. A worker's turn ending sends
+   nothing. So no `hc wait` holds the session, and the person can talk to it while
+   workers run: close the turn naming the workers that are running. At the start of
+   every turn after that, whatever started it, `hc get <worker> --json` each live
+   worker of this run. One whose `status.state` is `done` with no report since it
+   was last sent something has ended a turn without a report. One still at `turn` 0
+   and not `working` is at a startup dialog, which `hc` does not report as blocked:
+   handle it as in 3.
 5. **Act on what arrives:**
 
    | Arrives | Do |
    |---|---|
-   | `done <report path>` | Read the report. Read the commit with `git log -1 --stat` and the tree with `git status --porcelain`. Where there is no new commit, its hash differs from the report's, the tree is not clean, or the commit touches files ② left alone, `hc send` the worker what differs and wait again. Once they agree, copy its carried items under `## Carried`, update `## Children`, then `hc kill` and `hc rm` the worker |
-   | `question <report path>` | Put the report's question to the person with the question tool, options included. Write it and the answer under `## Answers`, then `hc send` the worker the answer and wait again |
-   | `stuck <report path>` | The issue departed from the plan or cannot proceed. Stop and put it to the person: their answer resumes the cluster, or ends it with `ask-it` over the children done. Write it under `## Answers`. Where the answer lets this worker go on, `hc send` it the answer and wait again; otherwise `hc kill` and `hc rm` it, and check the tree as in 1, before anything else starts. Where the model fell short, including the same failure surviving three fixes, offer these options, the first that applies recommended: a way for the worker to check its own work, where it has none; a new worker one effort level up on the same model, as far as `high`; a new worker on the next model up, one effort level below the level that fell short. A new worker's brief carries what this one tried and why it fell short |
-   | a turn ended, with no report from that worker since its last one | `hc read` it. A question in plain text is handled as `question`, from its screen. Anything else: `hc send` it that a turn ending is not a report, and that it reports with the brief's `hc send` lines. A turn ending that follows a report already handled is no news |
-   | `blocked` | `hc read` the worker. A question on its screen, from a skill that asked directly instead of through the report file, goes to the person with the question tool, options included; write it and the answer under `## Answers`. Send the chosen option with `hc keys`, using the keys the screen shows; an answer the options do not hold, the person types in the window. A permission prompt goes to the person the same way. Then wait again |
+   | `done <report path>` | Read the report. Read the commit with `git log -1 --stat` and the tree with `git status --porcelain`. Where there is no new commit, its hash differs from the report's, the tree is not clean, or the commit touches files ② left alone, `hc send` the worker what differs and end the turn. Once they agree, copy its carried items under `## Carried`, update `## Children`, then `hc kill` and `hc rm` the worker |
+   | `question <report path>` | Put the report's question to the person with the question tool, options included. Write it and the answer under `## Answers`, then `hc send` the worker the answer and end the turn |
+   | `stuck <report path>` | The issue departed from the plan or cannot proceed. Stop and put it to the person: their answer resumes the cluster, or ends it with `ask-it` over the children done. Write it under `## Answers`. Where the answer lets this worker go on, `hc send` it the answer and end the turn; otherwise `hc kill` and `hc rm` it, and check the tree as in 1, before anything else starts. Where the model fell short, including the same failure surviving three fixes, offer these options, the first that applies recommended: a way for the worker to check its own work, where it has none; a new worker one effort level up on the same model, as far as `high`; a new worker on the next model up, one effort level below the level that fell short. A new worker's brief carries what this one tried and why it fell short |
+   | a turn ended, with no report from that worker since its last one, found by the check in 4 | `hc read` it. A question in plain text is handled as `question`, from its screen. Anything else: `hc send` it that a turn ending is not a report, and that it reports with the brief's `hc send` lines. A turn ending that follows a report already handled is no news |
+   | `blocked` | `hc read` the worker. A question on its screen, from a skill that asked directly instead of through the report file, goes to the person with the question tool, options included; write it and the answer under `## Answers`. Send the chosen option with `hc keys`, using the keys the screen shows; an answer the options do not hold, the person types in the window. A permission prompt goes to the person the same way. Then end the turn |
    | `error`, or exit | `hc read` the worker, then handle it as `stuck` |
 
    A report is a claim until the commit and the tree have been read. Reports
