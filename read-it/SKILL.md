@@ -161,7 +161,7 @@ know.
 
 | Route | When |
 |---|---|
-| **trivial** | a typo, a comment, a rename the compiler fully checks. Nothing further runs |
+| **trivial** | a typo, a rename the compiler fully checks. Nothing further runs |
 | **open decision** | the issue's own acceptance reads *"decide (a) or (b)"* |
 | **prose** | documentation, configuration, skills — nothing that compiles or runs |
 | **code** | a feature slice, a bug fix, any refactor touching the public surface |
