@@ -320,7 +320,7 @@ All under the anchor [#71](https://github.com/kihyun1998/skills/issues/71)
 | [#72](https://github.com/kihyun1998/skills/issues/72) | who raises a repeated correction as a check, and what builds it | **closed**; decisions in its closing comment (§I) |
 | [#73](https://github.com/kihyun1998/skills/issues/73) | raise a repeated correction as a check candidate (`ask-it`, `grill-map`, `grill-the-graph`) | open; blocked by #80 |
 | [#74](https://github.com/kihyun1998/skills/issues/74) | `check-it` (3) proves against the way to the real thing a repository already records | open; ready |
-| [#75](https://github.com/kihyun1998/skills/issues/75) | the comment rule, a per-diff comment check, what the map keeps; the ADR-0076 amendment moved to #79 (2026-11-18) | open; `needs-grill` |
+| [#75](https://github.com/kihyun1998/skills/issues/75) | the comment rule, a per-diff comment check, what the map keeps; the ADR-0076 amendment moved to #79 (2026-11-18) | open; decided in grilling 2026-11-18 (allow-list in `CLAUDE.md`, a separate check agent; decisions on the issue), `ready-for-agent`; comment survey pending |
 | [#76](https://github.com/kihyun1998/skills/issues/76) | reviewer findings carry their reproduction; reports carry the certainty level | open; ready |
 | [#77](https://github.com/kihyun1998/skills/issues/77) | `make-it` and `check-it` use the property, fuzz and benchmark lanes a repository runs; `benchmark-checklist`'s method in `check-it` (5) | open; ready |
 | [#78](https://github.com/kihyun1998/skills/issues/78) | whether to bring formal verification in, starting with one trial | open; `needs-grill` |
@@ -421,7 +421,9 @@ ready to build. The order below is the one recommended at the end of the
 session; only #73's place is forced (blocked by #80).
 
 **Changed 2026-11-18:** #79 is deferred (§M), so the work starts at #75. #79's
-entry is kept below for when it resumes.
+entry is kept below for when it resumes. #75 was grilled the same day; its
+decisions are on the issue, and it is next built with `/thegraph 75` once the
+comment survey it asked for is posted there.
 
 **1. #79 — how decision records are written and how much they weigh.**
 `/grilling 79`. Deferred 2026-11-18; read #79's deferral comment first when it resumes.
