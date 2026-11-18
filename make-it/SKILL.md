@@ -1,6 +1,6 @@
 ---
 name: make-it
-requires: [tdd, design-it]
+requires: [tdd, design-it, encode-it]
 description: "Write the change, test-first where it compiles or runs. Use as the writing step of `thegraph`, after `read-it` has named a route."
 ---
 
@@ -20,6 +20,12 @@ before the first test. A style fix or a bug in an existing screen is not one.
 The design the person picks, its look included, is what this step then writes,
 test-first; the prototype's code is not promoted. `design-it` has already moved
 the variants out of the working tree, beside the run sheet.
+
+## A check
+
+When the change adds a check that stops a repeated mistake (a structure, a type,
+a lint or a test), call `encode-it`: the level, the message and the proof on the
+past mistake are its.
 
 ## Tests
 

@@ -193,7 +193,7 @@ decision is presented with its consequences enumerated, or it is not ready to
 present.**
 
 The last two share a row because the conditions live inside the skills. `make-it`
-calls `design-it` first for a new screen, and skips its test section for a change
+calls `design-it` first for a new screen and `encode-it` for a check-adding change, and skips its test section for a change
 that does not run; `check-it` runs two of its eight checks for prose — three where
 a file moved — and all of them for code.
 
