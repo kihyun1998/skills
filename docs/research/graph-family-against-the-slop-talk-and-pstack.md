@@ -323,14 +323,14 @@ All under the anchor [#71](https://github.com/kihyun1998/skills/issues/71)
 | Issue | Subject | State |
 |---|---|---|
 | [#72](https://github.com/kihyun1998/skills/issues/72) | who raises a repeated correction as a check, and what builds it | **closed**; decisions in its closing comment (§I) |
-| [#73](https://github.com/kihyun1998/skills/issues/73) | raise a repeated correction as a check candidate (`ask-it`, `grill-map`, `grill-the-graph`) | open; blocked by #80 |
+| [#73](https://github.com/kihyun1998/skills/issues/73) | raise a repeated correction as a check candidate (`ask-it`, `grill-map`, `grill-the-graph`) | open; unblocked (#80 closed 2026-11-18) |
 | [#74](https://github.com/kihyun1998/skills/issues/74) | `check-it` (3) proves against the way to the real thing a repository already records | open; ready |
 | [#75](https://github.com/kihyun1998/skills/issues/75) | the comment rule, a per-diff comment check, what the map keeps; the ADR-0076 amendment moved to #79 (2026-11-18) | open; decided in grilling 2026-11-18 (allow-list in `CLAUDE.md`, a separate check agent; decisions on the issue), `ready-for-agent`; comment survey posted on #75 |
 | [#76](https://github.com/kihyun1998/skills/issues/76) | reviewer findings carry their reproduction; reports carry the certainty level | open; ready |
 | [#77](https://github.com/kihyun1998/skills/issues/77) | `make-it` and `check-it` use the property, fuzz and benchmark lanes a repository runs; `benchmark-checklist`'s method in `check-it` (5) | open; ready |
 | [#78](https://github.com/kihyun1998/skills/issues/78) | whether to bring formal verification in, starting with one trial | open; `needs-grill` |
 | [#79](https://github.com/kihyun1998/skills/issues/79) | how decision records are written and how much they weigh (§M) | open; `needs-grill`; **deferred** 2026-11-18 (§M) |
-| [#80](https://github.com/kihyun1998/skills/issues/80) | `encode-it`: a skill that turns a repeated correction into a check | decided in grilling 2026-11-18; built as `encode-it` in `59f7a4a` (closes on push), replay on justssh recorded on the issue; its direct run reads closed issues and rules, not history, after a trial on justssh (`8b39b15`, #80 comment) |
+| [#80](https://github.com/kihyun1998/skills/issues/80) | `encode-it`: a skill that turns a repeated correction into a check | **closed** 2026-11-18; built as `encode-it` in `59f7a4a`, replay on justssh recorded on the issue; its direct run reads closed issues and rules, not history, after a trial on justssh (`8b39b15`, #80 comment) |
 | [#82](https://github.com/kihyun1998/skills/issues/82) | clean up the comments target repositories carry from before #75's allow-list; sized by #75's survey (filed 2026-11-18) | open; `needs-grill`; blocked by #75 |
 
 The order to take them is §O.2.
@@ -385,6 +385,8 @@ is read as grounds, not as a rule (#79's comment holds it).
 
 ## N. Open, and not verified
 
+- **`check-it` gathers most of the new work** (2026-11-18): the comment check agent and marker script (#75, #80), the recorded way to the real thing (#74), reproduction and certainty (#76), the property, fuzz and benchmark lanes (#77). Its body was 215 lines then. Whether to split a step was weighed and not done: this repository merged small skills back three times on measured non-use (ADR-0089, ADR-0090, ADR-0092). Re-measure its length and use once those land.
+
 - **Open for the maintainer, not filed anywhere:** whether to file the stale
   `silt` reference in justrdp's `thegraph.md` in justrdp, and whether other target
   repositories carry the same reference; whether to file that
@@ -426,7 +428,7 @@ Three are decisions (`needs-grill`), one carries its own decision list, four are
 ready to build. The order below is the one recommended at the end of the
 session; only #73's place is forced (blocked by #80).
 
-**Changed 2026-11-18:** #79 is deferred (§M), so the work starts at #75. #79's
+**Changed 2026-11-18:** #80 is built and closed, which unblocks #73; take #75, then #73. A correction reaches `encode-it` by two tracks: the main one is the moment of correction, raised in `ask-it` (#73); the secondary one is a direct run over closed issues and rules (#80's comment "Q9 reopened"). #79 is deferred (§M), so the work started at #75. #79's
 entry is kept below for when it resumes. #75 was grilled the same day; its
 decisions are on the issue, and it is next built with `/thegraph 75` once the
 comment survey it asked for is posted there.
