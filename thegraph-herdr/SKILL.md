@@ -55,6 +55,12 @@ model or switching with `/model` while the conversation is still short.
   `.<slug>`: `….<slug>.brief.md`, `….<slug>.report.md`, and `….<slug>.md`, the
   run sheet the worker's skills are told to keep their files beside. So every one
   of them is named after the run sheet.
+- **The run's Stop hook** is the run sheet's path without `.md`, then
+  `.stop-hook.json`, written once per run and passed to every worker with
+  `--settings`. It makes each turn a worker ends say so to this session:
+  ```json
+  {"hooks":{"Stop":[{"hooks":[{"type":"command","command":"hc send <$HC_TERMINAL_ID> 'turn ended'"}]}]}}
+  ```
 
 ## The order
 
@@ -139,17 +145,18 @@ For each issue:
    put the files to the person, each with its diff summary: set them aside with
    `git stash push -u -m "tg-<run id>"`, hand them to this worker as named in its
    brief, or stop the run. Nothing is discarded without the person.
-2. **Write its brief** to its brief file from the template below.
+2. **Write its brief** to its brief file from the template below, and the run's
+   Stop hook if this is the run's first worker.
 3. **Start it**, visible in the person's window where step 2's placement says,
    with the flag of the permission mode step 2 confirmed. In a new tab:
    ```sh
    hc get $HC_TERMINAL_ID --json   # labels."herdr.space": this session's space
-   hc run --bg --name tg-<run id>-<slug> --cwd <repo> --label herdr.space=<id> claude --model <alias> --effort <level> <flag> "Read <brief path> and do what it says."
+   hc run --bg --name tg-<run id>-<slug> --cwd <repo> --label herdr.space=<id> claude --model <alias> --effort <level> <flag> --settings <stop hook path> "Read <brief path> and do what it says."
    ```
    In a split, start it with no label, which keeps it hidden, then give it a pane
    beside this session's:
    ```sh
-   hc run --bg --json --name tg-<run id>-<slug> --cwd <repo> claude --model <alias> --effort <level> <flag> "Read <brief path> and do what it says."
+   hc run --bg --json --name tg-<run id>-<slug> --cwd <repo> claude --model <alias> --effort <level> <flag> --settings <stop hook path> "Read <brief path> and do what it says."
    herdr-app do pane.focus --terminal $HC_TERMINAL_ID
    herdr-app do terminal.keep --terminal <address from the reply> --place <right or down>
    ```
@@ -164,14 +171,13 @@ For each issue:
    same task line.
 4. **End the turn, and let the workers' news come to this session.** `hc` types
    into this session, tagged `<hc …>`, every report a worker sends with `hc send`,
-   and a note when a worker is blocked or exits. A worker's turn ending sends
-   nothing. So no `hc wait` holds the session, and the person can talk to it while
-   workers run: close the turn naming the workers that are running. At the start of
-   every turn after that, whatever started it, `hc get <worker> --json` each live
-   worker of this run. One whose `status.state` is `done` with no report since it
-   was last sent something has ended a turn without a report. One still at `turn` 0
-   and not `working` is at a startup dialog, which `hc` does not report as blocked:
-   handle it as in 3.
+   a note when a worker is blocked or exits, and the run's Stop hook's `turn ended`
+   each time a worker's turn ends. So no `hc wait` holds the session, and the person
+   can talk to it while workers run: close the turn naming the workers that are
+   running. A worker at a startup dialog has begun no turn and sends nothing, so
+   at the start of every turn after that, whatever started it, `hc get <worker>
+   --json` each live worker still at `turn` 0: one not `working` is at a startup
+   dialog, which `hc` does not report as blocked: handle it as in 3.
 5. **Act on what arrives:**
 
    | Arrives | Do |
@@ -179,7 +185,7 @@ For each issue:
    | `done <report path>` | Read the report. Read the commit with `git log -1 --stat` and the tree with `git status --porcelain`. Where there is no new commit, its hash differs from the report's, the tree is not clean, or the commit touches files ② left alone, `hc send` the worker what differs and end the turn. Once they agree, copy its carried items under `## Carried`, update `## Children`, then `hc kill` and `hc rm` the worker |
    | `question <report path>` | Put the report's question to the person with the question tool, options included. Write it and the answer under `## Answers`, then `hc send` the worker the answer and end the turn |
    | `stuck <report path>` | The issue departed from the plan or cannot proceed. Stop and put it to the person: their answer resumes the cluster, or ends it with `ask-it` over the children done. Write it under `## Answers`. Where the answer lets this worker go on, `hc send` it the answer and end the turn; otherwise `hc kill` and `hc rm` it, and check the tree as in 1, before anything else starts. Where the model fell short, including the same failure surviving three fixes, offer these options, the first that applies recommended: a way for the worker to check its own work, where it has none; a new worker one effort level up on the same model, as far as `high`; a new worker on the next model up, one effort level below the level that fell short. A new worker's brief carries what this one tried and why it fell short |
-   | a turn ended, with no report from that worker since its last one, found by the check in 4 | `hc read` it. A question in plain text is handled as `question`, from its screen. Anything else: `hc send` it that a turn ending is not a report, and that it reports with the brief's `hc send` lines. A turn ending that follows a report already handled is no news |
+   | `turn ended`, with no report from that worker since its last one | `hc read` it. A question in plain text is handled as `question`, from its screen. Anything else: `hc send` it that a turn ending is not a report, and that it reports with the brief's `hc send` lines. A turn ending that follows a report already handled is no news |
    | `blocked` | `hc read` the worker. A question on its screen, from a skill that asked directly instead of through the report file, goes to the person with the question tool, options included; write it and the answer under `## Answers`. Send the chosen option with `hc keys`, using the keys the screen shows; an answer the options do not hold, the person types in the window. A permission prompt goes to the person the same way. Then end the turn |
    | `error`, or exit | `hc read` the worker, then handle it as `stuck` |
 

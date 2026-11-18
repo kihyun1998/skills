@@ -41,6 +41,16 @@
 > conductor next wakes, by a note, a report or the person, not at once; the
 > worker shows in the person's window meanwhile. The startup dialog at `turn` 0,
 > found before by a wait's `timeout`, is found by the same check.
+>
+> Later the same day, the maintainer's call: the per-turn `hc get` for a silent
+> turn end was replaced by a Stop hook. Each worker starts with `--settings` naming
+> the run's `.stop-hook.json`, whose Stop hook runs `hc send <conductor> 'turn
+> ended'`, so a turn end wakes the conductor at once instead of at its next turn.
+> Measured that day, same versions: a hidden Haiku worker with that hook sent
+> `<hc from="…">… turn ended</hc>` to the idle conductor at the end of each of two
+> turns. The per-turn `hc get` remains only for a worker still at `turn` 0, since a
+> startup dialog begins no turn. Not measured: whether the hook also fires after a
+> turn that sent a report, which the conductor reads as no news either way.
 
 **Status:** proposed.
 
@@ -97,7 +107,7 @@ An adversarial read of the skill against the steps it calls and `hc --skill`
   is closed**, and a mismatch goes back to the same worker.
 - **A turn that ends without a report is handled**, since `hc wait --children any`
   returns on any turn end, not only on a message. Since the second amendment of
-  2026-11-18, by the conductor's `hc get` at the start of each turn instead.
+  2026-11-18, by the workers' Stop hook instead.
 - **Names carry the run id** (`tg-<run id>-<slug>`): `hc` names are unique among
   every live terminal and take only `a-z 0-9 - _`, which an issue file's name or a
   second run on the same number would break.
