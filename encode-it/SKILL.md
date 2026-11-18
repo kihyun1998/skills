@@ -25,18 +25,25 @@ scope (ADR-0079).
 ## A direct run
 
 **Scope.** The run takes one of: a path, a commit range, or a one-sentence
-correction. With none, read recent history.
+correction. It narrows what is read; with none, the whole repository is in scope.
 
-**Sources.** Read, within the scope:
+**Finding classes.** A class is found from:
 
-- commits, reverts, and review comments;
-- instruction files: `CLAUDE.md`, `AGENTS.md`, `docs/agents/thegraph.md`;
-- map notes' traps and invariants (`docs/map/`);
-- workaround comments in the code;
-- issue comments, and `ask-it` items filed as issues.
+- closed issue titles (`gh issue list --state closed --limit <all of them>`;
+  the default lists 30): the same fix recurring under different titles;
+- the rules in instruction files (`CLAUDE.md`, `AGENTS.md`,
+  `docs/agents/thegraph.md`) and map notes' traps and invariants
+  (`docs/map/`): for each rule, whether today's code breaks it and whether
+  anything enforces it.
 
-Session transcripts are not a source. **Twice counts as repeated**: a class
-needs two occurrences, each with a commit, a file line or a comment you can cite.
+**Measuring spread.** Suppression clusters, workaround and constraint comments,
+and one job done two ways are read only to measure how far a found class has
+spread, which is the cleanup list. They never found a class.
+
+Commits are read only to locate the past mistake for the
+[proof](#proof), by issue number (`git log --grep "#<n>"`). Session transcripts
+are not a source. **Twice counts as repeated**: a class needs two occurrences,
+each with an issue, a file line or a comment you can cite.
 
 **Show before building.** For each class, show:
 
@@ -111,8 +118,9 @@ the reason anyway. Exceptions carry no expiry date.
 A check is done when it **fails on the past mistake**, printing its message, and
 **passes on the fix**:
 
-- check out the commit that made the mistake, or replay its diff on today's
-  code, and run the check: it goes red with the message;
+- check out the commit that made the mistake (found by its issue number), or
+  replay its diff on today's code, and run the check: it goes red with the
+  message;
 - run it on the fix: green.
 
 Where the mistake cannot be replayed, a minimal reproduction stands in, and the
