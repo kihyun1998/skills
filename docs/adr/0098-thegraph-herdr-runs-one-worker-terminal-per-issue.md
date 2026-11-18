@@ -11,6 +11,21 @@
 > Herdr tab's PowerShell, not the conductor's `claude --dangerously-skip-permissions`.
 > So that run's workers started with no flag.
 
+> **Amended on 2026-11-18.** The confirm stop also asks, every run, where the run's
+> workers show: a new tab, as before, or a split right of or below the conductor's
+> pane. The maintainer chose to be asked every run, and to fix one placement later
+> if one wins out in use. A split starts the worker with no label, so hidden, then
+> gives it a pane with `herdr-app do pane.focus` on the conductor and
+> `terminal.keep --place right` or `down`, since `terminal.keep` places beside the
+> focused pane and takes no pane argument. Checked on 2026-11-18 on Windows, `hc`
+> 0.1.21, `herdr-app` 0.1.16, with a shell in place of `claude`: both placements
+> put the terminal in the focused pane's tab, by `herdr-app ls`, the right one also
+> seen in a screenshot; the down one landed while the window, captured after,
+> showed another space. `hc kill` closed the split pane and left its neighbour
+> live. `terminal.keep` on a terminal that already has a pane returns that pane
+> and does not move it. Herdr has no command that opens a separate window
+> (`window.*` is close, minimize and maximize), so none is offered.
+
 **Status:** proposed.
 
 `thegraph-herdr` is a separate, user-invoked skill for runs inside Herdr. The

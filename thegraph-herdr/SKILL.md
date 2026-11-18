@@ -104,8 +104,20 @@ options and the flag each one starts a worker with:
 | auto mode | `--permission-mode auto` |
 | ask each time | `--permission-mode manual` |
 
+**Ask where the workers show, once, with the permission mode**, for every worker
+of the run, every run. It is the person's preference, so it carries no
+recommendation:
+
+| Option | Where a worker shows |
+|---|---|
+| a new tab | a tab of its own in this session's space |
+| split right | right of this session's pane, in its tab |
+| split down | below this session's pane, in its tab |
+
+Herdr has no command that opens a window of its own, so that is not an option.
+
 Check `confirm` on the sheet with what it changed written under it, the
-permission mode included.
+permission mode and the placement included.
 
 ### 3. Follow the route
 
@@ -127,12 +139,23 @@ For each issue:
    `git stash push -u -m "tg-<run id>"`, hand them to this worker as named in its
    brief, or stop the run. Nothing is discarded without the person.
 2. **Write its brief** to its brief file from the template below.
-3. **Start it**, visible in the person's window, with the flag of the permission
-   mode step 2 confirmed:
+3. **Start it**, visible in the person's window where step 2's placement says,
+   with the flag of the permission mode step 2 confirmed. In a new tab:
    ```sh
    hc get $HC_TERMINAL_ID --json   # labels."herdr.space": this session's space
    hc run --bg --name tg-<run id>-<slug> --cwd <repo> --label herdr.space=<id> claude --model <alias> --effort <level> <flag> "Read <brief path> and do what it says."
    ```
+   In a split, start it with no label, which keeps it hidden, then give it a pane
+   beside this session's:
+   ```sh
+   hc run --bg --json --name tg-<run id>-<slug> --cwd <repo> claude --model <alias> --effort <level> <flag> "Read <brief path> and do what it says."
+   herdr-app do pane.focus --terminal $HC_TERMINAL_ID
+   herdr-app do terminal.keep --terminal <address from the reply> --place <right or down>
+   ```
+   `terminal.keep` places the pane beside the focused one and takes no pane to
+   place it by, so the focus moves first. Its reply can say `pending: true`:
+   `herdr-app ls` shows whether the worker is in this session's tab. Where it is
+   not, tell the person where it is.
    Read `first_message.sent` in the reply. Where it is false, `hc read` the worker: a
    dialog on its screen, the folder trust prompt included, goes to the person, who
    answers it in the window or tells you which keys to send with `hc keys`. Once
