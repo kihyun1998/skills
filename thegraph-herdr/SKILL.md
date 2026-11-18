@@ -106,12 +106,13 @@ options and the flag each one starts a worker with:
 
 **Ask where the workers show, once, with the permission mode**, for every worker
 of the run, every run. It is the person's preference, so it carries no
-recommendation:
+recommendation. Offer the options in this order, the one the person uses most
+first:
 
 | Option | Where a worker shows |
 |---|---|
-| a new tab | a tab of its own in this session's space |
 | split right | right of this session's pane, in its tab |
+| a new tab | a tab of its own in this session's space |
 | split down | below this session's pane, in its tab |
 
 Herdr has no command that opens a window of its own, so that is not an option.
