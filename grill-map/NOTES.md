@@ -26,6 +26,10 @@ same as every MAP already in use, so maps written by either version read alike.
   *"`dispose` cannot reach the loop — it is not on the port. Tracked: #606"*.
 - **A list of sites:** carry the command that produces the part a tool can see,
   hand-write the part no tool can see, and label the two halves.
+- **What a note keeps:** measured values, outside constraints, the reasons
+  behind design judgements, and the navigation. A workaround's reason is not
+  kept: the workaround is fixed. A trap or a boundary leaves the note once a
+  check or a structure holds it. History stays in the commit.
 - **Provenance:** every claim carries its evidence or its source and date
   (SKILL.md, step 3).
 

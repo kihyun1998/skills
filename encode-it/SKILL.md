@@ -134,20 +134,3 @@ The prose rule the check replaces (a `CLAUDE.md` line, a
 `docs/agents/thegraph.md` line, a map note's trap) is deleted in the same
 change. Keep no table pairing rules with their enforcers: the lint configuration
 is that list, and what stays in `CLAUDE.md` is judgement.
-
-## The comment check
-
-The mechanical part of a repository's comment rule is a check like any other,
-built once a person picks it. A small language-independent script reads the
-comments a diff adds and passes only those it can recognise:
-
-- doc comments, and a license header at the top of a file, by position;
-- tool directives, by their known prefixes;
-- links, by a URL or an issue number;
-- behaviour forced from outside, by a marker (`EXTERNAL:`, and Rust's
-  `SAFETY:` on `unsafe`).
-
-Any other new comment fails with: fix the code, or mark it if an outside
-constraint forces it. It runs where every other check runs. Whether a marker is
-honest is judgement, and the script does not make it. Show the marker word and
-the script to the person before installing it.

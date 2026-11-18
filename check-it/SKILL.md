@@ -1,6 +1,6 @@
 ---
 name: check-it
-requires: [lens, sweep]
+requires: [lens, sweep, comment-it]
 description: "Measure a finished change before anyone calls it done, cheapest check first. Use once a change is written and before it reaches a person."
 ---
 
@@ -26,6 +26,7 @@ a waste, so it goes first.
 | 6 | Is it open to somebody who means harm | the same reviewer | as 4 |
 | 7 | What is missing | `lens`, in a fresh agent | always; a skip is reported with its reason |
 | 8 | Which surfaces now describe it wrongly | `sweep` | always |
+| 9 | Do the new comments and lint suppressions keep the repository's comment rule | `comment-it`, in a fresh agent | the change touches code |
 
 **Running the checks (1).** The list is the project's CI workflow, or the gate
 list its guidance names where CI gates nothing, plus whatever those do not
@@ -61,9 +62,19 @@ nothing else.** There are no gates to run, no round trip to prove, no code for t
 reviewer — and a run that reports those as passed has reported on work it did
 not do.
 
-**The reviewer and the cost check (5) read the same diff and ask different
-questions**, so they run at the same time. That is not splitting material; it is
+**The reviewer, the cost check (5) and the comment check (9) read the same diff
+and ask different questions**, so they run at the same time. That is not splitting material; it is
 the opposite.
+
+**Comments (9)** come back as findings, and the working session acts on them in
+this change, through `make-it`: a comment outside the repository's list is
+deleted; where it explained a workaround or a surprise in this repository's own
+code, the code is fixed instead, and a fix outside this change's scope is carried
+to `ask-it`, never written back as a comment. A constraint on our own code —
+*do not remove*, *talk to X first* — is deleted and carried to `ask-it` as a
+check candidate for `encode-it`. A suppression of a correctness or safety rule
+goes back to `make-it`. A report of contributor mode or of a missing rule is
+passed on as it came.
 
 ### Where the files landed
 
@@ -168,18 +179,19 @@ does not fire. Anything genuinely ambiguous goes out as a question, not a verdic
 
 ## Briefing the reviewer and the completeness read
 
-**The reviewer and `lens` each run in a fresh agent** that never saw this
+**The reviewer, `lens` and `comment-it` each run in a fresh agent** that never saw this
 session (ADR-0091, ADR-0095). That is the point: the hand that shaped the change
 is the worst judge of it. So the brief is all it gets: for `lens`, the skill's
-argument; for the review, the prompt of a newly started general-purpose agent
+argument; for `comment-it`, the argument naming the repository's root and the
+same diff as the scope; for the review, the prompt of a newly started general-purpose agent
 (not a fork, which inherits this conversation), told to edit nothing and write no
 file. That prompt names the diff as `git diff HEAD` plus every untracked file, so
 a new file is in it; it points at the issue and this repo's records; and it quotes
 Review (4)'s three questions and its grade line as written here. **Save each report it returns** beside the run sheet
-(`<run sheet>.lens.md`, `<run sheet>.review.md`), or in the OS temp folder when
+(`<run sheet>.lens.md`, `<run sheet>.review.md`, `<run sheet>.comments.md`), or in the OS temp folder when
 there is no run sheet, so a compaction does not lose it. Then **re-open every `CONFIRMED` citation, and every
 finding you will act on, at its source**: a finding is a candidate until you have reproduced it. **`lens` runs on every
-change, the reviewer on every code change.** A skip, such as a two-sentence
+change, the reviewer and `comment-it` on every code change.** A skip, such as a two-sentence
 change with nothing to enumerate, is reported with its reason, never silent.
 
 `lens` needs three things or it reports a divergence on a layer where the

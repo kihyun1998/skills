@@ -509,7 +509,7 @@ _Avoid_: cwd (the absolute path it is read from — not what is shown), session 
   |---|---|
   | [`read-it`](read-it/) | `firsthand` (`spine` absorbed, ADR-0090) |
   | [`make-it`](make-it/) | `tdd` (`redden` absorbed, ADR-0090); `design-it` for a new screen (ADR-0097); `encode-it` for a check-adding change (#80) |
-  | [`check-it`](check-it/) | `lens`, `sweep` (`bare` and `boundary` absorbed, ADR-0090; `assay` and `silt` absorbed, ADR-0092; review and harm in one fresh agent, ADR-0095) |
+  | [`check-it`](check-it/) | `lens`, `sweep`, `comment-it` (#75) (`bare` and `boundary` absorbed, ADR-0090; `assay` and `silt` absorbed, ADR-0092; review and harm in one fresh agent, ADR-0095) |
   | [`ask-it`](ask-it/) | — (`envelope` and `byartifact` were absorbed, ADR-0089) |
 
   The seam is the same every time: **a method governs work of its kind anywhere;

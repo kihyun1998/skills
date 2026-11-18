@@ -298,8 +298,8 @@ written from blank. Every claim in an old note ends one of four ways:
   the code follows it is re-verified;
 - **moved** — re-verified or attributed into another note, because it is that
   note's fact;
-- **dropped** — false at HEAD, a to-do already done, or a story whose lesson
-  no section holds, with the reason in the closing report. A discovery history
+- **dropped** — false at HEAD, a to-do done, a story no section holds, or what
+  NOTES.md says a note does not keep, with the reason in the closing report. A discovery history
   and a dated measurement are not dropped as history: they go to the sections
   that hold them.
 

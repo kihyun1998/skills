@@ -134,8 +134,8 @@ the repository's own rules.
 
 ## Boundaries
 
-- **The comment rule** in `CLAUDE.md` sends a source comment's why to the map;
-  this sorts an agent document into itself and its detail docs.
+- **The comment rule** in `CLAUDE.md` says which comments may stay and where
+  the rest goes; this sorts an agent document into itself and its detail docs.
 - **`sweep`** asks whether a change made a surface wrong; this asks whether a
   paragraph earns its place in a document every run loads.
 - **`writing-for-agents`** says how a document for agents should read; this

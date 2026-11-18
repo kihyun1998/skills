@@ -189,6 +189,8 @@ misses:
 > `docs/`, and the closest merged PR touching the same file, and do what they
 > do — where the why goes included. Read them again on every run; they change.
 
+`comment-it` reads this rule as contributor mode and does not run.
+
 **Attribution.** Installed in every contributor clone, and in a repository of
 the maintainer's own where §4's answer turns it off — the same pieces, local
 either way, so nothing is imposed on anyone else working there. Three pieces,
@@ -279,7 +281,7 @@ person already answered.
   are the earlier answer: none installed is *keep*, any installed is *off*, and
   off means all three — the ones missing are written now.
 - **Every piece setup writes is compared with this file's current text** — the
-  comment rule against §3's table and the destinations on disk now, the map hub,
+  comment rule against §3's allow-list and table and the destinations on disk now, the map hub,
   the settings block hook by hook, the `pre-push` hook, the exclude lines, the
   `CLAUDE.local.md` rule. Which `pre-push` is setup's own is *Contributor
   mode*'s rule.
@@ -360,10 +362,10 @@ is there and that `salvage` clears it when run.
 In contributor mode this step is *Contributor mode*'s table instead: no map
 folder, nothing in `CLAUDE.md`.
 
-A comment is written on every edit, most of them made outside `thegraph`, so a
-pass that checks comments after the fact is undone by the next edit. The rule
-has to sit where every session reads it: the repo's `CLAUDE.md`. This is the one
-place anything writes it there.
+A comment is written on every edit, most of them made outside `thegraph`, so
+the rule has to sit where every session reads it: the repo's `CLAUDE.md`. This
+is the one place anything writes it there. `comment-it` reads it from there on
+every code change `check-it` measures, and holds no copy.
 
 **Look for a territory map first.** Where there is none, **make its folder** —
 setup does not build a map and does not ask whether to. The rule below needs a
@@ -375,7 +377,8 @@ this kind; the path is part of what §5 shows for approval.
 Git keeps no empty directory, so the folder holds one file, a hub stub
 (`README.md`):
 
-> The territory map. A comment's why, trap and measured value go to a note here.
+> The territory map. A measured value, an outside constraint and the reason
+> behind a design judgement go to a note here.
 > Notes are added as they come up, or all at once with `grill-map`, which also
 > reads hand-written notes as leads and keeps their paths.
 
@@ -387,24 +390,34 @@ say what depends on what — decision records, a spread of source files — name
 **Then the rule.** Its destinations name only what is on disk once this step's
 writes land; a destination that does not exist is invented.
 
-| The repo has | The rule |
+The rule is the allow-list, the same in every row:
+
+> A comment is one of: a license header; behaviour forced by an outside
+> dependency, platform, vendor or protocol we cannot reshape (Rust's `SAFETY:`
+> on `unsafe` is one); a tool directive; a doc comment on a public API; an issue
+> or RFC link for a constraint the code cannot express. Nothing else: a surprise
+> in our own code is fixed, not explained.
+
+followed by the row's sentence on where the rest goes:
+
+| The repo has | Where the rest goes |
 |---|---|
-| a map | A comment says what the code is. Why it is this way, what it deliberately leaves out, the trap and the measured value go to the territory note under `<map path>`. Where none seems to hold it, search the folder and the code symbol first; only then start a new note, named for what the system does there, not for the file. History goes to the commit message. Comments written before this rule still carry the rest: never delete one whose content the map does not yet hold — move it there first. |
-| decision records, no map | A comment says what the code is. A decision and its reason go to `<records path>`; history goes to the commit message. |
-| neither | A comment says what the code is. Why it is this way and how it came to be go to the commit message. |
+| a map | A measured value, an outside constraint and the reason behind a design judgement go to the territory note under `<map path>`. Where none seems to hold it, search the folder and the code symbol first; only then start a new note, named for what the system does there, not for the file. A workaround's reason goes nowhere: the workaround is fixed. History goes to the commit message. Comments written before this rule may still carry what the map keeps: never delete one whose content the map does not yet hold — move it there first. |
+| decision records, no map | A decision and its reason go to `<records path>`; history goes to the commit message. |
+| neither | Why it is this way and how it came to be go to the commit message. |
 
 The last two rows are for a maintainer who turned the folder down at §5.
 
 It goes in `CLAUDE.md` — or `AGENTS.md` where that is the only guidance file and
 `CLAUDE.md` does not exist. Where neither exists, creating one is part of what
 gets approved. **A rule already there is checked, not duplicated**: rewrite it
-only where it no longer matches the table's row: a destination moved (a map
-built since, a directory moved), or the row's own wording changed.
+only where it no longer matches the allow-list or the table's row: a destination
+moved (a map built since, a directory moved), or their wording changed.
 
 Show the lines and where they go, get approval, write them. The reasons and
-measurements behind the rule stay out of it; they are
-[ADR-0076](../docs/adr/0076-a-comment-says-what-the-code-is.md)'s, and a copy
-in every repo would drift from it.
+measurements behind the rule stay out of it; they are on
+[#75](https://github.com/kihyun1998/skills/issues/75), and a copy in every repo
+would drift from them.
 
 Nothing about the map goes in `docs/agents/thegraph.md`. The check is a
 directory listing, so it is re-derived on every run and cannot go stale — which
@@ -456,8 +469,8 @@ before they have been read.
 **Then check what landed, line by line, and report each line**, in every mode:
 
 - [ ] `docs/agents/thegraph.md` exists
-- [ ] `CLAUDE.md` (or `AGENTS.md`) holds the comment rule, its row matching §3's
-      table and its destination on disk (own repository)
+- [ ] `CLAUDE.md` (or `AGENTS.md`) holds the comment rule, its allow-list and row
+      matching §3 and its destination on disk (own repository)
 - [ ] the map folder and its `README.md` hub exist, where §3 made them (own
       repository)
 - [ ] `CLAUDE.local.md` holds the contributor rule (contributor mode)
