@@ -59,10 +59,9 @@ Each finding is graded **violation** (cite the rule), **judgement**, or **alread
 decided** (a record settled it; one line), and carries its reproduction: the
 exact command, the output it printed, and the output the intent requires. A
 finding a run could show and nobody ran is left out; one no run here can show,
-such as a smell, is kept and marked *not run*, with why. The report ends with one line: the fact the
-change's safety rests on, and how far it got — 1 said so, 2 pointed at the line,
-3 walked the failure and showed it does not reach, 4 ran a script or test against
-the real code, 5 reproduced it in the running app. A clean answer is a result.
+such as a smell, is kept and marked *not run*, with why. The report ends with
+`lens`'s safety line (*Verification*, item 6), for the fact the change's safety
+rests on. A clean answer is a result.
 
 **Cost (5)**: no defect without a number. A slowdown that was measured, with
 something to compare it against, is a defect. A shape nobody measured is a
@@ -115,7 +114,8 @@ black-box judge, a harness note. Use what reaches what this change touched,
 within what its record says it proves, before working out a proof of your own,
 and report which one was used, or why none applied. One that needs a machine,
 another client or server, an OS, or a person to drive it, none of them reachable
-here, is reported as chosen and not run.
+here, is reported as chosen and not run, and the run goes on with the proof it
+can reach.
 
 **A fake backend or a demo is a smoke test, not proof.** A fake can pass while
 the real thing differs, and the whole reason to reach past it is that the
