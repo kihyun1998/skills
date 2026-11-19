@@ -168,7 +168,7 @@ in a call of its own after the reading, per issue**, as `check-it`'s *Choosing t
 reviews* words it: every review is an option, the default ones too, each with
 this change's evidence and its cost, and a candidate left out is named with why.
 That way the person answers once, with the issue already read, and `check-it`
-does not stop to ask again. **Beside them goes `check-it`'s table of each
+asks again only where the diff gives an offered review not chosen a signal. **Beside them goes `check-it`'s table of each
 review's model** (*Each review's model*), as it stands; a row changes only where
 the person asks, and the table says which rows cannot change within a run.
 
@@ -209,7 +209,8 @@ present.**
 The last two share a row because the conditions live inside the skills. `make-it`
 calls `design-it` first for a new screen and `encode-it` for a check-adding change, and skips its test section for a change
 that does not run; `check-it` runs fewer checks for prose than for code, less
-the default reviews dropped and plus the offered ones chosen at step 2.
+the default reviews dropped and plus the offered ones chosen at step 2 or at
+`check-it`'s start.
 
 ## The signals that do not wait for their turn
 

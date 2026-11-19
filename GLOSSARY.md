@@ -272,7 +272,8 @@ A review [`check-it`](check-it/) runs only where the person chose it for the
 change: `/security-review`, `/simplify` and `lens`, and `/review` on a prose
 change. It is asked at the confirm stop, or once at the start of a direct
 `/check-it`, in a call of its own with the default reviews, recommended only
-where the change meets its signal. One not chosen is reported as not chosen, not
+where the change meets its signal; one not chosen is asked once more at
+`check-it`'s start where the diff meets its signal (#97). One not chosen is reported as not chosen, not
 as a skip.
 
 **Brief** (thegraph):

@@ -138,7 +138,8 @@ change's evidence and its cost; a candidate left out is named with why.
 `check-it`'s table of each review's model goes beside them (*Each review's
 model*); a row changes only where the person asks, and the table says which rows
 cannot change within a run. The answer goes into that worker's brief, so the
-worker does not stop to ask it again.
+worker asks again only where its diff gives a review not chosen a signal
+(`check-it`, *Choosing the reviews*).
 
 Check `confirm` on the sheet with what it changed written under it, the
 permission mode, the reviews chosen and dropped, and any review
@@ -190,8 +191,8 @@ For each issue:
 
    | Arrives | Do |
    |---|---|
-   | `done <report path>` | Read the report. Read the commit with `git log -1 --stat` and the tree with `git status --porcelain`. Where there is no new commit, its hash differs from the report's, the tree is not clean, or the commit touches files ② left alone, `hc send` the worker what differs and end the turn. Once they agree, copy its carried items under `## Carried`, update `## Children`, then `hc kill` and `hc rm` the worker |
-   | `question <report path>` | Put the report's question to the person with the question tool, options included. Write it and the answer under `## Answers`, then `hc send` the worker the answer and end the turn |
+   | `done <report path>` | Read the report. Read the commit with `git log -1 --stat` and the tree with `git status --porcelain`. Where there is no new commit, its hash differs from the report's, the tree is not clean, or the commit touches files ② left alone other than those the report's `## Result` lists as kept by `/simplify` and its saved `/simplify` report beside the issue's run sheet names (`check-it`, *What `/simplify`'s edits keep*), `hc send` the worker what differs and end the turn. Once they agree, copy its carried items under `## Carried`, update `## Children`, then `hc kill` and `hc rm` the worker |
+   | `question <report path>` | Put the report's question to the person with the question tool, options included. Write it and the answer under `## Answers`, then `hc send` the worker the answer and end the turn. Where it is `check-it` asking a review again, a later brief for this issue carries the answer in its reviews line |
    | `stuck <report path>` | The issue departed from the plan or cannot proceed. Stop and put it to the person: their answer resumes the cluster, or ends it with `ask-it` over the children done. Write it under `## Answers`. Where the answer lets this worker go on, `hc send` it the answer and end the turn; otherwise `hc kill` and `hc rm` it, and check the tree as in 1, before anything else starts. Where the model fell short, including the same failure surviving three fixes, offer these options, the first that applies recommended: a way for the worker to check its own work, where it has none; a new worker one effort level up on the same model, as far as `high`; a second worker on the same model and effort; where Sonnet 5.5 fell short at `high`, a new worker on Opus 5.5 at `medium`; after two Opus 5.5 `high` workers fell short on the issue, a new worker on Fable 5.2 at `medium`. Where a worker was refused, or fell back to another model, on a cyber classifier, offer the same brief on Mythos 5.2 (`--model claude-mythos-5-2`, `high`). A new worker's brief carries what this one tried and why it fell short |
    | `turn ended`, with no report from that worker since its last one | `hc read` it. A question in plain text is handled as `question`, from its screen. Anything else: `hc send` it that a turn ending is not a report, and that it reports with the brief's `hc send` lines. A turn ending that follows a report already handled is no news |
    | `blocked` | `hc read` the worker. A question on its screen, from a skill that asked directly instead of through the report file, goes to the person with the question tool, options included; write it and the answer under `## Answers`. Send the chosen option with `hc keys`, using the keys the screen shows; an answer the options do not hold, the person types into the peeked worker. A permission prompt goes to the person the same way. Then end the turn |
@@ -219,7 +220,8 @@ For each issue:
 
 ### 5. Call `ask-it`
 
-Over the carried items of every worker, in this session. A worker's measurement is
+Over the carried items of every worker, in this session, each worker's list of
+files `/simplify` edited outside its change among them. A worker's measurement is
 the worker's: reproduce it before carrying it as measured, or carry it marked
 *reported by the worker, not reproduced*. Where the person answers *needed, now*,
 the run continues: each new issue gets its own confirm, with a model proposed as
@@ -273,8 +275,8 @@ arrives as your next message.
 
 Work on this one issue and start no hc terminals. Subagents are fine.
 
-Finish by writing `## Result`: the commit hash, and what check-it ran and its
-result. Then run `hc send <conductor> "done <report file>"`. Where the issue
+Finish by writing `## Result`: the commit hash, what check-it ran and its
+result, and each file /simplify edited outside the change, with why. Then run `hc send <conductor> "done <report file>"`. Where the issue
 departs from the plan or cannot proceed, write why under `## Result` and send
 `stuck <report file>`.
 ```

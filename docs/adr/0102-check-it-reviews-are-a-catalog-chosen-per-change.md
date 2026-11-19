@@ -10,6 +10,13 @@
 > reviews marked *always* are recommended by default and run unless the person
 > drops them; every review is asked in a call of its own, with this change's
 > evidence on each option.
+>
+> **Amended for #97 on 2026-11-19** (*Asked again, and `/simplify` outside the
+> change*, below). `check-it` asks once at its start for an offered review the
+> diff now gives a signal, and keeps a `/simplify` refactor tied to the change
+> in files outside it, listed with why. *Not decided here*'s second and third
+> items are decided there. It amends ADR-0098's `done` check: a file so listed
+> as kept is not sent back.
 
 **Status:** accepted. Implements #91 (anchor #94). Amends
 [ADR-0090](0090-four-delegates-retire-into-their-callers.md),
@@ -177,11 +184,14 @@ Against the old reviewer's trial report (374 s, 88 tool calls):
 - Asking again mid-run: the offered reviews are chosen before the change is
   written, and a change that turns risky while it is written (an outside command
   added, a gap that keeps reopening) has no way back to the question. Round 4
-  did not cover it.
+  did not cover it. (Decided for #97 in *Asked again, and `/simplify` outside
+  the change*, below.)
 - `/simplify`'s fixes against `check-it`'s *not fixed here*: an altitude fix
   can move a cause into a layer the change did not own, and in
   `thegraph-herdr` an edit outside what the confirm stop said is left alone is
   sent back. Its target narrows what it reviews, not every file it may edit.
+  (Decided for #97 in *Asked again, and `/simplify` outside the change*,
+  below.)
 - Whether a fresh agent's result that arrives in the background is read: #92.
   (Decided for #92 in `check-it`'s *Briefing the fresh agents*: it is waited
   for and read where it arrives, and one that never came back is not run.)
@@ -366,3 +376,103 @@ same probe on a first draft, which counted `sweep` as a review, put five default
 reviews in two questions on #88; that draft is what `check-it`'s reviewer
 found against #95's four. Not measured: a person answering the calls, and a
 `thegraph` (not `-herdr`) or direct `/check-it` stop.
+
+## Asked again, and `/simplify` outside the change (#97, 2026-11-19)
+
+**Both calls are the maintainer's**, made in `/grilling` on 2026-11-19 and
+recorded in #97's decision comment.
+
+- **`/simplify`'s edits outside the change.** A refactor tied to this change's
+  code is kept, existing files included: merging a duplication the change made
+  with its original, changing an existing helper so the change's code can use
+  it, and the new file that results. Checks 1 to 3 run again on it. Only a
+  cleanup unrelated to the change's code is reverted and goes to a person as
+  *not fixed here*, with what it tried. Every file outside the change that
+  `/simplify` edited is listed in `check-it`'s result with why;
+  `thegraph-herdr`'s conductor does not send a commit back for a file so
+  listed, and shows the list at `ask-it`. Ground as given: a refactor needs to
+  touch existing files. The first proposal, *only files the change touched*,
+  would have blocked exactly that, and was rejected. Accepted with it: *tied to
+  this change's code* is a judgement, not a file list, so the result carries the
+  reason and a person reads it.
+- **Asked again mid-run.** At its start `check-it` holds the real diff against
+  the signal table; an offered review not chosen at the confirm stop that now
+  meets a signal is asked once, through the conductor where there is one and
+  directly otherwise. A review already chosen whose signal is gone still runs.
+  Grounds as given: the confirm stop reads what the change will do, the diff is
+  what it did; asking only on a changed signal adds no question in the ordinary
+  case; running it unasked would undo #95's *the person chooses*.
+
+**Derivations made at build**, the later ones from `check-it` on this change
+(`/review`, `lens`, the proving agent):
+
+- *The change* is the files `git diff HEAD` and the untracked list name just
+  before `/simplify` starts, written at the top of its saved report then, since
+  its edits change that answer and a compaction would lose it. A deletion or a
+  rename outside the change counts as an edit.
+- A reverted cleanup takes only its own hunks where the same file holds a kept
+  refactor, and checks 1 to 3 run again on the tree the reverts leave, since a
+  partial revert can break what the kept hunk calls. The revert applies in
+  files outside the change only, as the decision is about those.
+- A direct `/check-it` asks nothing again, since its one question already read
+  the diff. *The signal table* includes `/review`'s prose signal below it,
+  which #94's `ask-it` settled as a recommendation signal like the rest.
+- The answer to a re-ask is kept where the confirm stop's is (the run sheet, or
+  the conductor's `## Answers` and a later brief), so a second start on the
+  issue does not ask again.
+- The conductor passes a listed file only where the list marks it kept and the
+  saved `/simplify` report names it: `thegraph-herdr` already holds that *a
+  report is a claim until the commit and the tree have been read*, and a file
+  marked reverted should not be in the commit at all.
+- The list is carried to `ask-it` as one item, shown with the answer it bears
+  on (ADR-0064: material that needs no reply travels with one), so it reaches a
+  person in `thegraph` too, where a sheet with nothing carried is deleted when
+  `check-it` ends.
+- A file `/simplify` added is marked `--intent-to-add` before `/review` like the
+  change's own, or `/review`'s diff leaves it out.
+
+**What the decision did not cover:**
+
+- A default review the person dropped at the confirm stop is not asked again
+  when the diff gives it new evidence: the decision names offered reviews not
+  chosen, and a default one was dropped while recommended.
+- A `/simplify` cleanup unrelated to the change but inside a file the change
+  touched: the decision is about files outside the change, and such an edit is
+  kept as it was before.
+- A change whose route turns from prose to code while it is written: `/review`
+  and `comment-it` become default reviews nobody was asked about. The re-ask
+  covers offered reviews only.
+- `ask-it` has no row of its own for the list; it rides along as material
+  under ADR-0064, and whether a person can undo a kept refactor before the push
+  is not said.
+
+**Measured on the change**, 2026-11-19, Claude Code 2.1.328, one run each, in
+scratch repositories:
+
+- **`/simplify` outside the change.** A repository with `src/invoice.js`
+  holding a private `isoDay()` and `src/legacy.js` holding an old smell (a loop
+  in place of `toUpperCase()`); the change added `src/report.js` with `isoDay`'s
+  body copied inline. The change, listed before the run: `src/report.js`.
+  `claude -p "/simplify src/report.js" --model claude-opus-5-5 --effort medium
+  --permission-mode acceptEdits --allowedTools Edit Write "Bash(git:*)"
+  "Bash(node:*)"` (138 s) moved `isoDay` into a new `src/dates.js`, made `src/invoice.js`
+  import it, and made `src/report.js` call it; it left `src/legacy.js` alone.
+  A fresh Opus 5.5 agent, given that list, `/simplify`'s report, the tree and
+  the final text of `check-it`'s *What `/simplify`'s edits keep*, wrote the
+  result's list: `src/dates.js` (added) and `src/invoice.js` (edited), both kept,
+  each with the duplication it merged as the reason; nothing reverted, and
+  `src/legacy.js` untouched. Run after it:
+  `reportHeader('Q1', new Date(2026,0,5))` gave `Q1 (2026-01-05)` and
+  `invoiceLine` `ACME due 2026-01-05`. A first run, where the original was
+  already exported, only added an import to the changed file and edited nothing
+  outside it, so it did not measure the rule. Not measured: the revert path
+  (`/simplify` touched no unrelated code in either run), the conductor's
+  `done` check passing a listed file, and the list shown at `ask-it`.
+- **Asked again at the start.** A fresh Opus 5.5 agent, given this branch's
+  `check-it` as a `thegraph-herdr` worker whose confirm stop chose `lens` and
+  not `/security-review` or `/simplify`, on a diff adding
+  `execSync('git log -1 --format=%s -- ' + path)` in a clone with `origin/HEAD`:
+  it wrote one question to the report file, *run `/security-review`?*, naming
+  the signal (a shell command, an argument from outside) and the diff line,
+  recommended; it did not ask about `/simplify` (no signal) or `lens` (chosen).
+  Not measured: a diff with no new signal, where nothing should be asked.

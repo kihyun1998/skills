@@ -11,7 +11,7 @@ description: "Measure a finished change before anyone calls it done, cheapest ch
 
 Nothing here fixes anything. It measures, attributes, and hands the result on.
 The one exception is `/simplify` (4), which applies its own fixes where the
-person chose it.
+person chose it, and keeps them as *What `/simplify`'s edits keep* says.
 
 ## What gets measured, cheapest first
 
@@ -109,6 +109,24 @@ recommends a review: no line-count threshold has been measured.
 `/security-review` is not offered where `git rev-parse --verify origin/HEAD`
 fails: it diffs against that ref, which a repository without an `origin`, or
 one whose `origin` was added rather than cloned, does not have.
+
+**Asked again at the start, where the diff carries a new signal.** A confirm
+stop chose from what the change would do; the diff is what it did. So at its
+start, before (1), `check-it` holds the real diff (`git diff HEAD` plus every
+untracked file) against the signals above: the table, and on a prose change
+`/review`'s in the paragraph below it. **An offered review the confirm stop did
+not choose that now meets a signal is asked once**, with the signal and the diff
+lines that carry it: through the conductor where there is one (in a
+`thegraph-herdr` worker, the brief's `## Question` and its `hc send` line), and
+directly otherwise. Where none does, nothing is asked, which is the ordinary
+case. **A review already chosen whose signal is gone still runs**: the person
+chose it, and the diff does not unchoose it. The answer is kept where the
+confirm stop's is, so a later start of `check-it` on the same issue does not ask
+again: on the run sheet's `confirm` or `## Reviews` line, or, in a
+`thegraph-herdr` worker, with the conductor, who writes it under `## Answers`
+and puts it in any later brief for the issue. A direct `/check-it` reads its
+diff for its one question already, so it asks nothing again (ADR-0102, amended
+for #97).
 
 **How the answer reads.** The ticked options run. A default review left unticked
 in a question the person answered is dropped by the person, since they saw it
@@ -209,14 +227,16 @@ the one the #91 trial measured, and a process that never saw this session.
   three minutes, past a shell's usual two-minute default, after which the
   command moves to the background.
 - Their diff leaves out untracked files. Mark each new file with `git add
-  --intent-to-add` before `/simplify` and before `/review`, and once the
+  --intent-to-add` before `/simplify`, and each file `/simplify` added too
+  before `/review`, and once the
   built-ins are done, `git reset -q --` those files, so the index is as it was:
   a file left marked makes `git stash` fail.
 - `/simplify` and `/review` read this branch's commits ahead of its upstream
   (or `main`) as well as the uncommitted change, so in a run that committed
   earlier issues those are in their scope too. Pass `/simplify` the changed
-  files' paths as its target, so it edits only this change; where `/review`'s
-  scope held earlier commits, say so.
+  files' paths as its target, so it reviews this change; the target narrows
+  what it reads, not every file it may edit (*What `/simplify`'s edits
+  keep*). Where `/review`'s scope held earlier commits, say so.
 - `/security-review` reads only commits (`git diff origin/HEAD...`). Add a
   temporary worktree (`git worktree add --detach`), apply there the patch `git
   diff HEAD --binary` gives once new files are marked, commit it, run the review
@@ -225,6 +245,37 @@ the one the #91 trial measured, and a process that never saw this session.
 
 Their findings name a file, a line and a failure scenario in words, and are not
 run. That is what the proving agent (11) is for.
+
+### What `/simplify`'s edits keep (4)
+
+**The change** is the files `git diff HEAD --name-only` and `git ls-files
+--others --exclude-standard` list just before `/simplify` starts. Write that
+list at the top of `/simplify`'s saved report (`<run sheet>.simplify.md`, or the
+OS temp folder where there is no run sheet) before it starts, since its edits
+change the answer. A file `/simplify` edits, adds, deletes or renames that is not
+on the list is **outside the change**.
+
+- **A refactor tied to this change's code is kept, existing files included**:
+  merging a duplication the change made with its original in an existing file,
+  changing an existing helper so the change's code can use it, and the new file
+  that results. A refactor needs to touch existing files, so the list does not
+  bound it. Checks 1 to 3 run again on it, as on every edit of `/simplify`'s.
+- **A cleanup unrelated to the change's code, in a file outside the change**
+  (an old smell in a module the change does not reach) **is reverted**: that
+  edit's hunks alone where the same file holds a kept one, the file restored
+  where it holds nothing else. Checks 1 to 3 run again on the tree as the
+  reverts leave it. It goes to a person as *not fixed here*, with what
+  `/simplify` tried (*Going back, and stopping*).
+- **`check-it`'s result lists every file outside the change that `/simplify`
+  edited, added, deleted or renamed**, each marked kept or reverted, with why:
+  which code of the change the refactor serves, or what the reverted cleanup
+  was. *Tied to this change's code* is a judgement, not a file list, so the
+  reason is what a person reads. The list is carried to `ask-it` as one item,
+  shown with the answer it bears on, so it reaches a person in every run.
+
+`thegraph-herdr`'s conductor does not send a commit back for a file so listed
+as kept, once the saved report bears it out, and the list reaches `ask-it` with
+the worker's carried items (ADR-0102, amended for #97).
 
 ### The proving agent (11)
 
@@ -465,6 +516,7 @@ particular clash, the record governs.**
 | the same failure surviving three fixes | **a person**, as a design question, not a fourth repair |
 | a defect this change **revealed or did not touch** | **not fixed here.** To a person, with the measurement |
 | a patch standing in for a deeper fix | **not fixed here.** Where it belongs, then a person |
+| a `/simplify` cleanup unrelated to the change's code, in a file outside the change | **not fixed here.** Reverted, then a person, with what it tried (*What `/simplify`'s edits keep*) |
 
 **Fixing somebody else's defect inside this ticket puts it on a budget sized for
 this change's own repairs.** Three attempts later the ticket is over, the defect

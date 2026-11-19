@@ -23,6 +23,11 @@
 > permission mode and the placement, and the worker's brief carries the reviews
 > chosen and dropped.
 
+> **Amended by [ADR-0102](0102-check-it-reviews-are-a-catalog-chosen-per-change.md),
+> for #97.** The `done` check does not send a worker back for a file its report
+> lists as kept by `/simplify` outside the change, once the saved `/simplify`
+> report bears it out; such a list reaches `ask-it` with the carried items.
+
 > **Amended on 2026-11-17.** A worker no longer copies the conductor's permission
 > flag. The confirm stop asks the person once for the run's worker permission mode:
 > approve everything, auto mode, or ask each time. The maintainer chose this. The
