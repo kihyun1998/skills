@@ -1,7 +1,7 @@
 // The save: the Claude session each live terminal holds, and the restore list, in the app's
 // data folder, with the save history and the settings beside it, and the chip's cadence for it. Side effects go through io ({ hc, read, write,
 // exists, list, spaces, now, home, appHome }).
-import { coreIdentity, isClaude, keptFlags, mergeSnapshots, nextSave, parseHistory, parseSettings, staleAfter, summarize, trimHistory, withSnapshot, withoutSnapshots } from "./logic.js";
+import { coreIdentity, goneSaves, isClaude, keptFlags, mergeSnapshots, nextSave, parseHistory, parseSettings, staleAfter, summarize, trimHistory, withSnapshot, withoutSnapshots } from "./logic.js";
 
 const trimEnd = (path) => String(path).replace(/[\\/]+$/, "");
 
@@ -129,17 +129,18 @@ export const deleteSaves = (io, ids) => updateHistory(io, (h) => withoutSnapshot
 
 /**
  * Adds a save of the kept sessions from several saves to the history (mergeSnapshots). Returns
- * { history, made }, made the new save, or null when nothing was made.
+ * { history, made, gone }: made the new save, or null when nothing was made; gone the ids of the
+ * saves no longer in the history, when any is, nothing being made then.
  */
 export async function mergeSaves(io, ids, keep) {
-  const { historyLimit } = await readSettings(io);
-  let made = null;
+  let made = null, gone = [];
   const history = await updateHistory(io, (h) => {
-    const next = mergeSnapshots(h, ids, keep, { now: io.now(), limit: historyLimit });
+    gone = goneSaves(h, ids);
+    const next = mergeSnapshots(h, ids, keep, { now: io.now() });
     made = next === h ? null : next.saves[0];
     return next;
   });
-  return { history, made };
+  return { history, made, gone };
 }
 
 /** Each live Claude terminal in an hc ls list, with its pid file's text: [{ t, text }], text null when it has none. */

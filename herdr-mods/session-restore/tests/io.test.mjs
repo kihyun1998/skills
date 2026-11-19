@@ -596,12 +596,38 @@ test("deleteSaves and mergeSaves change the history file", async () => {
   assert.deepEqual((await readHistory(m.io)).saves.map((s) => s.id), [3]);
 });
 
-test("mergeSaves says nothing was made when a source save is gone and fewer than two are left", async () => {
+test("mergeSaves makes nothing and names the gone save when one source save is gone and one is left", async () => {
   const saves = [{ id: 2, at: 20, entries: [{ sessionId: "b" }] }];
   const m = machine({ files: { [historyPath(APP)]: JSON.stringify({ version: 1, saves }) } });
   const before = m.files[historyPath(APP)];
-  const { history, made } = await mergeSaves(m.io, [1, 2], ["a", "b"]);
+  const { history, made, gone } = await mergeSaves(m.io, [1, 2], ["a", "b"]);
   assert.equal(made, null);
+  assert.deepEqual(gone, [1]);
   assert.deepEqual(history.saves.map((s) => s.id), [2]);
   assert.equal(m.files[historyPath(APP)], before);
+});
+
+test("mergeSaves makes nothing and names the gone save when one source save is gone and two are left", async () => {
+  const saves = [4, 3, 2].map((id) => ({ id, at: id * 10, entries: [{ sessionId: "s" + id }] }));
+  const m = machine({ files: { [historyPath(APP)]: JSON.stringify({ version: 1, saves }) } });
+  const before = m.files[historyPath(APP)];
+  const { history, made, gone } = await mergeSaves(m.io, [1, 2, 3], ["s1", "s2", "s3"]);
+  assert.equal(made, null);
+  assert.deepEqual(gone, [1]);
+  assert.deepEqual(history.saves.map((s) => s.id), [4, 3, 2]);
+  assert.equal(m.files[historyPath(APP)], before);
+});
+
+test("mergeSaves at the history limit deletes no save, each merge one more over, and the next save trims the oldest", async () => {
+  const saves = [4, 3, 2, 1].map((id) => ({ id, at: id * 10, entries: [{ sessionId: "s" + id }] }));
+  const one = oneClaude("s9");
+  const m = machine({ ...one, files: { ...one.files, [historyPath(APP)]: JSON.stringify({ version: 1, saves }), [settingsPath(APP)]: JSON.stringify({ historyLimit: 4 }) } });
+  const { made, gone } = await mergeSaves(m.io, [1, 2, 3], ["s1", "s2", "s3"]);
+  assert.equal(made.id, 5);
+  assert.deepEqual(gone, []);
+  assert.deepEqual((await readHistory(m.io)).saves.map((s) => s.id), [5, 4, 3, 2, 1]);
+  await mergeSaves(m.io, [3, 4], ["s3", "s4"]);
+  assert.deepEqual((await readHistory(m.io)).saves.map((s) => s.id), [6, 5, 4, 3, 2, 1]);
+  await saveOnce(m.io);
+  assert.deepEqual((await readHistory(m.io)).saves.map((s) => s.id), [7, 6, 5, 4]);
 });

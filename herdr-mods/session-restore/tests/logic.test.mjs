@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   keptFlags, nextSave, coreIdentity, planOpen, placement, resumeArgv, shellLine, isClaude, isShell, summarize, linkParents, openable, groupsOf, chipState, openProgress, groupProgress, batchResult, startOpen, endOpen, reopenable, withMarks, settleOpen, withoutRows, keepLive, liveOf, STALE_MS,
-  DEFAULT_SETTINGS, parseSettings, staleAfter, parseHistory, withSnapshot, overLimit, trimHistory, withoutSnapshots, mergeSessions, mergeSnapshots, mergeGroups, folderChange, mergeDialog, withRunning, cleanTitle,
+  DEFAULT_SETTINGS, parseSettings, staleAfter, parseHistory, withSnapshot, overLimit, trimHistory, withoutSnapshots, mergeSessions, mergeSnapshots, goneSaves, mergeGroups, folderChange, mergeDialog, withRunning, cleanTitle,
 } from "../logic.js";
 
 const WORKER_ARGV = ["C:\\Users\\User\\.local\\bin\\claude.EXE", "--model", "opus", "--effort", "high", "--dangerously-skip-permissions",
@@ -494,30 +494,33 @@ test("mergeSessions lists every session of the saves once, with the newest save'
 
 test("mergeSnapshots makes a new save of the kept sessions from several saves, and the saves stay", () => {
   const h = { version: 1, saves: [snap(3, 30, ["c"]), snap(2, 20, ["b", "c"]), snap(1, 10, ["a"])] };
-  const next = mergeSnapshots(h, [1, 3, 2], ["a", "c"], { now: 40, limit: 50 });
+  const next = mergeSnapshots(h, [1, 3, 2], ["a", "c"], { now: 40 });
   assert.deepEqual(next.saves.map((s) => s.id), [4, 3, 2, 1]);
   assert.deepEqual(next.saves[0].from, [1, 2, 3]);
   assert.equal(next.saves[0].at, 40);
   assert.deepEqual(next.saves[0].entries.map((e) => e.sessionId), ["c", "a"]);
 });
 
-test("mergeSnapshots makes nothing when nothing is kept or fewer than two saves are found", () => {
+test("mergeSnapshots makes nothing when nothing is kept, a save is gone, or fewer than two are given", () => {
   const h = { version: 1, saves: [snap(2, 20, ["b"]), snap(1, 10, ["a"])] };
-  assert.equal(mergeSnapshots(h, [1, 2], [], { now: 30, limit: 50 }), h);
-  assert.equal(mergeSnapshots(h, [1, 9], ["a"], { now: 30, limit: 50 }), h);
+  assert.equal(mergeSnapshots(h, [1, 2], [], { now: 30 }), h);
+  assert.equal(mergeSnapshots(h, [1, 9], ["a"], { now: 30 }), h);
+  assert.equal(mergeSnapshots(h, [1], ["a"], { now: 30 }), h);
 });
 
-test("mergeSnapshots keeps the history limit by dropping the oldest saves that are not its sources", () => {
+test("mergeSnapshots deletes no save, whichever saves it is made from", () => {
   const h = { version: 1, saves: [snap(4, 40, ["d"]), snap(3, 30, ["c"]), snap(2, 20, ["b"]), snap(1, 10, ["a"])] };
-  assert.deepEqual(mergeSnapshots(h, [1, 2], ["a", "b"], { now: 50, limit: 4 }).saves.map((s) => s.id), [5, 4, 2, 1]);
-  assert.deepEqual(mergeSnapshots(h, [1, 2], ["a", "b"], { now: 50, limit: 5 }).saves.map((s) => s.id), [5, 4, 3, 2, 1]);
+  assert.deepEqual(mergeSnapshots(h, [1, 2], ["a", "b"], { now: 50 }).saves.map((s) => s.id), [5, 4, 3, 2, 1]);
+  assert.deepEqual(mergeSnapshots(h, [1, 2, 3], ["a", "b", "c"], { now: 50 }).saves.map((s) => s.id), [5, 4, 3, 2, 1]);
+  assert.deepEqual(mergeSnapshots(h, [3, 4], ["c", "d"], { now: 50 }).saves.map((s) => s.id), [5, 4, 3, 2, 1]);
 });
 
-test("mergeSnapshots leaves the history over the limit where only its sources would remain", () => {
-  const h = { version: 1, saves: [snap(2, 20, ["b"]), snap(1, 10, ["a"])] };
-  assert.deepEqual(mergeSnapshots(h, [1, 2], ["a", "b"], { now: 30, limit: 2 }).saves.map((s) => s.id), [3, 2, 1]);
-  const over = { version: 1, saves: [snap(5, 50, ["e"]), snap(4, 40, ["d"]), snap(3, 30, ["c"]), snap(2, 20, ["b"]), snap(1, 10, ["a"])] };
-  assert.deepEqual(mergeSnapshots(over, [1, 2], ["a", "b"], { now: 60, limit: 2 }).saves.map((s) => s.id), [6, 2, 1]);
+test("mergeSnapshots makes nothing when one of its saves is gone, even with two of them left", () => {
+  const h = { version: 1, saves: [snap(4, 40, ["d"]), snap(3, 30, ["c"]), snap(2, 20, ["b"])] };
+  assert.equal(mergeSnapshots(h, [1, 2, 3], ["a", "b", "c"], { now: 50 }), h);
+  assert.deepEqual(goneSaves(h, [1, 2, 3]), [1]);
+  assert.deepEqual(goneSaves(h, [3, 1, 9, 2]), [1, 9]);
+  assert.deepEqual(goneSaves(h, [2, 4]), []);
 });
 
 test("mergeGroups groups the merge's rows by space id, so two spaces with one name stay apart", () => {

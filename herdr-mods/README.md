@@ -125,13 +125,16 @@ rewritten for each Herdr version and are the truth about the API.
   together (after a confirm) or merged. **Merge** opens a dialog of its own with
   every session of the ticked saves once, grouped by space, all ticked to start;
   the ones left ticked become a new save, and the merged saves stay. A session in
-  several saves takes its place (space, tab, flags) from the newest of them. At the
-  history limit, the saves a merge deletes are the oldest it was not made from;
-  where only the merged saves would be left, the history stays over the limit
-  until a later save that adds to the history, or a change in the Settings tab,
-  trims it (oldest first, merged saves included; a change of the save interval
-  does it without asking). When nothing could be made (a ticked save was deleted meanwhile), the
-  dialog says so and stays open, and a failed Make shows its error under the list.
+  several saves takes its place (space, tab, flags) from the newest of them. A merge
+  deletes no save, so at the history limit each merge leaves the history one more
+  over, until a later save that adds to the history, or a change in the Settings
+  tab, trims it (oldest first, merged saves included; a change of the save interval
+  does it without asking). When a ticked save is no longer in the history (deleted
+  or trimmed meanwhile), Make makes nothing: the dialog names the save that went
+  and shows what is left, which a second Make merges where two or more saves are
+  left. When nothing else could be
+  made, the dialog says so and stays open, and a failed Make shows its error under
+  the list.
   The panel reads the history and settings again whenever either file changes.
 - **The settings** are in `~/.config/herdr-app/data/session-restore.settings.json`:
   `saveEveryMinutes` (default 10) and `historyLimit` (default 50; `null` keeps

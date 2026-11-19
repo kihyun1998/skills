@@ -48,12 +48,15 @@ export default class MergeDialog {
     const keep = [...this.on];
     cx.spawn(async (cx) => {
       try {
-        const { history, made } = await mergeSaves(herdrIo(cx), this.ids, keep);
+        const { history, made, gone } = await mergeSaves(herdrIo(cx), this.ids, keep);
         if (made) { this.close(); return; }
+        this.ids = this.ids.filter((id) => !gone.includes(id));
         this.load(history);
         const left = new Set(this.rows.map((r) => r.entry.sessionId));
         this.on = new Set([...this.on].filter((k) => left.has(k)));
-        this.note = { bad: false, text: this.saves.length > 1 ? "Nothing was made: none of the ticked sessions is in these saves any more." : "Nothing was made." };
+        this.note = { bad: false, text: gone.length
+          ? "Nothing was made: " + (gone.length === 1 ? "save " + gone[0] + " is" : "saves " + gone.join(", ") + " are") + " no longer in the history." + (this.saves.length > 1 ? " The list shows what is left." : "")
+          : this.saves.length > 1 ? "Nothing was made: none of the ticked sessions is in these saves any more." : "Nothing was made." };
       } catch (err) {
         this.note = { bad: true, text: "The save was not made: " + String(err?.message ?? err) };
       }

@@ -384,16 +384,9 @@ export function parseHistory(text) {
 const idsOf = (entries) => entries.map((e) => e.sessionId).sort().join("\n");
 const nextId = (history) => Math.max(0, ...history.saves.map((s) => s.id)) + 1;
 
-/**
- * The history kept to limit by dropping its oldest saves whose ids are not in keep; over the limit
- * when only the kept saves would remain. The same history with no limit or under it.
- */
-export function trimHistory(history, limit, keep = []) {
-  const over = overLimit(history, limit);
-  if (!over) return history;
-  const drop = new Set(history.saves.filter((s) => !keep.includes(s.id)).slice(-over));
-  return { ...history, saves: history.saves.filter((s) => !drop.has(s)) };
-}
+/** The history with only its newest limit saves; the same history with no limit. */
+export const trimHistory = (history, limit) =>
+  limit == null || history.saves.length <= limit ? history : { ...history, saves: history.saves.slice(0, limit) };
 
 /** How many saves a limit would drop. */
 export const overLimit = (history, limit) => (limit == null ? 0 : Math.max(0, history.saves.length - limit));
@@ -436,18 +429,21 @@ export function mergeGroups(rows) {
   return [...groups.values()];
 }
 
+/** The ids, in their order, of the saves the history no longer has. */
+export const goneSaves = (history, ids) => ids.filter((id) => !history.saves.some((s) => s.id === id));
+
 /**
  * The history with a new save of the sessions in keep (session ids) from the saves with the given
- * ids (mergeSessions), kept to limit by dropping the oldest saves that are not its sources; the
- * saves stay, over the limit when only they would remain. The same history when fewer than two of
- * the saves are there or nothing is kept.
+ * ids (mergeSessions), deleting no save, so it may go over the history limit. The same history
+ * when one of the saves is gone (goneSaves), fewer than two are given, or nothing is kept.
  */
-export function mergeSnapshots(history, ids, keep, { now, limit }) {
+export function mergeSnapshots(history, ids, keep, { now }) {
+  if (goneSaves(history, ids).length) return history;
   const saves = history.saves.filter((s) => ids.includes(s.id));
   const entries = mergeSessions(saves).filter((r) => keep.includes(r.entry.sessionId)).map((r) => r.entry);
   if (saves.length < 2 || !entries.length) return history;
-  const from = saves.map((s) => s.id).sort((a, b) => a - b), id = nextId(history);
-  return trimHistory({ ...history, saves: [{ id, at: now, from, entries }, ...history.saves] }, limit, [id, ...from]);
+  const from = saves.map((s) => s.id).sort((a, b) => a - b);
+  return { ...history, saves: [{ id: nextId(history), at: now, from, entries }, ...history.saves] };
 }
 
 /** A terminal title without what an agent puts before it (a status glyph, a [ ! ] mark). */
