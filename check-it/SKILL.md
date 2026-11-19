@@ -24,9 +24,9 @@ a waste, so it goes first.
 | 4 | Does the code hold up, and does it do what was asked | the reviewer, a fresh agent | ” — always; a skip is reported with its reason |
 | 5 | Will it get slower | `benchmark.md`, when it applies | the change adds state, loops, or I/O |
 | 6 | Is it open to somebody who means harm | the same reviewer | as 4 |
-| 7 | What is missing | `lens`, in a fresh agent | always; a skip is reported with its reason |
+| 7 | What is missing | `lens`, forked by `Skill` | always; a skip is reported with its reason |
 | 8 | Which surfaces now describe it wrongly | `sweep` | always |
-| 9 | Do the new comments and lint suppressions keep the repository's comment rule | `comment-it`, in a fresh agent | the change touches code |
+| 9 | Do the new comments and lint suppressions keep the repository's comment rule | `comment-it`, forked by `Skill` | the change touches code |
 
 **Running the checks (1).** The list is the project's CI workflow, or the gate
 list its guidance names where CI gates nothing, plus whatever those do not
@@ -215,7 +215,7 @@ session (ADR-0091, ADR-0095). That is the point: the hand that shaped the change
 is the worst judge of it. So the brief is all it gets: for `lens`, the skill's
 argument; for `comment-it`, the argument naming the repository's root and the
 same diff as the scope; for the review, the prompt of a newly started general-purpose agent
-(not a fork, which inherits this conversation), told to edit nothing and write no
+(not a fork of this conversation, which inherits it), told to edit nothing and write no
 file outside the OS temp folder. That prompt names the diff as `git diff HEAD` plus every untracked file, so
 a new file is in it; it points at the issue and this repo's records; and it quotes
 Review (4)'s three questions and the paragraph after them as written here. **Save each report it returns** beside the run sheet
@@ -224,6 +224,18 @@ there is no run sheet, so a compaction does not lose it. Then **re-run every kep
 citation and every finding you will act on, at its source**: a finding is a candidate until you have reproduced it. **`lens` runs on every
 change, the reviewer and `comment-it` on every code change.** A skip, such as a two-sentence
 change with nothing to enumerate, is reported with its reason, never silent.
+
+**Call `lens` and `comment-it` with `Skill` directly, the whole brief in
+`args`, and never through an agent started to call them.** Both are `context: fork`
+skills, which is not a fork of this conversation: such a skill never sees its
+caller's conversation or prompt, and from the caller only `args` reaches it.
+Measured (#87, `docs/research/check-it-subagent-models.md` Part A): a quarter
+of `lens` forks and 30% of `comment-it` forks did nothing, 85 of those 89
+under a general-purpose agent that held the brief in its own prompt; the calls
+sampled show it calling `Skill` with no `args`, or with `"see task message"`.
+**A reply saying the brief was empty or missing is that check not run**, and it
+is reported as not run, with that reply as the reason. It is never a pass, and
+a pass done by some other agent in its place is not that check either.
 
 `lens` needs three things or it reports a divergence on a layer where the
 reference has no vote at all — and reports it as urgent, because from inside the

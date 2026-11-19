@@ -10,8 +10,12 @@ Read everything once, adversarially, and hand back findings that are already gra
 **This runs in a fresh agent, not in the session that did the work** (ADR-0091).
 It sees none of that session's conversation, so everything it reads arrives in
 the brief, passed as this skill's argument: the subject, the corpora as paths or
-commands, and the deliberate-divergence list with its records. Where the brief
-lacks one of those, say so first, and read what was given. **The report is the
+commands, and the deliberate-divergence list with its records. A caller passes
+it whole in `Skill`'s `args`, directly, never through an agent started to call
+this: from its caller, only those arguments reach the fork (#87). Where the brief
+lacks one of the three, say so first, and read what was given. Where the arguments are empty, or
+only point elsewhere (*"see task message"*), say the brief was empty and stop:
+that is the check not run, and the caller reports it so. **The report is the
 whole result**: return it as the final message, graded and cited. **Edit nothing
 and write no file.** The fork still has editing tools (a `disallowed-tools` key
 does not reach it, measured), so this sentence is what keeps the pass read-only. The caller saves it and re-opens every `CONFIRMED` citation before acting

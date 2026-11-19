@@ -9,7 +9,9 @@ background: false
 
 **This runs in a fresh agent, not in the session that wrote the code**, as
 `lens` does. Everything it reads arrives in the argument: the repository's root
-and the scope. **Edit nothing and write no file**; the report is the whole
+and the scope, passed whole in `Skill`'s `args` by a caller that calls this
+directly, never through an agent started to call it, since from its caller
+only those arguments reach the fork (#87). **Edit nothing and write no file**; the report is the whole
 result, returned as the final message. The caller deletes, fixes and carries.
 
 ## The scope
@@ -20,7 +22,9 @@ result, returned as the final message. The caller deletes, fixes and carries.
 - **A path** — what a person passes to survey what is already there: a file, a
   directory, or the whole repository. Every comment in it is read.
 
-Where the argument names neither, say so first and stop.
+Where the argument names neither, or is empty or only points elsewhere
+(*"see task message"*), say so first and stop: that is the check not run, and
+the caller reports it so.
 
 ## The rule comes from the repository, never from here
 
