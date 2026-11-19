@@ -183,6 +183,8 @@ Against the old reviewer's trial report (374 s, 88 tool calls):
   `thegraph-herdr` an edit outside what the confirm stop said is left alone is
   sent back. Its target narrows what it reviews, not every file it may edit.
 - Whether a fresh agent's result that arrives in the background is read: #92.
+  (Decided for #92 in `check-it`'s *Briefing the fresh agents*: it is waited
+  for and read where it arrives, and one that never came back is not run.)
 - Where `lens` writes: #93.
 - How often the always-on set catches what the old reviewer did: one change is
   a first look. #91's *Done when* asks for past changes of different risk.

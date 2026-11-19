@@ -402,6 +402,21 @@ acting on it**: a finding is a candidate until it was reproduced here. An
 as a two-sentence change with nothing for the reviewer to read, is reported with
 its reason, never silent.
 
+**A check started in the background is waited for, and its report read, before
+the run moves on** (#92). An `Agent` call made from a script can come back at
+once with `status: "async_launched"` and an `outputFile`. That file stays
+empty: measured on 2026-11-19 on Claude Code 2.1.328 (#92), it was still 0
+bytes after the agent had finished. The report arrives only in the task
+notification naming that agent, as its `<result>`. A built-in whose `claude -p` process outlived its shell's timeout runs on, its
+output going to the file the shell names. Any other check whose call returns
+before its report is the same case. Wait for each report where it arrives, and
+save the report itself, never the launch receipt, as the file named above. The
+run does not move past the reviews, to the proving agent, `sweep` or the
+result, until every check it started has its report read or is reported not
+run. **A check whose report never came back is reported as not run**: the
+notification says it failed or was stopped, or the process ended with no
+report. The result names what was waited on and where, and it is never a pass.
+
 **Call `lens` and `comment-it` with `Skill` directly, the whole brief in
 `args`, and never through an agent started to call them.** Both are `context: fork`
 skills, which is not a fork of this conversation: such a skill never sees its
