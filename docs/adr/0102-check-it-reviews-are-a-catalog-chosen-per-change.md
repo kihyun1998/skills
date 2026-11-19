@@ -340,6 +340,8 @@ where `check-it` already sends a finding no run here could show.
 - `/review` on a prose change has no recommendation signal on record, so under
   *no signal, not recommended* it is never recommended unless the person names
   one.
+  *Settled at #94's ask-it (2026-11-19), the maintainer:* recommended where the
+  change puts a command or a recipe to run into a document (`check-it`).
 - What a dropped reviewer leaves: nothing asks whether the change does what
   the issue asked. `check-it` reports it dropped; nothing stops the drop.
 - The proving agent's option is answered in the same call as the reviews it
