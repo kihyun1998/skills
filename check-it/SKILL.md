@@ -56,7 +56,13 @@ finding and never merged into one ranking:
   *"Nothing here to reach"* is that agent's answer to give, not this session's.
 
 Each finding is graded **violation** (cite the rule), **judgement**, or **already
-decided** (a record settled it; one line). A clean answer is a result.
+decided** (a record settled it; one line), and carries its reproduction: the
+exact command, the output it printed, and the output the intent requires. A
+finding a run could show and nobody ran is left out; one no run here can show,
+such as a smell, is kept and marked *not run*, with why. The report ends with one line: the fact the
+change's safety rests on, and how far it got — 1 said so, 2 pointed at the line,
+3 walked the failure and showed it does not reach, 4 ran a script or test against
+the real code, 5 reproduced it in the running app. A clean answer is a result.
 
 **Cost (5)**: no defect without a number. A slowdown that was measured, with
 something to compare it against, is a defect. A shape nobody measured is a
@@ -210,12 +216,12 @@ is the worst judge of it. So the brief is all it gets: for `lens`, the skill's
 argument; for `comment-it`, the argument naming the repository's root and the
 same diff as the scope; for the review, the prompt of a newly started general-purpose agent
 (not a fork, which inherits this conversation), told to edit nothing and write no
-file. That prompt names the diff as `git diff HEAD` plus every untracked file, so
+file outside the OS temp folder. That prompt names the diff as `git diff HEAD` plus every untracked file, so
 a new file is in it; it points at the issue and this repo's records; and it quotes
-Review (4)'s three questions and its grade line as written here. **Save each report it returns** beside the run sheet
+Review (4)'s three questions and the paragraph after them as written here. **Save each report it returns** beside the run sheet
 (`<run sheet>.lens.md`, `<run sheet>.review.md`, `<run sheet>.comments.md`), or in the OS temp folder when
-there is no run sheet, so a compaction does not lose it. Then **re-open every `CONFIRMED` citation, and every
-finding you will act on, at its source**: a finding is a candidate until you have reproduced it. **`lens` runs on every
+there is no run sheet, so a compaction does not lose it. Then **re-run every kept finding's command, and re-open every `CONFIRMED`
+citation and every finding you will act on, at its source**: a finding is a candidate until you have reproduced it. **`lens` runs on every
 change, the reviewer and `comment-it` on every code change.** A skip, such as a two-sentence
 change with nothing to enumerate, is reported with its reason, never silent.
 

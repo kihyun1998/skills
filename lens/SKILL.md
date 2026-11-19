@@ -144,3 +144,7 @@ Before finishing:
    skill's own first rule describes.
 5. No wording claims a direction is verified or proved by agreement between
    readers.
+6. The report ends with one line: the fact the subject's soundness rests on, and
+   how far it got — 1 said so, 2 pointed at the line, 3 walked the failure and
+   showed it does not reach, 4 ran a script or test against the real code,
+   5 reproduced it in the running app.
