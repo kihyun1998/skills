@@ -118,8 +118,11 @@ untracked file) against the signals above: the table, and on a prose change
 not choose that now meets a signal is asked once**, with the signal and the diff
 lines that carry it: through the conductor where there is one (in a
 `thegraph-herdr` worker, the brief's `## Question` and its `hc send` line), and
-directly otherwise. Where none does, nothing is asked, which is the ordinary
-case. **A review already chosen whose signal is gone still runs**: the person
+directly otherwise. **A change confirmed as prose whose diff now runs** (it adds
+or changes code) takes the code column: each review that column marks *always*
+and the prose one did not, `/review` and `comment-it`, is asked in the same
+question as a default, recommended. Where none does, nothing is asked, which is
+the ordinary case. **A review already chosen whose signal is gone still runs**: the person
 chose it, and the diff does not unchoose it. The answer is kept where the
 confirm stop's is, so a later start of `check-it` on the same issue does not ask
 again: on the run sheet's `confirm` or `## Reviews` line, or, in a

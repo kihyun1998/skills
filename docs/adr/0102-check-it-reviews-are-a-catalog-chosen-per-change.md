@@ -441,7 +441,9 @@ recorded in #97's decision comment.
   kept as it was before.
 - A change whose route turns from prose to code while it is written: `/review`
   and `comment-it` become default reviews nobody was asked about. The re-ask
-  covers offered reviews only.
+  covers offered reviews only. *Settled at #97's ask-it (2026-11-19), the
+  maintainer:* the start-of-run re-ask also asks those two, as recommended
+  defaults (`check-it`).
 - `ask-it` has no row of its own for the list; it rides along as material
   under ADR-0064, and whether a person can undo a kept refactor before the push
   is not said.
