@@ -394,7 +394,10 @@ skill's argument; for `comment-it`, the argument naming the repository's root
 and the same diff as the scope; for the reviewer and the proving agent, the
 prompt of a newly started general-purpose agent (not a fork of this
 conversation, which inherits it), started on its row's model and effort, told to edit nothing and write no file outside
-the OS temp folder. That prompt names the diff as `git diff HEAD` plus every
+the OS temp folder. A probe that can only run inside the tree runs in a copy
+made in the OS temp folder without its `.git`, with `git init` where it needs
+git, as `lens` says (#93): a worktree, or a copy that keeps `.git`, writes into
+this repository's gitdir. That prompt names the diff as `git diff HEAD` plus every
 untracked file, so a new file is in it, and it points at the issue and this
 repo's records. The reviewer's prompt quotes (5)'s two questions and the
 paragraph after them as written here; the proving agent's quotes (11) as written
