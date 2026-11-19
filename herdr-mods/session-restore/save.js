@@ -127,10 +127,19 @@ export async function writeSettings(io, settings) {
 /** Deletes saves from the history by id. Returns the history. */
 export const deleteSaves = (io, ids) => updateHistory(io, (h) => withoutSnapshots(h, ids));
 
-/** Adds a save of the kept sessions from several saves to the history (mergeSnapshots). Returns the history. */
+/**
+ * Adds a save of the kept sessions from several saves to the history (mergeSnapshots). Returns
+ * { history, made }, made the new save, or null when nothing was made.
+ */
 export async function mergeSaves(io, ids, keep) {
   const { historyLimit } = await readSettings(io);
-  return updateHistory(io, (h) => mergeSnapshots(h, ids, keep, { now: io.now(), limit: historyLimit }));
+  let made = null;
+  const history = await updateHistory(io, (h) => {
+    const next = mergeSnapshots(h, ids, keep, { now: io.now(), limit: historyLimit });
+    made = next === h ? null : next.saves[0];
+    return next;
+  });
+  return { history, made };
 }
 
 /** Each live Claude terminal in an hc ls list, with its pid file's text: [{ t, text }], text null when it has none. */

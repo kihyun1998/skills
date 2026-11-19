@@ -307,6 +307,12 @@ export function batchResult(states, batch) {
   return opened.length || failed.length ? { opened, failed } : null;
 }
 
+function spaceOf(groups, entry) {
+  const id = entry.labels?.["herdr.space"] ?? "";
+  if (!groups.has(id)) groups.set(id, { id, name: entry.spaceName || "", rows: [] });
+  return groups.get(id);
+}
+
 /**
  * The panel's groups: one per space, spaces with restorable working sessions first. A group's open
  * is the rows its Open · N opens, the ones reopenable() leaves; states maps a key to { at }.
@@ -315,9 +321,8 @@ export function groupsOf(entries, states = new Map()) {
   const groups = new Map();
   const roots = entries.filter((e) => !conductorOf(e, entries));
   for (const root of workingFirst(roots)) {
-    const id = root.labels?.["herdr.space"] ?? "";
-    if (!groups.has(id)) groups.set(id, { id, name: root.spaceName || "", rows: [] });
-    for (const n of tree(root, entries)) groups.get(id).rows.push({ entry: n.entry, worker: n.depth > 0, depth: n.depth });
+    const rows = spaceOf(groups, root).rows;
+    for (const n of tree(root, entries)) rows.push({ entry: n.entry, worker: n.depth > 0, depth: n.depth });
   }
   const list = [...groups.values()].map((g) => {
     const open = g.rows.map((r) => r.entry).filter((e) => reopenable(e, entries, states));
@@ -339,6 +344,34 @@ export function groupProgress(group, states, batch) {
 export const withRunning = (entries, running) =>
   entries.map((e) => (running.has(e.sessionId) ? { ...e, live: true, address: running.get(e.sessionId) } : { ...e, live: false }));
 
+const segments = (p) => String(p ?? "").toLowerCase().split(/[\\/]+/).filter(Boolean);
+
+/**
+ * What the panel does with a batch watchFolder(dir) gave: "released" on [] (the watch was cancelled,
+ * as when the copy closes, or possibly reclaimed: the d.ts does not say how a reclaim ends), "reload" when it holds dir itself or one of files (the ones the panel
+ * reads again), else "skip" (other files, as other mods'). A path is read by its last segments, as
+ * the d.ts promises only absolute paths, not their form: dir is a path ending in dir's last two
+ * segments, and a file one in dir's last segment then the file's name, or that name with a suffix,
+ * as an atomic write's temporary file.
+ */
+export function folderChange(paths, dir, files) {
+  if (!paths.length) return "released";
+  const [parent, folder] = segments(dir).slice(-2), names = files.map((f) => segments(f).pop());
+  const ours = (p) => {
+    const s = segments(p), [a, b] = s.slice(-2);
+    return (a === parent && b === folder) || (a === folder && names.some((n) => b.startsWith(n)));
+  };
+  return paths.some(ours) ? "reload" : "skip";
+}
+
+/**
+ * The overlay spec the merge dialog opens with. Its own key and keep false: Herdr may fill an
+ * overlay's key and keep from mod.json, whose key is the chip's, and a second window with that key
+ * replaces the chip.
+ */
+export const mergeDialog = (ids) =>
+  ({ mod: "session-restore", props: { view: "merge", ids }, kind: "dialog", key: "session-restore.merge", keep: false, width: 760, height: 640 });
+
 /** The save history's text read: { version, saves }, newest first, empty when there is none or it does not parse. */
 export function parseHistory(text) {
   try {
@@ -351,9 +384,16 @@ export function parseHistory(text) {
 const idsOf = (entries) => entries.map((e) => e.sessionId).sort().join("\n");
 const nextId = (history) => Math.max(0, ...history.saves.map((s) => s.id)) + 1;
 
-/** The history with only its newest limit saves; the same history with no limit. */
-export const trimHistory = (history, limit) =>
-  limit == null || history.saves.length <= limit ? history : { ...history, saves: history.saves.slice(0, limit) };
+/**
+ * The history kept to limit by dropping its oldest saves whose ids are not in keep; over the limit
+ * when only the kept saves would remain. The same history with no limit or under it.
+ */
+export function trimHistory(history, limit, keep = []) {
+  const over = overLimit(history, limit);
+  if (!over) return history;
+  const drop = new Set(history.saves.filter((s) => !keep.includes(s.id)).slice(-over));
+  return { ...history, saves: history.saves.filter((s) => !drop.has(s)) };
+}
 
 /** How many saves a limit would drop. */
 export const overLimit = (history, limit) => (limit == null ? 0 : Math.max(0, history.saves.length - limit));
@@ -387,16 +427,27 @@ export function mergeSessions(saves) {
 }
 
 /**
+ * The merge's rows (mergeSessions) by space, as groupsOf() groups the panel's: { id, name, rows },
+ * id the herdr.space label, name its first row's space name, in the order the spaces first show.
+ */
+export function mergeGroups(rows) {
+  const groups = new Map();
+  for (const r of rows) spaceOf(groups, r.entry).rows.push(r);
+  return [...groups.values()];
+}
+
+/**
  * The history with a new save of the sessions in keep (session ids) from the saves with the given
- * ids (mergeSessions), kept to limit; the saves stay. The same history when fewer than two of the
- * saves are there or nothing is kept.
+ * ids (mergeSessions), kept to limit by dropping the oldest saves that are not its sources; the
+ * saves stay, over the limit when only they would remain. The same history when fewer than two of
+ * the saves are there or nothing is kept.
  */
 export function mergeSnapshots(history, ids, keep, { now, limit }) {
   const saves = history.saves.filter((s) => ids.includes(s.id));
   const entries = mergeSessions(saves).filter((r) => keep.includes(r.entry.sessionId)).map((r) => r.entry);
   if (saves.length < 2 || !entries.length) return history;
-  const from = saves.map((s) => s.id).sort((a, b) => a - b);
-  return trimHistory({ ...history, saves: [{ id: nextId(history), at: now, from, entries }, ...history.saves] }, limit);
+  const from = saves.map((s) => s.id).sort((a, b) => a - b), id = nextId(history);
+  return trimHistory({ ...history, saves: [{ id, at: now, from, entries }, ...history.saves] }, limit, [id, ...from]);
 }
 
 /** A terminal title without what an agent puts before it (a status glyph, a [ ! ] mark). */

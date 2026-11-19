@@ -4,7 +4,7 @@
 import { div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { theme, closeOverlay, checking } from "herdr";
-import { cleanTitle, mergeSessions } from "./logic.js";
+import { cleanTitle, mergeGroups, mergeSessions } from "./logic.js";
 import { lookAtTerminals, mergeSaves, readHistory } from "./save.js";
 import { herdrIo } from "./io.js";
 
@@ -17,14 +17,13 @@ export default class MergeDialog {
     this.on = new Set();
     this.running = new Map();
     this.error = null;
+    this.note = null;
     this.making = false;
     if (checking()) return;
     cx.spawn(async (cx) => {
       const io = herdrIo(cx);
       try {
-        const history = await readHistory(io);
-        this.saves = history.saves.filter((s) => ids.includes(s.id));
-        this.rows = mergeSessions(this.saves);
+        this.load(await readHistory(io));
         this.on = new Set(this.rows.map((r) => r.entry.sessionId));
       } catch (err) {
         this.error = String(err?.message ?? err);
@@ -37,18 +36,28 @@ export default class MergeDialog {
 
   close() { if (this.overlay) closeOverlay(this.overlay); }
 
+  load(history) {
+    this.saves = history.saves.filter((s) => this.ids.includes(s.id));
+    this.rows = mergeSessions(this.saves);
+  }
+
   make(cx) {
     if (this.making || !this.on.size) return;
     this.making = true;
+    this.note = null;
     const keep = [...this.on];
     cx.spawn(async (cx) => {
       try {
-        await mergeSaves(herdrIo(cx), this.ids, keep);
-        this.close();
+        const { history, made } = await mergeSaves(herdrIo(cx), this.ids, keep);
+        if (made) { this.close(); return; }
+        this.load(history);
+        const left = new Set(this.rows.map((r) => r.entry.sessionId));
+        this.on = new Set([...this.on].filter((k) => left.has(k)));
+        this.note = { bad: false, text: this.saves.length > 1 ? "Nothing was made: none of the ticked sessions is in these saves any more." : "Nothing was made." };
       } catch (err) {
-        this.error = String(err?.message ?? err);
-        this.making = false;
+        this.note = { bad: true, text: "The save was not made: " + String(err?.message ?? err) };
       }
+      this.making = false;
       cx.notify();
     });
   }
@@ -66,6 +75,7 @@ export default class MergeDialog {
       .bg(n ? t.accent : t.background).text_color(t.background).text_size(10).flex().items_center().justify_center()
       .cursor_pointer().on_click((_e, cx) => {
         cx.stop_propagation();
+        this.note = null;
         for (const k of ids) all ? this.on.delete(k) : this.on.add(k);
         cx.notify();
       })
@@ -75,8 +85,6 @@ export default class MergeDialog {
   render() {
     const t = theme();
     const saves = this.saves ?? [];
-    const spaceOf = (e) => e.spaceName || "not in a space";
-    const spaces = [...new Set(this.rows.map((r) => spaceOf(r.entry)))];
     const allIds = this.rows.map((r) => r.entry.sessionId);
     const title = h_flex().px(18).pt(14).pb(12).gap(10).flex_none().items_center().border_b(1).border_color(t.border)
       .child(div().text_size(15).font_semibold().child("Merge " + saves.length + " saves"))
@@ -86,17 +94,15 @@ export default class MergeDialog {
     const head = h_flex().px(18).h(40).gap(10).flex_none().items_center().border_b(1).border_color(t.border)
       .child(this.box(t, "all", allIds))
       .child(div().text_size(12.5).text_color(t.muted).child("All sessions in these saves"));
-    const list = spaces.flatMap((sp) => {
-      const rows = this.rows.filter((r) => spaceOf(r.entry) === sp);
-      return [
+    const list = mergeGroups(this.rows).flatMap(({ id: sp, name, rows }) => [
         h_flex().px(18).pt(14).pb(4).gap(10).items_center()
           .child(this.box(t, "space-" + sp, rows.map((r) => r.entry.sessionId)))
-          .child(div().text_size(13).font_semibold().child(sp))
+          .child(div().text_size(13).font_semibold().child(name || "not in a space"))
           .child(div().text_size(11.5).text_color(t.dim).child(rows.length + (rows.length === 1 ? " session" : " sessions"))),
         ...rows.map(({ entry: e, in: holders }) => {
           const id = e.sessionId, on = this.on.has(id);
           return h_flex().id("s-" + id).pl(43).pr(18).h(40).gap(10).flex_none().items_center().cursor_pointer().hover((st) => st.bg(t.hover))
-            .on_click((_e, cx) => { on ? this.on.delete(id) : this.on.add(id); cx.notify(); })
+            .on_click((_e, cx) => { on ? this.on.delete(id) : this.on.add(id); this.note = null; cx.notify(); })
             .child(this.box(t, "box-" + id, [id]))
             .child(v_flex().flex_1().min_w(0)
               .child(div().truncate().text_size(13).text_color(on ? t.foreground : t.dim).child(cleanTitle(e.title) || e.name || e.address || id))
@@ -104,8 +110,7 @@ export default class MergeDialog {
                 .child([e.tabName ? "tab " + e.tabName : null, "in " + holders.map((h) => "save " + h).join(", ")].filter(Boolean).join(" · "))))
             .when(this.running.has(id), (el) => el.child(div().text_size(11).text_color(t.ansi2).child("● open")));
         }),
-      ];
-    });
+      ]);
     const n = this.on.size;
     const body = this.error
       ? div().flex_1().p(18).text_size(12.5).text_color(t.ansi1).child(this.error)
@@ -128,6 +133,8 @@ export default class MergeDialog {
       .child(title)
       .when(saves.length > 1 && !this.error, (el) => el.child(head))
       .child(body)
+      .when(this.note != null, (el) => el.child(div().px(18).py(8).flex_none().border_t(1).border_color(t.border).text_size(12.5)
+        .text_color(this.note.bad ? t.ansi1 : t.muted).child(this.note.text)))
       .child(foot);
   }
 }

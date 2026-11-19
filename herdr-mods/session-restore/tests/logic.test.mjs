@@ -1,9 +1,10 @@
 // Pure logic of session-restore: run with node --test herdr-mods/session-restore/tests
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   keptFlags, nextSave, coreIdentity, planOpen, placement, resumeArgv, shellLine, isClaude, isShell, summarize, linkParents, openable, groupsOf, chipState, openProgress, groupProgress, batchResult, startOpen, endOpen, reopenable, withMarks, settleOpen, withoutRows, keepLive, liveOf, STALE_MS,
-  DEFAULT_SETTINGS, parseSettings, staleAfter, parseHistory, withSnapshot, overLimit, trimHistory, withoutSnapshots, mergeSessions, mergeSnapshots, withRunning, cleanTitle,
+  DEFAULT_SETTINGS, parseSettings, staleAfter, parseHistory, withSnapshot, overLimit, trimHistory, withoutSnapshots, mergeSessions, mergeSnapshots, mergeGroups, folderChange, mergeDialog, withRunning, cleanTitle,
 } from "../logic.js";
 
 const WORKER_ARGV = ["C:\\Users\\User\\.local\\bin\\claude.EXE", "--model", "opus", "--effort", "high", "--dangerously-skip-permissions",
@@ -506,9 +507,61 @@ test("mergeSnapshots makes nothing when nothing is kept or fewer than two saves 
   assert.equal(mergeSnapshots(h, [1, 9], ["a"], { now: 30, limit: 50 }), h);
 });
 
-test("mergeSnapshots keeps the history limit, the merged save counting as one", () => {
+test("mergeSnapshots keeps the history limit by dropping the oldest saves that are not its sources", () => {
+  const h = { version: 1, saves: [snap(4, 40, ["d"]), snap(3, 30, ["c"]), snap(2, 20, ["b"]), snap(1, 10, ["a"])] };
+  assert.deepEqual(mergeSnapshots(h, [1, 2], ["a", "b"], { now: 50, limit: 4 }).saves.map((s) => s.id), [5, 4, 2, 1]);
+  assert.deepEqual(mergeSnapshots(h, [1, 2], ["a", "b"], { now: 50, limit: 5 }).saves.map((s) => s.id), [5, 4, 3, 2, 1]);
+});
+
+test("mergeSnapshots leaves the history over the limit where only its sources would remain", () => {
   const h = { version: 1, saves: [snap(2, 20, ["b"]), snap(1, 10, ["a"])] };
-  assert.deepEqual(mergeSnapshots(h, [1, 2], ["a", "b"], { now: 30, limit: 2 }).saves.map((s) => s.id), [3, 2]);
+  assert.deepEqual(mergeSnapshots(h, [1, 2], ["a", "b"], { now: 30, limit: 2 }).saves.map((s) => s.id), [3, 2, 1]);
+  const over = { version: 1, saves: [snap(5, 50, ["e"]), snap(4, 40, ["d"]), snap(3, 30, ["c"]), snap(2, 20, ["b"]), snap(1, 10, ["a"])] };
+  assert.deepEqual(mergeSnapshots(over, [1, 2], ["a", "b"], { now: 60, limit: 2 }).saves.map((s) => s.id), [6, 2, 1]);
+});
+
+test("mergeGroups groups the merge's rows by space id, so two spaces with one name stay apart", () => {
+  const rows = [
+    { entry: live("a", { labels: { "herdr.space": "sp1" }, spaceName: "work" }), in: [1] },
+    { entry: live("b", { labels: { "herdr.space": "sp2" }, spaceName: "work" }), in: [1] },
+    { entry: live("c", { labels: { "herdr.space": "sp1" }, spaceName: "work" }), in: [1] },
+    { entry: live("d", { labels: {}, spaceName: "" }), in: [1] },
+  ];
+  const groups = mergeGroups(rows);
+  assert.deepEqual(groups.map((g) => [g.id, g.name, g.rows.map((r) => r.entry.sessionId)]),
+    [["sp1", "work", ["a", "c"]], ["sp2", "work", ["b"]], ["", "", ["d"]]]);
+});
+
+test("folderChange reads an empty batch as a released watch, and reloads only for the given files or the folder itself", () => {
+  const dir = "C:/Users/U/.config/herdr-app/data";
+  const files = [dir + "/session-restore.history.json", dir + "/session-restore.settings.json"];
+  assert.equal(folderChange([], dir, files), "released");
+  assert.equal(folderChange([dir + "/agents/a.json", dir + "/agents/b.json"], dir, files), "skip");
+  assert.equal(folderChange([dir + "/session-restore.json", dir + "/session-restore/x.json", dir + "/agents/session-restore.history.json"], dir, files), "skip");
+  assert.equal(folderChange([dir + "/agents/a.json", "C:\\Users\\U\\.config\\herdr-app\\data\\session-restore.history.json"], dir, files), "reload");
+  assert.equal(folderChange([dir + "/Session-Restore.settings.json"], dir + "/", files), "reload");
+  assert.equal(folderChange(["C:\\Users\\U\\.config\\herdr-app\\data\\"], dir, files), "reload");
+});
+
+test("folderChange reads a path by its place under the folder, not by the form Herdr writes it in", () => {
+  const dir = "C:/Users/U/.config/herdr-app/data";
+  const files = [dir + "/session-restore.history.json", dir + "/session-restore.settings.json"];
+  assert.equal(folderChange(["\\\\?\\C:\\Users\\U\\.config\\herdr-app\\data\\session-restore.history.json"], dir, files), "reload");
+  assert.equal(folderChange(["D:/real/herdr-app/data/session-restore.settings.json"], dir, files), "reload");
+  assert.equal(folderChange(["D:/real/herdr-app/data"], dir, files), "reload");
+  assert.equal(folderChange([dir + "/session-restore.history.json.tmp"], dir, files), "reload");
+  assert.equal(folderChange(["D:/real/herdr-app/data/agents/x.json"], dir, files), "skip");
+});
+
+test("mergeDialog opens the merge as a dialog of its own, never under the chip's overlay key", () => {
+  const chip = JSON.parse(readFileSync(new URL("../mod.json", import.meta.url), "utf8")).overlay;
+  const spec = mergeDialog([3, 1]);
+  assert.equal(spec.mod, "session-restore");
+  assert.equal(spec.kind, "dialog");
+  assert.deepEqual(spec.props, { view: "merge", ids: [3, 1] });
+  assert.equal(typeof spec.key, "string");
+  assert.notEqual(spec.key, chip.key);
+  assert.equal(spec.keep, false);
 });
 
 test("cleanTitle drops what an agent puts before its title", () => {

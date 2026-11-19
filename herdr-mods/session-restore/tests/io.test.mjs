@@ -589,8 +589,19 @@ test("deleteSaves and mergeSaves change the history file", async () => {
     { id: 1, at: 10, entries: [{ sessionId: "a" }, { sessionId: "b", title: "old" }] },
   ];
   const m = machine({ files: { [historyPath(APP)]: JSON.stringify({ version: 1, saves }) } });
-  const merged = await mergeSaves(m.io, [1, 2], ["a", "b"]);
+  const { history: merged, made } = await mergeSaves(m.io, [1, 2], ["a", "b"]);
   assert.deepEqual(merged.saves[0].entries.map((e) => [e.sessionId, e.title ?? null]), [["b", "new"], ["a", null]]);
+  assert.equal(made, merged.saves[0]);
   await deleteSaves(m.io, [2, 1]);
   assert.deepEqual((await readHistory(m.io)).saves.map((s) => s.id), [3]);
+});
+
+test("mergeSaves says nothing was made when a source save is gone and fewer than two are left", async () => {
+  const saves = [{ id: 2, at: 20, entries: [{ sessionId: "b" }] }];
+  const m = machine({ files: { [historyPath(APP)]: JSON.stringify({ version: 1, saves }) } });
+  const before = m.files[historyPath(APP)];
+  const { history, made } = await mergeSaves(m.io, [1, 2], ["a", "b"]);
+  assert.equal(made, null);
+  assert.deepEqual(history.saves.map((s) => s.id), [2]);
+  assert.equal(m.files[historyPath(APP)], before);
 });

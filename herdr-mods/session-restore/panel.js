@@ -5,8 +5,8 @@
 import { div, svg, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { run, theme, shared, checking, openOverlay, watchFolder, appHome } from "herdr";
-import { batchResult, cleanTitle as clean, conductorOf, DEFAULT_SETTINGS, endOpen, entriesOf, groupProgress, groupsOf, keepLive, liveOf, openable, openProgress, overLimit, parseHistory, reopenable, settleOpen, staleAfter, startOpen, withMarks, withoutRows, withRunning } from "./logic.js";
-import { deleteSaves, lookAtTerminals, readHistory, readSettings, removeEntries, writeSettings } from "./save.js";
+import { batchResult, cleanTitle as clean, conductorOf, DEFAULT_SETTINGS, endOpen, entriesOf, folderChange, groupProgress, groupsOf, keepLive, liveOf, mergeDialog, openable, openProgress, overLimit, parseHistory, reopenable, settleOpen, staleAfter, startOpen, withMarks, withoutRows, withRunning } from "./logic.js";
+import { deleteSaves, historyPath, lookAtTerminals, readHistory, readSettings, removeEntries, settingsPath, writeSettings } from "./save.js";
 import { openSessions } from "./open.js";
 import { herdrIo, readSave, saveAndShare, SHARED } from "./io.js";
 
@@ -56,12 +56,13 @@ export default class Sessions {
       this.settings = settings;
       cx.notify();
     });
-    // The history and settings again whenever the data folder changes: the merge dialog's new save,
-    // a hand edit of the settings.
     cx.spawn(async (cx) => {
-      const dir = appHome().replace(/[\\/]+$/, "") + "/data";
+      const dir = appHome().replace(/[\\/]+$/, "") + "/data", files = [historyPath(appHome()), settingsPath(appHome())];
       for (;;) {
-        try { await watchFolder(dir); } catch { await cx.sleep(10000); }
+        let change = "reload";
+        try { change = folderChange(await watchFolder(dir), dir, files); } catch { await cx.sleep(10000); }
+        if (change === "skip") continue;
+        if (change === "released") await cx.sleep(1000);
         const io = herdrIo(cx);
         try { this.history = await readHistory(io); } catch {}
         try { this.settings = await readSettings(io); } catch {}
@@ -381,7 +382,7 @@ export default class Sessions {
 
   // The merge opens in a dialog of its own (merge.js).
   openMerge(ids) {
-    openOverlay({ mod: "session-restore", props: { view: "merge", ids }, kind: "dialog", width: 760, height: 640 });
+    openOverlay(mergeDialog(ids));
   }
 
   stepper(t, id, value, set) {
