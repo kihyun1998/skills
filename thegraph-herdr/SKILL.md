@@ -45,9 +45,10 @@ below Fable 5.2, with Mythos 5.2 level with Fable. A run warrants Fable 5.2
 `medium` where it is a major refactor, a migration or an architecture change, a
 cause nobody has confirmed across several layers, or an earlier attempt that
 failed; otherwise Opus 5.5 `medium`. The confirm stop names that model with its
-reason, after the reading and before the workers' models, and where this session
-runs on a lower one, or lower than the highest worker proposed, asks the person
-to switch with `/model` (the first turn on a new model writes the whole
+reason, after the reading and before the workers' models. Where this session
+already runs it and no worker is proposed above it, that is a line, not a
+question. Where this session runs on a lower one, or lower than the highest
+worker proposed, it asks the person to switch with `/model` (the first turn on a new model writes the whole
 conversation to its cache, so `/compact` first where it is long). Where a worker
 is later moved above the conductor, the same request goes with that answer. The
 person decides; the answer goes under `confirm`, and a switch rewrites the
@@ -107,7 +108,7 @@ them. Two of the signals are read narrowly:
 
 Each model question names the row it rests on, in the table's words, with the
 evidence for each signal, or says that no signal applies. The question tool takes
-at most four questions a call: the reading goes first, then the conductor's model, then the children's models
+at most four questions a call: the reading goes first, then the conductor's model where it is asked, then the children's models
 in order, then the permission mode and the placement, in as many calls as that
 takes; each issue's reviews come last, in a call of their own per issue (below). The worker runs on what the person's
 answers leave standing. Any other model or effort runs only where the person names
