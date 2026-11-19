@@ -1,5 +1,11 @@
 # ADR-0091 — `lens` runs in a fresh agent, and it always runs
 
+> **Amended by [ADR-0102](0102-check-it-reviews-are-a-catalog-chosen-per-change.md).**
+> `check-it` no longer runs `lens` on every change: it is offered, recommended on
+> its own Use-when, and runs where the person chose it. Its findings go to the
+> proving agent, which reproduces each one, instead of the caller re-opening every
+> `CONFIRMED` citation. The fork, the brief and the saved report stand.
+
 **Status:** accepted. Implements #39, narrowed to `lens`.
 
 `lens` carries `context: fork` and `background: false` in its frontmatter, so

@@ -1,5 +1,10 @@
 # ADR-0095 — `check-it`'s review and harm checks run in one fresh agent, on every code change
 
+> **Amended by [ADR-0102](0102-check-it-reviews-are-a-catalog-chosen-per-change.md).**
+> The reviewer keeps the rules and spec questions and runs on prose changes too;
+> harm leaves it for the bundled `/security-review`, offered on the change's risk.
+> Bugs go to the bundled `/review`, and a proving agent reproduces its findings.
+
 **Status:** accepted. Implements #49. Extends [ADR-0091](0091-lens-runs-in-a-fresh-agent.md)
 from `lens` to the review, and amends ADR-0090 and ADR-0092 on who asks harm and
 how review reads the diff.

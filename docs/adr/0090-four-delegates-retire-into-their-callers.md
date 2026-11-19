@@ -9,6 +9,10 @@ steps never borrowed them.
 > **Amended by [ADR-0095](0095-check-it-reviews-in-a-fresh-agent.md).** Harm is no
 > longer asked by `check-it` itself: one fresh agent, the reviewer, asks it with review.
 
+> **Amended by [ADR-0102](0102-check-it-reviews-are-a-catalog-chosen-per-change.md).**
+> `security-review` is back in `check-it`'s `requires:`, as the bundled skill run
+> in its own `claude -p` process where the person chose it.
+
 The rules that bound now sit where the work happens:
 
 | Retired | Into | What moved |

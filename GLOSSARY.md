@@ -241,11 +241,28 @@ the grades are.
 _Avoid_: Verdict (the Acceptance Gate's term)
 
 **Reviewer** (thegraph):
-The fresh agent [`check-it`](check-it/) starts on every code change. It reads the
-whole diff, the issue and the repository's records, and answers apart whether the
-change holds up, whether it does what was asked, and whether it is open to harm
-([ADR-0095](docs/adr/0095-check-it-reviews-in-a-fresh-agent.md)).
-_Avoid_: review agent (see the Acceptance Gate)
+The spec and rules reviewer, the fresh agent [`check-it`](check-it/) starts on
+every change. It reads the whole diff, the issue and the repository's records, and
+answers apart whether the change does what the issue asked and whether it holds up
+against what the repository wrote down
+([ADR-0095](docs/adr/0095-check-it-reviews-in-a-fresh-agent.md),
+[ADR-0102](docs/adr/0102-check-it-reviews-are-a-catalog-chosen-per-change.md)).
+Who could reach the change is `/security-review`'s question, not its.
+_Avoid_: review agent (see the Acceptance Gate); `/review` (the bundled bug review)
+
+**Proving agent** (thegraph):
+The fresh agent [`check-it`](check-it/) starts last of its reviews. It reproduces
+each finding of `/review`, `/security-review` and `lens`, and what `/simplify` named and left unfixed, and returns each as
+*passed*, *dropped* with why, or *unproven* for a person where no run here can
+show it ([ADR-0102](docs/adr/0102-check-it-reviews-are-a-catalog-chosen-per-change.md)).
+_Avoid_: finding vote (the name before it was decided to reproduce rather than vote)
+
+**Offered review** (thegraph):
+A review [`check-it`](check-it/) runs only where the person chose it for the
+change: `/security-review`, `/simplify` and `lens`, and `/review` on a prose
+change. It is asked at the confirm stop, or once at the start of a direct
+`/check-it`, with a recommendation read from the change. One not chosen is
+reported as not chosen, not as a skip.
 
 **Brief** (thegraph):
 The three things [`check-it`](check-it/) assembles and hands to `lens` — this repo's
@@ -257,7 +274,7 @@ here, a tie-breaker for what wins when prior art and this project disagree; it w
 one sentence for a whole repository, which is either a truism or wrong case by
 case, and it now lives as a habit with the records governing any clash they have
 already settled. The **Reviewer** gets a brief of its own: the whole diff, the
-issue, the repository's records, and its three questions as `check-it` words them.
+issue, the repository's records, and its two questions as `check-it` words them.
 _Avoid_: Build (the repo-scoped one)
 
 **Design brief** (design-it):
@@ -510,7 +527,7 @@ _Avoid_: cwd (the absolute path it is read from — not what is shown), session 
   |---|---|
   | [`read-it`](read-it/) | `firsthand` (`spine` absorbed, ADR-0090) |
   | [`make-it`](make-it/) | `tdd` (`redden` absorbed, ADR-0090); `design-it` for a new screen (ADR-0097); `encode-it` for a check-adding change (#80) |
-  | [`check-it`](check-it/) | `lens`, `sweep`, `comment-it` (#75) (`bare` and `boundary` absorbed, ADR-0090; `assay` and `silt` absorbed, ADR-0092; review and harm in one fresh agent, ADR-0095) |
+  | [`check-it`](check-it/) | `lens`, `sweep`, `comment-it` (#75); the bundled `/simplify`, `/review` and `/security-review`, each in its own `claude -p` (ADR-0102) (`bare` and `boundary` absorbed, ADR-0090; `assay` and `silt` absorbed, ADR-0092; the spec and rules reviewer and the proving agent, ADR-0095, ADR-0102) |
   | [`ask-it`](ask-it/) | — (`envelope` and `byartifact` were absorbed, ADR-0089) |
 
   The seam is the same every time: **a method governs work of its kind anywhere;

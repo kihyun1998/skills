@@ -29,8 +29,8 @@ skill that produced it. A retired skill is frozen: no fixes, no new precision.
 | [`spine`](spine/) | Absorbed: 40 of 44 runs with a parent read the cluster without it; the root-as-hypothesis and rejected-alternatives rules now sit in `read-it`'s cluster read | [`read-it`](../read-it/) | ADR-0090, ADR-0027 |
 | [`bare`](bare/) | Absorbed: 25 of 26 runs with checks ran them without it; *bare, the list from CI, no threshold moved* now sit in `check-it`'s check 1 and `pub-ready` | [`check-it`](../check-it/) | ADR-0090, ADR-0027 |
 | [`boundary`](boundary/) | Never loaded (0 calls); `check-it` and `make-it` already asked whose invariant broke | [`thegraph`](../thegraph/)'s signal, `make-it`, `check-it` | ADR-0090, ADR-0027 |
-| [`assay`](assay/) | Absorbed: `check-it` runs wrote their own two-axis briefs and found the same kinds of defects as the few loads; its two axes and three grades now sit in `check-it`'s review (4) | [`check-it`](../check-it/) | [ADR-0092](../docs/adr/0092-assay-silt-and-decant-retire.md), ADR-0027 |
-| [`silt`](silt/) | Absorbed: inline runs already measured with numbers; *no defect without a number* now sits in `check-it`'s cost check (5) | [`check-it`](../check-it/) | ADR-0092, ADR-0027 |
+| [`assay`](assay/) | Absorbed: `check-it` runs wrote their own two-axis briefs and found the same kinds of defects as the few loads; its two axes and three grades now sit in `check-it`'s spec and rules reviewer (5) | [`check-it`](../check-it/) | [ADR-0092](../docs/adr/0092-assay-silt-and-decant-retire.md), ADR-0027 |
+| [`silt`](silt/) | Absorbed: inline runs already measured with numbers; *no defect without a number* now sits in `check-it`'s cost check (10) | [`check-it`](../check-it/) | ADR-0092, ADR-0027 |
 | [`decant`](decant/) | The maintainer's call over a recommendation to keep it: the comment rule lives in `CLAUDE.md`, and a one-off migration of old comments can be asked for in a sentence. It did one real bulk migration (just-apps-kit, 2026-09-23) | the comment rule `grill-the-graph` writes | ADR-0092, ADR-0027 |
 
 `to-external-issue`, `weekly-digest` and `unexported-archives` were retired here

@@ -82,7 +82,7 @@ export const onSkill = (run: Run, skill: string, now: number): Run => {
   if (SIGNAL_SKILLS.includes(skill)) return logged({ ...run, signals: [...run.signals, { skill, at: now }] }, now, 'signal', skill)
   if (!STEP_SKILLS.includes(skill)) return run
   if (skill === 'lens') {
-    // check-it runs lens on every change: only a lens at the route is the open-decision step.
+    // check-it can run lens too: only a lens at the route is the open-decision step.
     if (run.route === 'decision' || (run.route === null && isAtRoute(run))) {
       return logged({ ...run, route: 'decision', isWaiting: false, steps: begin(run, skill, now) }, now, 'step', skill)
     }

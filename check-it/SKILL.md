@@ -1,6 +1,6 @@
 ---
 name: check-it
-requires: [lens, sweep, comment-it]
+requires: [lens, sweep, comment-it, review, security-review, simplify]
 description: "Measure a finished change before anyone calls it done, cheapest check first. Use once a change is written and before it reaches a person."
 ---
 
@@ -10,23 +10,42 @@ description: "Measure a finished change before anyone calls it done, cheapest ch
 **the hand that shaped a thing is the worst judge of whether it is finished.**
 
 Nothing here fixes anything. It measures, attributes, and hands the result on.
+The one exception is `/simplify` (4), which applies its own fixes where the
+person chose it.
 
 ## What gets measured, cheapest first
 
-The order is cost, not ceremony. A red gate makes every expensive pass below it
-a waste, so it goes first.
+| | What it answers | Call | Code change | Prose change |
+|---|---|---|---|---|
+| 1 | Did every check actually run, and pass | — | the project has checks | — |
+| 2 | Did the files land where the rule said they would | — | the change added or moved a file | the same |
+| 3 | Does it work against something real | — | the change compiles or runs | — |
+| 4 | Does it re-make what the repository already has, or could it be simpler | `/simplify`, which applies its fixes | offered | offered |
+| 5 | Does it do what the issue asked, and keep what the repository wrote down | the spec and rules reviewer, a fresh agent | always | always |
+| 6 | What bugs does it carry | `/review` | always | offered |
+| 7 | Is it open to somebody who means harm | `/security-review` | offered, where there is an `origin` remote | the same |
+| 8 | What is missing | `lens`, forked by `Skill` | offered | offered |
+| 9 | Do the new comments and lint suppressions keep the repository's comment rule | `comment-it`, forked by `Skill` | always | — |
+| 10 | Will it get slower | `benchmark.md`, when it applies | the change adds state, loops, or I/O | — |
+| 11 | Which findings of 6, 7 and 8 hold | the proving agent, a fresh agent | always | over what ran of 6–8 |
+| 12 | Which surfaces now describe it wrongly | `sweep` | always | always |
 
-| | What it answers | Call | When |
-|---|---|---|---|
-| 1 | Did every check actually run, and pass | — | the project has checks |
-| 2 | Did the files land where the rule said they would | — | the change added or moved a file |
-| 3 | Does it work against something real | — | the change compiles or runs |
-| 4 | Does the code hold up, and does it do what was asked | the reviewer, a fresh agent | ” — always; a skip is reported with its reason |
-| 5 | Will it get slower | `benchmark.md`, when it applies | the change adds state, loops, or I/O |
-| 6 | Is it open to somebody who means harm | the same reviewer | as 4 |
-| 7 | What is missing | `lens`, forked by `Skill` | always; a skip is reported with its reason |
-| 8 | Which surfaces now describe it wrongly | `sweep` | always |
-| 9 | Do the new comments and lint suppressions keep the repository's comment rule | `comment-it`, forked by `Skill` | the change touches code |
+*Always* means a skip is reported with its reason. *Offered* means it runs where
+the person chose it for this change (*Choosing the offered reviews*). One they
+did not choose is reported as not chosen, and that is not a skip (ADR-0102).
+
+**The order is cost, then what each step needs.** A red gate makes every
+expensive pass below it a waste, so 1 to 3 go first. `/simplify` (4) goes next,
+because it edits; 1 to 3 run again on its edits. Then 5 to 10 run at the same
+time: they read the same diff and ask different questions, which is not
+splitting material but the opposite. The proving agent (11) runs last of the
+reviews, since it works on their findings. `sweep` (12) runs on the change as it
+stands once the findings acted on are fixed.
+
+**A prose change runs 5 and 12, plus 2 where it added or moved a file, and the
+offered reviews the person chose, with 11 over what ran of 6 to 8.** There are no
+gates to run and no round trip to prove. A run that reports those as passed has
+reported on work it did not do.
 
 **Running the checks (1).** The list is the project's CI workflow, or the gate
 list its guidance names where CI gates nothing, plus whatever those do not
@@ -37,23 +56,44 @@ benchmark lanes are part of the list**, nightly-only ones included: reproduce
 them locally, as long as the repository's own workflow runs them. A fuzz lane
 never ends by itself, so it is the kept inputs replayed, or the time the
 workflow gives it. A benchmark has no pass or fail of its own, so it is read
-through (5). Never move a threshold, narrow a scope or bypass a hook to turn
+through (10). Never move a threshold, narrow a scope or bypass a hook to turn
 one green, and report a check not run, with why. **The same
 failure surviving three fixes stops the repairs** and goes to a person as a
 design question.
 
-**Review (4)** is one fresh agent, given the **whole** diff, the issue, and what
-this repo wrote down: its `CLAUDE.md`, decision records and conventions. It is
-briefed and handled as `lens` is (*Briefing the reviewer and the completeness
-read*), and it answers three questions, reported apart, each with its own worst
-finding and never merged into one ranking:
+### Choosing the offered reviews
 
-- **Does it hold up** against what this repo wrote down? Where it wrote nothing,
-  the baseline is the well-known code smells (Fowler's catalogue).
-- **Does it do what the issue asked?** What is missing, what crept in that nobody
-  asked for, and what looks done but is done wrongly.
-- **Harm (6):** who could reach this, what they control, and what it exposes.
-  *"Nothing here to reach"* is that agent's answer to give, not this session's.
+`thegraph` and `thegraph-herdr` ask which offered reviews run at their confirm
+stop, and the answer reaches this step on the run sheet or in the worker's
+brief. **A direct `/check-it`, with no confirm stop before it, asks once, at its
+start.** Each offered review is put with a recommendation, the reason for it read
+from what the change will do (at a confirm stop) or from its diff (at a direct
+run), and its cost where one is on record (ADR-0102):
+
+| Review | Recommended where the change |
+|---|---|
+| `/security-review` (7) | touches input from outside the process (network, user files, arguments), authentication or permissions, running a shell or an outside command, secrets, or deserialization |
+| `/simplify` (4) | adds a module, component or helper, makes something the repository already has a shape for, or is a refactor |
+| `lens` (8) | is an enumeration, a new feature with siblings or prior art to hold it against, or one where a bug would cost more than a wrong number |
+
+On a prose change, `/review` (6) is offered too, with the same three things.
+No size of change recommends a review: no line-count threshold has been
+measured. `/security-review` is not offered where `git rev-parse --verify
+origin/HEAD` fails: it diffs against that ref, which a repository without an
+`origin`, or one whose `origin` was added rather than cloned, does not have.
+
+### The spec and rules reviewer (5)
+
+One fresh agent, given the **whole** diff, the issue, and what this repo wrote
+down: its `CLAUDE.md`, decision records and conventions. It is briefed and
+handled as `lens` is (*Briefing the fresh agents*), and it answers two
+questions, reported apart, each with its own worst finding and never merged into
+one ranking:
+
+- **Rules: does it hold up** against what this repo wrote down? Where it wrote
+  nothing, the baseline is the well-known code smells (Fowler's catalogue).
+- **Spec: does it do what the issue asked?** What is missing, what crept in that
+  nobody asked for, and what looks done but is done wrongly.
 
 Each finding is graded **violation** (cite the rule), **judgement**, or **already
 decided** (a record settled it; one line), and carries its reproduction: the
@@ -63,22 +103,77 @@ such as a smell, is kept and marked *not run*, with why. The report ends with
 `lens`'s safety line (*Verification*, item 6), for the fact the change's safety
 rests on. A clean answer is a result.
 
-**Cost (5)**: no defect without a number. A slowdown that was measured, with
+Who could reach the change and what it exposes is `/security-review`'s question
+(7), not this reviewer's. Where 7 did not run, nothing asked it, and the result
+says so.
+
+### The built-ins (4, 6, 7)
+
+`/simplify`, `/review` and `/security-review` are skills bundled with Claude
+Code. `/review` is the alias of the bundled `/code-review`, and it is called by
+the alias because an installed skill named `code-review` replaces the bundled
+command while the alias keeps running the bundled one.
+
+**Each runs as its own `claude -p` process at the repository root.** `Skill`
+cannot reach `/review`: it answers `Unknown skill: review`, and `Skill` with
+`code-review` reaches the installed skill. `/security-review` and `/simplify`
+are in a session's skill list, but they run the same way, so there is one recipe,
+the one the #91 trial measured, and a process that never saw this session.
+
+- From Git Bash, set `MSYS_NO_PATHCONV=1`, or the leading `/` is rewritten into
+  a Windows path and the review never runs.
+- Pass `--allowedTools` naming `git`, `gh` and the commands of (1), so the
+  review can read the issue and run the tests. Without them `-p` denies both,
+  and it reviews by reading alone. `/simplify` also needs `Edit` and `Write`.
+- Give the command a timeout of 15 minutes. The longest measured run took about
+  three minutes, past a shell's usual two-minute default, after which the
+  command moves to the background.
+- Their diff leaves out untracked files. Mark each new file with `git add
+  --intent-to-add` before `/simplify` and before `/review`, and once the
+  built-ins are done, `git reset -q --` those files, so the index is as it was:
+  a file left marked makes `git stash` fail.
+- `/simplify` and `/review` read this branch's commits ahead of its upstream
+  (or `main`) as well as the uncommitted change, so in a run that committed
+  earlier issues those are in their scope too. Pass `/simplify` the changed
+  files' paths as its target, so it edits only this change; where `/review`'s
+  scope held earlier commits, say so.
+- `/security-review` reads only commits (`git diff origin/HEAD...`). Add a
+  temporary worktree (`git worktree add --detach`), apply there the patch `git
+  diff HEAD --binary` gives once new files are marked, commit it, run the review
+  there, and remove the worktree, which takes the commit with it. Its diff also
+  holds this branch's commits not yet on `origin`; where there are any, say so.
+
+Their findings name a file, a line and a failure scenario in words, and are not
+run. That is what the proving agent (11) is for.
+
+### The proving agent (11)
+
+One fresh agent, briefed as the reviewer is, given every finding of 6, 7 and 8
+as each report gave it, with its grade or severity, and each finding `/simplify`
+named and left unfixed. For each one it reproduces the finding: it runs the
+command that shows it, with the output it printed and the output the intent
+requires, or, for a finding about text such as a citation or a missing case, it
+re-opens the source and quotes it. Each finding comes back as one of three:
+
+- **passed**: reproduced, with that evidence;
+- **dropped**: shown not to hold, or to need no action, with why;
+- **unproven**: no run here can show it, because it needs a live screen,
+  another machine or a person to drive it. It says what would show it, and it
+  goes to a person. It is never passed and never dropped.
+
+A passed finding still goes where *Going back, and stopping* sends it: one this
+change did not introduce, or one that asks for a decision, goes to a person.
+`/simplify`'s edits do not go through it: they are made already, and 1 to 3 ran
+on them. The reviewer's findings (5) and `comment-it`'s (9) carry their own
+evidence and do not go through it either.
+
+**Cost (10)**: no defect without a number. A slowdown that was measured, with
 something to compare it against, is a defect. A shape nobody measured is a
 question, and it is asked as one. **Read [benchmark.md](benchmark.md) when** the
 change claims a performance effect, a review flags a possible slowdown, or the
 repository's build guidance names the path as needing a benchmark; otherwise it
-is not read. The review runs beside this check, so where its finding is the first
-to flag a slowdown, run (5) again with the method once it arrives.
-
-**A prose change runs 7 and 8 — plus 2, where it added or moved a file — and
-nothing else.** There are no gates to run, no round trip to prove, no code for the
-reviewer — and a run that reports those as passed has reported on work it did
-not do.
-
-**The reviewer, the cost check (5) and the comment check (9) read the same diff
-and ask different questions**, so they run at the same time. That is not splitting material; it is
-the opposite.
+is not read. The reviews run beside this check, so where a finding of theirs is
+the first to flag a slowdown, run (10) again with the method once it arrives.
 
 **Comments (9)** come back as findings, and the working session acts on them in
 this change, through `make-it`: a comment outside the repository's list is
@@ -100,6 +195,9 @@ checked: list what the diff actually added or moved, and match it.
 **A file in the wrong place produces no error, no failing test and no warning** —
 which is the whole reason the answer was written down rather than carried. A
 mismatch is this change's own defect and goes back to `make-it`.
+
+A file `/simplify` (4) added has no answer from `make-it`; its report is the
+answer, matched against the layout rule like any other.
 
 **No written answer at all is itself the finding.** The call was made and left
 unrecorded, so nothing can check it — report that rather than reconstructing the
@@ -208,22 +306,31 @@ conditional deciding it for them.
 you are right not to trust. That does not answer *"if X behaved correctly"*, so it
 does not fire. Anything genuinely ambiguous goes out as a question, not a verdict.
 
-## Briefing the reviewer and the completeness read
+## Briefing the fresh agents
 
-**The reviewer, `lens` and `comment-it` each run in a fresh agent** that never saw this
-session (ADR-0091, ADR-0095). That is the point: the hand that shaped the change
-is the worst judge of it. So the brief is all it gets: for `lens`, the skill's
-argument; for `comment-it`, the argument naming the repository's root and the
-same diff as the scope; for the review, the prompt of a newly started general-purpose agent
-(not a fork of this conversation, which inherits it), told to edit nothing and write no
-file outside the OS temp folder. That prompt names the diff as `git diff HEAD` plus every untracked file, so
-a new file is in it; it points at the issue and this repo's records; and it quotes
-Review (4)'s three questions and the paragraph after them as written here. **Save each report it returns** beside the run sheet
-(`<run sheet>.lens.md`, `<run sheet>.review.md`, `<run sheet>.comments.md`), or in the OS temp folder when
-there is no run sheet, so a compaction does not lose it. Then **re-run every kept finding's command, and re-open every `CONFIRMED`
-citation and every finding you will act on, at its source**: a finding is a candidate until you have reproduced it. **`lens` runs on every
-change, the reviewer and `comment-it` on every code change.** A skip, such as a two-sentence
-change with nothing to enumerate, is reported with its reason, never silent.
+**The reviewer (5), the proving agent (11), `lens` and `comment-it` each run in a
+fresh agent** that never saw this session (ADR-0091, ADR-0095, ADR-0102), and
+the built-ins in a process of their own. That is the point: the hand that shaped
+the change is the worst judge of it. So the brief is all it gets: for `lens`, the
+skill's argument; for `comment-it`, the argument naming the repository's root
+and the same diff as the scope; for the reviewer and the proving agent, the
+prompt of a newly started general-purpose agent (not a fork of this
+conversation, which inherits it), told to edit nothing and write no file outside
+the OS temp folder. That prompt names the diff as `git diff HEAD` plus every
+untracked file, so a new file is in it, and it points at the issue and this
+repo's records. The reviewer's prompt quotes (5)'s two questions and the
+paragraph after them as written here; the proving agent's quotes (11) as written
+here, and every finding it is to prove.
+
+**Save each report** beside the run sheet, as `<run sheet>.<name>.md` with the
+name `simplify` (4), `spec-rules` (5), `review` (6), `security` (7), `lens` (8),
+`comments` (9) or `proving` (11), or in the OS temp folder when there is no run
+sheet, so a compaction does not lose it. Then **re-run each command the
+reviewer's kept findings carry, and each passed finding's reproduction, before
+acting on it**: a finding is a candidate until it was reproduced here. An
+*unproven* finding is carried to a person with what would show it. A skip, such
+as a two-sentence change with nothing for the reviewer to read, is reported with
+its reason, never silent.
 
 **Call `lens` and `comment-it` with `Skill` directly, the whole brief in
 `args`, and never through an agent started to call them.** Both are `context: fork`

@@ -163,6 +163,11 @@ Two statements go to the maintainer — what this issue **is**, in your own word
 and what this change **will do** and deliberately leave alone. `read-it` holds
 what each has to carry and what a correction to each one means.
 
+**On a prose or code route, which offered reviews `check-it` runs is asked here
+too**, each with its recommendation, the reason and its cost, as `check-it`'s
+*Choosing the offered reviews* words them. That way the person answers once,
+with the issue already read, and `check-it` does not stop to ask again.
+
 **This is not `ask-it`.** That one comes at the end and asks what to *file*; this
 one asks whether the reading is right, before anything has run.
 
@@ -173,7 +178,10 @@ is the maintainer's call, so it is recorded as theirs.
 to be a typo ends here, said out loud. That is a result, not a skipped step.
 
 The answer is checked off on the run sheet as `confirm`, with what it changed
-written under it for the next step.
+written under it for the next step, the offered reviews chosen included. In a
+cluster, where the step list is rewritten for each child, the choice is each
+child's, kept in a `## Reviews` section without checkboxes, one line per child
+(`- #38 — lens, /security-review`).
 
 ### 3. Follow the route
 
@@ -194,8 +202,8 @@ present.**
 
 The last two share a row because the conditions live inside the skills. `make-it`
 calls `design-it` first for a new screen and `encode-it` for a check-adding change, and skips its test section for a change
-that does not run; `check-it` runs two of its nine checks for prose — three where
-a file moved — and all of them for code.
+that does not run; `check-it` runs fewer checks for prose than for code, plus
+the offered reviews chosen at step 2.
 
 ## The signals that do not wait for their turn
 

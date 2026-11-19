@@ -135,8 +135,13 @@ first:
 
 Herdr has no command that opens a window of its own, so that is not an option.
 
+**Ask which offered reviews `check-it` runs**, for each prose or code issue,
+after its model: each with its recommendation, the reason and its cost, as
+`check-it`'s *Choosing the offered reviews* words them. The answer goes into
+that worker's brief, so the worker does not stop to ask it again.
+
 Check `confirm` on the sheet with what it changed written under it, the
-permission mode and the placement included.
+permission mode, the placement and the offered reviews included.
 
 ### 3. Follow the route
 
@@ -246,6 +251,7 @@ What the earlier workers changed that bears on this: <or "nothing">
 Corrections received so far in this run, which hold for this work too: <each with whether it was a repeat, or "none">
 Earlier attempts at this issue: <or "none": what each tried and why it fell short>
 Left in the tree for you: <or "nothing": the files the person handed over>
+Offered reviews chosen at the confirm stop: <each of /security-review, /simplify and lens, run or not; on a prose route, /review too>
 Report file: <its report file>
 This run's run sheet: <its per-issue run sheet path>. It does not exist; the skills
 you call keep their files beside it.

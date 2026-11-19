@@ -1,6 +1,6 @@
 # Measuring a performance claim
 
-Read when `check-it`'s cost check (5) points here: the change claims a
+Read when `check-it`'s cost check (10) points here: the change claims a
 performance effect, a review flagged a possible slowdown, or the repository's
 build guidance names the path as needing a benchmark. The method is pstack's
 benchmark checklist, read raw at
