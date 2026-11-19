@@ -332,7 +332,7 @@ All under the anchor [#71](https://github.com/kihyun1998/skills/issues/71)
 | [#79](https://github.com/kihyun1998/skills/issues/79) | how decision records are written and how much they weigh (§M) | open; `needs-grill`; **deferred** 2026-11-18 (§M) |
 | [#80](https://github.com/kihyun1998/skills/issues/80) | `encode-it`: a skill that turns a repeated correction into a check | **closed** 2026-11-18; built as `encode-it` in `59f7a4a`, replay on justssh recorded on the issue; its direct run reads closed issues and rules, not history, after a trial on justssh (`8b39b15`, #80 comment) |
 | [#84](https://github.com/kihyun1998/skills/issues/84) | `thegraph-herdr` passes a correction received in a run to the next worker (from #73) | built in `f20b412` (closes on push); paper replay on the issue |
-| [#85](https://github.com/kihyun1998/skills/issues/85) | decide `thegraph-herdr`'s model table again, Mythos 5.2 included (filed 2026-11-18) | open; `needs-grill` |
+| [#85](https://github.com/kihyun1998/skills/issues/85) | decide `thegraph-herdr`'s model table again, Mythos 5.2 included (filed 2026-11-18) | grilled 2026-11-19 (decisions on the issue), `ready-for-agent` |
 | [#82](https://github.com/kihyun1998/skills/issues/82) | clean up the comments target repositories carry from before #75's allow-list; sized by #75's survey (filed 2026-11-18) | open; `needs-grill`; blocked by #75 |
 
 The order to take them is §O.2.

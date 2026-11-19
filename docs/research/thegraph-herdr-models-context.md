@@ -298,6 +298,21 @@ Third-party aggregators (BenchLM, gradually.ai, tech-insider and others) turned 
 searches and were not used: they mix estimated and supported scores and disagree with
 each other. Treated as leads only.
 
+## E. Revisited 2026-11-19 (#85)
+
+What #85's grilling added, as read raw or measured that day. The decisions are on #85.
+
+| Fact | Label | Source |
+|---|---|---|
+| The post *Which Claude model should you build with?* (2026-11-09) re-read in full: "start most work on Opus 5.5 at its default effort level, medium"; Sonnet 5.5 for "well-defined, repeated tasks"; "Keep code edits and judgment calls on the main model"; "Just because you have a clear spec doesn't mean you should use Sonnet" | vendor-reported; guidance, its task table unmeasured | [claude.dev](https://claude.dev/blog/which-claude-model-should-you-build-with/) |
+| Claude Mythos 5.2 is "the same underlying model" as Fable 5.2, with its cyber and bio safeguards lifted for users verified through the Cyber Verification Program; API id `claude-mythos-5-2`; $8 / $40 per MTok, as Fable; default effort `high` | vendor-reported | platform.claude.com models/mythos-5-2 overview; anthropic.com/claude-fable-and-mythos-5-2; pricing.md; effort.md |
+| Anthropic: "For most coding and knowledge tasks, we recommend that users start with Claude Opus 5.5"; "You don't need CVP for everyday secure development"; on CVE Rediscovery Mythos finds 10.2% more than Opus 5.5, yet "vulnerability identification is roughly on par with Opus 5.5" | vendor-reported | the launch post; support.claude.com article 14604842 |
+| Fable 5.2 falls back to Opus 4.8 on a cyber-flagged request | vendor-reported | the launch post |
+| `claude -p --model claude-mythos-5-2 --output-format json` runs on the maintainer's subscription in Claude Code; `modelUsage` names `claude-mythos-5-2`, no fallback; Claude Code has no short alias for it | measured here (one run) | — |
+| Prose proposals across six `thegraph-herdr` runs (2026-11-18/19): Sonnet 5.5 `medium` proposed 7 times, changed to Opus 5.5 `medium` 5 times (#80, #75, #73, #74, #76); the two Sonnet workers kept (#84, #77) each skipped re-running a replay after changing the text, and #84's skipped `lens` until sent back | measured here (run sheets and reports) | #85 |
+
+**Gaps:** how Mythos counts against a subscription's usage limit; whether the cyber classifier fires on this maintainer's protocol and certificate work at all.
+
 ## Gaps
 
 Stated as gaps, not absences.
