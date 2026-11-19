@@ -191,6 +191,14 @@ the one the #91 trial measured, and a process that never saw this session.
 - Put the command first, before the flags: `--allowedTools` takes every word
   after it as a value, so a prompt placed after it is read as a tool name and
   the run exits 1.
+- Start it in the permission mode this session runs in: the same
+  `--dangerously-skip-permissions` or `--permission-mode` flag. A `-p` process
+  cannot ask, so under a mode that asks, `--allowedTools` is what lets it run
+  anything.
+- Do not append the issue to the command: everything after `/review` and its
+  flags is read as the review target (`code-review-local.md`). The review reads
+  this repository's `CLAUDE.md`; the issue reaches the reviewer (5) and the
+  proving agent (11), which judge against it.
 - Start each with its row's `--model` and `--effort` (*Each review's model*),
   and give `/review` its level as the command's first word (`/review high`):
   with no level typed, `/review` reuses the last level the person typed in any
