@@ -70,6 +70,19 @@
 > turns. The per-turn `hc get` remains only for a worker still at `turn` 0, since a
 > startup dialog begins no turn. Not measured: whether the hook also fires after a
 > turn that sent a report, which the conductor reads as no news either way.
+>
+> **Amended on 2026-11-19.** Where workers show is no longer asked: every worker
+> runs without a pane, as the split's first step already started it, and the
+> `pane.focus` and `terminal.keep` steps are gone. The maintainer chose this after
+> a run's `terminal.keep` left one worker without its pane. Measured that day on
+> Windows, `hc` 0.1.21, `herdr-app` 0.1.16: `herdr-app ls` listed
+> that worker (`tg-2e876c6d-2791c`) only in its conductor's `sub_agents`, with no
+> pane, and `hc read` showed it 32 minutes into `check-it`, working. The person
+> sees a worker with `herdr-app do terminal.peek --terminal <address>`, which
+> `herdr-app commands` describes as a peek over the tab with keep-as-tab and
+> close controls, so "no command opens a separate window" above no longer bounds
+> what is offered. Not measured: whether Herdr's own "agent needs you" notification
+> fires for a worker without a pane, and where Esc goes while a worker is peeked.
 
 **Status:** proposed.
 

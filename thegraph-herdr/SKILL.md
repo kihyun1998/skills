@@ -109,7 +109,7 @@ them. Two of the signals are read narrowly:
 Each model question names the row it rests on, in the table's words, with the
 evidence for each signal, or says that no signal applies. The question tool takes
 at most four questions a call: the reading goes first, then the conductor's model where it is asked, then the children's models
-in order, then the permission mode and the placement, in as many calls as that
+in order, then the permission mode, in as many calls as that
 takes; each issue's reviews come last, in a call of their own per issue (below). The worker runs on what the person's
 answers leave standing. Any other model or effort runs only where the person names
 it.
@@ -124,21 +124,13 @@ options and the flag each one starts a worker with:
 | auto mode | `--permission-mode auto` |
 | ask each time | `--permission-mode manual` |
 
-**Ask where the workers show, once, with the permission mode**, for every worker
-of the run, every run. It is the person's preference, so it carries no
-recommendation. Offer the options in this order, the one the person uses most
-first:
-
-| Option | Where a worker shows |
-|---|---|
-| split right | right of this session's pane, in its tab |
-| a new tab | a tab of its own in this session's space |
-| split down | below this session's pane, in its tab |
-
-Herdr has no command that opens a window of its own, so that is not an option.
+**Workers run without a pane**, so where they show is not asked. Herdr lists a
+worker under this session's terminal, and
+`herdr-app do terminal.peek --terminal <address>` shows it over the tab, with
+keep-as-tab and close controls.
 
 **Ask which reviews `check-it` runs**, for each prose or code issue, in a call
-of its own after the reading, the models, the permission mode and the placement,
+of its own after the reading, the models and the permission mode,
 and never folded into one of theirs. It is put as `check-it`'s *Choosing the
 reviews* words it: every review is an option, the default ones too, split over
 as many questions as the tool's four options take; each option carries this
@@ -149,7 +141,7 @@ cannot change within a run. The answer goes into that worker's brief, so the
 worker does not stop to ask it again.
 
 Check `confirm` on the sheet with what it changed written under it, the
-permission mode, the placement, the reviews chosen and dropped, and any review
+permission mode, the reviews chosen and dropped, and any review
 model changed included.
 
 ### 3. Follow the route
@@ -173,28 +165,18 @@ For each issue:
    brief, or stop the run. Nothing is discarded without the person.
 2. **Write its brief** to its brief file from the template below, and the run's
    Stop hook if this is the run's first worker.
-3. **Start it**, visible in the person's window where step 2's placement says,
-   with the flag of the permission mode step 2 confirmed. In a new tab:
-   ```sh
-   hc get $HC_TERMINAL_ID --json   # labels."herdr.space": this session's space
-   hc run --bg --name tg-<run id>-<slug> --cwd <repo> --label herdr.space=<id> claude --model <alias> --effort <level> <flag> --settings <stop hook path> "Read <brief path> and do what it says."
-   ```
-   In a split, start it with no label, which keeps it hidden, then give it a pane
-   beside this session's:
+3. **Start it** with no label, which runs it without a pane, with the flag of the
+   permission mode step 2 confirmed:
    ```sh
    hc run --bg --json --name tg-<run id>-<slug> --cwd <repo> claude --model <alias> --effort <level> <flag> --settings <stop hook path> "Read <brief path> and do what it says."
-   herdr-app do pane.focus --terminal $HC_TERMINAL_ID
-   herdr-app do terminal.keep --terminal <address from the reply> --place <right or down>
    ```
-   `terminal.keep` places the pane beside the focused one and takes no pane to
-   place it by, so the focus moves first. Its reply can say `pending: true`:
-   `herdr-app ls` shows whether the worker is in this session's tab. Where it is
-   not, tell the person where it is.
+   Tell the person the worker's address from the reply, which `terminal.peek`
+   opens.
    Read `first_message.sent` in the reply. Where it is false, `hc read` the worker: a
    dialog on its screen, the folder trust prompt included, goes to the person, who
-   answers it in the window or tells you which keys to send with `hc keys`. Once
-   the screen is clear and the read shows the task did not arrive, `hc send` the
-   same task line.
+   answers it in the peeked worker or tells you which keys to send with `hc keys`.
+   Once the screen is clear and the read shows the task did not arrive, `hc send`
+   the same task line.
 4. **End the turn, and let the workers' news come to this session.** `hc` types
    into this session, tagged `<hc …>`, every report a worker sends with `hc send`,
    a note when a worker is blocked or exits, and the run's Stop hook's `turn ended`
@@ -212,7 +194,7 @@ For each issue:
    | `question <report path>` | Put the report's question to the person with the question tool, options included. Write it and the answer under `## Answers`, then `hc send` the worker the answer and end the turn |
    | `stuck <report path>` | The issue departed from the plan or cannot proceed. Stop and put it to the person: their answer resumes the cluster, or ends it with `ask-it` over the children done. Write it under `## Answers`. Where the answer lets this worker go on, `hc send` it the answer and end the turn; otherwise `hc kill` and `hc rm` it, and check the tree as in 1, before anything else starts. Where the model fell short, including the same failure surviving three fixes, offer these options, the first that applies recommended: a way for the worker to check its own work, where it has none; a new worker one effort level up on the same model, as far as `high`; a second worker on the same model and effort; where Sonnet 5.5 fell short at `high`, a new worker on Opus 5.5 at `medium`; after two Opus 5.5 `high` workers fell short on the issue, a new worker on Fable 5.2 at `medium`. Where a worker was refused, or fell back to another model, on a cyber classifier, offer the same brief on Mythos 5.2 (`--model claude-mythos-5-2`, `high`). A new worker's brief carries what this one tried and why it fell short |
    | `turn ended`, with no report from that worker since its last one | `hc read` it. A question in plain text is handled as `question`, from its screen. Anything else: `hc send` it that a turn ending is not a report, and that it reports with the brief's `hc send` lines. A turn ending that follows a report already handled is no news |
-   | `blocked` | `hc read` the worker. A question on its screen, from a skill that asked directly instead of through the report file, goes to the person with the question tool, options included; write it and the answer under `## Answers`. Send the chosen option with `hc keys`, using the keys the screen shows; an answer the options do not hold, the person types in the window. A permission prompt goes to the person the same way. Then end the turn |
+   | `blocked` | `hc read` the worker. A question on its screen, from a skill that asked directly instead of through the report file, goes to the person with the question tool, options included; write it and the answer under `## Answers`. Send the chosen option with `hc keys`, using the keys the screen shows; an answer the options do not hold, the person types into the peeked worker. A permission prompt goes to the person the same way. Then end the turn |
    | `error`, or exit | `hc read` the worker, then handle it as `stuck` |
 
    **The conductor looks a correction up.** A worker's question or permission
@@ -223,7 +205,7 @@ For each issue:
    `## Carried`, writes the answer under `## Answers` marked `correction, first`
    or `correction, repeat`, and passes it to the worker. An answer that says again
    an earlier correction is a repeat, though it answers a question. A correction
-   the person types into a worker's window, the worker writes under its report's
+   the person types into a worker, the worker writes under its report's
    `## Carried` as a correction. The conductor looks it up the same way when it
    reads the report, and writes it under `## Answers`.
 
