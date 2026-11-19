@@ -102,6 +102,15 @@ reasoning from where the files happen to be, which only ratifies them.
 
 ### Proving it works
 
+**Start from the way to the real thing the repository already records.** The
+build's references (`docs/agents/thegraph.md`) and the territory map can name
+one: a real machine and a procedure for comparing against another client, a
+black-box judge, a harness note. Use what reaches what this change touched,
+within what its record says it proves, before working out a proof of your own,
+and report which one was used, or why none applied. One that needs a machine,
+another client or server, an OS, or a person to drive it, none of them reachable
+here, is reported as chosen and not run.
+
 **A fake backend or a demo is a smoke test, not proof.** A fake can pass while
 the real thing differs, and the whole reason to reach past it is that the
 difference is exactly where the bugs are.
