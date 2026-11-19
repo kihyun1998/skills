@@ -10,6 +10,13 @@
 > for #86.** `lens` no longer inherits the session's model: its frontmatter
 > sets Opus 5.5 at `high`, whatever the caller runs on.
 
+> **Amended for #93 on 2026-11-19.** `lens`'s sentence is now *edit nothing,
+> and write no file outside the OS temp folder*, the line `check-it`'s reviewer
+> already had: one fork had written a probe test in the reviewed repository and
+> four in worktrees they made. A probe that must run inside the tree runs in a
+> copy made there without its `.git`, since a linked worktree's `.git` points at
+> the reviewed repository's own. Read-only still rests on that sentence alone.
+
 **Status:** accepted. Implements #39, narrowed to `lens`.
 
 `lens` carries `context: fork` and `background: false` in its frontmatter, so

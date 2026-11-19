@@ -18,9 +18,16 @@ this: from its caller, only those arguments reach the fork (#87). Where the brie
 lacks one of the three, say so first, and read what was given. Where the arguments are empty, or
 only point elsewhere (*"see task message"*), say the brief was empty and stop:
 that is the check not run, and the caller reports it so. **The report is the
-whole result**: return it as the final message, graded and cited. **Edit nothing
-and write no file.** The fork still has editing tools (a `disallowed-tools` key
-does not reach it, measured), so this sentence is what keeps the pass read-only. The caller saves it and re-opens every `CONFIRMED` citation before acting
+whole result**: return it as the final message, graded and cited. **Edit nothing, and write no file outside the OS temp folder** (#93). A probe
+the pass runs — a test, a script, a reproduction — is written there. Where it
+can only run inside the repository's tree, such as a test its toolchain finds
+only there, the pass copies the tree into the OS temp folder without its `.git`,
+and runs `git init` in the copy where the probe needs git: a linked worktree's
+`.git` is a file pointing at the reviewed repository's own, so a copy that keeps
+it writes there, and so does a worktree. The fork still has editing tools (a
+`disallowed-tools` key does not reach it, measured), so these sentences are what
+keep the pass read-only. The caller saves the report and re-opens every
+`CONFIRMED` citation before acting
 on it.
 
 ## Goal
@@ -126,7 +133,8 @@ way to "no action" is handing that reasoning over instead of the errand.
   verified, validated, or settled because two same-model reads agreed.
 - **A citation is never transcribed.** Re-open it or produce it with a tool.
 - **Roots over instances.**
-- **Read-only.** Report; do not edit, fix, or file. A finding that failed the
+- **Read-only.** Report; do not edit, fix, or file. A probe goes in the OS temp
+  folder, or in a copy of the tree there made without its `.git`. A finding that failed the
   restatement test is a proposal and is labelled one — never smuggled in as a
   defect.
 - **A pass that finds nothing changes nothing.** A clean read, reported as clean,

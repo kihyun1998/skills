@@ -13,8 +13,11 @@ effort: medium
 `lens` does. Everything it reads arrives in the argument: the repository's root
 and the scope, passed whole in `Skill`'s `args` by a caller that calls this
 directly, never through an agent started to call it, since from its caller
-only those arguments reach the fork (#87). **Edit nothing and write no file**; the report is the whole
-result, returned as the final message. The caller deletes, fixes and carries.
+only those arguments reach the fork (#87). **Edit nothing, and write no file outside the OS temp folder** (#93): a probe
+that traces a claim is written there, and one that must run inside the tree runs
+in a copy made there without its `.git`, with `git init` where it needs git,
+since a linked worktree's `.git` points at the reviewed repository's own. The report is the whole result,
+returned as the final message. The caller deletes, fixes and carries.
 
 ## The scope
 
