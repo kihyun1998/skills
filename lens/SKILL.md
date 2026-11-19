@@ -3,6 +3,8 @@ name: lens
 description: "An adversarial read-only pass returning graded findings, not bare claims, over this codebase's siblings and the named prior art. Use before trusting an enumeration, when a spike keeps catching new gaps one probe at a time, or when a bug would cost more than a wrong number."
 context: fork
 background: false
+model: claude-opus-5-5
+effort: high
 ---
 
 Read everything once, adversarially, and hand back findings that are already graded.

@@ -82,6 +82,35 @@ measured. `/security-review` is not offered where `git rev-parse --verify
 origin/HEAD` fails: it diffs against that ref, which a repository without an
 `origin`, or one whose `origin` was added rather than cloned, does not have.
 
+### Each review's model
+
+**Each review runs on a model fixed for its role, whatever model the session
+calling this runs on** (ADR-0102, amended for #86): a session on a smaller model
+would otherwise hand its reviews that model too.
+
+| Review | Model, effort | Where it is set |
+|---|---|---|
+| the spec and rules reviewer (5) | Opus 5.5, `high` | `model: "opus"` and `effort: "high"` on the `Agent` call |
+| `/review` (6) | Opus 5.5, `high` | `--model claude-opus-5-5 --effort high` on its process, and `high` as the command's level |
+| `/security-review` (7) | Opus 5.5, `high` | `--model claude-opus-5-5 --effort high` on its process |
+| `lens` (8) | Opus 5.5, `high` | `model` and `effort` in `lens`'s frontmatter |
+| the proving agent (11) | Opus 5.5, `medium` | `model: "opus"` and `effort: "medium"` on the `Agent` call |
+| `/simplify` (4) | Opus 5.5, `medium` | `--model claude-opus-5-5 --effort medium` on its process, whose four agents run on its model and effort |
+| `comment-it` (9) | Sonnet 5.5, `medium` | `model` and `effort` in `comment-it`'s frontmatter |
+
+`thegraph` and `thegraph-herdr` show this table at their confirm stop, beside
+the offered reviews, and a direct `/check-it` shows it with its question. **A
+row changes only where the person asks**, and the changed row reaches this step
+the way the offered reviews do. A row set on a call or a process takes the
+change for that run, except that an `Agent` call takes only a model alias
+(`sonnet`, `opus`, `haiku`, `fable`), so a model with none cannot go on the
+reviewer's or the proving agent's row, and a session on another Opus version
+runs those two on its own version. `lens`'s and `comment-it`'s rows live in
+their frontmatter, which a run cannot change: `Skill` takes no model, and calling
+them through an agent is what left a quarter of them empty (#87). The confirm
+stop says so when it shows the table, and a change asked anyway that cannot
+apply is reported as not applied, with the reason.
+
 ### The spec and rules reviewer (5)
 
 One fresh agent, given the **whole** diff, the issue, and what this repo wrote
@@ -125,6 +154,13 @@ the one the #91 trial measured, and a process that never saw this session.
 - Pass `--allowedTools` naming `git`, `gh` and the commands of (1), so the
   review can read the issue and run the tests. Without them `-p` denies both,
   and it reviews by reading alone. `/simplify` also needs `Edit` and `Write`.
+- Put the command first, before the flags: `--allowedTools` takes every word
+  after it as a value, so a prompt placed after it is read as a tool name and
+  the run exits 1.
+- Start each with its row's `--model` and `--effort` (*Each review's model*),
+  and give `/review` its level as the command's first word (`/review high`):
+  with no level typed, `/review` reuses the last level the person typed in any
+  session, and a level passed in a `-p` run is not remembered.
 - Give the command a timeout of 15 minutes. The longest measured run took about
   three minutes, past a shell's usual two-minute default, after which the
   command moves to the background.
@@ -315,7 +351,7 @@ the change is the worst judge of it. So the brief is all it gets: for `lens`, th
 skill's argument; for `comment-it`, the argument naming the repository's root
 and the same diff as the scope; for the reviewer and the proving agent, the
 prompt of a newly started general-purpose agent (not a fork of this
-conversation, which inherits it), told to edit nothing and write no file outside
+conversation, which inherits it), started on its row's model and effort, told to edit nothing and write no file outside
 the OS temp folder. That prompt names the diff as `git diff HEAD` plus every
 untracked file, so a new file is in it, and it points at the issue and this
 repo's records. The reviewer's prompt quotes (5)'s two questions and the

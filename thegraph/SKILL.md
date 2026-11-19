@@ -167,6 +167,9 @@ what each has to carry and what a correction to each one means.
 too**, each with its recommendation, the reason and its cost, as `check-it`'s
 *Choosing the offered reviews* words them. That way the person answers once,
 with the issue already read, and `check-it` does not stop to ask again.
+**Beside them goes `check-it`'s table of each review's model** (*Each review's
+model*), as it stands; a row changes only where the person asks, and the table
+says which rows cannot change within a run.
 
 **This is not `ask-it`.** That one comes at the end and asks what to *file*; this
 one asks whether the reading is right, before anything has run.
@@ -178,10 +181,11 @@ is the maintainer's call, so it is recorded as theirs.
 to be a typo ends here, said out loud. That is a result, not a skipped step.
 
 The answer is checked off on the run sheet as `confirm`, with what it changed
-written under it for the next step, the offered reviews chosen included. In a
-cluster, where the step list is rewritten for each child, the choice is each
-child's, kept in a `## Reviews` section without checkboxes, one line per child
-(`- #38 — lens, /security-review`).
+written under it for the next step, the offered reviews chosen and any review
+model the person changed included. In a cluster, where the step list is
+rewritten for each child, the choice is each child's, kept in a `## Reviews`
+section without checkboxes, one line per child (`- #38 — lens,
+/security-review; reviewer: opus, xhigh`, a changed row after the semicolon).
 
 ### 3. Follow the route
 

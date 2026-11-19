@@ -3,6 +3,8 @@ name: comment-it
 description: "Judge the comments and lint suppressions in a scope against the repository's comment rule, and report each one that breaks it. Use when `check-it` measures a code change, or with a path to survey the comments already there."
 context: fork
 background: false
+model: claude-sonnet-5-5
+effort: medium
 ---
 
 # comment-it — judge comments against the repository's rule

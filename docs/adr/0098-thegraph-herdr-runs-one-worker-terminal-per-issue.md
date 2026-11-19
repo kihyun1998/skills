@@ -8,6 +8,15 @@
 > The confirm stop also asks, for each prose or code issue, which offered reviews
 > `check-it` runs, and the worker's brief carries the answer.
 
+> **Amended by [ADR-0102](0102-check-it-reviews-are-a-catalog-chosen-per-change.md),
+> for #86.** `check-it`'s reviews no longer inherit the worker's model.
+> Each runs on a model fixed for its role, shown at the confirm stop beside the
+> offered reviews, and the brief carries any row the person changed. So
+> *"`check-it`'s reviewer and `lens` inherit the worker's model, so a code worker
+> stays on Opus 5.5"* no longer holds, and neither does the Sonnet 5.5 code row's
+> rejection ground *"the reviewer would inherit Sonnet"*. The row is not reopened
+> by this.
+
 > **Amended on 2026-11-17.** A worker no longer copies the conductor's permission
 > flag. The confirm stop asks the person once for the run's worker permission mode:
 > approve everything, auto mode, or ask each time. The maintainer chose this. The

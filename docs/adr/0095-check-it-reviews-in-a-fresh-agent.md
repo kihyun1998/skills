@@ -5,6 +5,10 @@
 > harm leaves it for the bundled `/security-review`, offered on the change's risk.
 > Bugs go to the bundled `/review`, and a proving agent reproduces its findings.
 
+> **Amended by [ADR-0102](0102-check-it-reviews-are-a-catalog-chosen-per-change.md),
+> for #86.** The reviewer no longer runs on the session's model: the `Agent`
+> call starts it on Opus 5.5 at `high`, whatever the worker runs on.
+
 **Status:** accepted. Implements #49. Extends [ADR-0091](0091-lens-runs-in-a-fresh-agent.md)
 from `lens` to the review, and amends ADR-0090 and ADR-0092 on who asks harm and
 how review reads the diff.

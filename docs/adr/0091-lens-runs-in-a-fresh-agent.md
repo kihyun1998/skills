@@ -6,6 +6,10 @@
 > proving agent, which reproduces each one, instead of the caller re-opening every
 > `CONFIRMED` citation. The fork, the brief and the saved report stand.
 
+> **Amended by [ADR-0102](0102-check-it-reviews-are-a-catalog-chosen-per-change.md),
+> for #86.** `lens` no longer inherits the session's model: its frontmatter
+> sets Opus 5.5 at `high`, whatever the caller runs on.
+
 **Status:** accepted. Implements #39, narrowed to `lens`.
 
 `lens` carries `context: fork` and `background: false` in its frontmatter, so

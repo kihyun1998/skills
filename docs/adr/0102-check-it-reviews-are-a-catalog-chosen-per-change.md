@@ -1,5 +1,11 @@
 # ADR-0102 — `check-it`'s reviews are a catalog: built-ins where they exist, its own reviewer for spec and rules, a proving step, and the risky ones chosen per change
 
+> **Amended for #86 on 2026-11-19** (*Each review's model*, below). Each review
+> now runs on a model fixed for its role, whatever the worker runs on, and the
+> built-ins' processes take `--model` and `--effort`. *Not decided here*'s first
+> item is decided there. This amends ADR-0091, ADR-0095 and ADR-0098 where they
+> say a review inherits the session's or the worker's model.
+
 **Status:** accepted. Implements #91 (anchor #94). Amends
 [ADR-0090](0090-four-delegates-retire-into-their-callers.md),
 [ADR-0091](0091-lens-runs-in-a-fresh-agent.md) and
@@ -161,7 +167,8 @@ Against the old reviewer's trial report (374 s, 88 tool calls):
 
 - Each review's model and effort, and moving the built-ins to `claude -p
   --model`: #86. Without an effort level `/review` reuses the last one the
-  person typed, in any session.
+  person typed, in any session. (Decided for #86 in *Each review's model*,
+  below.)
 - Asking again mid-run: the offered reviews are chosen before the change is
   written, and a change that turns risky while it is written (an outside command
   added, a gap that keeps reopening) has no way back to the question. Round 4
@@ -174,3 +181,103 @@ Against the old reviewer's trial report (374 s, 88 tool calls):
 - Where `lens` writes: #93.
 - How often the always-on set catches what the old reviewer did: one change is
   a first look. #91's *Done when* asks for past changes of different risk.
+
+## Each review's model (#86, 2026-11-19)
+
+Each review runs on a model fixed for its role, whatever model the worker or the
+session calling `check-it` runs on. `check-it`'s *Each review's model* holds the
+table, shown at `thegraph`'s and `thegraph-herdr`'s confirm stop beside the
+offered reviews, and changed only where the person asks.
+
+| Review | Model, effort |
+|---|---|
+| spec + rules reviewer | Opus 5.5, `high` |
+| `/review` | Opus 5.5, `high` |
+| `/security-review` | Opus 5.5, `high` |
+| `lens` | Opus 5.5, `high` |
+| proving agent | Opus 5.5, `medium` |
+| `/simplify` | Opus 5.5, `medium` |
+| `comment-it` | Sonnet 5.5, `medium` |
+
+**The call is the maintainer's**, grilled on 2026-11-19 and recorded on #86:
+fixed per role rather than "never below the worker", which would put every review
+on Fable 5.2 for a Fable worker (Anthropic's defect search: $563 against $236 at
+Opus `high`); the table above; shown at the confirm stop. Grounds as given there:
+diff review peaks at Opus `high`, `xhigh` lower (Qodo F1 56.8 against 54.0);
+defect search Opus `high` 0.850, Sonnet 0.760 (Anthropic); classification against
+a list holds on a small model (Kodus, Haiku agreeing with Opus on 249 of 252). The
+proving agent's and `/simplify`'s `medium` are unmeasured, chosen from the work's
+kind. Whether a review's model changes what it catches in this method is not
+measured.
+
+**Where each is set is a derivation**, from the Claude Code docs read raw on
+2026-11-19 (Claude Code 2.1.328):
+
+- `lens` and `comment-it`: `model` and `effort` in their frontmatter. With
+  `context: fork` each "sets the forked subagent's" model or effort level instead
+  of the turn's (`skills.md`, *Frontmatter reference*). The full IDs
+  `claude-opus-5-5` and `claude-sonnet-5-5` pin the version the table names.
+- The reviewer and the proving agent: `model` and `effort` on the `Agent` call.
+  The per-invocation `model` comes first in the subagent model order and takes
+  an alias only, so `opus`; the per-invocation `effort` overrides a
+  definition's (`sub-agents.md`, *Choose a model*, *Choose an effort level*,
+  v2.1.292 or later). A subagent on another model than the session's does not
+  take the session's effort, so the effort is always passed.
+- The built-ins: `--model claude-opus-5-5` and `--effort` on their `claude -p`
+  process (`cli-reference.md`). `/simplify`'s four agents are subagents on the
+  process's model, and a subagent on the main model runs at the `--effort`
+  level (`model-config.md`, *Effort level of subagents and teammates*).
+  `/review` also gets its level as the command's argument, `/review high`: with
+  none typed it reuses the last level typed in any session, and a level passed in
+  a `-p` run is not remembered (`code-review-local.md`, *Tune effort and
+  arguments*).
+
+**What the decision did not cover**, recorded so the next pass does not read it
+as decided:
+
+- A changed row for `lens` or `comment-it` cannot apply within a run: their
+  model is frontmatter, `Skill` takes no model, and calling them through an agent
+  is what #87 measured empty. `check-it` reports such a change as not applied.
+- `CLAUDE_CODE_EFFORT_LEVEL` outranks every effort set here, and
+  `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` every subagent model; both unset on this
+  machine on 2026-11-19. With the `opus` alias on an `Agent` call, a session on
+  another Opus version, a worker or a session a person started, runs the
+  subagent on its own version (`sub-agents.md`, *Which version a model alias
+  selects*), and an `Agent` call takes no full model ID to prevent it.
+- `lens`'s and `comment-it`'s frontmatter holds for every caller, not only
+  `check-it`: `lens` over the options on an open decision, under a Fable 5.2
+  conductor, now runs on Opus 5.5 too.
+- A request a cyber classifier flags on Opus 5.5 is retried on another model
+  (`model-config.md`), so a review of such a change can run off its row without
+  a sign in the table.
+- ADR-0098 rejected a Sonnet 5.5 code row partly because "the reviewer would
+  inherit Sonnet". That ground no longer holds; the row is not reopened here.
+
+**Measured on the change**, 2026-11-19, Claude Code 2.1.328, one run: a worker
+started with `claude -p --model claude-sonnet-5-5 --effort medium` followed this
+branch's `check-it` on a two-file change in a scratch repository with an
+`origin`, every offered review chosen (695 s, $1.57 for the worker and its
+subagents, the built-ins' processes not counted). Each transcript's assistant
+`model` and `effort`, read message by message:
+
+| Review | `.meta.json` | Ran on |
+|---|---|---|
+| worker | — | Sonnet 5.5, `medium` |
+| reviewer | `model: opus`, `effort: high` | Opus 5.5, `high` (20 messages) |
+| proving agent | `model: opus`, `effort: medium` | Opus 5.5, `medium` (11) |
+| `lens` | `claude-opus-5-5` | Opus 5.5, `high` (14) |
+| `comment-it` | `claude-sonnet-5-5` | Sonnet 5.5, `medium` (4) |
+| `/review` | its process's agent: `claude-opus-5-5` | Opus 5.5, `high` (11); the command arrived as `/code-review high` |
+| `/security-review` | its process, in the temporary worktree | Opus 5.5, `high` (7) |
+| `/simplify` | its process and four agents: `claude-opus-5-5` | Opus 5.5, `medium` (28, and 6 to 15 each) |
+
+`lens` and `comment-it` ran as copies named `lens-86` and `comment-it-86` in
+the scratch project, identical but for the name: the installed skills link to
+the main checkout, and a personal skill outranks a project skill of the same
+name. A `web-fetch` agent `lens` started ran on Haiku 5.5, that agent type's
+own model; the table names the reviews, not the agents a review starts.
+
+`check-it` on this change found the recipe's order matters: with the prompt after
+`--allowedTools`, the flag took `/review high` as one of its values and the run
+exited 1 (`"/review high" was read as a value of --allowedTools`). The prompt goes
+before the flags.
