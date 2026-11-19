@@ -9,6 +9,11 @@
 > for #86.** The reviewer no longer runs on the session's model: the `Agent`
 > call starts it on Opus 5.5 at `high`, whatever the worker runs on.
 
+> **Amended by [ADR-0102](0102-check-it-reviews-are-a-catalog-chosen-per-change.md),
+> for #95.** "On every code change" now means by default: the person may drop
+> the reviewer at the confirm stop, and `check-it` reports it dropped by the
+> person.
+
 **Status:** accepted. Implements #49. Extends [ADR-0091](0091-lens-runs-in-a-fresh-agent.md)
 from `lens` to the review, and amends ADR-0090 and ADR-0092 on who asks harm and
 how review reads the diff.

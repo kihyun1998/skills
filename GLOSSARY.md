@@ -242,7 +242,7 @@ _Avoid_: Verdict (the Acceptance Gate's term)
 
 **Reviewer** (thegraph):
 The spec and rules reviewer, the fresh agent [`check-it`](check-it/) starts on
-every change. It reads the whole diff, the issue and the repository's records, and
+every change unless the person drops it at the confirm stop. It reads the whole diff, the issue and the repository's records, and
 answers apart whether the change does what the issue asked and whether it holds up
 against what the repository wrote down
 ([ADR-0095](docs/adr/0095-check-it-reviews-in-a-fresh-agent.md),
@@ -257,12 +257,23 @@ each finding of `/review`, `/security-review` and `lens`, and what `/simplify` n
 show it ([ADR-0102](docs/adr/0102-check-it-reviews-are-a-catalog-chosen-per-change.md)).
 _Avoid_: finding vote (the name before it was decided to reproduce rather than vote)
 
+**Default review** (thegraph):
+A review [`check-it`](check-it/) recommends for every change of a kind, the ones
+its table marks *always*: on a code change the reviewer, `/review`,
+`comment-it` and the proving agent; on a prose change the reviewer. Asked at the
+confirm stop in the same call as the offered reviews, in a question of its own,
+each recommended; one the person leaves unticked in a question they answered is
+dropped by the person and reported so
+([ADR-0102](docs/adr/0102-check-it-reviews-are-a-catalog-chosen-per-change.md),
+#95). `sweep` is not one: it always runs.
+
 **Offered review** (thegraph):
 A review [`check-it`](check-it/) runs only where the person chose it for the
 change: `/security-review`, `/simplify` and `lens`, and `/review` on a prose
 change. It is asked at the confirm stop, or once at the start of a direct
-`/check-it`, with a recommendation read from the change. One not chosen is
-reported as not chosen, not as a skip.
+`/check-it`, in a call of its own with the default reviews, recommended only
+where the change meets its signal. One not chosen is reported as not chosen, not
+as a skip.
 
 **Brief** (thegraph):
 The three things [`check-it`](check-it/) assembles and hands to `lens` — this repo's

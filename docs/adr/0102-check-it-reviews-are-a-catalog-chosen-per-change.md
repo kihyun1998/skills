@@ -5,6 +5,11 @@
 > built-ins' processes take `--model` and `--effort`. *Not decided here*'s first
 > item is decided there. This amends ADR-0091, ADR-0095 and ADR-0098 where they
 > say a review inherits the session's or the worker's model.
+>
+> **Amended for #95 on 2026-11-19** (*Every review is choosable*, below). The
+> reviews marked *always* are recommended by default and run unless the person
+> drops them; every review is asked in a call of its own, with this change's
+> evidence on each option.
 
 **Status:** accepted. Implements #91 (anchor #94). Amends
 [ADR-0090](0090-four-delegates-retire-into-their-callers.md),
@@ -281,3 +286,79 @@ own model; the table names the reviews, not the agents a review starts.
 `--allowedTools`, the flag took `/review high` as one of its values and the run
 exited 1 (`"/review high" was read as a value of --allowedTools`). The prompt goes
 before the flags.
+
+## Every review is choosable (#95, 2026-11-19)
+
+**The call is the maintainer's**, made on #95 on 2026-11-19 after two
+`thegraph-herdr` runs that day (acra-client, gltree) showed the review question
+as it stood: folded into one call with the permission mode, the placement and a
+leftover-files question; only the three offered reviews as options; all three
+recommended, `/security-review` included for a change to one `-verbose`
+condition; no option saying *not recommended*, and no cost shown. The conductor
+of #94 once showed three options and left `/security-review` and `/simplify`
+out without saying so, since the question tool takes two to four options a
+question.
+
+It changes this record's *always*:
+
+- **Every review is choosable, the always-run ones too.** A review `check-it`'s
+  table marks *always* is recommended by default and runs unless the person drops
+  it; one they drop is reported as dropped by the person, not as a skip.
+- **The reviews are asked in a call of their own**, after the reading, the
+  models, the permission mode and the placement, per issue. The question is
+  split so every candidate is an option: the default set in one question, the
+  offered ones in another.
+- **Each option carries this change's evidence**: the signal it meets, read from
+  what the change will do, or *no signal* with why, in which case it is not
+  recommended; and its cost where one is on record. A candidate left out of the
+  options is named in the question with why.
+
+**What counts as a review is a derivation**: the reviews this record's catalog
+names, which are `check-it`'s rows 4 to 11 marked *always* or *offered*. On a
+code change the default set is the four #95 names (the reviewer, `/review`,
+`comment-it`, the proving agent), and it fits one question; on a prose change
+it is the reviewer alone, asked as run or drop, since a question takes at least
+two options, and the proving agent runs over what ran of 6 to 8 there, so it is
+not a candidate. `sweep` is not a review here: this catalog does not name it,
+and ADR-0055 has `thegraph` keep the surfaces a rule leaves wrong in line
+through it, so it stays *always*. The conductor's own questions for #95 offered
+`sweep` in the default question; #95 names four, and this follows #95. The
+gates, where the files landed, the proof against something real and the
+benchmark run on a condition and are not asked.
+
+**How an answer reads is a derivation**, from *dropped only where the person
+drops them*: the ticked options run; a default review left unticked in an
+answered question is dropped by the person, who saw it recommended; a question
+left unanswered keeps its defaults. A dropped proving agent sends the findings
+of 6 to 8 to a person as *unproven*, never to be acted on as facts, which is
+where `check-it` already sends a finding no run here could show.
+
+**What the decision did not cover**:
+
+- `/review` on a prose change has no recommendation signal on record, so under
+  *no signal, not recommended* it is never recommended unless the person names
+  one.
+- What a dropped reviewer leaves: nothing asks whether the change does what
+  the issue asked. `check-it` reports it dropped; nothing stops the drop.
+- The proving agent's option is answered in the same call as the reviews it
+  proves, against ADR-0064's *an answer that changes what a later question means
+  goes first*; its option says it runs over whichever of 6 to 8 are chosen,
+  rather than spending a second call on it.
+
+**Measured on the change**, 2026-11-19, read-only: a fresh Opus 5.5 agent,
+given this branch's `thegraph-herdr` step 2 and `check-it` and told to start no
+worker, ask nothing and file nothing, wrote out the question-tool calls its
+confirm stop would make on two open issues of this repository. One run each, on
+the final text:
+
+| Issue | Route | Review call | Default question | Offered question |
+|---|---|---|---|---|
+| #88 (`wiki-it` capture, a masking script and its test) | code | the third call, after the reading, the models and the permission mode (one call) and the placement (one call) | the reviewer, `/review`, `comment-it`, the proving agent; all recommended, each with what it would read in #88 and its cost from this record | `/security-review`, `/simplify`, `lens`; all recommended, each naming its signal (`gh` and secrets; a new script and `blog-it`'s shape; the enumeration of secret kinds); none left out, `origin/HEAD` checked |
+| #93 (`lens` writes nothing in the reviewed tree) | prose | the third call, as above | the reviewer, run or drop, run recommended; the proving agent, `comment-it` and `sweep` named as left out, with why | `lens` recommended (prior art in the reviewer's temp-folder rule, a probe left in the tree costs more than a wrong number); `/security-review`, `/simplify` and `/review` each *no signal* with why, not recommended |
+
+Every review was an option or named as left out, a recommendation came only with
+a named signal, and the reviews sat in a call of their own. An earlier run of the
+same probe on a first draft, which counted `sweep` as a review, put five default
+reviews in two questions on #88; that draft is what `check-it`'s reviewer
+found against #95's four. Not measured: a person answering the calls, and a
+`thegraph` (not `-herdr`) or direct `/check-it` stop.

@@ -17,6 +17,12 @@
 > rejection ground *"the reviewer would inherit Sonnet"*. The row is not reopened
 > by this.
 
+> **Amended by [ADR-0102](0102-check-it-reviews-are-a-catalog-chosen-per-change.md),
+> for #95.** The confirm stop asks every review `check-it` would run, the
+> default ones too, in a call of its own after the reading, the models, the
+> permission mode and the placement, and the worker's brief carries the reviews
+> chosen and dropped.
+
 > **Amended on 2026-11-17.** A worker no longer copies the conductor's permission
 > flag. The confirm stop asks the person once for the run's worker permission mode:
 > approve everything, auto mode, or ask each time. The maintainer chose this. The

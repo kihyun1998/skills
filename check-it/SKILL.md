@@ -30,9 +30,13 @@ person chose it.
 | 11 | Which findings of 6, 7 and 8 hold | the proving agent, a fresh agent | always | over what ran of 6–8 |
 | 12 | Which surfaces now describe it wrongly | `sweep` | always | always |
 
-*Always* means a skip is reported with its reason. *Offered* means it runs where
-the person chose it for this change (*Choosing the offered reviews*). One they
-did not choose is reported as not chosen, and that is not a skip (ADR-0102).
+Every row from 4 to 11 marked *always* or *offered* is a review the person
+chooses for this change (*Choosing the reviews*); `sweep` (12) is not one, since
+the surfaces a change leaves wrong are kept in line through it (ADR-0055). *Always* means it is recommended by default and
+runs unless the person dropped it; one they dropped is reported as dropped by
+the person, and any other skip is reported with its reason. *Offered* means it
+runs where the person chose it. One they did not choose is reported as not
+chosen, and neither of those is a skip (ADR-0102, amended for #95).
 
 **The order is cost, then what each step needs.** A red gate makes every
 expensive pass below it a waste, so 1 to 3 go first. `/simplify` (4) goes next,
@@ -43,8 +47,8 @@ reviews, since it works on their findings. `sweep` (12) runs on the change as it
 stands once the findings acted on are fixed.
 
 **A prose change runs 5 and 12, plus 2 where it added or moved a file, and the
-offered reviews the person chose, with 11 over what ran of 6 to 8.** There are no
-gates to run and no round trip to prove. A run that reports those as passed has
+offered reviews the person chose, with 11 over what ran of 6 to 8; the reviewer
+does not run where the person dropped it.** There are no gates to run and no round trip to prove. A run that reports those as passed has
 reported on work it did not do.
 
 **Running the checks (1).** The list is the project's CI workflow, or the gate
@@ -61,14 +65,34 @@ one green, and report a check not run, with why. **The same
 failure surviving three fixes stops the repairs** and goes to a person as a
 design question.
 
-### Choosing the offered reviews
+### Choosing the reviews
 
-`thegraph` and `thegraph-herdr` ask which offered reviews run at their confirm
-stop, and the answer reaches this step on the run sheet or in the worker's
-brief. **A direct `/check-it`, with no confirm stop before it, asks once, at its
-start.** Each offered review is put with a recommendation, the reason for it read
-from what the change will do (at a confirm stop) or from its diff (at a direct
-run), and its cost where one is on record (ADR-0102):
+`thegraph` and `thegraph-herdr` ask which reviews run at their confirm stop,
+and the answer reaches this step on the run sheet or in the worker's brief. **A
+direct `/check-it`, with no confirm stop before it, asks once, at its start.**
+Every review from 4 to 11 this change's column marks *always* or *offered* is a
+candidate, and the person may drop any of them (ADR-0102, amended for #95).
+
+**The reviews are asked in a call of their own**, after everything else the stop
+asks, once per issue. The question tool takes two to four options a question,
+so the candidates are split until every one is an option: the default set (the
+column's *always*) in its own question or questions, the offered ones in
+another, each with several answers allowed (`multiSelect`). On a code change
+the default set is four reviews and fits one question. On a prose change it is
+the reviewer alone, put as a question with two options, run it or drop it; the
+proving agent there runs over what ran of 6 to 8 and is not a candidate. A
+candidate left out of the options is named in the question with why, such as `/security-review` where there is no
+`origin/HEAD` (below).
+
+**Each option carries this change's evidence**, read from what the change will
+do (which file, which behaviour) at a confirm stop, or from its diff at a direct
+run, and its cost where one is on record (ADR-0102's measurements):
+
+- **A default review** is recommended, with what it would read in this change.
+  The proving agent's option says it runs over whichever of 6 to 8 are chosen.
+- **An offered review** is recommended only where it meets a signal in the table
+  below, and the option names the signal and the evidence for it. Where none is
+  met it says *no signal* with why, and is not recommended.
 
 | Review | Recommended where the change |
 |---|---|
@@ -76,11 +100,21 @@ run), and its cost where one is on record (ADR-0102):
 | `/simplify` (4) | adds a module, component or helper, makes something the repository already has a shape for, or is a refactor |
 | `lens` (8) | is an enumeration, a new feature with siblings or prior art to hold it against, or one where a bug would cost more than a wrong number |
 
-On a prose change, `/review` (6) is offered too, with the same three things.
-No size of change recommends a review: no line-count threshold has been
-measured. `/security-review` is not offered where `git rev-parse --verify
-origin/HEAD` fails: it diffs against that ref, which a repository without an
-`origin`, or one whose `origin` was added rather than cloned, does not have.
+On a prose change, `/review` (6) is offered too. No signal for it is on
+record, so it is put as *no signal* unless the person names one. Row 7's prose
+column reads *the same*, so it is offered there too. No size of change
+recommends a review: no line-count threshold has been measured.
+`/security-review` is not offered where `git rev-parse --verify origin/HEAD`
+fails: it diffs against that ref, which a repository without an `origin`, or
+one whose `origin` was added rather than cloned, does not have.
+
+**How the answer reads.** The ticked options run. A default review left unticked
+in a question the person answered is dropped by the person, since they saw it
+recommended and left it. A question left unanswered, or answered with text that
+names no review, keeps its defaults and chooses none of its offered ones, and
+the result says so. A dropped proving agent leaves the findings of 6 to 8
+unreproduced: each is carried to a person as *unproven* with what would show it,
+and none is acted on as a fact.
 
 ### Each review's model
 
@@ -99,9 +133,9 @@ would otherwise hand its reviews that model too.
 | `comment-it` (9) | Sonnet 5.5, `medium` | `model` and `effort` in `comment-it`'s frontmatter |
 
 `thegraph` and `thegraph-herdr` show this table at their confirm stop, beside
-the offered reviews, and a direct `/check-it` shows it with its question. **A
+the reviews, and a direct `/check-it` shows it with its question. **A
 row changes only where the person asks**, and the changed row reaches this step
-the way the offered reviews do. A row set on a call or a process takes the
+the way the chosen reviews do. A row set on a call or a process takes the
 change for that run, except that an `Agent` call takes only a model alias
 (`sonnet`, `opus`, `haiku`, `fable`), so a model with none cannot go on the
 reviewer's or the proving agent's row, and a session on another Opus version

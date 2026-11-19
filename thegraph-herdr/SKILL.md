@@ -108,7 +108,8 @@ them. Two of the signals are read narrowly:
 Each model question names the row it rests on, in the table's words, with the
 evidence for each signal, or says that no signal applies. The question tool takes
 at most four questions a call: the reading goes first, then the conductor's model, then the children's models
-in order, in as many calls as that takes. The worker runs on what the person's
+in order, then the permission mode and the placement, in as many calls as that
+takes; each issue's reviews come last, in a call of their own per issue (below). The worker runs on what the person's
 answers leave standing. Any other model or effort runs only where the person names
 it.
 
@@ -135,16 +136,20 @@ first:
 
 Herdr has no command that opens a window of its own, so that is not an option.
 
-**Ask which offered reviews `check-it` runs**, for each prose or code issue,
-after its model: each with its recommendation, the reason and its cost, as
-`check-it`'s *Choosing the offered reviews* words them, with `check-it`'s table
-of each review's model beside them (*Each review's model*); a row changes only
-where the person asks, and the table says which rows cannot change within a run. The answer goes into that worker's brief, so the worker
-does not stop to ask it again.
+**Ask which reviews `check-it` runs**, for each prose or code issue, in a call
+of its own after the reading, the models, the permission mode and the placement,
+and never folded into one of theirs. It is put as `check-it`'s *Choosing the
+reviews* words it: every review is an option, the default ones too, split over
+as many questions as the tool's four options take; each option carries this
+change's evidence and its cost; a candidate left out is named with why.
+`check-it`'s table of each review's model goes beside them (*Each review's
+model*); a row changes only where the person asks, and the table says which rows
+cannot change within a run. The answer goes into that worker's brief, so the
+worker does not stop to ask it again.
 
 Check `confirm` on the sheet with what it changed written under it, the
-permission mode, the placement, the offered reviews and any review model changed
-included.
+permission mode, the placement, the reviews chosen and dropped, and any review
+model changed included.
 
 ### 3. Follow the route
 
@@ -254,7 +259,7 @@ What the earlier workers changed that bears on this: <or "nothing">
 Corrections received so far in this run, which hold for this work too: <each with whether it was a repeat, or "none">
 Earlier attempts at this issue: <or "none": what each tried and why it fell short>
 Left in the tree for you: <or "nothing": the files the person handed over>
-Offered reviews chosen at the confirm stop: <each of /security-review, /simplify and lens, run or not; on a prose route, /review too>
+Reviews chosen at the confirm stop: <default: each of check-it's default reviews for this route, kept or dropped by the person; offered: each of /security-review, /simplify and lens, chosen or not, and /review too on a prose route>
 Review models changed at the confirm stop: <each row of check-it's model table the person changed, or "none">
 Report file: <its report file>
 This run's run sheet: <its per-issue run sheet path>. It does not exist; the skills
