@@ -29,6 +29,12 @@ A reported call that the person later reverses is **overreach**, and it is
 counted ([ADR-0088](../docs/adr/0088-thegraph-takes-a-cluster.md)'s measure), as
 is a technical question asked of them, which is **offloading**.
 
+**A small, measured follow-up is done, not offered for filing.** Where the
+cause is found and the fix's shape is known, do it now as its own commit and
+report it; *"file it"* is not an option beside it. The context that makes it
+cheap is loaded now, and a filed item pays the reading again. Filing is for an
+item a judgement still holds open.
+
 **Collect, and do not file as you go.** Several sightings of one gap are one
 item, with the rest as evidence under it. **Only what is real now**: a
 consequence that needs a hypothetical consumer or a feature nobody asked for is
