@@ -32,16 +32,27 @@ decides which this is and the order of the children. Where that section or
 
 ## Who picks a model
 
-**A person picks every model.** This session conducts on the model it was started
-on, which the person chose by starting it. Each worker's model is proposed at the
+**A person picks every model.** This session conducts on the model the person started
+it on, or switched it to at the confirm stop. Each worker's model is proposed at the
 confirm stop, as a question with the recommendation first, and a worker starts on
 a model only once the person has answered for it.
 
-An issue is worth conducting on Fable 5.2 where it shows a root cause nobody has
-confirmed in a change across several layers, a large refactor, a migration or an
-architecture decision, or an earlier attempt that failed; otherwise on Opus 5.5 at
-`medium`. The person settles that before invoking, by starting the session on that
-model or switching with `/model` while the conversation is still short.
+**The conductor says which model the run warrants, and asks for it.** From the
+confirm stop on, the decisions are the conductor's — checking each report,
+looking up a correction, `ask-it` — so it runs on the model the issue warrants
+and never below a worker's, compared by model alone: Sonnet 5.5 below Opus 5.5
+below Fable 5.2, with Mythos 5.2 level with Fable. A run warrants Fable 5.2
+`medium` where it is a major refactor, a migration or an architecture change, a
+cause nobody has confirmed across several layers, or an earlier attempt that
+failed; otherwise Opus 5.5 `medium`. The confirm stop names that model with its
+reason, after the reading and before the workers' models, and where this session
+runs on a lower one, or lower than the highest worker proposed, asks the person
+to switch with `/model` (the first turn on a new model writes the whole
+conversation to its cache, so `/compact` first where it is long). Where a worker
+is later moved above the conductor, the same request goes with that answer. The
+person decides; the answer goes under `confirm`, and a switch rewrites the
+sheet's `conductor` line, which names this session's model and effort as they
+are.
 
 ## Names
 
@@ -76,15 +87,16 @@ issue (below).
 cluster each child in a line plus the order and what is left out. Each issue also
 shows its route and the worker model and effort proposed for it, with the reason:
 
-| The issue | Proposed |
+| The work | Proposed |
 |---|---|
-| route **prose** | `sonnet`, `medium` |
-| route **code** | `opus`, `medium` |
-| route **code**, and one of: a bug whose cause is unconfirmed; a change to a public API or a boundary between modules; code with no test to lean on | `opus`, `high`, with `fable`, `medium` offered beside it |
-| route **code**, and a large refactor, a migration, or an architecture change | `fable`, `medium`, with `opus`, `high` offered beside it |
+| any route, by default | `opus`, `medium` |
+| well defined and repeated, with little judgement: one wording swept across files, the same mechanical edit many times | `sonnet`, `medium` |
+| one of: a bug whose cause is unconfirmed; a change to a public API or a boundary between modules; code with no test to lean on; a large refactor, a migration, or an architecture change | `opus`, `high` |
 
-Where both of the last two rows apply, the last one does. Two of the signals are
-read narrowly:
+The route does not pick the model: a skill change that carries several decisions
+is judgement, and a code sweep may not be. Fable 5.2 and Mythos 5.2 are not
+proposed up front; they come through the `stuck` row, or where the person names
+them. Two of the signals are read narrowly:
 
 - **A cause is confirmed** where it was reproduced, a failing test shows it, or
   `read-it` traced it to a code path that explains every symptom the issue
@@ -95,7 +107,7 @@ read narrowly:
 
 Each model question names the row it rests on, in the table's words, with the
 evidence for each signal, or says that no signal applies. The question tool takes
-at most four questions a call: the reading goes first, then the children's models
+at most four questions a call: the reading goes first, then the conductor's model, then the children's models
 in order, in as many calls as that takes. The worker runs on what the person's
 answers leave standing. Any other model or effort runs only where the person names
 it.
@@ -184,7 +196,7 @@ For each issue:
    |---|---|
    | `done <report path>` | Read the report. Read the commit with `git log -1 --stat` and the tree with `git status --porcelain`. Where there is no new commit, its hash differs from the report's, the tree is not clean, or the commit touches files ② left alone, `hc send` the worker what differs and end the turn. Once they agree, copy its carried items under `## Carried`, update `## Children`, then `hc kill` and `hc rm` the worker |
    | `question <report path>` | Put the report's question to the person with the question tool, options included. Write it and the answer under `## Answers`, then `hc send` the worker the answer and end the turn |
-   | `stuck <report path>` | The issue departed from the plan or cannot proceed. Stop and put it to the person: their answer resumes the cluster, or ends it with `ask-it` over the children done. Write it under `## Answers`. Where the answer lets this worker go on, `hc send` it the answer and end the turn; otherwise `hc kill` and `hc rm` it, and check the tree as in 1, before anything else starts. Where the model fell short, including the same failure surviving three fixes, offer these options, the first that applies recommended: a way for the worker to check its own work, where it has none; a new worker one effort level up on the same model, as far as `high`; a new worker on the next model up, one effort level below the level that fell short. A new worker's brief carries what this one tried and why it fell short |
+   | `stuck <report path>` | The issue departed from the plan or cannot proceed. Stop and put it to the person: their answer resumes the cluster, or ends it with `ask-it` over the children done. Write it under `## Answers`. Where the answer lets this worker go on, `hc send` it the answer and end the turn; otherwise `hc kill` and `hc rm` it, and check the tree as in 1, before anything else starts. Where the model fell short, including the same failure surviving three fixes, offer these options, the first that applies recommended: a way for the worker to check its own work, where it has none; a new worker one effort level up on the same model, as far as `high`; a second worker on the same model and effort; where Sonnet 5.5 fell short at `high`, a new worker on Opus 5.5 at `medium`; after two Opus 5.5 `high` workers fell short on the issue, a new worker on Fable 5.2 at `medium`. Where a worker was refused, or fell back to another model, on a cyber classifier, offer the same brief on Mythos 5.2 (`--model claude-mythos-5-2`, `high`). A new worker's brief carries what this one tried and why it fell short |
    | `turn ended`, with no report from that worker since its last one | `hc read` it. A question in plain text is handled as `question`, from its screen. Anything else: `hc send` it that a turn ending is not a report, and that it reports with the brief's `hc send` lines. A turn ending that follows a report already handled is no news |
    | `blocked` | `hc read` the worker. A question on its screen, from a skill that asked directly instead of through the report file, goes to the person with the question tool, options included; write it and the answer under `## Answers`. Send the chosen option with `hc keys`, using the keys the screen shows; an answer the options do not hold, the person types in the window. A permission prompt goes to the person the same way. Then end the turn |
    | `error`, or exit | `hc read` the worker, then handle it as `stuck` |
@@ -250,7 +262,8 @@ belong to the conductor.
 
 Keep the report file as you go, with these sections:
 - `## Carried`: each item the moment it arises, not at the end, with what you
-  Measured, where it came From, and what is Done already.
+  Measured, where it came From, and what is Done already. A refusal, or a notice
+  that a request fell back to another model, is one.
 - `## Question`: the one question open now, replaced by the next.
 - `## Result`: written at the end.
 
