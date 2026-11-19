@@ -324,9 +324,9 @@ All under the anchor [#71](https://github.com/kihyun1998/skills/issues/71)
 |---|---|---|
 | [#72](https://github.com/kihyun1998/skills/issues/72) | who raises a repeated correction as a check, and what builds it | **closed**; decisions in its closing comment (§I) |
 | [#73](https://github.com/kihyun1998/skills/issues/73) | raise a repeated correction as a check candidate (`ask-it`, `grill-map`, `grill-the-graph`) | built in `5b68ded`, `2e27d8a` (closes on push): a `thegraph` signal row catches the moment of correction; measured blind on justerm; follow-up #84 |
-| [#74](https://github.com/kihyun1998/skills/issues/74) | `check-it` (3) proves against the way to the real thing a repository already records | open; ready |
+| [#74](https://github.com/kihyun1998/skills/issues/74) | `check-it` (3) proves against the way to the real thing a repository already records | built in `db36301`, `2dc9842` (closes on push); replay on the issue |
 | [#75](https://github.com/kihyun1998/skills/issues/75) | the comment rule, a per-diff comment check, what the map keeps; the ADR-0076 amendment moved to #79 (2026-11-18) | built as `comment-it` in `8f5cf61` (closes on push); no marker word, #80 Q12 reopened; replay on justpdf on the issue |
-| [#76](https://github.com/kihyun1998/skills/issues/76) | reviewer findings carry their reproduction; reports carry the certainty level | open; ready |
+| [#76](https://github.com/kihyun1998/skills/issues/76) | reviewer findings carry their reproduction; reports carry the certainty level | built in `90999bc`, `2dc9842` (closes on push); replay on the issue |
 | [#77](https://github.com/kihyun1998/skills/issues/77) | `make-it` and `check-it` use the property, fuzz and benchmark lanes a repository runs; `benchmark-checklist`'s method as a file `check-it` reads only when a change needs it | built in `00dd86b` (closes on push); replays on the issue |
 | [#78](https://github.com/kihyun1998/skills/issues/78) | whether to bring formal verification in, starting with one trial | open; `needs-grill` |
 | [#79](https://github.com/kihyun1998/skills/issues/79) | how decision records are written and how much they weigh (§M) | open; `needs-grill`; **deferred** 2026-11-18 (§M) |
@@ -387,7 +387,7 @@ is read as grounds, not as a rule (#79's comment holds it).
 
 ## N. Open, and not verified
 
-- **`check-it` gathers most of the new work** (2026-11-18): the comment check agent and marker script (#75, #80), the recorded way to the real thing (#74), reproduction and certainty (#76), the property, fuzz and benchmark lanes (#77). Its body was 215 lines then, 247 after #75 and #77 the same day. Whether to split a step was weighed and not done: this repository merged small skills back three times on measured non-use (ADR-0089, ADR-0090, ADR-0092). Re-measure its length and use once those land.
+- **`check-it` gathers most of the new work** (2026-11-18): the comment check agent and marker script (#75, #80), the recorded way to the real thing (#74), reproduction and certainty (#76), the property, fuzz and benchmark lanes (#77). Its body was 215 lines then, 247 after #75 and #77 the same day, and 263 once #74 and #76 landed (2026-11-19); `lens` 151. All of it is in now: the length and use are to be measured. Whether to split a step was weighed and not done: this repository merged small skills back three times on measured non-use (ADR-0089, ADR-0090, ADR-0092). Re-measure its length and use once those land.
 
 - **Open for the maintainer, not filed anywhere:** whether to file the stale
   `silt` reference in justrdp's `thegraph.md` in justrdp, and whether other target
