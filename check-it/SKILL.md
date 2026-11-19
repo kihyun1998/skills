@@ -100,8 +100,10 @@ run, and its cost where one is on record (ADR-0102's measurements):
 | `/simplify` (4) | adds a module, component or helper, makes something the repository already has a shape for, or is a refactor |
 | `lens` (8) | is an enumeration, a new feature with siblings or prior art to hold it against, or one where a bug would cost more than a wrong number |
 
-On a prose change, `/review` (6) is offered too. No signal for it is on
-record, so it is put as *no signal* unless the person names one. Row 7's prose
+On a prose change, `/review` (6) is offered too, recommended where the change
+puts a command or a recipe to run into a document, such as a skill or a README:
+on #86 it found such a recipe that exited 1. That is one run, the maintainer's
+call on it (2026-11-19). Row 7's prose
 column reads *the same*, so it is offered there too. No size of change
 recommends a review: no line-count threshold has been measured.
 `/security-review` is not offered where `git rev-parse --verify origin/HEAD`
