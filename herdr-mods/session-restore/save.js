@@ -1,6 +1,6 @@
 // The save: the Claude session each live terminal holds, and the restore list, in the app's
 // data folder, with the save history and the settings beside it, and the chip's cadence for it.
-import { coreIdentity, goneSaves, isClaude, keptFlags, mergeSnapshots, nextSave, parseHistory, parseSettings, staleAfter, summarize, trimHistory, withSnapshot, withoutSnapshots } from "./logic.js";
+import { coreIdentity, DEFAULT_SETTINGS, goneSaves, isClaude, keptFlags, mergeSnapshots, nextSave, parseHistory, parseSettings, staleAfter, summarize, trimHistory, withSnapshot, withoutSnapshots } from "./logic.js";
 
 const trimEnd = (path) => String(path).replace(/[\\/]+$/, "");
 
@@ -121,16 +121,16 @@ async function updateFile(io, path, parse, change, onBroken, found = {}) {
     let prev = read.value;
     if (read.broken) {
       const kept = await onBroken(io, path);
-      if (kept.refuse) return { value: kept.value, turn: { n: readTurn, kind: "read" }, copied: found.copied ?? null };
+      if (kept.refuse) return { value: kept.value, turn: readTurn, copied: found.copied ?? null };
       found.copied = kept.copied;
       prev = null;
     }
     const next = await change(prev);
     const copied = found.copied ?? null;
-    if (next === prev) return { value: next, turn: { n: readTurn, kind: "read" }, copied };
+    if (next === prev) return { value: next, turn: readTurn, copied };
     try {
       await io.write(path, JSON.stringify(next, null, 2) + "\n", before);
-      return { value: next, turn: { n: turnOf(io), kind: "write" }, copied };
+      return { value: next, turn: turnOf(io), copied };
     } catch (err) {
       if (attempt > 0) throw err;
     }
@@ -143,6 +143,7 @@ const brokenHistory = () => ({ version: 1, saves: [], broken: true });
 
 const update = (io, change, found) => updateFile(io, savePath(io.appHome), parseSave, change, async (io, path) => ({ copied: await copyAside(io, path) }), found);
 const updateHistory = (io, change) => updateFile(io, historyPath(io.appHome), parseHistory, change, async () => ({ refuse: true, value: brokenHistory() }));
+const updateSettings = (io, change) => updateFile(io, settingsPath(io.appHome), parseSettings, change, async () => ({}));
 
 /** The settings on disk, the defaults where the file has none. */
 export async function readSettings(io) {
@@ -156,17 +157,20 @@ export async function readHistory(io) {
 }
 
 /**
- * Writes the settings, and trims the history to their limit. Returns { history, settingsTurn,
- * historyTurn }: each { n, kind }, the io.turn() taken once that file was written, or before the
- * history was read when the trim wrote nothing (kind "read"). A history file that cannot be read is
- * not trimmed, and history is readHistory's broken one.
+ * Writes the fields change(settings) gives onto the settings file as it is read then (the defaults
+ * where it has none), again once when the write finds the file changed, and trims the history to the
+ * limit written. Returns { settings, history, settingsTurn, historyTurn }: settings the object
+ * written; each turn the io.turn() taken once that file was written, or before the history was read
+ * when the trim wrote nothing. A history file that cannot be read is not trimmed, and history is
+ * readHistory's broken one.
  */
-export async function writeSettings(io, settings) {
-  const path = settingsPath(io.appHome);
-  await io.write(path, JSON.stringify(settings, null, 2) + "\n", await io.read(path));
-  const settingsTurn = { n: turnOf(io), kind: "write" };
+export async function writeSettings(io, change) {
+  const { value: settings, turn: settingsTurn } = await updateSettings(io, (prev) => {
+    const read = { ...DEFAULT_SETTINGS, ...prev };
+    return { ...read, ...change(read) };
+  });
   const { value: history, turn: historyTurn } = await updateHistory(io, (h) => trimHistory(h, settings.historyLimit));
-  return { history, settingsTurn, historyTurn };
+  return { settings, history, settingsTurn, historyTurn };
 }
 
 /**
@@ -296,9 +300,9 @@ export async function saveAndSummarize(io, settings = null) {
     ({ save, history, unreadable, unchecked, turns } = await saveOnce(io, settings, found));
   } catch (err) {
     error = String(err?.message ?? err);
-    turns = { save: { n: turnOf(io), kind: "read" } };
+    turns = { save: turnOf(io) };
     save = parseSave(await io.read(savePath(io.appHome)));
-    turns.history = { n: turnOf(io), kind: "read" };
+    turns.history = turnOf(io);
     history = await readHistory(io);
   }
   const historyBroken = Boolean(history?.broken);

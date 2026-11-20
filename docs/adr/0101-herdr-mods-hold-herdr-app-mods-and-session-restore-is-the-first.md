@@ -679,7 +679,8 @@ limit's maximum of 500 against Herdr's `readTextFile`, which reads "up to 1 MiB"
   last write and its last read (`arrive` in `logic.js`). A write is shown unless the field
   shows a later write; a read is shown only when it is later than both. A read never holds
   back a write: with the write numbered when it reached the file, a read numbered after that
-  saw the write, and one numbered before it did not.
+  saw the write, and one numbered before it did not. (Superseded by the #110 amendment below:
+  a write does not overwrite a later read either.)
 - Where the number is taken: `updateFile` takes it once its write succeeded, or before its
   read when it writes nothing, and then hands it over as a read's, since that read is what it
   returns (/review's second pass found the first build handing it over as a write's, which let it
@@ -741,7 +742,7 @@ limit's maximum of 500 against Herdr's `readTextFile`, which reads "up to 1 MiB"
   so a second press made from the older value shown writes that older value back for the first
   field (/review, pre-existing on e6cf61d; the proving pass reproduced it on both trees: an
   interval press of 5, a read landing 10 before its write, then a limit press, wrote
-  `{ every 10, limit 40 }`).
+  `{ every 10, limit 40 }`). Fixed by the #110 amendment below.
 - `historyLimit: null` (keep every save) is not capped, so such a history passes 1 MiB past
   about 84 saves; what an unreadable history then does is #109's.
 
@@ -879,3 +880,152 @@ as it is.
   trims. Past 1 MiB the save stalls and the history is kept (#109).
 - **Not measured, and no longer needed for safety:** `readTextFile` past 1 MiB, and
   `writeTextFile(path, text, null)` on a file that exists (#111's comment).
+
+## Amendment (issue #110): a settings press writes only its field, one at a time, and no result overwrites a later one
+
+Every settings press wrote the whole settings object shown on screen (`setEvery`, `setLimit`,
+the auto-save switch and the limit confirm, all into `writeSettings`, whose `expected` was a read
+taken just before the write), so any stale field on screen was written back. Three paths, found
+by 3afa955's `/review` and by lens over a stub harness of the real `panel.js` and `save.js`: a
+settings read that started after a press and landed before its write was shown, and a second
+press wrote the first press's field back (R23: `{every 5, limit 50}` then `{every 10, limit
+40}`); the limit confirm stored a whole settings object at the ask and wrote it at the confirm,
+losing a hand edit read in between (`{10, 3}` written, 30 lost); and a hand edit not yet read lost
+its field on the next press (disk every 30, a limit press wrote `{10, 40}`). A fourth (lens F3):
+a press's landing showed its value again over a settings read numbered later than its write, so
+the screen went back to 5 while disk held a hand edit's 30.
+
+### The maintainer's calls (2026-11-20)
+
+Shown lens's table over four options: (가) hold reads while a write is in flight, (나) build a
+press on the last pressed value, (다) write only the pressed field onto a fresh read, (라) one
+write at a time with presses ignored meanwhile; and lens F2, that (다) alone, with `updateFile`'s
+one retry, gave disk 11 and screen 12 on two quick `+`.
+
+- **(다) with the panel's settings writes serialized.** A press writes only the field(s) it
+  changed, applied to the file as just read, the shape `removeEntries`, `deleteSaves` and
+  `mergeSaves` already use through `updateFile`. The limit confirm holds the limit only. The
+  panel's settings writes run one at a time, in press order, so two overlapping presses neither
+  lose the later one nor raise "did not finish: stale snapshot" when nothing failed.
+  `writeSettings` returns the object it wrote, and a press's landing shows that.
+- **The same field changed by a hand edit (or another Herdr window) while a press waits its
+  turn: the press wins.** Fields the press did not change keep the file's values.
+- **F3 is in scope**: a press's landing does not overwrite a settings read numbered after its
+  write. The previous amendment's "A read never holds back a write" was a derivation, not a
+  call; its premise fails with a third writer. Amend it for settings; whether the history and
+  save fields keep the old rule was left to derivation (below).
+- **Left alone:** history, save and Open ordering; the folder watch's temp-file question (lens
+  F4) and whether Herdr runs two `writeTextFile` calls at once (lens F2's live half), both
+  needing the live window; `parseSettings` and the cap of 50.
+- **A relative press applies to the file as read (check-it's question, 6a).** check-it's lens
+  pass showed, and its proving agent reproduced on this change and on 9c73a7e alike, that the
+  `−`/`+` steppers and the auto-save switch computed their value from the settings shown, so a
+  settings read (a refresh, the folder watch) that put the file from before a press on screen
+  made the next relative press build on it: `+` three times from 10 ended at 12, the switch three
+  times from On ended On, and where 9c73a7e showed a stale-snapshot banner this change lost the
+  press silently. Shown with (b) a relative press on the last pressed value while a press waits
+  and (c) recording it as a consequence of not choosing (가), the maintainer chose (a): the
+  steppers and the switch apply to the value in the file as the write reads it, **so a hand edit
+  of 30 then `+` gives 31**. Typed numbers, the interval chips and the limit confirm stay
+  absolute.
+
+### Derived
+
+- **No result overwrites a later one, for every field.** `arrive` keeps one number per field,
+  the last it took, and takes a result only when it is numbered after it, a write's or a read's.
+  The old rule let a write beat a later read. Every write the panel is handed is numbered when
+  it reached the file (`updateFile`), and the count only rises, so a read numbered after it
+  started after the write was on disk: it saw that write or something newer (a hand edit,
+  another window). Showing the write over it can only go back. That holds for the history and
+  the save as for the settings, so the old rule is dropped for all three, and with it the
+  distinction `arrive` drew between a write's mark and a read's. The one number not taken at a
+  file write, a settings press's own at the press, is the newest when taken. A turn is that number
+  alone: `save.js` no longer hands over a `kind`, which only the old rule read.
+- **`writeSettings(io, change)`** goes through `updateFile` with `parseSettings`: it writes
+  `{ ...file, ...change(file) }`, the file the defaults where it has none or cannot be read (that
+  file's rule from #109 is unchanged: it stands for the defaults and a change writes over it). An
+  absolute press's change gives its fields whatever the file holds; a relative one's
+  (`stepSetting`, `toggleAutoSave` in `logic.js`) reads the field it moves, the step kept within
+  the field's bounds. It retries once when the write finds the file changed, calling the change
+  again on the changed file, and trims the history to the limit it wrote. So a press that is not the limit trims to a hand-edited
+  lower limit without asking; before this change that press wrote the shown limit back over the
+  hand edit instead.
+- **One at a time** is `oneAtATime` in `logic.js`, a promise chain that starts each job once the
+  one before ended, failed or not. The panel's press takes its number, shows its change applied
+  to the settings shown at once, and queues its write; another action's state is untouched, so a press is never ignored (not
+  (라)).
+- **The limit's `−`** that would drop saves from the history shown asks first, as a typed lower
+  limit does, for the limit shown less one, and the confirm writes that number; a `−` that drops
+  nothing from the history shown, and every `+`, steps from the file.
+- **Which landing shows.** A press's landing shows what was written only when it is the last
+  press and `arrive` takes its write's number; an earlier press's landing shows nothing, and the
+  last press's landing shows the file. A failed press, when
+  it is the last, reads the file and shows it (the previous settings when that read fails);
+  otherwise the later press's landing shows the file. `ifUnchanged`, used only by the old revert,
+  is gone.
+- **What still shows stale for a moment:** a settings read that started after a press and before
+  its write landed shows the file from before the press, and so may take back on screen every
+  press still waiting, until the last press's write lands and its landing shows the file. Holding
+  reads (가) was not chosen; with relative presses applied to the file, what is shown meanwhile
+  no longer changes what is written.
+
+### Measured
+
+- In the repository: `arrive`'s three tests rewritten to the new rule (a read 5 then a write 3:
+  the write is not taken), `oneAtATime`'s test, three new `writeSettings` tests (only the given
+  fields onto the file as read; the trim to a hand-edited limit on an interval press; a file
+  changed during the write keeps its other fields), and three existing `writeSettings` calls
+  moved to changes; after check-it, a test of a change reading the file (a hand edit of 30 stepped
+  to 31, the switch turned from the file's value), tests of `stepSetting` (bounds included) and
+  `toggleAutoSave`, and the turn tests asserting a number. Mutations each turned a test red:
+  `arrive` taking an equal number, taking every result; `writeSettings` built on the defaults or
+  on the fields alone, its change given the defaults, trimming to the fields' limit, `updateFile`
+  not retrying, a turn handed over wrapped; `oneAtATime` not chained, or stopping at a failed job;
+  `stepSetting` unclamped or stepping from the defaults, `toggleAutoSave` constant. The suite passed
+  182 of 182.
+- A throwaway Node harness loaded `panel.js` and the real `save.js` with `herdr`, `gpui-kit`,
+  `gpui-base` and `fs/promises` stubbed, controlling when each settings and history read and
+  write lands; on 9c73a7e against this change, disk then shown as `[every, limit]`:
+  R23, `[10,40]` and a stale-snapshot banner against `[5,40]` with none; two quick `+` from 10,
+  `[10,11]` and a banner against `[10,12]` with none; F3, shown `[5,50]` with disk `[30,50]`
+  against `[30,50]`; the limit confirm across a hand edit read in between, `[10,3]` against
+  `[30,3]`; an unread hand edit and a limit press, `[10,40]` against `[30,40]`; a read started
+  before a press landing after it, `[5,50]` on both; two presses whose second write waits, `[5,50]`
+  and a banner against `[5,40]`. A failed press showed the file `[10,50]` with its banner on both;
+  on this change a failed first press with a second queued ended `[10,40]`, the failure's banner
+  only, and showed `[5,40]` while the second waited. Mutations of the wiring (no queue, the landing
+  over a later read, the landing without the last-press check, the failure read-back ignoring a
+  later press or missing, the press not shown at once, the press unnumbered) each turned a case
+  red. Two first survived on cases whose window never opened (the landing is checked after the
+  trim, and no read started before the press); both were red once the case built its window.
+- After check-it's fixes, the harness also pressed the rendered buttons (the stub records each
+  element's `on_click` by its id): `+` on the interval three times with a settings read landing
+  between, `[13]` (12 before, the proving agent's count on this change's first build and on
+  9c73a7e); the switch three times from On, Off; the limit's `+` three times from 10, 13; an
+  unread hand edit of 30 and `+`, 31; the limit's `−` at 5 with 5 saves asked for 4 and its confirm
+  wrote 4; the interval chip 30 wrote 30. Making the stepper, the switch or the limit's step compute
+  from the value shown, or the limit's `−` skip its ask, turned the matching case red; every case
+  of the first build's harness gave the same results.
+- `herdr-app check` passed on the mod, and on a throwaway copy with the chip unfolded on the
+  Settings tab and a limit confirm pending; a throw planted in the confirm's text failed it, and
+  after check-it's fixes one planted in the steppers' buttons did too.
+
+### Not covered
+
+- The live window. The settings writes wait on each other through a promise made in one Herdr
+  task and awaited in another, run only in Node.
+- `updateFile` retries once on any rejected write, not only a stale one, so a settings write
+  that fails once for another reason is tried again (pre-existing for the other files; the old
+  `writeSettings` did not retry). Seen in the harness, not decided.
+- Two Herdr windows pressing settings at once each serialize their own presses only; across
+  windows `writeTextFile`'s expected and the one retry remain.
+- What lens F4 and F2's live half ask (the conductor's).
+- The limit's `−` asks against the limit shown and the history shown. Where an unread hand edit
+  put a lower limit in the file, a `−` that asks nothing steps from that limit and the trim drops
+  saves without asking, one more than the hand edit alone would at the next save.
+- What check-it carried and the maintainer did not pick to fix here (its findings 7 to 11):
+  this file's earlier amendments still state the `ifUnchanged` revert and the old landing rule
+  unmarked; a save in progress trims with the limit read at its start; a doubly failed press
+  shows the settings from its press; the doc comment on `setSettings`; the landing decision has
+  no repository test.
+

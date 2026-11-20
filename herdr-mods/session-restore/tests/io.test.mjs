@@ -283,7 +283,7 @@ test("each save hands share the numbers taken as its save file and its history f
   });
   while (tasks.length) await tasks.shift();
   const save = firstAt(at, "write", savePath(APP)), history = firstAt(at, "write", historyPath(APP));
-  assert.deepEqual(shared, [{ save: { n: save + 1, kind: "write" }, history: { n: history + 1, kind: "write" } }]);
+  assert.deepEqual(shared, [{ save: save + 1, history: history + 1 }]);
   assert.ok(save + 1 <= history);
 });
 
@@ -293,7 +293,7 @@ test("a failed save hands share the numbers taken before it read the files back"
   m.io.hc = async () => ({ code: 1, stdout: "", stderr: "core not running" });
   const { turns, summary } = await saveAndSummarize(m.io, parseSettings(null));
   assert.ok(summary.error);
-  assert.deepEqual(turns, { save: { n: lastAt(at, "read", savePath(APP)), kind: "read" }, history: { n: lastAt(at, "read", historyPath(APP)), kind: "read" } });
+  assert.deepEqual(turns, { save: lastAt(at, "read", savePath(APP)), history: lastAt(at, "read", historyPath(APP)) });
 });
 
 test("removeEntries, deleteSaves and writeSettings return the number taken once their write landed", async () => {
@@ -303,24 +303,24 @@ test("removeEntries, deleteSaves and writeSettings return the number taken once 
   const at = counted(m);
   const removed = await removeEntries(m.io, ["a"]);
   assert.deepEqual(removed.save.restore, []);
-  assert.deepEqual(removed.turn, { n: lastAt(at, "write", savePath(APP)) + 1, kind: "write" });
+  assert.deepEqual(removed.turn, lastAt(at, "write", savePath(APP)) + 1);
   const deleted = await deleteSaves(m.io, [2]);
   assert.deepEqual(deleted.history.saves.map((s) => s.id), [3, 1]);
-  assert.deepEqual(deleted.turn, { n: lastAt(at, "write", historyPath(APP)) + 1, kind: "write" });
-  const trimmed = await writeSettings(m.io, { saveEveryMinutes: 5, historyLimit: 1, autoSave: true });
+  assert.deepEqual(deleted.turn, lastAt(at, "write", historyPath(APP)) + 1);
+  const trimmed = await writeSettings(m.io, () => ({ historyLimit: 1 }));
   assert.deepEqual(trimmed.history.saves.map((s) => s.id), [3]);
-  assert.deepEqual(trimmed.settingsTurn, { n: lastAt(at, "write", settingsPath(APP)) + 1, kind: "write" });
-  assert.deepEqual(trimmed.historyTurn, { n: lastAt(at, "write", historyPath(APP)) + 1, kind: "write" });
-  assert.ok(trimmed.settingsTurn.n < trimmed.historyTurn.n);
-  const kept = await writeSettings(m.io, { saveEveryMinutes: 6, historyLimit: 1, autoSave: true });
-  assert.deepEqual(kept.historyTurn, { n: lastAt(at, "read", historyPath(APP)), kind: "read" });
+  assert.deepEqual(trimmed.settingsTurn, lastAt(at, "write", settingsPath(APP)) + 1);
+  assert.deepEqual(trimmed.historyTurn, lastAt(at, "write", historyPath(APP)) + 1);
+  assert.ok(trimmed.settingsTurn < trimmed.historyTurn);
+  const kept = await writeSettings(m.io, () => ({ saveEveryMinutes: 6 }));
+  assert.deepEqual(kept.historyTurn, lastAt(at, "read", historyPath(APP)));
 });
 
-test("deleteSaves that changes nothing returns the number taken before it read the history, as a read", async () => {
+test("deleteSaves that changes nothing returns the number taken before it read the history", async () => {
   const m = machine({ files: { [historyPath(APP)]: JSON.stringify({ version: 1, saves: [{ id: 1, at: 1, entries: [] }] }) } });
   const at = counted(m);
   const { turn } = await deleteSaves(m.io, [9]);
-  assert.deepEqual(turn, { n: lastAt(at, "read", historyPath(APP)), kind: "read" });
+  assert.deepEqual(turn, lastAt(at, "read", historyPath(APP)));
   assert.equal(at.filter((a) => a[0] === "write").length, 0);
 });
 
@@ -657,9 +657,51 @@ test("readSettings gives the defaults with no file, and writeSettings writes the
   const saves = [3, 2, 1].map((id) => ({ id, at: id, entries: [{ sessionId: "s" + id }] }));
   const m = machine({ files: { [historyPath(APP)]: JSON.stringify({ version: 1, saves }) } });
   assert.deepEqual(await readSettings(m.io), { saveEveryMinutes: 10, historyLimit: 50, autoSave: true });
-  await writeSettings(m.io, { saveEveryMinutes: 5, historyLimit: 2 });
-  assert.deepEqual(JSON.parse(m.files[settingsPath(APP)]), { saveEveryMinutes: 5, historyLimit: 2 });
+  await writeSettings(m.io, () => ({ saveEveryMinutes: 5, historyLimit: 2 }));
+  assert.deepEqual(JSON.parse(m.files[settingsPath(APP)]), { saveEveryMinutes: 5, historyLimit: 2, autoSave: true });
   assert.deepEqual((await readHistory(m.io)).saves.map((s) => s.id), [3, 2]);
+});
+
+test("writeSettings writes only the fields its change gives, onto the settings file as it reads it then, and returns what it wrote", async () => {
+  const saves = [3, 2, 1].map((id) => ({ id, at: id, entries: [] }));
+  const m = machine({ files: { [historyPath(APP)]: JSON.stringify({ version: 1, saves }), [settingsPath(APP)]: JSON.stringify({ saveEveryMinutes: 30, historyLimit: 50, autoSave: false }) } });
+  const { settings, history } = await writeSettings(m.io, () => ({ historyLimit: 2 }));
+  const written = { saveEveryMinutes: 30, historyLimit: 2, autoSave: false };
+  assert.deepEqual(JSON.parse(m.files[settingsPath(APP)]), written);
+  assert.deepEqual(settings, written);
+  assert.deepEqual(history.saves.map((s) => s.id), [3, 2]);
+});
+
+test("writeSettings trims the history to the limit it wrote, a hand edit's included, when its change gives another field", async () => {
+  const saves = [3, 2, 1].map((id) => ({ id, at: id, entries: [] }));
+  const m = machine({ files: { [historyPath(APP)]: JSON.stringify({ version: 1, saves }), [settingsPath(APP)]: JSON.stringify({ historyLimit: 2 }) } });
+  const { settings, history } = await writeSettings(m.io, () => ({ saveEveryMinutes: 5 }));
+  assert.deepEqual(settings, { saveEveryMinutes: 5, historyLimit: 2, autoSave: true });
+  assert.deepEqual(history.saves.map((s) => s.id), [3, 2]);
+});
+
+test("writeSettings applies a change to the settings as it reads them, a hand edit's included", async () => {
+  const m = machine({ files: { [settingsPath(APP)]: JSON.stringify({ saveEveryMinutes: 30, historyLimit: 50, autoSave: true }) } });
+  const seen = [];
+  const { settings } = await writeSettings(m.io, (s) => { seen.push(s); return { saveEveryMinutes: s.saveEveryMinutes + 1, autoSave: !s.autoSave }; });
+  assert.deepEqual(seen, [{ saveEveryMinutes: 30, historyLimit: 50, autoSave: true }]);
+  assert.deepEqual(settings, { saveEveryMinutes: 31, historyLimit: 50, autoSave: false });
+  assert.deepEqual(JSON.parse(m.files[settingsPath(APP)]), settings);
+});
+
+test("writeSettings over a file changed while it wrote writes its fields onto the change, keeping the change's other fields", async () => {
+  const path = settingsPath(APP);
+  const m = machine({ files: { [path]: JSON.stringify({ saveEveryMinutes: 10, historyLimit: 50 }) } });
+  const write = m.io.write;
+  let edited = false;
+  m.io.write = async (p, text, expected) => {
+    if (p === path && !edited) { edited = true; m.files[path] = JSON.stringify({ saveEveryMinutes: 30, historyLimit: 7 }); }
+    return write(p, text, expected);
+  };
+  const { settings } = await writeSettings(m.io, () => ({ historyLimit: 40 }));
+  assert.equal(edited, true);
+  assert.deepEqual(JSON.parse(m.files[path]), { saveEveryMinutes: 30, historyLimit: 40, autoSave: true });
+  assert.deepEqual(settings, { saveEveryMinutes: 30, historyLimit: 40, autoSave: true });
 });
 
 test("deleteSaves and mergeSaves change the history file", async () => {
@@ -833,7 +875,7 @@ for (const [what, breakIt] of BROKEN_HISTORIES) {
     const writes = countWrites(m);
     const deleted = await deleteSaves(m.io, [1]);
     const merged = await mergeSaves(m.io, [1, 2], ["s1"]);
-    const set = await writeSettings(m.io, { saveEveryMinutes: 5, historyLimit: 1, autoSave: true });
+    const set = await writeSettings(m.io, () => ({ historyLimit: 1 }));
     assert.equal(m.files[historyPath(APP)], before);
     assert.deepEqual(writes, [settingsPath(APP)]);
     assert.equal(deleted.history.broken, true);

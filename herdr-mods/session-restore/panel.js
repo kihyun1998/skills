@@ -5,7 +5,7 @@
 import { div, svg, image } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { run, theme, shared, checking, openOverlay, watchFolder, appHome } from "herdr";
-import { anyBusy, clampWhole, digitsOnly, SETTING_BOUNDS, batchResult, begin, busyWith, cleanTitle as clean, conductorOf, DEFAULT_SETTINGS, dismiss, endOpen, errorAt, finish, IDLE, press, entriesOf, folderChange, groupProgress, afterDelete, arrive, deletingPicked, ifUnchanged, withLook, groupsOf, keepLive, liveOf, mergeDialog, openable, openProgress, overLimit, parseHistory, reopenable, settleOpen, staleAfter, startOpen, withMarks, withoutRows, withRunning } from "./logic.js";
+import { anyBusy, clampWhole, digitsOnly, SETTING_BOUNDS, batchResult, begin, busyWith, cleanTitle as clean, conductorOf, DEFAULT_SETTINGS, dismiss, endOpen, errorAt, finish, IDLE, press, entriesOf, folderChange, groupProgress, afterDelete, arrive, deletingPicked, oneAtATime, stepSetting, toggleAutoSave, withLook, groupsOf, keepLive, liveOf, mergeDialog, openable, openProgress, overLimit, parseHistory, reopenable, settleOpen, staleAfter, startOpen, withMarks, withoutRows, withRunning } from "./logic.js";
 import { deleteSaves, historyPath, lookAtTerminals, readHistory, readSettings, removeEntries, settingsPath, writeSettings } from "./save.js";
 import { openSessions } from "./open.js";
 import { herdrIo, nextTurn as countTurn, readSave, saveAndShare, SHARED } from "./io.js";
@@ -59,6 +59,8 @@ export default class Sessions {
     this.askLimit = null;
     this.copied = null;
     this.turns = {};
+    this.settingsWrites = oneAtATime();
+    this.lastPress = null;
     this.inputs = {
       every: this.numberInput(() => this.settings.saveEveryMinutes, SETTING_BOUNDS.saveEveryMinutes, (n, cx) => this.setEvery(n, cx)),
       limit: this.numberInput(() => this.settings.historyLimit, SETTING_BOUNDS.historyLimit, (n, cx) => this.setLimit(n, cx)),
@@ -66,7 +68,7 @@ export default class Sessions {
     if (checking()) return;
     // The save, history and settings on disk, until the chip's first save hands the panel them.
     this.activity = begin(this.activity, "load", [null]);
-    const read = { n: this.nextTurn(), kind: "read" };
+    const read = this.nextTurn();
     cx.spawn((cx) => this.track(cx, "load", [null], async () => {
       const io = herdrIo(cx);
       const [save, history, settings] = await Promise.all([readSave(), readHistory(io), readSettings(io)]);
@@ -95,14 +97,14 @@ export default class Sessions {
     return countTurn();
   }
 
-  take(field, turn) {
-    const { turns, take } = arrive(this.turns, field, turn?.n, turn?.kind);
+  take(field, n) {
+    const { turns, take } = arrive(this.turns, field, n);
     this.turns = turns;
     return take;
   }
 
   async read(field, load, use) {
-    const turn = { n: this.nextTurn(), kind: "read" }, value = await load();
+    const turn = this.nextTurn(), value = await load();
     if (this.take(field, turn)) use(value);
   }
 
@@ -264,36 +266,53 @@ export default class Sessions {
 
   setEvery(n, cx) {
     const { min, max } = SETTING_BOUNDS.saveEveryMinutes;
-    this.setSettings({ ...this.settings, saveEveryMinutes: clampWhole(n, min, max) }, cx);
+    this.setSettings(() => ({ saveEveryMinutes: clampWhole(n, min, max) }), cx);
   }
 
   // A lower limit that would drop saves asks first.
   setLimit(n, cx) {
     if (this.history.broken) return;
     const { min, max } = SETTING_BOUNDS.historyLimit;
-    const next = { ...this.settings, historyLimit: clampWhole(n, min, max) };
-    if (overLimit(this.history, next.historyLimit) > 0) { this.askLimit = next; cx.notify(); return; }
-    this.setSettings(next, cx);
+    const limit = clampWhole(n, min, max);
+    if (overLimit(this.history, limit) > 0) { this.askLimit = limit; cx.notify(); return; }
+    this.setSettings(() => ({ historyLimit: limit }), cx);
   }
 
-  setSettings(next, cx) {
-    const prev = this.settings;
-    const pressed = this.nextTurn();
-    this.take("settings", { n: pressed, kind: "write" });
-    this.useSettings(next, { force: true });
+  /**
+   * − or + on the history limit: a step from the limit in the file as the write reads it, except a −
+   * that would drop saves from the history shown, which asks first for the limit shown less one.
+   */
+  stepLimit(sign, cx) {
+    if (this.history.broken) return;
+    const shown = this.settings.historyLimit;
+    if (sign < 0 && overLimit(this.history, shown - 1) > 0) return this.setLimit(shown - 1, cx);
+    this.setSettings(stepSetting("historyLimit", sign), cx);
+  }
+
+  /**
+   * A settings change pressed in the panel: the fields change(settings) gives, shown at once from the
+   * settings shown, then written onto the file as it is read then, one press at a time in press
+   * order (writeSettings). Its landing shows what was written, unless a later press waits or a later
+   * read is shown.
+   */
+  setSettings(change, cx) {
+    const prev = this.settings, pressed = this.nextTurn();
+    this.lastPress = pressed;
+    this.take("settings", pressed);
+    this.useSettings({ ...this.settings, ...change(this.settings) }, { force: true });
     this.askLimit = null;
-    this.changeHistory(cx, "settings", [++this.tasks], async (io) => {
-      try {
-        const { history, settingsTurn, historyTurn } = await writeSettings(io, next);
-        if (this.turns.settings.write === pressed && this.take("settings", settingsTurn) && this.settings !== next) this.useSettings(next);
-        return { history, turn: historyTurn };
-      } catch (err) {
-        const back = await readSettings(io).catch(() => prev);
-        const shown = ifUnchanged(this.settings, next, back);
-        if (shown !== this.settings) this.useSettings(shown, { force: true });
-        throw err;
-      }
-    });
+    this.changeHistory(cx, "settings", [++this.tasks], (io) => this.settingsWrites(() => this.writePress(io, change, pressed, prev)));
+  }
+
+  async writePress(io, change, pressed, prev) {
+    try {
+      const { settings, history, settingsTurn, historyTurn } = await writeSettings(io, change);
+      if (pressed === this.lastPress && this.take("settings", settingsTurn)) this.useSettings(settings);
+      return { history, turn: historyTurn };
+    } catch (err) {
+      if (pressed === this.lastPress) await this.read("settings", () => readSettings(io).catch(() => prev), (back) => this.useSettings(back, { force: true }));
+      throw err;
+    }
   }
 
   // Reads which sessions run, drops the opened marks that shows gone, then marks and opens. A press
@@ -578,15 +597,15 @@ export default class Sessions {
     openOverlay(mergeDialog(ids));
   }
 
-  stepper(t, id, input, value, set, { min, max }) {
-    const step = (sign, label, end) => value === end
+  stepper(t, id, input, value, step, { min, max }) {
+    const stepButton = (sign, label, end) => value === end
       ? div().w(24).h(24).flex().items_center().justify_center().text_size(12).text_color(t.dim).opacity(0.4).child(label)
-      : this.button(t, id + (sign < 0 ? "-minus" : "-plus"), label, (cx) => set(value + sign, cx));
+      : this.button(t, id + (sign < 0 ? "-minus" : "-plus"), label, (cx) => step(sign, cx));
     return h_flex().gap(4).items_center()
-      .child(step(-1, "−", min))
+      .child(stepButton(-1, "−", min))
       .child(div().w(52).h(24).flex().items_center().justify_center().rounded(6).border_1().border_color(t.border)
         .child(Input.new(input.state).w(digitsWidth(input.state.value())).h(22).items_center().text_size(12.5)))
-      .child(step(1, "+", max));
+      .child(stepButton(1, "+", max));
   }
 
   switch(t, id, on, action) {
@@ -606,7 +625,8 @@ export default class Sessions {
   // The Settings tab: the save interval in minutes and how many saves the history keeps.
   settingsTab(t) {
     const s = this.settings, count = this.history.saves.length, locked = Boolean(this.history.broken);
-    const every = (n, cx) => this.setEvery(n, cx), limit = (n, cx) => this.setLimit(n, cx);
+    const every = (n, cx) => this.setEvery(n, cx);
+    const stepEvery = (sign, cx) => this.setSettings(stepSetting("saveEveryMinutes", sign), cx), stepLimit = (sign, cx) => this.stepLimit(sign, cx);
     const ask = this.askLimit;
     const section = (title) => div().text_size(12.5).font_semibold().child(title);
     const banner = this.banner(t, "settings");
@@ -616,11 +636,11 @@ export default class Sessions {
       .child(h_flex().gap(8).items_center()
         .child(div().flex_1().child(section("Auto save")))
         .child(div().text_size(12).text_color(t.muted).child(s.autoSave ? "On" : "Off"))
-        .child(this.switch(t, "auto-save", s.autoSave, (cx) => this.setSettings({ ...s, autoSave: !s.autoSave }, cx))))
+        .child(this.switch(t, "auto-save", s.autoSave, (cx) => this.setSettings(toggleAutoSave, cx))))
       .child(v_flex().gap(10).when(!s.autoSave, (el) => el.opacity(0.4))
         .child(h_flex().gap(10).items_center()
           .child(div().text_size(12.5).text_color(t.muted).child("Every"))
-          .child(this.stepper(t, "every", this.inputs.every, s.saveEveryMinutes, every, SETTING_BOUNDS.saveEveryMinutes))
+          .child(this.stepper(t, "every", this.inputs.every, s.saveEveryMinutes, stepEvery, SETTING_BOUNDS.saveEveryMinutes))
           .child(div().text_size(12).text_color(t.muted).child("min"))
           .child(div().text_size(11.5).text_color(t.dim).child(SETTING_BOUNDS.saveEveryMinutes.min + "–" + SETTING_BOUNDS.saveEveryMinutes.max)))
         .child(this.chips(t, "every-p", [5, 10, 15, 30, 60], s.saveEveryMinutes, (n) => n + "m", every)))
@@ -636,15 +656,15 @@ export default class Sessions {
         .child("The history file cannot be read, so the limit cannot change until it is fixed or removed: " + historyPath(appHome()))))
       .when(!locked, (el) => el.child(h_flex().gap(10).items_center()
         .child(div().text_size(12.5).text_color(t.muted).child("Keep"))
-        .child(this.stepper(t, "limit", this.inputs.limit, s.historyLimit, limit, SETTING_BOUNDS.historyLimit))
+        .child(this.stepper(t, "limit", this.inputs.limit, s.historyLimit, stepLimit, SETTING_BOUNDS.historyLimit))
         .child(div().text_size(12).text_color(t.muted).child("saves"))
         .child(div().text_size(11.5).text_color(t.dim).child(SETTING_BOUNDS.historyLimit.min + "–" + SETTING_BOUNDS.historyLimit.max))))
       .when(!locked, (el) => el.child(div().text_size(11.5).text_color(t.dim).child(count + (count === 1 ? " save" : " saves") + " now")))
-      .when(Boolean(ask) && !locked, (el) => el.child(v_flex().mt(4).p(10).gap(8).rounded(7).border_1().border_color(t.ansi3)
-        .child(div().text_size(12.5).child("Keep only the newest " + ask.historyLimit + " saves?"))
-        .child(div().text_size(11.5).text_color(t.muted).child(overLimit(this.history, ask.historyLimit) + " older saves will be deleted."))
+      .when(ask != null && !locked, (el) => el.child(v_flex().mt(4).p(10).gap(8).rounded(7).border_1().border_color(t.ansi3)
+        .child(div().text_size(12.5).child("Keep only the newest " + ask + " saves?"))
+        .child(div().text_size(11.5).text_color(t.muted).child(overLimit(this.history, ask) + " older saves will be deleted."))
         .child(h_flex().gap(6)
-          .child(this.button(t, "limit-yes", "Keep the newest " + ask.historyLimit, (cx) => this.setSettings(ask, cx), true))
+          .child(this.button(t, "limit-yes", "Keep the newest " + ask, (cx) => this.setSettings(() => ({ historyLimit: ask }), cx), true))
           .child(this.button(t, "limit-no", "Cancel", () => { this.askLimit = null; })))))
       .child(div().mt(6).text_size(11).text_color(t.dim).child("Stored in ~/.config/herdr-app/data/session-restore.settings.json")));
   }

@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import {
   keptFlags, nextSave, coreIdentity, planOpen, placement, resumeArgv, shellLine, isClaude, isShell, summarize, linkParents, openable, groupsOf, chipState, openProgress, groupProgress, batchResult, startOpen, endOpen, reopenable, withMarks, settleOpen, withoutRows, keepLive, liveOf, STALE_MS,
   DEFAULT_SETTINGS, parseSettings, staleAfter, parseHistory, withSnapshot, overLimit, trimHistory, withoutSnapshots, mergeSessions, mergeSnapshots, goneSaves, mergeGroups, folderChange, mergeDialog, withRunning, cleanTitle, digitsOnly, clampWhole, SETTING_BOUNDS,
-  IDLE, begin, press, finish, free, busyWith, anyBusy, errorAt, dismiss, ifUnchanged, afterDelete, withLook, arrive, deletingPicked,
+  IDLE, begin, press, finish, free, busyWith, anyBusy, errorAt, dismiss, afterDelete, withLook, arrive, deletingPicked, oneAtATime, stepSetting, toggleAutoSave,
 } from "../logic.js";
 
 const WORKER_ARGV = ["C:\\Users\\User\\.local\\bin\\claude.EXE", "--model", "opus", "--effort", "high", "--dangerously-skip-permissions",
@@ -792,16 +792,6 @@ test("a settings file holding a history limit over the Settings tab's maximum re
   assert.equal(parseSettings(JSON.stringify({ historyLimit: null })).historyLimit, 50);
 });
 
-test("ifUnchanged takes the new value only while the one shown is still the one seen", () => {
-  const seen = { saveEveryMinutes: 5 }, back = { saveEveryMinutes: 10 }, later = { saveEveryMinutes: 7 };
-  assert.equal(ifUnchanged(seen, seen, back), back);
-  assert.equal(ifUnchanged(later, seen, back), later);
-  const empty = parseHistory(null), arrived = parseHistory('{"version":1,"saves":[{"id":2,"at":2,"entries":[]},{"id":1,"at":1,"entries":[]}]}');
-  const read = parseHistory('{"version":1,"saves":[{"id":1,"at":1,"entries":[]}]}');
-  assert.equal(ifUnchanged(empty, empty, read), read);
-  assert.deepEqual(ifUnchanged(arrived, empty, read).saves.map((s) => s.id), [2, 1]);
-});
-
 test("afterDelete drops the deleted saves from the ticks and folds the unfolded one, leaving the rest", () => {
   assert.deepEqual(afterDelete({ picked: [3, 2, 1], expanded: 2 }, [2, 1]), { picked: [3], expanded: null });
   assert.deepEqual(afterDelete({ picked: [3, 2], expanded: 3 }, [2]), { picked: [3], expanded: 3 });
@@ -826,36 +816,55 @@ test("withLook applies a look at least as new as the one shown, and drops an old
   assert.equal(first.states.get("s1")?.at, "opened");
 });
 
-test("arrive takes a write unless the field shows a later write, whatever reads came between", () => {
-  const read5 = arrive({}, "history", 5, "read");
+test("arrive takes a result, written or read, only when it is numbered after every one the field has taken", () => {
+  const read5 = arrive({}, "settings", 5);
   assert.equal(read5.take, true);
-  const write3 = arrive(read5.turns, "history", 3, "write");
-  assert.equal(write3.take, true);
-  assert.deepEqual(write3.turns.history, { write: 3, read: 5 });
-  const write2 = arrive(write3.turns, "history", 2, "write");
-  assert.equal(write2.take, false);
-  assert.equal(write2.turns, write3.turns);
-  assert.equal(arrive(write3.turns, "history", 4, "write").take, true);
+  assert.equal(read5.turns.settings, 5);
+  const write3 = arrive(read5.turns, "settings", 3);
+  assert.equal(write3.take, false);
+  assert.equal(write3.turns, read5.turns);
+  const write6 = arrive(read5.turns, "settings", 6);
+  assert.equal(write6.take, true);
+  assert.equal(write6.turns.settings, 6);
+  assert.equal(arrive(write6.turns, "settings", 6).take, false);
+  assert.equal(arrive(write6.turns, "settings", 7).take, true);
 });
 
-test("arrive takes a read only when it started after the field's last write and its last read", () => {
-  const pressed = arrive({}, "settings", 4, "write").turns;
-  const before = arrive(pressed, "settings", 3, "read");
-  assert.equal(before.take, false);
-  assert.equal(before.turns, pressed);
-  const after = arrive(pressed, "settings", 6, "read");
-  assert.equal(after.take, true);
-  assert.deepEqual(after.turns.settings, { write: 4, read: 6 });
-  assert.equal(arrive(after.turns, "settings", 5, "read").take, false);
-  assert.equal(arrive(after.turns, "settings", 7, "read").take, true);
+test("stepSetting moves a number setting by one from the settings it is given, kept within its bounds", () => {
+  assert.deepEqual(stepSetting("saveEveryMinutes", 1)({ saveEveryMinutes: 30, historyLimit: 50, autoSave: true }), { saveEveryMinutes: 31 });
+  assert.deepEqual(stepSetting("historyLimit", -1)({ saveEveryMinutes: 30, historyLimit: 7, autoSave: true }), { historyLimit: 6 });
+  assert.deepEqual(stepSetting("historyLimit", 1)({ historyLimit: 50 }), { historyLimit: 50 });
+  assert.deepEqual(stepSetting("saveEveryMinutes", -1)({ saveEveryMinutes: 1 }), { saveEveryMinutes: 1 });
+  assert.deepEqual(stepSetting("saveEveryMinutes", 1)({ saveEveryMinutes: 5000 }), { saveEveryMinutes: 1440 });
+});
+
+test("toggleAutoSave turns auto save the other way from the settings it is given", () => {
+  assert.deepEqual(toggleAutoSave({ saveEveryMinutes: 10, historyLimit: 50, autoSave: true }), { autoSave: false });
+  assert.deepEqual(toggleAutoSave({ autoSave: false }), { autoSave: true });
 });
 
 test("arrive keeps each field's turns apart", () => {
-  const removed = arrive({}, "save", 8, "write").turns;
-  assert.equal(arrive(removed, "save", 7, "write").take, false);
-  const history = arrive(removed, "history", 7, "write");
+  const removed = arrive({}, "save", 8).turns;
+  assert.equal(arrive(removed, "save", 7).take, false);
+  const history = arrive(removed, "history", 7);
   assert.equal(history.take, true);
-  assert.deepEqual(history.turns, { save: { write: 8, read: 0 }, history: { write: 7, read: 0 } });
+  assert.deepEqual(history.turns, { save: 8, history: 7 });
+});
+
+test("oneAtATime starts each job once the one before it has ended, a failed one included, in the order given", async () => {
+  const queue = oneAtATime(), log = [];
+  let release;
+  const first = queue(() => new Promise((r) => { log.push("start 1"); release = r; }).then(() => log.push("end 1")));
+  const second = queue(async () => { log.push("start 2"); throw new Error("no"); });
+  const third = queue(async () => { log.push("start 3"); return 3; });
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.deepEqual(log, ["start 1"]);
+  release();
+  await first;
+  await assert.rejects(second, /no/);
+  assert.equal(await third, 3);
+  assert.deepEqual(log, ["start 1", "end 1", "start 2", "start 3"]);
 });
 
 test("deletingPicked is true while a delete of any ticked save runs, and only then", () => {

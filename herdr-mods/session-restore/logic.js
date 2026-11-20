@@ -382,17 +382,33 @@ export function withLook(view, look) {
   return { states: keepLive(view.states, look.running, look.at), running: look.running, lookAt: look.at };
 }
 
-export const ifUnchanged = (shown, seen, next) => (shown === seen ? next : shown);
-
 /**
- * The turns once a result numbered n reaches a field of the panel: { turns, take }. A write (a save,
- * or a change pressed in the panel) is taken unless the field shows a later write; a read of a file is
- * taken only when it is later than both the field's last write and its last read.
+ * The turns once a result numbered n (io.turn()) reaches a field of the panel: { turns, take }. A
+ * result, a write's or a read's, is taken only when it is numbered after every one the field has
+ * taken.
  */
-export function arrive(turns, field, n, kind) {
-  const at = turns[field] ?? { write: 0, read: 0 };
-  if (n < at.write || (kind === "read" && n < at.read)) return { turns, take: false };
-  return { turns: { ...turns, [field]: kind === "read" ? { ...at, read: n } : { ...at, write: n } }, take: true };
+export function arrive(turns, field, n) {
+  if (n <= turns[field]) return { turns, take: false };
+  return { turns: { ...turns, [field]: n }, take: true };
+}
+
+/** A press that moves a number setting by sign from the settings it is given, kept within its bounds. */
+export const stepSetting = (field, sign) => (settings) => {
+  const { min, max } = SETTING_BOUNDS[field];
+  return { [field]: clampWhole(settings[field] + sign, min, max) };
+};
+
+/** A press that turns auto save the other way from the settings it is given. */
+export const toggleAutoSave = (settings) => ({ autoSave: !settings.autoSave });
+
+/** A runner of jobs one at a time, each starting once the one before has ended, failed or not. */
+export function oneAtATime() {
+  let last = Promise.resolve();
+  return (job) => {
+    const run = last.then(job);
+    last = run.catch(() => {});
+    return run;
+  };
 }
 
 /** Whether a delete of any of the ticked saves is under way. */
