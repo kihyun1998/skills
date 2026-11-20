@@ -86,7 +86,9 @@ Record the confirmed brief:
   e.g. `- Design brief for <issue> in <path>: record on the issue?`. Nothing goes
   on the issue from here; `ask-it` offers it.
 - **Called from `make-it` with no run sheet**: the same folder under
-  `design-it/` in the OS temp directory, named in the report to the person.
+  `design-it/` in the OS temp directory, named in the report to the person, with
+  the owner marker [`clean-it`'s rules](../clean-it/RULES.md) give a folder made
+  there, its line `kept` until the person has chosen.
 - **Otherwise**: as a comment on the issue the work belongs to, or with no issue,
   at the top of the prototype's entry file.
 

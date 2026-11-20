@@ -1,5 +1,9 @@
 # ADR-0091 — `lens` runs in a fresh agent, and it always runs
 
+> **Amended by [ADR-0103](0103-what-a-step-makes-it-deletes.md).** A probe copy
+> `lens` makes goes in its own folder in the run folder its brief names, gets a
+> ledger line, and is deleted before the report returns, its size in the report.
+
 > **Amended by [ADR-0102](0102-check-it-reviews-are-a-catalog-chosen-per-change.md).**
 > `check-it` no longer runs `lens` on every change: it is offered, recommended on
 > its own Use-when, and runs where the person chose it. Its findings go to the

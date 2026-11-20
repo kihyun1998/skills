@@ -1,5 +1,10 @@
 # ADR-0080 — A run keeps a run sheet while it lasts, outside the repository
 
+> **Extended by [ADR-0103](0103-what-a-step-makes-it-deletes.md).** Beside the
+> sheet a run keeps a ledger (`<run sheet>.made.md`) and a run folder
+> (`<run sheet>.made/`) for what its steps make; both go at the run's end, after
+> what the ledger still lists open.
+
 > **Amended by [ADR-0099](0099-a-mod-reads-another-mods-state.md).** `thegraph-panel`
 > draws no line of its own now: a run is given up with `clear run ×` in its pane, and
 > the chip on `path-band`'s line goes with it.

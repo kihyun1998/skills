@@ -60,6 +60,10 @@ there is one, show its steps and its carried items and ask whether to continue i
 or start over; starting over deletes it, and continuing it under a path this text
 named moves its content there and deletes the old file.
 
+**What the run made goes before the sheet does**: every line still open in its
+ledger (`<run sheet>.made.md`) and its run folder (`<run sheet>.made/`), as
+[`clean-it`'s rules](../clean-it/RULES.md) say, with the total freed in the closing report.
+
 **Delete it when the run ends, after the last person has seen what it carried:**
 once `ask-it` has put the carried items in front of them, or once `check-it` is
 done with nothing carried, or at the confirm stop for a change that ends there, or
@@ -247,6 +251,12 @@ reported with what it was decided on.
 **Nothing reaches a tracker unasked.** Not through a pull-request body, not
 through a code comment — both are buried on merge. One door, at the end, and a
 person decides what goes through it.
+
+**What a step makes outside the change, it deletes.** A copy, a build, tool
+state, an install, a worktree or a process gets a line in the run's ledger when
+it is made and goes when [`clean-it`'s rules](../clean-it/RULES.md) say, its size
+written: a step's own items at its end, the shared build folder at the run's end. A fresh agent's brief names the run folder
+and the ledger.
 
 **What can be counted is counted.** Running the command, querying the tracker,
 reading the file. Something you find yourself weighing that could have been

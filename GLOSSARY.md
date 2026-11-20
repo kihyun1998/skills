@@ -495,6 +495,28 @@ compared with later upstream commits.
 _Avoid_: fork (the folder is a pinned copy with recorded changes, not a
 diverging line of development)
 
+### clean-it
+
+**Ledger** (clean-it):
+The list of what a run made outside the change, one line per item written when
+the item is made: its path, who made it, what it is, and when it is to go, with
+`deleted, <size>` appended once it has. Where it lives is `clean-it/RULES.md`'s.
+A line with no `deleted` is what is still on the disk; a ledger found after its run is a run that did not end
+(ADR-0103).
+_Avoid_: run state (the retired sixteen-slot store, ADR-0071), manifest
+
+**Run folder** (clean-it):
+The one folder everything a run makes goes under, each step in a folder of its
+own inside it; where it is, `clean-it/RULES.md` says. Its path is what deletes it
+at the run's end and what tells the run's processes from the person's
+(ADR-0103).
+_Avoid_: scratch folder (any folder a probe writes to), temp folder
+
+**Owner marker** (clean-it):
+A `.made` file holding the ledger line, at the top of a folder a step had to
+make directly in the OS temp folder. `clean-it` finds such a folder by it and by
+nothing else (ADR-0103).
+
 ## Relationships
 
 - An **AFK agent** produces work in response to one **issue**; the

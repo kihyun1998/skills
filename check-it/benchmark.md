@@ -11,6 +11,9 @@ benchmark checklist, read raw at
 - **Write the claim first**, in the words that would ship ("decode is 30% faster
   at p50 on the 4 KiB input"). Every question below tests that sentence.
 - Read the benchmark's code: what it times, counts and ignores.
+- A baseline build, or a copy of the code before the change, goes in the run
+  folder and follows [`clean-it`'s rules](../clean-it/RULES.md); a Rust baseline uses the
+  run's build folder for the repository.
 - Check the machine is quiet (load average, core count). If it is not and cannot
   be stopped, alternate the sides so both see the same noise, and say so.
 

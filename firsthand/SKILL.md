@@ -47,7 +47,10 @@ not reach.
 5. **Pin a runtime fact with a throwaway probe.** When the fact is a real runtime
    value — a coordinate, a call order, an actually-emitted event, a timing — write
    a disposable probe that prints it, read the number, delete the probe, and
-   **record the number**. Reading the code is not observing what it does.
+   **record the number**. Reading the code is not observing what it does. A probe
+   that makes a folder, a build, an install or a process goes by
+   [`clean-it`'s rules](../clean-it/RULES.md): a ledger line when it is made, and its size
+   when it is deleted.
 
 6. **Enumerate the hidden state.** Before writing anything, list the state the
    real implementation tracks in this area — the kind a first-principles model

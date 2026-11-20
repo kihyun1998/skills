@@ -19,4 +19,8 @@ git -C pstack log --oneline e1cc031..origin/main -- pstack/skills/maintain-forma
 
 ## Changes from upstream
 
-None yet.
+- `SKILL.md`, *Pass*: every run of a check deletes the tool's own state after
+  it, and step 6 brings a command that leaves it behind in line (no issue; the maintainer's grilling of 2026-11-20): points at
+  this catalog's `clean-it/RULES.md`, the one copy of the cleanup rules
+  ([ADR-0103](../docs/adr/0103-what-a-step-makes-it-deletes.md)). Upstream says
+  nothing about deleting what a run makes; agents' leftovers filled the drive.

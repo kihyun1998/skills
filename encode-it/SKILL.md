@@ -120,7 +120,8 @@ A check is done when it **fails on the past mistake**, printing its message, and
 
 - check out the commit that made the mistake (found by its issue number), or
   replay its diff on today's code, and run the check: it goes red with the
-  message;
+  message. Where that checkout is a worktree or a copy rather than the working
+  tree, it follows [`clean-it`'s rules](../clean-it/RULES.md);
 - run it on the fix: green.
 
 Where the mistake cannot be replayed, a minimal reproduction stands in, and the

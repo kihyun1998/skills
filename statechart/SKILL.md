@@ -9,7 +9,7 @@ The chart shows how a system moves between states, in the words of the person wh
 
 ## Run
 
-Work in a scratch folder outside the repo. Write a TLA+ spec and its config. Then run:
+Work in a scratch folder outside the repo, in the step's own folder under the run folder that [`clean-it`'s rules](../clean-it/RULES.md) name, with a ledger line when it is made; it goes, each `--out` folder with it, at the end of the step that ran the check. Write a TLA+ spec and its config. Then run:
 
 ```sh
 <skill dir>/scripts/statechart SPEC.tla [--config FILE] [--view FILE] [--out DIR]

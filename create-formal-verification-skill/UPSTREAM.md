@@ -36,3 +36,9 @@ git -C pstack log --oneline e1cc031..origin/main -- pstack/skills/create-formal-
   removing the `first_at.is_some()` early return in justssh `Tokens::launched`
   was caught by none of the 6 invariants that pass on the unchanged model; the
   other 2 already fail there, on findings.
+- `SKILL.md`: every run of a check sends the tool's own state to a set place and
+  deletes it, as those rules say, and the generated skill says the same in its
+  own words. In the #78 trial, TLC state reached 25.3 GB (no issue; the maintainer's grilling of 2026-11-20): points at
+  this catalog's `clean-it/RULES.md`, the one copy of the cleanup rules
+  ([ADR-0103](../docs/adr/0103-what-a-step-makes-it-deletes.md)). Upstream says
+  nothing about deleting what a run makes; agents' leftovers filled the drive.

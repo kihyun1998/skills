@@ -16,7 +16,10 @@ directly, never through an agent started to call it, since from its caller
 only those arguments reach the fork (#87). **Edit nothing, and write no file outside the OS temp folder** (#93): a probe
 that traces a claim is written there, and one that must run inside the tree runs
 in a copy made there without its `.git`, with `git init` where it needs git,
-since a linked worktree's `.git` points at the reviewed repository's own. The report is the whole result,
+since a linked worktree's `.git` points at the reviewed repository's own. That
+copy goes in its own folder in the run folder the argument names (where it names
+none, the run folder those rules fall back to), gets a ledger line when it is made, and is deleted before the report
+returns, its size in the report, as [`clean-it`'s rules](../clean-it/RULES.md) say. The report is the whole result,
 returned as the final message. The caller deletes, fixes and carries.
 
 ## The scope

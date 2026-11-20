@@ -70,8 +70,9 @@ through it. Read every result. **The repository's own property, fuzz and
 benchmark lanes are part of the list**, nightly-only ones included: reproduce
 them locally, as long as the repository's own workflow runs them. A fuzz lane
 never ends by itself, so it is the kept inputs replayed, or the time the
-workflow gives it. A benchmark has no pass or fail of its own, so it is read
-through (10). Never move a threshold, narrow a scope or bypass a hook to turn
+workflow gives it; what the run adds that the repository does not keep (new
+corpus entries, crash artifacts) goes as [`clean-it`'s rules](../clean-it/RULES.md) say.
+A benchmark has no pass or fail of its own, so it is read through (10). Never move a threshold, narrow a scope or bypass a hook to turn
 one green, and report a check not run, with why. **The same
 failure surviving three fixes stops the repairs** and goes to a person as a
 design question.
@@ -285,9 +286,10 @@ the one the #91 trial measured, and a process that never saw this session.
   what it reads, not every file it may edit (*What `/simplify`'s edits
   keep*). Where `/review`'s scope held earlier commits, say so.
 - `/security-review` reads only commits (`git diff origin/HEAD...`). Add a
-  temporary worktree (`git worktree add --detach`), apply there the patch `git
-  diff HEAD --binary` gives once new files are marked, commit it, run the review
-  there, and remove the worktree, which takes the commit with it. Its diff also
+  temporary worktree (`git worktree add --detach`) in its own folder in the run folder, apply there
+  the patch `git diff HEAD --binary` gives once new files are marked, commit it,
+  run the review there, and remove the worktree as [`clean-it`'s rules](../clean-it/RULES.md)
+  say, which takes the commit with it. Its diff also
   holds this branch's commits not yet on `origin`; where there are any, say so.
 
 Their findings name a file, a line and a failure scenario in words, and are not
@@ -347,7 +349,9 @@ wherever in it it writes them, and one without both is not.
 **Running it.** It runs after (10) where (10) runs, since a check such as TLC
 can take every core and a benchmark wants a quiet machine, and beside 5 to 9
 otherwise. It runs in this session. Follow the verify skill's steps for whether
-the change touches the verified code and for running its command, run bare as
+the change touches the verified code and for running its command, its tool
+state sent to a set place and deleted after as [`clean-it`'s rules](../clean-it/RULES.md)
+say, run bare as
 (1) runs a check. Save the output, as `<run sheet>.verify.md` or in the OS temp
 folder. A check that cannot run here, such as one whose tool is not installed,
 is reported as not run, with why, and never as a pass.
@@ -357,9 +361,10 @@ turn it red by itself.** So where the verify skill's own test says the change
 touches the verified code (a mapped function, or a new step of the kind its
 model makes an action) and the model no longer describes the new code, bring the
 model in line with the new code, as the first step of the skill's section for an
-intended change says, **in a copy in the OS temp folder**, and run the check
+intended change says, **in a copy in its own folder in the run folder**, and run the check
 there once, with its own temporary folder, so its logs do not replace the
-repository run's. Only that first step: the copy is not changed again until it
+repository run's. The copy and the check's tool state go at the end of this
+check, as [`clean-it`'s rules](../clean-it/RULES.md) say. Only that first step: the copy is not changed again until it
 passes, and the repository's model, the skill and its sync commit are left as they are,
 since nothing here fixes anything. The repository run is the baseline *Whose is
 it* compares against, where no commit after the sync commit touched the covered
@@ -486,7 +491,8 @@ is evidence a hand-written example is not. Where the change added a case to such
 a lane, check that it was watched failing (`make-it`); where it touched covered
 code and added none, say so.
 
-**The strongest proof runs in a real consumer.** Link this build into something
+**The strongest proof runs in a real consumer.** A consumer cloned or built for
+it follows [`clean-it`'s rules](../clean-it/RULES.md). Link this build into something
 that actually uses it and run **its** suite. The best evidence there is a
 consumer test that had **pinned the old bug as its expected value and is now
 failing** — a symptom somebody else independently observed and froze has
@@ -507,7 +513,8 @@ Three findings, one question, one method.
 | something is broken | did this change introduce it, reveal it, or is it unrelated |
 | defensive code appeared | is this mine, or am I carrying somebody else's problem |
 
-**Measure it, do not reason about it.** Take the tree as it stands **without this
+**Measure it, do not reason about it.** Where the tree without this change is
+a worktree or a copy, it follows [`clean-it`'s rules](../clean-it/RULES.md). Take the tree as it stands **without this
 change**, run the one command or reproduce the one case, and compare.
 
 **Compare the failure, never the exit code.** A baseline tree can be red for its
@@ -566,9 +573,16 @@ and the same diff as the scope; for the reviewer and the proving agent, the
 prompt of a newly started general-purpose agent (not a fork of this
 conversation, which inherits it), started on its row's model and effort, told to edit nothing and write no file outside
 the OS temp folder. A probe that can only run inside the tree runs in a copy
-made in the OS temp folder without its `.git`, with `git init` where it needs
+made in the agent's own folder in the run folder, without its `.git`, with `git init` where it needs
 git, as `lens` says (#93): a worktree, or a copy that keeps `.git`, writes into
-this repository's gitdir. That prompt names the diff as `git diff HEAD` plus every
+this repository's gitdir. **The brief names the run folder and the ledger**, and
+what the agent copies, builds, installs or starts follows
+[`clean-it`'s rules](../clean-it/RULES.md): a ledger line when it is made, deleted before
+the report returns with its size in the report, except the run's shared build
+folder, which stays for the run. The built-ins' processes are briefed
+the same way, through their environment, since a word after the command is read
+as its target: `CARGO_TARGET_DIR` set to the run's build folder, and `TMP`,
+`TEMP` and `TMPDIR` set to a folder of its own in the run folder. That prompt names the diff as `git diff HEAD` plus every
 untracked file, so a new file is in it, and it points at the issue and this
 repo's records. The reviewer's prompt quotes (5)'s two questions and the
 paragraph after them as written here; the proving agent's quotes (12) as written

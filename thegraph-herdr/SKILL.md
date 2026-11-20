@@ -262,6 +262,7 @@ Review models changed at the confirm stop: <each row of check-it's model table t
 Report file: <its report file>
 This run's run sheet: <its per-issue run sheet path>. It does not exist; the skills
 you call keep their files beside it.
+Run folder and ledger: <the conductor's run sheet>.made/ and <the conductor's run sheet>.made.md, shared by every worker of this run (clean-it/RULES.md).
 thegraph: <absolute path of thegraph's SKILL.md, as the conductor read it>
 
 Read these sections of thegraph and hold them for this work: The signals that do
@@ -340,6 +341,9 @@ inside a shell, as it does in a Herdr tab, the shell is the program `hc` watches
 a worker outlives this session there, which is why a continued run looks for live
 workers first.
 
-**Delete the sheet and every file named after it** after the last `ask-it` has put
+**Delete what the run made, then the sheet and every file named after it**:
+every line still open in the run's ledger, and the run folder, as
+[`clean-it`'s rules](../clean-it/RULES.md) say, with the total freed in the closing report,
+after the last `ask-it` has put
 the carried items in front of the person, or at the confirm stop for a change that
 ends there, or once the person has decided an open decision.

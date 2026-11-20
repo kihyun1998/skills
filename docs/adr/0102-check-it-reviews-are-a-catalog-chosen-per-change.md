@@ -1,5 +1,10 @@
 # ADR-0102 — `check-it`'s reviews are a catalog: built-ins where they exist, its own reviewer for spec and rules, a proving step, and the risky ones chosen per change
 
+> **Amended by [ADR-0103](0103-what-a-step-makes-it-deletes.md).** What a
+> review copies, builds, installs or starts follows `clean-it/RULES.md`: the brief
+> names the run folder and the ledger, a built-in's process gets them through its
+> environment, and the verify check's copy goes in the run folder.
+
 > **Amended for #86 on 2026-11-19** (*Each review's model*, below). Each review
 > now runs on a model fixed for its role, whatever the worker runs on, and the
 > built-ins' processes take `--model` and `--effort`. *Not decided here*'s first

@@ -24,7 +24,12 @@ can only run inside the repository's tree, such as a test its toolchain finds
 only there, the pass copies the tree into the OS temp folder without its `.git`,
 and runs `git init` in the copy where the probe needs git: a linked worktree's
 `.git` is a file pointing at the reviewed repository's own, so a copy that keeps
-it writes there, and so does a worktree. The fork still has editing tools (a
+it writes there, and so does a worktree. That copy, and anything the pass
+builds, installs or starts, goes in its own folder in the run folder the brief
+names (where it names none, the run folder those rules fall back to), gets a ledger line when it is made, and is deleted
+before the report returns, its size in the report (the run's shared build
+folder aside), as
+[`clean-it`'s rules](../clean-it/RULES.md) say. The fork still has editing tools (a
 `disallowed-tools` key does not reach it, measured), so these sentences are what
 keep the pass read-only. The caller saves the report and re-opens every
 `CONFIRMED` citation before acting
@@ -134,7 +139,8 @@ way to "no action" is handing that reasoning over instead of the errand.
 - **A citation is never transcribed.** Re-open it or produce it with a tool.
 - **Roots over instances.**
 - **Read-only.** Report; do not edit, fix, or file. A probe goes in the OS temp
-  folder, or in a copy of the tree there made without its `.git`. A finding that failed the
+  folder, or in a copy of the tree there made without its `.git`, and is deleted
+  before the report returns, as `clean-it`'s rules say. A finding that failed the
   restatement test is a proposal and is labelled one — never smuggled in as a
   defect.
 - **A pass that finds nothing changes nothing.** A clean read, reported as clean,

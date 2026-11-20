@@ -53,6 +53,8 @@ If the check is a TLA+ model, read every result it gives with the [`statechart`]
 
 ## Prove it before you hand off
 
+Every run of a check, on the unchanged code, on a variant or on a scratch change, sends what the tool writes for itself to a set place and deletes it after the run, as [`clean-it`'s rules](../clean-it/RULES.md) say. The generated skill says the same for its own command in its own words, since it lives in a repository that may not have this catalog: where the tool's state goes, and that it is deleted after each run.
+
 Follow the generated skill once, as the next agent would, on a scratch change that breaks the property in the real code. It must catch the break. Then drop the scratch change and confirm that the check is back where it started: passing, or failing only on the findings you will report. A verify skill that was never run is a draft. If the skill misses the break or a step does not run, fix the skill or the verification, not the scratch change.
 
 ## Hand off
