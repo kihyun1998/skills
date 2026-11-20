@@ -48,6 +48,15 @@ splitting material but the opposite. The one exception is 11, which waits for
 reviews, since it works on their findings. `sweep` (13) runs on the change as it
 stands once the findings acted on are fixed.
 
+**What each review cost goes in the result**, one line per review that ran:
+its wall-clock time and, where the harness reports it, its tokens and cost. An
+`Agent` call's completion reports `subagent_tokens` and `duration_ms`. A
+`claude -p` process started with `--output-format json` reports
+`total_cost_usd`, `duration_ms` and `modelUsage` (measured 2026-11-20). A
+forked `Skill` (`lens`, `comment-it`) reports neither, so its line gives the
+time and says the tokens are not reported. The person picks the reviews from
+these numbers, so a line left out is a review whose cost nobody can weigh.
+
 **A prose change runs 5 and 13, plus 2 where it added or moved a file, and the
 offered reviews the person chose, with 12 over what ran of 6 to 8; the reviewer
 does not run where the person dropped it.** There are no gates to run and no round trip to prove. A run that reports those as passed has
@@ -241,6 +250,9 @@ the one the #91 trial measured, and a process that never saw this session.
   and give `/review` its level as the command's first word (`/review high`):
   with no level typed, `/review` reuses the last level the person typed in any
   session, and a level passed in a `-p` run is not remembered.
+- Pass `--output-format json`. The review's text is the `result` field, and
+  `total_cost_usd`, `duration_ms` and `modelUsage` are its cost line in the
+  result.
 - Give the command a timeout of 15 minutes. The longest measured run took about
   three minutes, past a shell's usual two-minute default, after which the
   command moves to the background.
