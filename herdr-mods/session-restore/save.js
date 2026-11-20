@@ -251,9 +251,10 @@ export const CHECK_EVERY_MS = 60_000;
  * successful save on a core holder the panel has not unfolded itself on marks that holder shown,
  * and unfolds the panel when something can be restored. settings() is the settings last read.
  * every(ms, fn) and spawn(cx, job) are the host's timer and task; cx is passed through untouched,
- * and job and unfold get the task's context.
+ * and job and unfold get the task's context. saving(on, cx) is told when a save starts (true) and
+ * ends (false), and not for a check with no save due.
  */
-export function startSaving(io, { every, spawn, share, unfold }, cx) {
+export function startSaving(io, { every, spawn, share, unfold, saving: told = () => {} }, cx) {
   let saving = false, first = true, lastAt = null, settings = parseSettings(null);
   const run = (cx, force) => {
     if (saving) return false;
@@ -263,7 +264,8 @@ export function startSaving(io, { every, spawn, share, unfold }, cx) {
         settings = await readSettings(io);
         if (!force && lastAt !== null && io.now() - lastAt < settings.saveEveryMinutes * 60_000) return;
         lastAt = io.now();
-        const { save, history, summary } = await saveAndSummarize(io, settings);
+        told(true, taskCx);
+        const { save, history, summary } = await saveAndSummarize(io, settings).finally(() => told(false, taskCx));
         share(summary, save, history);
         if (first && !summary.error && save?.core) {
           first = false;

@@ -161,16 +161,17 @@ test("removeEntries takes the named entries out of the restore list and nothing 
 
 // The chip's save on the fake machine: the timer and tasks are recorded, and a test fires them.
 function saver(m) {
-  const timers = [], tasks = [], shared = [], saves = [];
+  const timers = [], tasks = [], shared = [], saves = [], saving = [];
   let unfolds = 0;
   const s = startSaving(m.io, {
+    saving: (on) => saving.push([on, saveCount(m)]),
     every: (ms, fn) => timers.push({ ms, fn }),
     spawn: (_cx, job) => tasks.push(job()),
     share: (summary, save) => { shared.push(summary); saves.push(save); },
     unfold: () => { unfolds++; },
   });
   const settle = async () => { while (tasks.length) await tasks.shift(); };
-  return { s, timers, shared, saves, settle, unfolds: () => unfolds };
+  return { s, timers, shared, saves, saving, settle, unfolds: () => unfolds };
 }
 const saveCount = (m) => m.calls.filter((a) => a[0] === "server").length;
 const fileOf = (m) => JSON.parse(m.files[savePath(APP)]);
@@ -210,6 +211,19 @@ test("the chip reads the interval from the settings file at each check, so a cha
   await r.settle();
   assert.equal(saveCount(m), 2);
   assert.equal(r.s.settings().saveEveryMinutes, 2);
+});
+
+test("the chip's save says it runs from before it looks at the terminals until it ends, and a check with no save due says nothing", async () => {
+  const m = machine();
+  let now = 1_000_000;
+  m.io.now = () => now;
+  const r = saver(m);
+  await r.settle();
+  assert.deepEqual(r.saving, [[true, 0], [false, 1]]);
+  now += 60_000;
+  r.timers[0].fn();
+  await r.settle();
+  assert.deepEqual(r.saving, [[true, 0], [false, 1]]);
 });
 
 test("the save command saves at once, whatever the interval", async () => {

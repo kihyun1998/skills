@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import {
   keptFlags, nextSave, coreIdentity, planOpen, placement, resumeArgv, shellLine, isClaude, isShell, summarize, linkParents, openable, groupsOf, chipState, openProgress, groupProgress, batchResult, startOpen, endOpen, reopenable, withMarks, settleOpen, withoutRows, keepLive, liveOf, STALE_MS,
   DEFAULT_SETTINGS, parseSettings, staleAfter, parseHistory, withSnapshot, overLimit, trimHistory, withoutSnapshots, mergeSessions, mergeSnapshots, goneSaves, mergeGroups, folderChange, mergeDialog, withRunning, cleanTitle,
+  IDLE, begin, press, finish, free, busyWith, anyBusy, errorAt, dismiss,
 } from "../logic.js";
 
 const WORKER_ARGV = ["C:\\Users\\User\\.local\\bin\\claude.EXE", "--model", "opus", "--effort", "high", "--dangerously-skip-permissions",
@@ -577,4 +578,112 @@ test("withRunning marks each entry live by what the terminals hold now, at the a
   const entries = [live("a", { live: true, address: "t1" }), live("b", { live: false, address: "t2" }), live("c", { live: true, address: "t3" })];
   const out = withRunning(entries, new Map([["b", "t9"], ["c", "t3"]]));
   assert.deepEqual(out.map((e) => [e.sessionId, e.live, e.address]), [["a", false, "t1"], ["b", true, "t9"], ["c", true, "t3"]]);
+});
+
+test("chipState says a save is running under an open and a stalled save, over what can be restored and the count saved", () => {
+  const s = (over) => ({ restorable: 0, working: 0, saved: 0, stalled: false, sig: "", ...over });
+  assert.deepEqual(chipState(s({ saved: 18 }), null, 0, STALE_MS, true), { label: "저장 중", dot: "green", spin: true });
+  assert.deepEqual(chipState(s({ saved: 2, restorable: 5 }), null, 0, STALE_MS, true), { label: "저장 중", dot: "amber", spin: true });
+  assert.deepEqual(chipState(null, null, 0, STALE_MS, true), { label: "저장 중", dot: "dim", spin: true });
+  assert.deepEqual(chipState(s({ stalled: true }), null, 0, STALE_MS, true), { label: "save 멈춤", dot: "red" });
+  assert.deepEqual(chipState(s({ saved: 2 }), null, STALE_MS + 1, STALE_MS, true), { label: "save 멈춤", dot: "red" });
+  assert.deepEqual(chipState(s({ stalled: true }), { opened: 1, total: 3 }, 0, STALE_MS, true), { label: "여는 중 · 1/3", dot: "green" });
+  assert.deepEqual(chipState(s({ saved: 18 }), null, 0, STALE_MS, false), { label: "⟲ 18", dot: "green" });
+});
+
+test("activity: a target under way is busy until it ends, whether it succeeded or failed", () => {
+  const a = begin(IDLE, "delete", [11, 9]);
+  assert.equal(busyWith(a, "delete", 11), true);
+  assert.equal(busyWith(a, "delete", 9), true);
+  assert.equal(busyWith(a, "delete", 10), false);
+  assert.equal(busyWith(a, "remove", 11), false);
+  assert.equal(busyWith(finish(a, "delete", [11, 9]), "delete", 11), false);
+  assert.equal(busyWith(finish(a, "delete", [11, 9], "EBUSY"), "delete", 9), false);
+  assert.equal(busyWith(finish(a, "delete", [11]), "delete", 9), true);
+  assert.equal(busyWith(IDLE, "delete", 11), false);
+});
+
+test("activity: a press on a busy target is ignored, and a press on several leaves only the free ones", () => {
+  const a = begin(IDLE, "delete", [11]);
+  assert.deepEqual(free(a, "delete", [11]), []);
+  assert.deepEqual(free(a, "delete", [10, 11, 12]), [10, 12]);
+  assert.deepEqual(free(a, "remove", [11]), [11]);
+  assert.deepEqual(free(IDLE, "remove", ["k1", "k2"]), ["k1", "k2"]);
+});
+
+test("activity: save, refresh and the open check run one at a time, a save started by any action counting", () => {
+  const afterRemove = begin(IDLE, "save", ["remove-1"]);
+  assert.deepEqual(free(afterRemove, "save", [null]), []);
+  assert.deepEqual(free(IDLE, "save", [null]), [null]);
+  assert.deepEqual(free(begin(IDLE, "refresh", [null]), "refresh", [null]), []);
+  assert.deepEqual(free(begin(IDLE, "check", ["a", "b"]), "check", ["c"]), []);
+  assert.deepEqual(free(begin(IDLE, "check", ["a"]), "refresh", [null]), [null]);
+  assert.equal(anyBusy(afterRemove, "save"), true);
+  assert.equal(anyBusy(afterRemove, "remove"), false);
+  assert.equal(anyBusy(finish(afterRemove, "save", ["remove-1"]), "save"), false);
+  assert.equal(anyBusy(IDLE, "check"), false);
+});
+
+test("activity: a failure keeps an error where its action lives, until the next action there or a close", () => {
+  const failed = finish(begin(IDLE, "delete", [11]), "delete", [11], "EBUSY: resource busy");
+  assert.equal(errorAt(failed, "history"), "Save 11 was not deleted: EBUSY: resource busy");
+  assert.equal(errorAt(failed, "sessions"), null);
+  assert.equal(errorAt(finish(begin(IDLE, "delete", [9, 10]), "delete", [9, 10], "x"), "history"), "Saves 9, 10 were not deleted: x");
+  assert.equal(errorAt(press(failed, "delete", [10]).act, "history"), null);
+  assert.equal(errorAt(press(failed, "refresh", [null]).act, "history"), "Save 11 was not deleted: EBUSY: resource busy");
+  assert.equal(errorAt(dismiss(failed, "history"), "history"), null);
+  assert.equal(errorAt(finish(begin(IDLE, "delete", [11]), "delete", [11]), "history"), null);
+});
+
+test("activity: each action's failure reads in its own tab", () => {
+  const fail = (action, targets) => finish(begin(IDLE, action, targets), action, targets, "boom");
+  assert.equal(errorAt(fail("remove", ["k1"]), "sessions"), "The session is still in the save: boom");
+  assert.equal(errorAt(fail("remove", ["k1", "k2"]), "sessions"), "2 sessions are still in the save: boom");
+  assert.equal(errorAt(fail("refresh", [null]), "sessions"), "The refresh did not finish: boom");
+  assert.equal(errorAt(fail("save", [null]), "sessions"), "The save did not run: boom");
+  assert.equal(errorAt(fail("settings", [1]), "settings"), "The settings change did not finish: boom");
+  assert.equal(errorAt(fail("load", [null]), "sessions"), "Could not read the save, the history or the settings: boom");
+});
+
+test("activity: a press starts its free targets and clears its tab's error; an ignored press changes nothing", () => {
+  const p = press(IDLE, "delete", [10, 11]);
+  assert.deepEqual(p.go, [10, 11]);
+  assert.equal(busyWith(p.act, "delete", 10), true);
+  const again = press(p.act, "delete", [11]);
+  assert.deepEqual(again.go, []);
+  assert.equal(again.act, p.act);
+  const failedBusy = finish(press(begin(IDLE, "delete", [11]), "delete", [10]).act, "delete", [10], "x");
+  assert.equal(press(failedBusy, "delete", [11]).act, failedBusy);
+  assert.equal(errorAt(press(failedBusy, "delete", [11]).act, "history"), "Save 10 was not deleted: x");
+});
+
+test("activity: a save an action starts after it does not clear that action's error", () => {
+  const removeFailed = finish(press(IDLE, "remove", ["k1"]).act, "remove", ["k1"], "boom");
+  const saving = begin(removeFailed, "save", ["remove-1"]);
+  assert.equal(anyBusy(saving, "save"), true);
+  assert.equal(errorAt(saving, "sessions"), "The session is still in the save: boom");
+  assert.equal(errorAt(press(removeFailed, "save", [null]).act, "sessions"), null);
+  const both = finish(saving, "save", ["remove-1"], "EACCES");
+  assert.equal(errorAt(both, "sessions"), "The session is still in the save: boom. The save did not run: EACCES");
+});
+
+test("activity: an Open's check keeps no error and clears none, as the rows say why when nothing opens", () => {
+  const failed = finish(press(IDLE, "remove", ["k1"]).act, "remove", ["k1"], "boom");
+  const checking = press(failed, "check", ["k2"]);
+  assert.deepEqual(checking.go, ["k2"]);
+  assert.equal(errorAt(checking.act, "sessions"), "The session is still in the save: boom");
+  const ended = finish(checking.act, "check", ["k2"], "core gone");
+  assert.equal(busyWith(ended, "check", "k2"), false);
+  assert.equal(errorAt(ended, "sessions"), "The session is still in the save: boom");
+  assert.equal(errorAt(finish(press(IDLE, "check", ["k2"]).act, "check", ["k2"], "core gone"), "sessions"), null);
+});
+
+test("activity: a press that does not clear (the refresh unfolding runs) keeps the error and is still ignored while busy", () => {
+  const failed = finish(press(IDLE, "remove", ["k1"]).act, "remove", ["k1"], "boom");
+  const unfold = press(failed, "refresh", [null], { clear: false });
+  assert.deepEqual(unfold.go, [null]);
+  assert.equal(busyWith(unfold.act, "refresh"), true);
+  assert.equal(errorAt(unfold.act, "sessions"), "The session is still in the save: boom");
+  assert.deepEqual(press(unfold.act, "refresh", [null], { clear: false }).go, []);
+  assert.equal(errorAt(press(failed, "refresh", [null]).act, "sessions"), null);
 });

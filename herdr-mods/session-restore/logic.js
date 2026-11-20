@@ -206,11 +206,14 @@ export function summarize(save, { now, failed, staleMs = STALE_MS }) {
 /**
  * The chip's label and dot for a summary (null: no save yet), or for an open under way
  * ({ opened, total }). sinceSave is how long ago the chip's last save ended, in ms; longer than
- * staleMs reads as stalled. Red for a stalled save wins over amber for something to restore.
+ * staleMs reads as stalled. saving is whether a save runs now. The order: an open under way, a
+ * stalled save (red), a save running (spin, its dot the color the count would have), then what can
+ * be restored (amber) and the count saved (green).
  */
-export function chipState(summary, opening = null, sinceSave = 0, staleMs = STALE_MS) {
+export function chipState(summary, opening = null, sinceSave = 0, staleMs = STALE_MS, saving = false) {
   if (opening?.total > 0) return { label: "여는 중 · " + opening.opened + "/" + opening.total, dot: "green" };
   if (summary?.stalled || sinceSave > staleMs) return { label: "save 멈춤", dot: "red" };
+  if (saving) return { label: "저장 중", dot: !summary ? "dim" : summary.restorable > 0 ? "amber" : "green", spin: true };
   if (!summary) return { label: "save 없음", dot: "dim" };
   if (summary.restorable > 0) return { label: "복원할 세션 " + summary.restorable, dot: "amber" };
   return { label: "⟲ " + summary.saved, dot: "green" };
@@ -273,6 +276,76 @@ export function settleOpen(states, id, r, now) {
   const next = new Map(states);
   next.set(r.key, r.ok ? { at: "opened", address: r.address, since: now } : { at: "failed", reason: r.reason, ...(r.address ? { address: r.address } : {}) });
   return next;
+}
+
+const plural = (list, one, many) => (list.length === 1 ? one : many);
+const ACTIONS = {
+  delete: { place: "history", failed: (ids) => plural(ids, "Save " + ids[0] + " was", "Saves " + ids.join(", ") + " were") + " not deleted" },
+  remove: { place: "sessions", failed: (keys) => plural(keys, "The session is", keys.length + " sessions are") + " still in the save" },
+  refresh: { place: "sessions", single: true, failed: () => "The refresh did not finish" },
+  check: { single: true },
+  save: { place: "sessions", single: true, failed: () => "The save did not run" },
+  load: { place: "sessions", single: true, failed: () => "Could not read the save, the history or the settings" },
+  settings: { place: "settings", failed: () => "The settings change did not finish" },
+};
+
+/**
+ * What the panel has under way and the last error of each tab: { busy, errors }, busy a set of
+ * action:target keys, errors a tab to its message. Every action of the panel that waits joins it.
+ */
+export const IDLE = Object.freeze({ busy: new Set(), errors: Object.freeze({}) });
+
+const busyKey = (action, target) => action + ":" + String(target ?? "");
+
+/** Whether the action is under way on the target (null for an action with no target). */
+export const busyWith = (act, action, target = null) => act.busy.has(busyKey(action, target));
+
+/** Whether the action is under way on any target. */
+export const anyBusy = (act, action) => [...act.busy].some((k) => k.startsWith(action + ":"));
+
+/**
+ * The targets a press of the action may still start: those not under way, or none while an
+ * action that runs one at a time (save, refresh, the open check, the first read) is under way. An
+ * empty list is a press ignored.
+ */
+export const free = (act, action, targets) =>
+  ACTIONS[action].single && anyBusy(act, action) ? [] : targets.filter((t) => !busyWith(act, action, t));
+
+/** The activity with the action under way on the targets. */
+export const begin = (act, action, targets) => ({ busy: new Set([...act.busy, ...targets.map((t) => busyKey(action, t))]), errors: act.errors });
+
+/**
+ * A press of the action on the targets: { act, go }, go the targets it starts (free). When go is
+ * empty the press is ignored and act is the one given; otherwise the targets are under way and the
+ * error of the action's tab is cleared, unless clear is false (a refresh the panel runs as it
+ * unfolds) or the action has no tab (the Open check, whose failure the rows show).
+ */
+export function press(act, action, targets, { clear = true } = {}) {
+  const go = free(act, action, targets);
+  const { place } = ACTIONS[action];
+  return go.length ? { act: begin(clear ? dismiss(act, place) : act, action, go), go } : { act, go };
+}
+
+/**
+ * The activity once the action ended on the targets; error, when given, is kept for its tab, after
+ * the error already there, which only a press there or a close clears.
+ */
+export function finish(act, action, targets, error = null) {
+  const done = new Set(targets.map((t) => busyKey(action, t)));
+  const busy = new Set([...act.busy].filter((k) => !done.has(k)));
+  const { place, failed } = ACTIONS[action];
+  if (error == null || !failed) return { busy, errors: act.errors };
+  const text = failed(targets) + ": " + error;
+  return { busy, errors: { ...act.errors, [place]: act.errors[place] ? act.errors[place] + ". " + text : text } };
+}
+
+/** The error kept for a tab, or null. */
+export const errorAt = (act, place) => act.errors[place] ?? null;
+
+/** The activity with a tab's error closed. */
+export function dismiss(act, place) {
+  const { [place]: _, ...errors } = act.errors;
+  return { busy: act.busy, errors };
 }
 
 /** The sessions a save lists live: session id to address. */

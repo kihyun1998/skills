@@ -1,12 +1,12 @@
 // session-restore: the chip, a kept Herdr window that runs the save and shows its state. Pressed,
 // it unfolds the Sessions panel (panel.js) above itself; pressed again, it folds it.
-import { View, div } from "gpui-kit";
+import { View, div, svg } from "gpui-kit";
 import { h_flex, v_flex, Popup } from "gpui-base";
 import { theme, props, shared, closeOverlay, nextCommand, checking } from "herdr";
-import { chipState, staleAfter } from "./logic.js";
+import { anyBusy, chipState, staleAfter } from "./logic.js";
 import { startSaving } from "./save.js";
 import { herdrIo, shareSummary, SHARED } from "./io.js";
-import Sessions from "./panel.js";
+import Sessions, { SPINNER } from "./panel.js";
 import MergeDialog from "./merge.js";
 
 /** chipState()'s dot as a theme color. */
@@ -32,7 +32,8 @@ export default class SessionRestore extends View {
       every: (ms, fn) => cx.timer.every(ms, fn),
       spawn: (cx, job) => cx.spawn(async (cx) => { await job(cx); cx.notify(); }),
       share: (summary, save, history) => { this.savedAt = Date.now(); this.panel.saved(save, history); shareSummary(summary); },
-      unfold: (cx) => { this.open = true; if (cx) this.panel.refresh(cx); },
+      unfold: (cx) => { this.open = true; if (cx) this.panel.refresh(cx, false); },
+      saving: (on, cx) => this.panel.timedSave(on, cx),
     }, cx);
     // "close" closes the chip for good (its kept entry goes with it); "save" saves now.
     cx.spawn(async (cx) => {
@@ -50,7 +51,7 @@ export default class SessionRestore extends View {
     if (this.merge) return this.merge.render(cx);
     const t = theme();
     const stale = staleAfter(this.panel.settings.saveEveryMinutes);
-    const { label, dot } = chipState(shared(SHARED) ?? null, this.panel.progress(), Date.now() - this.savedAt, stale);
+    const { label, dot, spin } = chipState(shared(SHARED) ?? null, this.panel.progress(), Date.now() - this.savedAt, stale, anyBusy(this.panel.activity, "save"));
     // A press that does not move toggles the panel; one that moves is Herdr dragging the window.
     const chip = h_flex().id("chip").h(28).px(11).gap(7).flex_none().items_center().rounded_full()
       .bg(t.surface).border_1().border_color(t.border).shadow_md()
@@ -62,10 +63,12 @@ export default class SessionRestore extends View {
         if (!d || Math.hypot(e.position.x - d.x, e.position.y - d.y) > PRESS_SLOP) return;
         this.open = !this.open;
         // Unfolding refreshes: the panel shows which sessions are open now, saving nothing.
-        if (this.open && !checking()) this.panel.refresh(cx);
+        if (this.open && !checking()) this.panel.refresh(cx, false);
         cx.notify();
       })
-      .child(div().size(7).flex_none().rounded_full().bg(t[DOT[dot]]))
+      .child(spin
+        ? svg(SPINNER).size(10).flex_none().text_color(t[DOT[dot]]).spin(900)
+        : div().size(7).flex_none().rounded_full().bg(t[DOT[dot]]))
       .child(div().child(label))
       .child(div().text_color(t.dim).child(this.open ? "▾" : "▴"));
     return Popup.new("sessions-popup", chip).anchor("bottom_right")

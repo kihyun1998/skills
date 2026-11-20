@@ -81,8 +81,10 @@ rewritten for each Herdr version and are the truth about the API.
 - **The chip's label** is green `⟲ N` with N sessions saved, amber `복원할 세션 N`
   when something can be restored, red `save 멈춤` when the save stalled (failed,
   unreadable pid files, sessions whose transcript could not be looked for, or older
-  than three save intervals), `여는 중 · k/N` while sessions reopen, and `save 없음` before the
-  first save. Red wins over amber. Pressed without moving, the chip unfolds the
+  than three save intervals), `여는 중 · k/N` while sessions reopen, `저장 중` with a turning
+  ring in the dot's place while a save runs (the timed one or one the panel started), and
+  `save 없음` before the first save. The order is: reopening, red, `저장 중`, amber, green;
+  so a stalled save stays red while a new one runs. Pressed without moving, the chip unfolds the
   Sessions panel above itself and refreshes it; pressed again, it folds it. A press that moves drags
   the chip.
 - **The save** is in `~/.config/herdr-app/data/session-restore.json`. `current` is the
@@ -117,6 +119,19 @@ rewritten for each Herdr version and are the truth about the API.
   which sessions live terminals hold now and show that, saving nothing, so a
   session closed since the last save shows `closed` with Open instead of
   `● open`.
+- **Under way and failed.** Every panel action that waits on disk or on `hc` shows
+  itself from the press until it ends: a row being deleted (History) or removed
+  (Sessions ×, Clear failed) pulses with a braille spinner in place of its buttons,
+  and stays in the list until the write lands; the refresh and save icons turn into a
+  ring; the rows an Open is about to open spin while it checks which sessions run, the
+  footer says `Checking`, and no other Open shows until the check ends; the lists say `Loading` until the first read ends. A
+  second press on something under way does nothing, and Save now does nothing while
+  any save runs. A failure leaves a red box at the top of its tab (History,
+  Sessions or Settings) with what failed and why, until the next action pressed
+  there or its × (the refresh that unfolding runs does not clear it). A failed
+  check before an Open shows no box: the open checks again, and a row that does
+  not open says why. A failed delete or remove leaves the save or the session in the list (the ticks and
+  the unfolded save, cleared at the press, stay cleared).
 - **The history** is in `~/.config/herdr-app/data/session-restore.history.json`,
   newest first. Each save adds `current` to it as save N unless it lists the same
   sessions as the newest one, or none. The History tab opens a save to its
