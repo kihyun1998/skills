@@ -10,7 +10,9 @@ const FORMAT = [
   [/generated with\s*\[?claude code/i, 'a "Generated with Claude Code" footer'],
 ];
 // "AI" and "LLM" are matched in capitals only: lowercase `ai` is a path or a word.
-const PROSE = [/\b(claude|anthropic)\b/i, /\b(AI|LLM)\b/];
+// Claude Code names its files `CLAUDE.md`, `CLAUDE.local.md` and `.claude/`, so
+// those name a file, not the assistant.
+const PROSE = [/(?<!(?:^|[^\w.])\.)\bclaude\b(?!(\.local)?\.md\b)|\banthropic\b/i, /\b(AI|LLM)\b/];
 const CLAUDE_BRANCH = /^([^:/]+:)?(refs\/heads\/)?claude\//i;
 
 const GH_FLAGS = {

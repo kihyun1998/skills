@@ -117,6 +117,41 @@ test('a mention outside any message does not ask', () => {
   assert.equal(run('git -C ~/.claude commit -m "fix the length check"'), 'pass');
 });
 
+test('a Claude Code file name in a message does not ask', () => {
+  assert.equal(run('git commit -m "Point CLAUDE.md at the triage labels"'), 'pass');
+  assert.equal(run('git commit -m "Name the comment rule in CLAUDE.local.md"'), 'pass');
+  assert.equal(run('git commit -m "docs: claude.md, not README"'), 'pass');
+});
+
+test('a .claude path in a message does not ask', () => {
+  assert.equal(run('git commit -m "Ignore .claude/ in the export"'), 'pass');
+  assert.equal(run('git commit -m ".claude/ stays out of the export"'), 'pass');
+  assert.equal(run('git commit -m "Link skills into ~/.claude/skills"'), 'pass');
+  assert.equal(run('git commit -m "Keep .claude/settings.local.json out of git"'), 'pass');
+  assert.equal(run("git commit -m 'Read C:\\Users\\me\\.claude\\settings.json'"), 'pass');
+});
+
+test('Claude in prose still asks beside a file name or path', () => {
+  assert.equal(run('git commit -m "Claude edited CLAUDE.md"'), 'ask');
+  assert.equal(run('git commit -m "Ask Claude. Then edit ~/.claude/skills"'), 'ask');
+  assert.equal(run('git commit -m "Claude.md is not a file this repo has, Claude"'), 'ask');
+  assert.equal(run('git commit -m "Write claude/ notes for the reviewer"'), 'ask');
+  assert.equal(run('git commit -m "Open claude.ai to compare"'), 'ask');
+  assert.equal(run('git commit -m "Rename CLAUDE.mdx"'), 'ask');
+  assert.equal(run('git commit -m "Follow the Anthropic guide in CLAUDE.md"'), 'ask');
+  assert.equal(run('git commit -m "Per docs.claude.com, hooks run first"'), 'ask');
+  assert.equal(run('git commit -m "See https://www.claude.ai for the chat"'), 'ask');
+  assert.equal(run('git commit -m "Done.Claude wrote this"'), 'ask');
+  assert.equal(run('git commit -m "Reviewed...Claude caught it"'), 'ask');
+});
+
+test('a file name or path does not hide a trailer, a footer or a claude/ branch', () => {
+  assert.equal(run(`git commit -m "Edit CLAUDE.md" -m "${TRAILER}"`), 'block');
+  assert.equal(run(`gh pr create --title "Edit .claude/" --body "${FOOTER}"`), 'block');
+  assert.equal(run('git commit -m "x" -m "Co-Authored-By: .claude <a@b>"'), 'block');
+  assert.equal(run('git push fork claude/CLAUDE.md'), 'block');
+});
+
 test('a block outranks an ask', () => {
   assert.equal(run(`git commit -m "Claude fixed it" -m "${TRAILER}"`), 'block');
 });
