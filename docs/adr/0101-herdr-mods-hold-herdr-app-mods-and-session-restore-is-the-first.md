@@ -444,3 +444,49 @@ Built in c748c10. What the person decided, on what they were shown, and what was
   short (the #69 amendment measured the look at about 0.6 s for 22 terminals).
 - The pre-existing state defects the reviews found (an overlapping or failed action leaving
   the panel's state wrong) are #104.
+
+## Amendment (2026-11-20): auto save can be turned off, settings take typed numbers
+
+Built in 528ade2, with the button redraw fixed in f9056c3. No issue was filed; the
+maintainer asked for it in the session that built #99.
+
+### The maintainer's calls
+
+- **Off means auto save only.** Shown the three places a save starts (at start, on the
+  timer, and Save now or the command), the maintainer turned off the first two and kept
+  the third, recommended because a person can still save by hand. Consequence, said then:
+  with auto save off a reboot is not noticed until a save, so the restore list forms only
+  when Save now is pressed after it.
+- **Variant A, a switch row.** Two variants were drawn as an HTML prototype: A, a switch
+  beside "Auto save" that dims the interval rows, and a grey "Auto save off" chip; B, an
+  "Off" chip among the interval presets and a "⟲ N · 꺼짐" chip that keeps the count. A was
+  recommended and chosen.
+- **Both numbers take typed input**, digits only, with a minimum and a maximum, asked for
+  after the first build allowed letters.
+- **The chip keeps one width.** The maintainer saw the panel move when the label went from
+  "⟲ N" to the longer off label: a Herdr window is placed by its top left and is as big as
+  its content (see the #65 amendment), so a wider chip pushed the panel. The chip is now
+  156 px for every label, a long one cut with an ellipsis.
+- **The chip's labels are English**, like the panel: "N to restore", "Save stalled",
+  "Opening k/N", "Saving", "Not saved yet", "Auto save off". The Korean labels named in
+  the sections above are superseded.
+
+### Derived
+
+- The history limit's maximum is 500: the history file held five saves in 90,594 bytes on
+  2026-11-20, about 18 KB a save, so 500 saves is about 9 MB read and written at each save.
+  The interval keeps its 1–1440 minutes. A hand edit of the settings file is not held to
+  either range.
+- Herdr's `Input` has no text alignment (gpui-kit.d.ts), and `text_center` on it left the
+  digits at the left in the live window. The field is sized to its digits (8 px a digit
+  plus 4) inside a box that centres it.
+- A change pressed in the panel (a preset, − or +) updates a number field even while it has
+  the keyboard; a read of the settings file does not. The first build updated neither while
+  the field had the keyboard, so leaving the field applied the old number over the one just
+  pressed.
+
+### Not covered
+
+- Typing in the live window was not driven from here: that letters are dropped, and where
+  the cursor goes when they are, rests on the maintainer's look and on `digitsOnly`'s tests.
+- Whether 8 px a digit centres the number exactly at every zoom.
