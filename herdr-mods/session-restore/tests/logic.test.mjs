@@ -1,4 +1,4 @@
-// Pure logic of session-restore: run with node --test herdr-mods/session-restore/tests
+// Pure logic of session-restore: run with node --test 'herdr-mods/session-restore/tests/*.test.mjs'
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";

@@ -13,7 +13,9 @@ const script = join(here, 'install-herdr-mods.sh');
 const fakeHerdr = `#!/usr/bin/env bash
 case "$1" in
     status|do) [ -f "$FAKE_STATUS" ] && [ "$(cygpath -m "$HERDR_APP_HOME" 2>/dev/null || echo "$HERDR_APP_HOME")" = "$FAKE_HOME" ] \
-        || { echo "herdr-app: no Herdr window" >&2; exit 2; } ;;&
+        || { echo "herdr-app: no Herdr window" >&2; exit 2; } ;;
+esac
+case "$1" in
     status) cat "$FAKE_STATUS" ;;
     do) echo "$*" >> "$FAKE_LOG" ;;
     *) exit 2 ;;

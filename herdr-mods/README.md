@@ -47,7 +47,7 @@ rewritten for each Herdr version and are the truth about the API.
   side effects through an injected `io`, and test them with Node:
 
   ```sh
-  node --test herdr-mods/<mod>/tests
+  node --test 'herdr-mods/<mod>/tests/*.test.mjs'
   ```
 
 - `herdr-app check herdr-mods/<mod>` loads the mod and draws its first render. It

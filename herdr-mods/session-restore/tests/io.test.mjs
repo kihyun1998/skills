@@ -1,4 +1,4 @@
-// save.js and open.js against a fake hc and file system: run with node --test herdr-mods/session-restore/tests
+// save.js and open.js against a fake hc and file system: run with node --test 'herdr-mods/session-restore/tests/*.test.mjs'
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { lookAtTerminals, runningSessions, saveOnce, savePath, removeEntries, startSaving, CHECK_EVERY_MS, settingsPath, historyPath, readSettings, writeSettings, readHistory, deleteSaves, mergeSaves, saveAndSummarize } from "../save.js";
