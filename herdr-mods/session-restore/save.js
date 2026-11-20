@@ -91,18 +91,21 @@ export function observe(t, sessionId, spaces, prior) {
 // that returns what it was given writes nothing.
 async function updateFile(io, path, parse, change) {
   for (let attempt = 0; ; attempt++) {
+    const readTurn = turnOf(io);
     const before = await io.read(path);
     const prev = parse(before);
     const next = await change(prev);
-    if (next === prev) return next;
+    if (next === prev) return { value: next, turn: { n: readTurn, kind: "read" } };
     try {
       await io.write(path, JSON.stringify(next, null, 2) + "\n", before);
-      return next;
+      return { value: next, turn: { n: turnOf(io), kind: "write" } };
     } catch (err) {
       if (attempt > 0) throw err;
     }
   }
 }
+
+const turnOf = (io) => io.turn?.() ?? null;
 
 const update = (io, change) => updateFile(io, savePath(io.appHome), parseSave, change);
 const updateHistory = (io, change) => updateFile(io, historyPath(io.appHome), parseHistory, change);
@@ -117,15 +120,24 @@ export async function readHistory(io) {
   return parseHistory(await io.read(historyPath(io.appHome)));
 }
 
-/** Writes the settings, and trims the history to their limit. Returns the history. */
+/**
+ * Writes the settings, and trims the history to their limit. Returns { history, settingsTurn,
+ * historyTurn }: each { n, kind }, the io.turn() taken once that file was written, or before the
+ * history was read when the trim wrote nothing (kind "read").
+ */
 export async function writeSettings(io, settings) {
   const path = settingsPath(io.appHome);
   await io.write(path, JSON.stringify(settings, null, 2) + "\n", await io.read(path));
-  return updateHistory(io, (h) => trimHistory(h, settings.historyLimit));
+  const settingsTurn = { n: turnOf(io), kind: "write" };
+  const { value: history, turn: historyTurn } = await updateHistory(io, (h) => trimHistory(h, settings.historyLimit));
+  return { history, settingsTurn, historyTurn };
 }
 
-/** Deletes saves from the history by id. Returns the history. */
-export const deleteSaves = (io, ids) => updateHistory(io, (h) => withoutSnapshots(h, ids));
+/** Deletes saves from the history by id. Returns { history, turn }, turn as writeSettings' are. */
+export async function deleteSaves(io, ids) {
+  const { value: history, turn } = await updateHistory(io, (h) => withoutSnapshots(h, ids));
+  return { history, turn };
+}
 
 /**
  * Adds a save of the kept sessions from several saves to the history (mergeSnapshots). Returns
@@ -134,7 +146,7 @@ export const deleteSaves = (io, ids) => updateHistory(io, (h) => withoutSnapshot
  */
 export async function mergeSaves(io, ids, keep) {
   let made = null, gone = [];
-  const history = await updateHistory(io, (h) => {
+  const { value: history } = await updateHistory(io, (h) => {
     gone = goneSaves(h, ids);
     const next = mergeSnapshots(h, ids, keep, { now: io.now() });
     made = next === h ? null : next.saves[0];
@@ -178,12 +190,12 @@ export async function runningSessions(io) {
  * list (nextSave); a session with no transcript is left out. The sessions alive now go into the
  * history when they are not the newest save's (withSnapshot). Returns it with the number of Claude
  * pid files that had no session id (unreadable) and of sessions whose transcript could not be looked
- * for (unchecked).
+ * for (unchecked), and turns: { save, history }, each as writeSettings' turns are.
  */
 export async function saveOnce(io, settings = null) {
   const { historyLimit } = settings ?? (await readSettings(io));
   let unreadable = 0, unchecked = 0;
-  const save = await update(io, async (prev) => {
+  const { value: save, turn: saveTurn } = await update(io, async (prev) => {
     unreadable = 0;
     unchecked = 0;
     const seen = {};
@@ -207,38 +219,41 @@ export async function saveOnce(io, settings = null) {
     }
     return nextSave(prev, observed, { core, now });
   });
-  const history = await updateHistory(io, (h) => withSnapshot(h, save.current, { now: save.savedAt, limit: historyLimit }));
-  return { save, history, unreadable, unchecked };
+  const { value: history, turn: historyTurn } = await updateHistory(io, (h) => withSnapshot(h, save.current, { now: save.savedAt, limit: historyLimit }));
+  return { save, history, unreadable, unchecked, turns: { save: saveTurn, history: historyTurn } };
 }
 
-/** Takes entries out of the restore list by key: the panel's remove. */
-export function removeEntries(io, keys) {
+/** Takes entries out of the restore list by key: the panel's remove. Returns { save, turn }, turn as writeSettings' are. */
+export async function removeEntries(io, keys) {
   const drop = new Set(keys);
-  return update(io, (prev) => ({ ...(prev ?? { version: 1, current: [] }), restore: (prev?.restore ?? []).filter((e) => !drop.has(e.key)) }));
+  const { value: save, turn } = await update(io, (prev) => ({ ...(prev ?? { version: 1, current: [] }), restore: (prev?.restore ?? []).filter((e) => !drop.has(e.key)) }));
+  return { save, turn };
 }
 
 /** Records the core holder the Sessions panel last opened itself on. */
-export function markShown(io, core) {
-  return update(io, (prev) => ({ ...(prev ?? { version: 1, current: [], restore: [] }), shownCore: core }));
+export async function markShown(io, core) {
+  return (await update(io, (prev) => ({ ...(prev ?? { version: 1, current: [], restore: [] }), shownCore: core }))).value;
 }
 
 /**
  * Saves once and summarizes: summarize()'s fields with unreadable, unchecked and the error, with
- * the save and the history. A save that throws leaves the files as they were, and the summary is
- * of that save.
+ * the save, the history and their turns (saveOnce's). A save that throws leaves the files as they
+ * were, and the summary is of that save, read back, each turn taken before its read.
  */
 export async function saveAndSummarize(io, settings = null) {
-  let save = null, history = null, unreadable = 0, unchecked = 0, error = null;
+  let save = null, history = null, unreadable = 0, unchecked = 0, error = null, turns = null;
   settings ??= await readSettings(io);
   try {
-    ({ save, history, unreadable, unchecked } = await saveOnce(io, settings));
+    ({ save, history, unreadable, unchecked, turns } = await saveOnce(io, settings));
   } catch (err) {
     error = String(err?.message ?? err);
+    turns = { save: { n: turnOf(io), kind: "read" } };
     save = parseSave(await io.read(savePath(io.appHome)));
+    turns.history = { n: turnOf(io), kind: "read" };
     history = await readHistory(io);
   }
   const failed = Boolean(error) || unreadable > 0 || unchecked > 0;
-  return { save, history, summary: { ...summarize(save, { now: io.now(), failed, staleMs: staleAfter(settings.saveEveryMinutes) }), unreadable, unchecked, error } };
+  return { save, history, turns, summary: { ...summarize(save, { now: io.now(), failed, staleMs: staleAfter(settings.saveEveryMinutes) }), unreadable, unchecked, error } };
 }
 
 /** How often the chip looks whether a save is due. */
@@ -252,7 +267,7 @@ export const CHECK_EVERY_MS = 60_000;
  * and unfolds the panel when something can be restored. settings() is the settings last read.
  * every(ms, fn) and spawn(cx, job) are the host's timer and task; cx is passed through untouched,
  * and job and unfold get the task's context. saving(on, cx) is told when a save starts (true) and
- * ends (false), and not for a check with no save due.
+ * ends (false), and not for a check with no save due. share gets the save's turns fourth (saveOnce).
  */
 export function startSaving(io, { every, spawn, share, unfold, saving: told = () => {} }, cx) {
   let saving = false, first = true, lastAt = null, settings = parseSettings(null);
@@ -266,8 +281,8 @@ export function startSaving(io, { every, spawn, share, unfold, saving: told = ()
         if (mode === "timer" && lastAt !== null && io.now() - lastAt < settings.saveEveryMinutes * 60_000) return;
         lastAt = io.now();
         told(true, taskCx);
-        const { save, history, summary } = await saveAndSummarize(io, settings).finally(() => told(false, taskCx));
-        share(summary, save, history);
+        const { save, history, turns, summary } = await saveAndSummarize(io, settings).finally(() => told(false, taskCx));
+        share(summary, save, history, turns);
         if (first && !summary.error && save?.core) {
           first = false;
           if (save.shownCore !== save.core) {

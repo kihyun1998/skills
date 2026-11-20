@@ -7,6 +7,11 @@ import { parseSave, saveAndSummarize, savePath } from "./save.js";
 /** The shared key the chip and the panel read: summarize()'s fields and the last error. */
 export const SHARED = "session-restore";
 
+let turns = 0;
+
+/** The next number of the one count every save, read and change of this window takes (arrive in logic.js). */
+export const nextTurn = () => ++turns;
+
 /** save.js's and open.js's io, from the herdr module; sleep needs the task's cx. */
 export function herdrIo(cx) {
   return {
@@ -19,6 +24,7 @@ export function herdrIo(cx) {
     run: (command, args) => run(command, args),
     sleep: (ms) => cx.sleep(ms),
     now: () => Date.now(),
+    turn: nextTurn,
     home: home(),
     appHome: appHome(),
   };
@@ -36,7 +42,7 @@ export function shareSummary(summary) {
 
 /** Saves once, and shares the summary. */
 export async function saveAndShare(cx) {
-  const { save, history, summary } = await saveAndSummarize(herdrIo(cx));
+  const { save, history, turns, summary } = await saveAndSummarize(herdrIo(cx));
   shareSummary(summary);
-  return { save, history, summary };
+  return { save, history, turns, summary };
 }

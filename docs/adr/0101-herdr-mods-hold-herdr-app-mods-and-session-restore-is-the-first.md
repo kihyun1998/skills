@@ -623,3 +623,117 @@ last won.
   (the #103 path).
 - The panel wiring has no test in the repository: `logic.test.mjs` passes with 10ba085's
   `panel.js` over this `logic.js`. The harnesses that drive it were throwaway.
+
+## Amendment (issue #104, follow-up): saves and re-reads that land out of order, a history of at most 50, and the delete footer
+
+What dc0e190's reviews and the maintainer's ask-it left of #104, each reproduced by its
+proving pass: (A) a save started before a remove but handed over after it brought the
+removed row back until the remove's own save ended (`afterRemove []`, `afterSaved ["R"]`);
+(B) the first read's settings, the refresh's re-read of the settings and the folder watch's
+reads overwrote a change just pressed in the panel (shown 10, on disk 5); (C) the history
+limit's maximum of 500 against Herdr's `readTextFile`, which reads "up to 1 MiB"
+(`herdr.d.ts`); (D) `Delete · n` and `Merge · n` offered for saves being deleted.
+
+### The maintainer's calls (2026-11-20)
+
+- **(A) Sequence numbers (option 가)**: the panel does not apply a result older than the one
+  it shows, the shape of `withLook`. Two saves may still run at once (`updateFile` retries
+  once on a changed file). A queue that makes the timed save wait for the panel's (option 나)
+  was shown and not chosen.
+- **(A) refined: each result takes its number when its file is written**, the save file and
+  the history file apart, at the moment `updateFile`'s write succeeds. The first call said
+  "a number from when it started"; built that way, a save that started while a delete ran
+  read the file after the delete, wrote `[4, 3, 1]`, and was dropped behind the delete's
+  result (`[3, 1]` shown, which e6cf61d showed right), and a folder-watch read that started
+  during a save and read the file before the save's write put the old history back (`[1]`
+  shown, `[2, 1]` on disk, as on e6cf61d). Shown those two (lens, /review) with three
+  options (number at the write; keep start numbers and record both; start numbers for every
+  result), the maintainer chose the first, keeping the call's purpose.
+- **(B) The same ordering for those reads**, so a read that started before a change pressed
+  in the panel does not overwrite it.
+- **(C) The maximum is 50.** Shown: 80 (recommended), reading with `fs/promises` `readFile`
+  instead, both, and that 100 saves is about 1.26 MB, over the 1 MiB read. The live history
+  file was 201,353 bytes for 16 saves on 2026-11-20, about 12.6 KB a save, so 50 is about
+  630 KB. This supersedes the 500 of the amendment of 2026-11-20 above.
+- **(C) A settings file holding more than 50 reads as 50** (`parseSettings`). The first
+  call kept such a value as a hand edit; the reviews showed that the Settings tab itself
+  offered 51–500 from 528ade2 until this change, and that at 12.5 KB a save about 84 saves
+  pass the 1 MiB read, whose outcome is unmeasured. Shown keeping the value or capping it on
+  read, the maintainer chose the cap. **Consequence: a person whose limit was over 50 loses
+  the oldest saves past 50 at the next save that adds to the history, without being asked**,
+  where a lower limit set in the Settings tab asks first.
+- **(D) Hide `Delete · n` and `Merge · n`** while a delete of the ticked saves runs, as Open
+  is hidden during a check (#99).
+
+### Derived
+
+- One count per Herdr window (`nextTurn` in `io.js`, given to save.js as `io.turn`)
+  numbers every result. Each of the panel's save, history and settings keeps two marks, its
+  last write and its last read (`arrive` in `logic.js`). A write is shown unless the field
+  shows a later write; a read is shown only when it is later than both. A read never holds
+  back a write: with the write numbered when it reached the file, a read numbered after that
+  saw the write, and one numbered before it did not.
+- Where the number is taken: `updateFile` takes it once its write succeeded, or before its
+  read when it writes nothing, and then hands it over as a read's, since that read is what it
+  returns (/review's second pass found the first build handing it over as a write's, which let it
+  replace a newer read). `saveOnce` returns one for the
+  save file and one for the history file, and `startSaving` hands them to `share` fourth;
+  `removeEntries`, `deleteSaves` and `writeSettings` (the settings file and the history
+  trim apart) return theirs. A failed save takes one before each file it reads back. A read
+  of a file takes one as it starts. A settings change pressed in the panel takes one at the
+  press for the value it shows at once, and once its write lands it shows that value again
+  over any older read, unless a later press is shown by then.
+- dc0e190's guard on the first read's history (`ifUnchanged` by identity) is replaced by
+  the numbering; `ifUnchanged` stays for a failed settings write putting the file's settings
+  back.
+- (D) is `deletingPicked`: any ticked save being deleted hides both, and a delete of a ticked
+  save closes the delete confirm, so it does not come back on the ticks left; a row's × on an
+  unticked save leaves it open.
+
+### Measured
+
+- Nine tests in the repository, each watched failing before its code existed: in
+  `logic.test.mjs` four for `arrive` and `deletingPicked`, the bound's test changed, and the
+  cap on read; in `io.test.mjs` four for the numbers `startSaving`, a failed save,
+  `removeEntries`/`deleteSaves`/`writeSettings` (a trim that writes and one that does not), and
+  a delete that writes nothing hand over, each with its kind.
+  Mutations of `arrive` (no read check, a write held back by a read, a read raising the write
+  mark, one mark for every field), of `deletingPicked`, of where `updateFile`, `saveOnce`,
+  a failed save and `writeSettings` take their numbers, the turns not handed to `share`, the
+  bound back to 500 and the cap removed each turned a test red. The suite passed 153 of 153.
+- A throwaway Node harness loaded `panel.js` and the real `save.js` with `herdr`,
+  `gpui-kit`, `gpui-base` and `fs/promises` stubbed, controlling when each read, write,
+  `hc` call and folder change lands; the save cases press Save now and run the real save.
+  e6cf61d's panel against this change: a save whose save file was written before a remove,
+  `["R", "S"]` against `["S"]`; the first read's settings, 10 against 5 (on disk 5); the
+  refresh's re-read, 10 against 5; the watch's history read from before a delete,
+  `[3, 2, 1]` against `[3, 1]`, and its settings read 10 against 5; a read that started after
+  a delete was pressed and landed after it, `[3, 2, 1]` against `[3, 1]`; a watch read from
+  before a save's history write landing after it, `[1]` against `[2, 1]`; the first read
+  landing after a newer watch read, 10 against 7; the footer while a delete of a ticked save
+  ran, Delete and Merge offered against neither; a delete that wrote nothing landing after a
+  newer read, `[4, 1]` against `[5, 4, 1]` (on disk); a delete of a ticked save, the confirm
+  left open against closed. A save that started while a delete ran, with or without a retry,
+  showed `[4, 3, 1]` on both. Mutations of the wiring (the save field
+  taking the history's number, the panel's save dropping its numbers, `updateFile` numbering
+  before its write, each read or press unnumbered, the footer unguarded) each turned their case
+  red; four first survived on cases that never built their window, and were red once the case
+  built it.
+- The live history file on 2026-11-20 at this change: 225,192 bytes for 18 saves, about
+  12.5 KB a save; the live settings hold 50.
+
+### Not covered
+
+- What Herdr does with a file over 1 MiB (cut, refuse, null) is still unmeasured, and a merge
+  adds a save over the limit, so a long run of merges at 50 can still pass it.
+- The live window, and `main.js`'s wiring of `share`, which the harness does not load
+  (read, and checked by `herdr-app check`).
+- The panel's wiring has no test in the repository; the harnesses were throwaway.
+- A settings read that started after a press, before its write landed, is shown when it lands
+  first; the press's landing shows the pressed value again only when no later press is shown,
+  so a second press made from the older value shown writes that older value back for the first
+  field (/review, pre-existing on e6cf61d; the proving pass reproduced it on both trees: an
+  interval press of 5, a read landing 10 before its write, then a limit press, wrote
+  `{ every 10, limit 40 }`).
+- `historyLimit: null` (keep every save) is not capped, so such a history passes 1 MiB past
+  about 84 saves; what an unreadable history then does is #109's.

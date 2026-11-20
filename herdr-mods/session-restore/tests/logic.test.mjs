@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import {
   keptFlags, nextSave, coreIdentity, planOpen, placement, resumeArgv, shellLine, isClaude, isShell, summarize, linkParents, openable, groupsOf, chipState, openProgress, groupProgress, batchResult, startOpen, endOpen, reopenable, withMarks, settleOpen, withoutRows, keepLive, liveOf, STALE_MS,
   DEFAULT_SETTINGS, parseSettings, staleAfter, parseHistory, withSnapshot, overLimit, trimHistory, withoutSnapshots, mergeSessions, mergeSnapshots, goneSaves, mergeGroups, folderChange, mergeDialog, withRunning, cleanTitle, digitsOnly, clampWhole, SETTING_BOUNDS,
-  IDLE, begin, press, finish, free, busyWith, anyBusy, errorAt, dismiss, ifUnchanged, afterDelete, withLook,
+  IDLE, begin, press, finish, free, busyWith, anyBusy, errorAt, dismiss, ifUnchanged, afterDelete, withLook, arrive, deletingPicked,
 } from "../logic.js";
 
 const WORKER_ARGV = ["C:\\Users\\User\\.local\\bin\\claude.EXE", "--model", "opus", "--effort", "high", "--dangerously-skip-permissions",
@@ -771,13 +771,20 @@ test("clampWhole keeps a whole number inside the bounds, and reads text that is 
   assert.equal(clampWhole("0", 1, 1440), 1);
   assert.equal(clampWhole("2000", 1, 1440), 1440);
   assert.equal(clampWhole("30", 1, 1440), 30);
-  assert.equal(clampWhole(7, 1, 500), 7);
-  assert.equal(clampWhole("", 1, 500), null);
-  assert.equal(clampWhole("x", 1, 500), null);
+  assert.equal(clampWhole(7, 1, 50), 7);
+  assert.equal(clampWhole("", 1, 50), null);
+  assert.equal(clampWhole("x", 1, 50), null);
 });
 
-test("the settings' bounds: an interval of 1 to 1440 minutes, a history of 1 to 500 saves", () => {
-  assert.deepEqual(SETTING_BOUNDS, { saveEveryMinutes: { min: 1, max: 1440 }, historyLimit: { min: 1, max: 500 } });
+test("the settings' bounds: an interval of 1 to 1440 minutes, a history of 1 to 50 saves", () => {
+  assert.deepEqual(SETTING_BOUNDS, { saveEveryMinutes: { min: 1, max: 1440 }, historyLimit: { min: 1, max: 50 } });
+});
+
+test("a settings file holding a history limit over the Settings tab's maximum reads as the maximum", () => {
+  assert.equal(parseSettings(JSON.stringify({ historyLimit: 80 })).historyLimit, 50);
+  assert.equal(parseSettings(JSON.stringify({ historyLimit: 50 })).historyLimit, 50);
+  assert.equal(parseSettings(JSON.stringify({ historyLimit: 7 })).historyLimit, 7);
+  assert.equal(parseSettings(JSON.stringify({ historyLimit: null })).historyLimit, null);
 });
 
 test("ifUnchanged takes the new value only while the one shown is still the one seen", () => {
@@ -812,4 +819,45 @@ test("withLook applies a look at least as new as the one shown, and drops an old
   const first = withLook({ states: opened, running: null, lookAt: null }, { at: 10, running: new Map([["s1", "t2"]]) });
   assert.equal(first.lookAt, 10);
   assert.equal(first.states.get("s1")?.at, "opened");
+});
+
+test("arrive takes a write unless the field shows a later write, whatever reads came between", () => {
+  const read5 = arrive({}, "history", 5, "read");
+  assert.equal(read5.take, true);
+  const write3 = arrive(read5.turns, "history", 3, "write");
+  assert.equal(write3.take, true);
+  assert.deepEqual(write3.turns.history, { write: 3, read: 5 });
+  const write2 = arrive(write3.turns, "history", 2, "write");
+  assert.equal(write2.take, false);
+  assert.equal(write2.turns, write3.turns);
+  assert.equal(arrive(write3.turns, "history", 4, "write").take, true);
+});
+
+test("arrive takes a read only when it started after the field's last write and its last read", () => {
+  const pressed = arrive({}, "settings", 4, "write").turns;
+  const before = arrive(pressed, "settings", 3, "read");
+  assert.equal(before.take, false);
+  assert.equal(before.turns, pressed);
+  const after = arrive(pressed, "settings", 6, "read");
+  assert.equal(after.take, true);
+  assert.deepEqual(after.turns.settings, { write: 4, read: 6 });
+  assert.equal(arrive(after.turns, "settings", 5, "read").take, false);
+  assert.equal(arrive(after.turns, "settings", 7, "read").take, true);
+});
+
+test("arrive keeps each field's turns apart", () => {
+  const removed = arrive({}, "save", 8, "write").turns;
+  assert.equal(arrive(removed, "save", 7, "write").take, false);
+  const history = arrive(removed, "history", 7, "write");
+  assert.equal(history.take, true);
+  assert.deepEqual(history.turns, { save: { write: 8, read: 0 }, history: { write: 7, read: 0 } });
+});
+
+test("deletingPicked is true while a delete of any ticked save runs, and only then", () => {
+  const act = begin(IDLE, "delete", [3]);
+  assert.equal(deletingPicked(act, [3, 2]), true);
+  assert.equal(deletingPicked(act, [2, 1]), false);
+  assert.equal(deletingPicked(IDLE, [3, 2]), false);
+  assert.equal(deletingPicked(begin(IDLE, "settings", [3]), [3]), false);
+  assert.equal(deletingPicked(act, []), false);
 });

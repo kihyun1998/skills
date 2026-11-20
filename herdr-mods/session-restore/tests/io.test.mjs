@@ -1,9 +1,9 @@
 // save.js and open.js against a fake hc and file system: run with node --test herdr-mods/session-restore/tests
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { lookAtTerminals, runningSessions, saveOnce, savePath, removeEntries, startSaving, CHECK_EVERY_MS, settingsPath, historyPath, readSettings, writeSettings, readHistory, deleteSaves, mergeSaves } from "../save.js";
+import { lookAtTerminals, runningSessions, saveOnce, savePath, removeEntries, startSaving, CHECK_EVERY_MS, settingsPath, historyPath, readSettings, writeSettings, readHistory, deleteSaves, mergeSaves, saveAndSummarize } from "../save.js";
 import { openSessions } from "../open.js";
-import { settleOpen, withMarks } from "../logic.js";
+import { parseSettings, settleOpen, withMarks } from "../logic.js";
 
 const HOME = "C:/Users/U", APP = "C:/Users/U/.config/herdr-app";
 const SPACES = [{ id: "sp1", name: "skills", named: false, folder: "", tabs: [{ id: "tb1", name: "1", named: false }] }];
@@ -255,6 +255,71 @@ test("each save hands share the save it is of: the one it wrote, or the last goo
   await r.settle();
   assert.equal(r.shared[2].stalled, true);
   assert.equal(r.saves[2].savedAt, 1_060_000);
+});
+
+function counted(m) {
+  let n = 0;
+  const at = [];
+  m.io.turn = () => ++n;
+  const { read, write } = m.io;
+  m.io.read = async (p) => { at.push(["read", p, n]); return read(p); };
+  m.io.write = async (p, t, e) => { at.push(["write", p, n]); return write(p, t, e); };
+  return at;
+}
+const lastAt = (at, kind, path) => at.filter((a) => a[0] === kind && a[1] === path).at(-1)[2];
+const firstAt = (at, kind, path) => at.find((a) => a[0] === kind && a[1] === path)[2];
+
+test("each save hands share the numbers taken as its save file and its history file were written", async () => {
+  const m = machine({ terminals: [claudeTerm("t4", 100)], files: { [pidPath(100)]: pidText("s1"), [transcript("D--repo", "s1")]: "{}\n" } });
+  const at = counted(m);
+  const shared = [], tasks = [];
+  startSaving(m.io, {
+    every: () => {},
+    spawn: (_cx, job) => tasks.push(job()),
+    share: (_summary, _save, _history, turns) => shared.push(turns),
+    unfold: () => {},
+  });
+  while (tasks.length) await tasks.shift();
+  const save = firstAt(at, "write", savePath(APP)), history = firstAt(at, "write", historyPath(APP));
+  assert.deepEqual(shared, [{ save: { n: save + 1, kind: "write" }, history: { n: history + 1, kind: "write" } }]);
+  assert.ok(save + 1 <= history);
+});
+
+test("a failed save hands share the numbers taken before it read the files back", async () => {
+  const m = machine();
+  const at = counted(m);
+  m.io.hc = async () => ({ code: 1, stdout: "", stderr: "core not running" });
+  const { turns, summary } = await saveAndSummarize(m.io, parseSettings(null));
+  assert.ok(summary.error);
+  assert.deepEqual(turns, { save: { n: lastAt(at, "read", savePath(APP)), kind: "read" }, history: { n: lastAt(at, "read", historyPath(APP)), kind: "read" } });
+});
+
+test("removeEntries, deleteSaves and writeSettings return the number taken once their write landed", async () => {
+  const prev = { version: 1, current: [], restore: [{ key: "a", sessionId: "a" }] };
+  const hist = { version: 1, saves: [3, 2, 1].map((id) => ({ id, at: id, entries: [] })) };
+  const m = machine({ files: { [savePath(APP)]: JSON.stringify(prev), [historyPath(APP)]: JSON.stringify(hist) } });
+  const at = counted(m);
+  const removed = await removeEntries(m.io, ["a"]);
+  assert.deepEqual(removed.save.restore, []);
+  assert.deepEqual(removed.turn, { n: lastAt(at, "write", savePath(APP)) + 1, kind: "write" });
+  const deleted = await deleteSaves(m.io, [2]);
+  assert.deepEqual(deleted.history.saves.map((s) => s.id), [3, 1]);
+  assert.deepEqual(deleted.turn, { n: lastAt(at, "write", historyPath(APP)) + 1, kind: "write" });
+  const trimmed = await writeSettings(m.io, { saveEveryMinutes: 5, historyLimit: 1, autoSave: true });
+  assert.deepEqual(trimmed.history.saves.map((s) => s.id), [3]);
+  assert.deepEqual(trimmed.settingsTurn, { n: lastAt(at, "write", settingsPath(APP)) + 1, kind: "write" });
+  assert.deepEqual(trimmed.historyTurn, { n: lastAt(at, "write", historyPath(APP)) + 1, kind: "write" });
+  assert.ok(trimmed.settingsTurn.n < trimmed.historyTurn.n);
+  const kept = await writeSettings(m.io, { saveEveryMinutes: 6, historyLimit: 1, autoSave: true });
+  assert.deepEqual(kept.historyTurn, { n: lastAt(at, "read", historyPath(APP)), kind: "read" });
+});
+
+test("deleteSaves that changes nothing returns the number taken before it read the history, as a read", async () => {
+  const m = machine({ files: { [historyPath(APP)]: JSON.stringify({ version: 1, saves: [{ id: 1, at: 1, entries: [] }] }) } });
+  const at = counted(m);
+  const { turn } = await deleteSaves(m.io, [9]);
+  assert.deepEqual(turn, { n: lastAt(at, "read", historyPath(APP)), kind: "read" });
+  assert.equal(at.filter((a) => a[0] === "write").length, 0);
 });
 
 test("the chip runs one save at a time: a tick while one runs does nothing", async () => {

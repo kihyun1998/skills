@@ -45,8 +45,8 @@ const MIN = 60_000;
 /** The settings a missing or unreadable settings file stands for. historyLimit null keeps every save. */
 export const DEFAULT_SETTINGS = { saveEveryMinutes: 10, historyLimit: 50, autoSave: true };
 
-/** What the Settings tab lets each number be. A history of 500 saves is about 9 MB at the 18 KB a save took on 2026-11-20. */
-export const SETTING_BOUNDS = { saveEveryMinutes: { min: 1, max: 1440 }, historyLimit: { min: 1, max: 500 } };
+/** What the Settings tab lets each number be. */
+export const SETTING_BOUNDS = { saveEveryMinutes: { min: 1, max: 1440 }, historyLimit: { min: 1, max: 50 } };
 
 /** The ASCII digits of what a number field was given, in order. */
 export const digitsOnly = (text) => String(text ?? "").replace(/[^0-9]/g, "");
@@ -67,7 +67,7 @@ export function parseSettings(text) {
   if (!raw || typeof raw !== "object") return { ...DEFAULT_SETTINGS };
   return {
     saveEveryMinutes: whole(raw.saveEveryMinutes) ?? DEFAULT_SETTINGS.saveEveryMinutes,
-    historyLimit: raw.historyLimit === null ? null : whole(raw.historyLimit) ?? DEFAULT_SETTINGS.historyLimit,
+    historyLimit: raw.historyLimit === null ? null : Math.min(SETTING_BOUNDS.historyLimit.max, whole(raw.historyLimit) ?? DEFAULT_SETTINGS.historyLimit),
     autoSave: raw.autoSave !== false,
   };
 }
@@ -383,6 +383,20 @@ export function withLook(view, look) {
 }
 
 export const ifUnchanged = (shown, seen, next) => (shown === seen ? next : shown);
+
+/**
+ * The turns once a result numbered n reaches a field of the panel: { turns, take }. A write (a save,
+ * or a change pressed in the panel) is taken unless the field shows a later write; a read of a file is
+ * taken only when it is later than both the field's last write and its last read.
+ */
+export function arrive(turns, field, n, kind) {
+  const at = turns[field] ?? { write: 0, read: 0 };
+  if (n < at.write || (kind === "read" && n < at.read)) return { turns, take: false };
+  return { turns: { ...turns, [field]: kind === "read" ? { ...at, read: n } : { ...at, write: n } }, take: true };
+}
+
+/** Whether a delete of any of the ticked saves is under way. */
+export const deletingPicked = (act, picked) => picked.some((id) => busyWith(act, "delete", id));
 
 export const afterDelete = ({ picked, expanded }, ids) => ({
   picked: picked.filter((p) => !ids.includes(p)),

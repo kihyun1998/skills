@@ -5,10 +5,10 @@
 import { div, svg, image } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { run, theme, shared, checking, openOverlay, watchFolder, appHome } from "herdr";
-import { anyBusy, clampWhole, digitsOnly, SETTING_BOUNDS, batchResult, begin, busyWith, cleanTitle as clean, conductorOf, DEFAULT_SETTINGS, dismiss, endOpen, errorAt, finish, IDLE, press, entriesOf, folderChange, groupProgress, afterDelete, ifUnchanged, withLook, groupsOf, keepLive, liveOf, mergeDialog, openable, openProgress, overLimit, parseHistory, reopenable, settleOpen, staleAfter, startOpen, withMarks, withoutRows, withRunning } from "./logic.js";
+import { anyBusy, clampWhole, digitsOnly, SETTING_BOUNDS, batchResult, begin, busyWith, cleanTitle as clean, conductorOf, DEFAULT_SETTINGS, dismiss, endOpen, errorAt, finish, IDLE, press, entriesOf, folderChange, groupProgress, afterDelete, arrive, deletingPicked, ifUnchanged, withLook, groupsOf, keepLive, liveOf, mergeDialog, openable, openProgress, overLimit, parseHistory, reopenable, settleOpen, staleAfter, startOpen, withMarks, withoutRows, withRunning } from "./logic.js";
 import { deleteSaves, historyPath, lookAtTerminals, readHistory, readSettings, removeEntries, settingsPath, writeSettings } from "./save.js";
 import { openSessions } from "./open.js";
-import { herdrIo, readSave, saveAndShare, SHARED } from "./io.js";
+import { herdrIo, nextTurn as countTurn, readSave, saveAndShare, SHARED } from "./io.js";
 
 /** The ring Herdr's own mods turn for something under way. */
 export const SPINNER = "mods/workspace-chrome/spinner.svg";
@@ -57,6 +57,7 @@ export default class Sessions {
     this.picked = [];
     this.askDelete = false;
     this.askLimit = null;
+    this.turns = {};
     this.inputs = {
       every: this.numberInput(() => this.settings.saveEveryMinutes, SETTING_BOUNDS.saveEveryMinutes, (n, cx) => this.setEvery(n, cx)),
       limit: this.numberInput(() => this.settings.historyLimit, SETTING_BOUNDS.historyLimit, (n, cx) => this.setLimit(n, cx)),
@@ -64,13 +65,13 @@ export default class Sessions {
     if (checking()) return;
     // The save, history and settings on disk, until the chip's first save hands the panel them.
     this.activity = begin(this.activity, "load", [null]);
-    const before = this.history;
+    const read = { n: this.nextTurn(), kind: "read" };
     cx.spawn((cx) => this.track(cx, "load", [null], async () => {
       const io = herdrIo(cx);
       const [save, history, settings] = await Promise.all([readSave(), readHistory(io), readSettings(io)]);
-      this.save ??= save;
-      this.history = ifUnchanged(this.history, before, history);
-      this.useSettings(settings);
+      if (this.take("save", read)) this.save = save;
+      if (this.take("history", read)) this.history = history;
+      if (this.take("settings", read)) this.useSettings(settings);
     }));
     cx.spawn(async (cx) => {
       const dir = appHome().replace(/[\\/]+$/, "") + "/data", files = [historyPath(appHome()), settingsPath(appHome())];
@@ -80,8 +81,8 @@ export default class Sessions {
         if (change === "skip") continue;
         if (change === "released") await cx.sleep(1000);
         const io = herdrIo(cx);
-        try { this.history = await readHistory(io); } catch {}
-        try { this.useSettings(await readSettings(io)); } catch {}
+        try { await this.read("history", () => readHistory(io), (history) => { this.history = history; }); } catch {}
+        try { await this.read("settings", () => readSettings(io), (settings) => this.useSettings(settings)); } catch {}
         cx.notify();
       }
     });
@@ -89,13 +90,28 @@ export default class Sessions {
     cx.timer.every(30000, (cx) => cx.notify());
   }
 
+  nextTurn() {
+    return countTurn();
+  }
+
+  take(field, turn) {
+    const { turns, take } = arrive(this.turns, field, turn?.n, turn?.kind);
+    this.turns = turns;
+    return take;
+  }
+
+  async read(field, load, use) {
+    const turn = { n: this.nextTurn(), kind: "read" }, value = await load();
+    if (this.take(field, turn)) use(value);
+  }
+
   /**
    * The save the chip's last save left: the one it wrote, or the last good one when it failed. The
    * opened marks it shows gone are dropped (keepLive).
    */
-  saved(save, history) {
-    if (history) this.history = history;
-    if (!save) return;
+  saved(save, history, turns) {
+    if (history && this.take("history", turns?.history)) this.history = history;
+    if (!save || !this.take("save", turns?.save)) return;
     this.save = save;
     this.state = keepLive(this.state, liveOf(save), save.savedAt);
   }
@@ -112,7 +128,7 @@ export default class Sessions {
       try {
         this.useLook(await lookAtTerminals(io));
       } finally {
-        this.useSettings(await readSettings(io));
+        await this.read("settings", () => readSettings(io), (settings) => this.useSettings(settings));
       }
     }));
   }
@@ -175,8 +191,8 @@ export default class Sessions {
 
   runSave(cx, targets) {
     return this.track(cx, "save", targets, async () => {
-      const { save, history } = await saveAndShare(cx);
-      this.saved(save, history);
+      const { save, history, turns } = await saveAndShare(cx);
+      this.saved(save, history, turns);
     });
   }
 
@@ -191,12 +207,14 @@ export default class Sessions {
     const go = this.start(cx, action, targets);
     if (!go.length) return;
     cx.spawn((cx) => this.track(cx, action, go, async () => {
-      this.history = await change(herdrIo(cx), go);
+      const { history, turn } = await change(herdrIo(cx), go);
+      if (this.take("history", turn)) this.history = history;
       done(go);
     }));
   }
 
   deleteHistory(cx, ids) {
+    if (ids.some((id) => this.picked.includes(id))) this.askDelete = false;
     this.changeHistory(cx, "delete", ids, (io, go) => deleteSaves(io, go), (go) => {
       ({ picked: this.picked, expanded: this.expanded } = afterDelete({ picked: this.picked, expanded: this.expanded }, go));
     });
@@ -256,11 +274,15 @@ export default class Sessions {
 
   setSettings(next, cx) {
     const prev = this.settings;
+    const pressed = this.nextTurn();
+    this.take("settings", { n: pressed, kind: "write" });
     this.useSettings(next, { force: true });
     this.askLimit = null;
     this.changeHistory(cx, "settings", [++this.tasks], async (io) => {
       try {
-        return await writeSettings(io, next);
+        const { history, settingsTurn, historyTurn } = await writeSettings(io, next);
+        if (this.turns.settings.write === pressed && this.take("settings", settingsTurn) && this.settings !== next) this.useSettings(next);
+        return { history, turn: historyTurn };
       } catch (err) {
         const back = await readSettings(io).catch(() => prev);
         const shown = ifUnchanged(this.settings, next, back);
@@ -296,7 +318,8 @@ export default class Sessions {
     if (!go.length) return;
     cx.spawn(async (cx) => {
       await this.track(cx, "remove", go, async () => {
-        this.save = await removeEntries(herdrIo(cx), go);
+        const { save, turn } = await removeEntries(herdrIo(cx), go);
+        if (this.take("save", turn)) this.save = save;
         this.state = withoutRows(this.state, go);
       });
       await this.saveAfter(cx, "remove");
@@ -506,13 +529,13 @@ export default class Sessions {
     const empty = div().p(16).text_size(12).text_color(t.dim)
       .child("No saves yet. A save is kept here each time the list of open sessions changes.");
     const picked = this.picked.filter((id) => saves.some((s) => s.id === id)), n = picked.length;
-    const allOn = n > 0 && n === saves.length;
+    const allOn = n > 0 && n === saves.length, deleting = deletingPicked(this.activity, picked);
     const selectAll = h_flex().id("pick-all").gap(8).items_center().cursor_pointer()
       .on_click((_e, cx) => { this.picked = allOn ? [] : saves.map((s) => s.id); this.askDelete = false; cx.notify(); })
       .child(div().size(14).flex_none().rounded(3).border_1().border_color(n ? t.accent : t.input).bg(n ? t.accent : t.background)
         .text_color(t.background).text_size(10).flex().items_center().justify_center().child(allOn ? "✓" : n ? "–" : ""))
       .child(div().text_size(11.5).text_color(t.muted).child(n ? n + " selected" : "Select all"));
-    const foot = this.askDelete && n
+    const foot = this.askDelete && n && !deleting
       ? h_flex().p(10).gap(8).flex_none().items_center().border_t(1).border_color(t.border)
         .child(div().flex_1().text_size(12).child("Delete " + n + (n === 1 ? " save?" : " saves?")))
         .child(this.button(t, "delete-yes", "Delete", (cx) => {
@@ -524,8 +547,8 @@ export default class Sessions {
         .child(selectAll)
         .child(div().flex_1())
         .when(n > 0, (el) => el.child(this.button(t, "pick-clear", "Clear", () => { this.picked = []; })))
-        .when(n > 0, (el) => el.child(this.button(t, "delete-picked", "Delete · " + n, () => { this.askDelete = true; })))
-        .when(n > 1, (el) => el.child(this.button(t, "merge", "Merge · " + n, () => this.openMerge(picked), true)));
+        .when(n > 0 && !deleting, (el) => el.child(this.button(t, "delete-picked", "Delete · " + n, () => { this.askDelete = true; })))
+        .when(n > 1 && !deleting, (el) => el.child(this.button(t, "merge", "Merge · " + n, () => this.openMerge(picked), true)));
     const banner = this.banner(t, "history");
     return v_flex().size_full().min_h(0)
       .when(Boolean(banner), (el) => el.child(banner))

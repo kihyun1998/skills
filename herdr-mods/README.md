@@ -134,12 +134,18 @@ rewritten for each Herdr version and are the truth about the API.
   there or its × (the refresh that unfolding runs does not clear it). A failed
   check before an Open shows no box: the open checks again, and a row that does
   not open says why. A failed delete or remove leaves the save or the session in the list. A delete
-  lets go of the ticks and the unfolded save only once it is written, so a failed one keeps them. A
-  failed settings write shows the settings on disk again, the number fields included, or the
+  lets go of the ticks and the unfolded save only once it is written, so a failed one keeps them; while
+  it runs, `Delete · n` and `Merge · n` (and the delete confirm) are not offered for ticked saves
+  being deleted. A failed settings write shows the settings on disk again, the number fields included, or the
   previous ones when the file cannot be read, unless a newer change is shown by then; then nothing
   changes, and a field being typed in keeps what was typed.
-- **Overlapping reads.** The panel's first read does not replace a history the chip's first save
-  handed it meanwhile. Of two looks at which sessions run (a refresh and an Open's check), one
+- **Overlapping reads and saves.** The save, the history and the settings the panel shows each
+  keep the newest result. A save, a remove, a delete or a settings change is numbered when its
+  write reaches the file (the save file and the history apart), a read of a file as it starts, and a
+  settings change also at the press. So a save whose file was written before a remove or a delete
+  does not put back what that one changed, and a read (the first read, the refresh's re-read of the
+  settings, the reads after either file changes) that started before such a write landed, or before
+  a settings change was pressed, does not overwrite it, nor a newer read. Of two looks at which sessions run (a refresh and an Open's check), one
   that started before the look already shown changes nothing when it ends last, and an Open whose
   check ended so plans and opens against the look shown.
 - **The history** is in `~/.config/herdr-app/data/session-restore.history.json`,
@@ -174,8 +180,9 @@ rewritten for each Herdr version and are the truth about the API.
   every save). The Settings tab writes them: a switch for auto save, and number fields
   for the other two that take only digits and apply on Enter or on leaving the field,
   beside their − and +, each with its range shown and kept to it (an interval 1–1440
-  minutes, a limit 1–500 saves; − or + at an end is greyed). A hand edit of the file is not
-  held to those ranges. A limit below the
+  minutes, a limit 1–50 saves; − or + at an end is greyed). A hand edit of the interval is not
+  held to its range; a limit over 50 in the file reads as 50, so the next save that adds to the
+  history drops the oldest saves past 50 without asking. A limit below the
   number of saves asks before it deletes the oldest. A hand edit applies at the chip's next check.
 - **Unfolding by itself.** When Herdr starts, the chip's first successful save
   unfolds the panel once if there is something to restore and the panel has not
