@@ -87,6 +87,18 @@ changes above and in code they now run on Windows.
   exits with code 1 and no signal, so the command exited 2 with nothing on
   stderr. The usage text's exit codes say "something kills the check" in place
   of "a signal kills the check".
+- `scripts/statechart.ts`: a removal of the stage or temporary folder that
+  fails after the check has ended no longer turns exit 0 or 1 into exit 2. The
+  command leaves the janitor running, and the janitor removes the folders once
+  the command exits. Before, the command printed the report and "Wrote …", then
+  the removal's error, and exited 2. The usage text's exit codes say so, and
+  name an output folder that cannot take the output among the causes of exit 2.
+  Where the removal fails before the janitor has started (the temporary folder
+  could not be made), no janitor will finish it, so the command adds a line
+  naming each folder it left.
+- `scripts/statechart.ts`: on Windows, the `EPERM` retry also covers the first
+  rename onto a new `--out` folder. Before, it covered only an existing empty
+  folder, and a new folder got a raw `EPERM` with nothing retried.
 - `scripts/run.ts`: `killGroup` resolves when `taskkill` or `/bin/sh` cannot
   start, instead of leaving the `error` unhandled. On Windows with no
   `taskkill` on `PATH`, the janitor crashed on that error and left the stage
@@ -98,7 +110,8 @@ changes above and in code they now run on Windows.
 
 Apart from the CR drop, and from the follow-ups of #100 that run there too (the
 `/bin/sh` janitor honouring `exited`, the message for a check that exits 0 or
-1 without its output, and `killGroup` resolving when `/bin/sh` cannot start),
+1 without its output, `killGroup` resolving when `/bin/sh` cannot start, and a
+removal that fails after the check keeping exit 0 or 1),
 the scripts behave on POSIX as upstream's.
 Upstream's own `cli.test.ts`, `corpus.test.ts`, `tlc-out.test.ts` and
 `render.test.ts` still assume POSIX (a `.ts` launched as `JAVA` by its

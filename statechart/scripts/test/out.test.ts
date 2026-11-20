@@ -64,7 +64,7 @@ fs.renameSync = (from, to) => {
   );
 };
 
-const windowsSkip = skip || (process.platform !== "win32" && "the empty-folder fallback runs only on Windows");
+const windowsSkip = skip || (process.platform !== "win32" && "the rename retry runs only on Windows");
 
 test("a rename that stays locked leaves the empty --out folder in place", { skip: windowsSkip, timeout: 60_000 }, () => {
   const work = fs.mkdtempSync(path.join(os.tmpdir(), "statechart-out-"));
@@ -93,6 +93,36 @@ test("a rename locked for a moment still writes into the empty --out folder", { 
     assert.equal(r.stderr, "");
     assert.equal(r.status, 1);
     for (const f of ["chart.mmd", "report.md", "tlc.out"]) assert.ok(fs.existsSync(path.join(out, f)), f);
+  } finally {
+    fs.rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  }
+});
+
+test("a rename locked for a moment still writes a new --out folder", { skip: windowsSkip, timeout: 60_000 }, () => {
+  const work = fs.mkdtempSync(path.join(os.tmpdir(), "statechart-out-"));
+  try {
+    const out = path.join(work, "out");
+    const r = renameFails(work, 3);
+    assert.equal(r.stderr, "");
+    assert.equal(r.status, 1);
+    for (const f of ["chart.mmd", "report.md", "tlc.out"]) assert.ok(fs.existsSync(path.join(out, f)), f);
+    assert.deepEqual(fs.readdirSync(work).sort(), ["hook.mjs", "out"]);
+  } finally {
+    fs.rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  }
+});
+
+test("a rename that stays locked writes no new --out folder", { skip: windowsSkip, timeout: 60_000 }, () => {
+  const work = fs.mkdtempSync(path.join(os.tmpdir(), "statechart-out-"));
+  try {
+    const out = path.join(work, "out");
+    const r = renameFails(work, Infinity);
+    assert.equal(r.status, 2);
+    assert.ok(
+      r.stderr.startsWith(`${out} could not take the output, so the command wrote nothing. EPERM`),
+      r.stderr,
+    );
+    assert.equal(fs.existsSync(out), false, "no --out folder");
   } finally {
     fs.rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   }

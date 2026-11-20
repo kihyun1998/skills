@@ -20,8 +20,9 @@ draws only the paths to the rules that break, and with no rule broken there is n
                  property that breaks and each rule that breaks off the chart. The folder must
                  be new or empty. Default: SPEC-chart.
 Exit code: TLC's own on the config as written: 0 when every rule holds, 1 when a rule breaks,
-and 2 when TLC stops with an error, something kills the check, or the command cannot run. 130 or
-143 when SIGINT or SIGTERM stops the check. Only exits 0 and 1 write output.`;
+and 2 when TLC stops with an error, something kills the check, the output folder cannot take the
+output, or the command cannot run. A working folder that cannot be removed after the check does
+not change the code. 130 or 143 when SIGINT or SIGTERM stops the check. Only exits 0 and 1 write output.`;
 
 let stop: NodeJS.Signals | undefined;
 const stopped = new Promise<void>((resolve) => {
@@ -46,6 +47,8 @@ try {
   console.error(`${messageOf(error)}\n\n${USAGE}`);
   process.exit(2);
 }
+
+const leftBehind: string[] = [];
 
 const codeOf = (error: unknown) =>
   error instanceof Error && "code" in error ? error.code : undefined;
@@ -167,13 +170,9 @@ try {
         try {
           fs.renameSync(done, dest);
         } catch (error) {
-          if (
-            process.platform !== "win32" ||
-            codeOf(error) !== "EPERM" ||
-            !fs.statSync(dest, { throwIfNoEntry: false })?.isDirectory()
-          )
-            throw error;
-          fs.rmdirSync(dest);
+          if (process.platform !== "win32" || codeOf(error) !== "EPERM") throw error;
+          const wasFolder = fs.statSync(dest, { throwIfNoEntry: false })?.isDirectory();
+          if (wasFolder) fs.rmdirSync(dest);
           for (let attempt = 1; ; attempt++)
             try {
               fs.renameSync(done, dest);
@@ -181,7 +180,7 @@ try {
             } catch (error) {
               if (codeOf(error) === "EPERM" && attempt < 20) await sleep(100);
               else {
-                fs.mkdirSync(dest, { recursive: true });
+                if (wasFolder) fs.mkdirSync(dest, { recursive: true });
                 throw new Error(
                   `${out} could not take the output, so the command wrote nothing. ${messageOf(error)}.`,
                   { cause: error },
@@ -205,12 +204,18 @@ try {
       exitCode = 2;
     }
   } finally {
-    fs.rmSync(stage, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
-    if (tmp) fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
-    janitor?.kill("SIGKILL");
+    let removed = true;
+    for (const dir of [stage, tmp])
+      try {
+        if (dir) fs.rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
+      } catch (error) {
+        removed = false;
+        if (!janitor) leftBehind.push(`${dir} could not be removed. ${messageOf(error)}.`);
+      }
+    if (removed) janitor?.kill("SIGKILL");
   }
   process.exit(exitCode);
 } catch (error) {
-  console.error(messageOf(error));
+  console.error([messageOf(error), ...leftBehind].join("\n"));
   process.exit(2);
 }

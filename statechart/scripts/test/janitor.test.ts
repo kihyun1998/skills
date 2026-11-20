@@ -107,7 +107,7 @@ test(
   },
 );
 
-test("a removal that fails after the check ends kills no process that took the worker's pid", { skip, timeout: 120_000 }, async () => {
+test("a removal that fails after the check ends keeps the verdict and kills no process that took the worker's pid", { skip, timeout: 120_000 }, async () => {
   const work = fs.mkdtempSync(path.join(os.tmpdir(), "statechart-pid-"));
   const victim = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], {
     detached: true,
@@ -133,6 +133,7 @@ let failed = false;
 fs.rmSync = (target, ...rest) => {
   if (main && !failed && /\\.statechart-/.test(String(target))) {
     failed = true;
+    fs.writeFileSync(${JSON.stringify(path.join(work, "rm-failed"))}, "");
     throw Object.assign(new Error("EBUSY: resource busy or locked, rmdir"), { code: "EBUSY" });
   }
   return rmSync(target, ...rest);
@@ -152,8 +153,10 @@ syncBuiltinESMExports();
       ],
       { encoding: "utf8", windowsHide: true },
     );
-    assert.match(r.stderr, /EBUSY/, "the removal failed");
-    assert.equal(r.status, 2);
+    assert.ok(fs.existsSync(path.join(work, "rm-failed")), "the removal failed");
+    assert.equal(r.stderr, "");
+    assert.match(r.stdout, /\nWrote /);
+    assert.equal(r.status, 1);
     for (const end = Date.now() + 15_000; ; await sleep(100)) {
       const left = fs.readdirSync(work).filter((f) => f.includes(".statechart-"));
       if (!left.length) break;
@@ -266,6 +269,53 @@ syncBuiltinESMExports();
     assert.equal(r.stderr, "");
     assert.equal(r.status, 1);
     assert.deepEqual(fs.readdirSync(work).sort(), ["hook.mjs", "out"]);
+  } finally {
+    fs.rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  }
+});
+
+test("a removal that fails before the janitor starts names the folder it left", { timeout: 60_000 }, () => {
+  const work = fs.mkdtempSync(path.join(os.tmpdir(), "statechart-nojanitor-"));
+  try {
+    const hook = path.join(work, "hook.mjs");
+    fs.writeFileSync(
+      hook,
+      `import fs from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
+const main = /statechart\\.ts$/.test(process.argv[1] ?? "");
+const { mkdtempSync, rmSync } = fs;
+fs.mkdtempSync = (prefix, ...rest) => {
+  if (main && /[\\\\/]statechart-$/.test(String(prefix)))
+    throw Object.assign(new Error("EACCES: permission denied, mkdtemp"), { code: "EACCES" });
+  return mkdtempSync(prefix, ...rest);
+};
+fs.rmSync = (target, ...rest) => {
+  if (main && /\\.statechart-/.test(String(target)))
+    throw Object.assign(new Error("EBUSY: resource busy or locked, rmdir"), { code: "EBUSY" });
+  return rmSync(target, ...rest);
+};
+syncBuiltinESMExports();
+`,
+    );
+    const r = spawnSync(
+      process.execPath,
+      [
+        ...process.execArgv,
+        `--import=${pathToFileURL(hook).href}`,
+        path.join(here, "../statechart.ts"),
+        path.join(here, "corpus", "DieHard", "DieHard.tla"),
+        "--out",
+        path.join(work, "out"),
+      ],
+      { encoding: "utf8", windowsHide: true },
+    );
+    const [stage] = fs.readdirSync(work).filter((f) => f.startsWith(".out.statechart-"));
+    assert.ok(stage, "the stage folder was left");
+    assert.equal(
+      r.stderr,
+      `EACCES: permission denied, mkdtemp\n${path.join(work, stage)} could not be removed. EBUSY: resource busy or locked, rmdir.\n`,
+    );
+    assert.equal(r.status, 2);
   } finally {
     fs.rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   }
