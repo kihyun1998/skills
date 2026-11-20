@@ -17,6 +17,16 @@ and `scripts/install-herdr-mods.sh`, and ADR-0101 why they are a kind of their o
 `.claude-plugin/marketplace.json` is generated from `mods/` by the install
 script — never edit it by hand. See `README.md` for details.
 
+## Comments
+
+A comment is one of: a license header; behaviour forced by an outside
+dependency, platform, vendor or protocol we cannot reshape (Rust's `SAFETY:`
+on `unsafe` is one); a tool directive; a doc comment on a public API; an issue
+or RFC link for a constraint the code cannot express. Nothing else: a surprise
+in our own code is fixed, not explained.
+
+A decision and its reason go to `docs/adr/`; history goes to the commit message.
+
 ## Agent skills
 
 ### Issue tracker
