@@ -581,8 +581,11 @@ last won.
   back, it brings each number field in line even while that field has the keyboard, as a change
   pressed in the panel does; where a newer change is shown, it touches no field, so typing in
   one is kept (/review and the reviewer found the first build forcing the fields either way).
+  (Superseded by the #110 amendment below: a failed press, when it is the last, reads the file
+  and shows it; `ifUnchanged` is gone.)
 - The first read puts its history in only while the history shown is still the one it began
   with (`ifUnchanged`, by identity), as `this.save ??=` already did for the save.
+  (Superseded by the #104 follow-up below: the numbering replaced this guard.)
 - A look is ordered by its `at`, the time it started (`lookAtTerminals`). One older than the
   look shown changes nothing (`withLook`), its `keepLive` pass included, so it cannot drop an
   opened mark the newer look kept. A look with the same `at` is applied. An Open whose check
@@ -591,7 +594,7 @@ last won.
   handed `openSessions` its own older one (/review, lens), which marked a closed row opened at
   the older look's terminal, or failed a worker whose conductor the shown look had running.
 - The decisions are pure functions in `logic.js` (`ifUnchanged`, `afterDelete`, `withLook`),
-  tested in `logic.test.mjs`.
+  tested in `logic.test.mjs`. (`ifUnchanged` is gone since the #110 amendment below.)
 
 ### Measured
 
@@ -690,10 +693,11 @@ limit's maximum of 500 against Herdr's `readTextFile`, which reads "up to 1 MiB"
   trim apart) return theirs. A failed save takes one before each file it reads back. A read
   of a file takes one as it starts. A settings change pressed in the panel takes one at the
   press for the value it shows at once, and once its write lands it shows that value again
-  over any older read, unless a later press is shown by then.
+  over any older read, unless a later press is shown by then. (Superseded by the #110
+  amendment below: only the last press's landing shows, and not over a later read.)
 - dc0e190's guard on the first read's history (`ifUnchanged` by identity) is replaced by
   the numbering; `ifUnchanged` stays for a failed settings write putting the file's settings
-  back.
+  back. (Superseded by the #110 amendment below: `ifUnchanged` is gone.)
 - (D) is `deletingPicked`: any ticked save being deleted hides both, and a delete of a ticked
   save closes the delete confirm, so it does not come back on the ticks left; a row's × on an
   unticked save leaves it open.
@@ -1023,9 +1027,9 @@ one retry, gave disk 11 and screen 12 on two quick `+`.
 - The limit's `−` asks against the limit shown and the history shown. Where an unread hand edit
   put a lower limit in the file, a `−` that asks nothing steps from that limit and the trim drops
   saves without asking, one more than the hand edit alone would at the next save.
-- What check-it carried and the maintainer did not pick to fix here (its findings 7 to 11):
-  this file's earlier amendments still state the `ifUnchanged` revert and the old landing rule
-  unmarked; a save in progress trims with the limit read at its start; a doubly failed press
-  shows the settings from its press; the doc comment on `setSettings`; the landing decision has
-  no repository test.
+- What check-it carried and the maintainer did not pick to fix here (its findings 8 to 11;
+  finding 7, the earlier amendments' `ifUnchanged` revert and landing rule left unmarked,
+  was marked in place afterwards, at the run's ask-it): a save in progress trims with the
+  limit read at its start; a doubly failed press shows the settings from its press; the doc
+  comment on `setSettings`; the landing decision has no repository test.
 
