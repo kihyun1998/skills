@@ -37,6 +37,18 @@
 > the built-ins of the catalog above and *How the built-ins start*, #86's rows
 > and recipe for the built-ins, #97's *`/simplify` outside the change*, #102's
 > verify check as a default review, and *What it amends*'s ADR-0090 item.
+>
+> **Amended for #112 on 2026-11-20** (*A decision model picks the reviews*,
+> below). No review is asked per change. A Haiku 5.5 agent answers six fixed
+> questions about the change, each with the lines that ground the answer, and
+> picks the reviews, yes where it cannot tell; the spec and rules reviewer always
+> runs, and the proving agent whenever a review it proves runs. It runs at the
+> confirm stop on the planned change, its pick a line in the reading question
+> that the person changes in words, and again at `check-it`'s start on the diff,
+> where what it adds is added unasked and nothing chosen is removed. This
+> reverses #95's *every review is choosable* per change, #97's question asked
+> again at the start, the review strength (*The review strength, and what each
+> review cost*), and that section's rejection of a Haiku layer.
 
 **Status:** accepted. Implements #91 (anchor #94). Amends
 [ADR-0090](0090-four-delegates-retire-into-their-callers.md),
@@ -822,3 +834,166 @@ Not measured: a code change through `thegraph-herdr`, where the question goes
 through the conductor; a person answering by number; a fix and the checks
 after it.
 
+
+## A decision model picks the reviews (#112, 2026-11-20)
+
+**The call is the maintainer's**, made at a grilling on 2026-11-20 and recorded
+in #112's body, which is the source for every point here. Decided:
+
+- **No review is asked per change.** This reverses #95's *every review is
+  choosable*, asked in a call of its own per issue, #97's question asked again
+  at `check-it`'s start, and the review strength.
+- **A Haiku 5.5 agent at effort `medium`, the decision model, picks them.** It
+  answers six fixed questions about the change, each with the lines that ground
+  its answer: does something that runs change; does outside input reach changed
+  code, or does it handle authentication, permissions or secrets; does it change
+  a promise others depend on; are there siblings or prior art, or something to
+  list in full; does it add a function, module or doc section, or change
+  structure; does it add or change comments or lint suppressions. With the
+  review descriptions #105 agreed, it then picks the reviews itself, one line of
+  reason each. **Where it cannot tell, the answer is yes.** Ground as given:
+  running one review too many costs less than missing one.
+- **The floor**: the spec and rules reviewer always runs; the proving agent runs
+  whenever the bug, security, `lens` or refactoring reviewer runs.
+- **Two moments.** At the confirm stop, from the planned change, its pick shown
+  as one line inside the reading question and changed by the person in words,
+  nothing else asked. Again at `check-it`'s start, on the real diff: a review it
+  adds is added without asking and named in the result with its reason, and
+  nothing chosen is removed.
+- **Its cost is recorded** like every review's.
+
+**It reverses a rejection** in *The review strength, and what each review cost*:
+a Haiku layer that picks the reviews and their models was rejected there, since
+choosing was one question that cost little, and since a model picked by a model
+runs against *a person picks every model*. The decision model picks reviews, not
+models: each review's model stays a row that changes only where the person asks,
+so the second ground does not reach it. The first is the maintainer's call
+reversed; #112's body records the decision, not a ground against the earlier
+one.
+
+**Derivations made at build:**
+
+- **The name** is *the decision model*, #112's own words, so no new name was
+  coined. `GLOSSARY.md` adds it and **Review floor**, and keeps *default review*
+  and *offered review* only as avoided terms.
+- **It picks among the refactoring reviewer, the bug reviewer, the security
+  reviewer, `lens` and `comment-it`.** The floor is added by `check-it` after the
+  pick, so no answer can leave it out. The question-to-review arrows are shown
+  to it as guidance, and the pick is its own, as #112 says.
+- **A gap in its answer is a *cannot tell***, from *where it cannot tell, the
+  answer is yes*: a question left unanswered, or answered no with no line
+  grounding it, reads as yes, and a call that fails or returns nothing picks
+  every review.
+- **Its prompt is the text of *Choosing the reviews*, quoted**, from its answer
+  rule to the end of the answer's shape, so the questions live in one place and a
+  caller passes them as written, as `lens`'s and `comment-it`'s bodies are
+  passed. It is briefed as every review is and edits nothing.
+- **Where its answer goes**: beside the run sheet, as `<run sheet>.pick-confirm.md`
+  at the confirm stop (in a `thegraph-herdr` run, the per-issue run sheet, so
+  the file is `….<slug>.pick-confirm.md`; in a `thegraph` cluster,
+  `<run sheet>.<child>.pick-confirm.md`, `<child>` the child's issue number or
+  issue file name) and as `<run sheet>.pick.md` at `check-it`'s start, named
+  in `check-it`'s *Save each report* with the other reports. The reading question's line names the path, and the
+  brief's reviews line carries the pick, the person's changes, the path and the
+  cost line.
+- **The route no longer picks a review.** `check-it`'s table reads *picked*
+  for 4, 6, 7, 8 and 9 in both columns, so `comment-it` can run on a prose change
+  that adds comments, and #97's turn from prose to code is question 1 and
+  question 6 on the diff rather than a column switch. #94's prose signal for the
+  bug reviewer, a command or recipe written into a document, is question 1's
+  *commands written in docs*. The sentence that a signal is read from what the
+  change does, not from words in it, stays, now addressed to the decision model.
+- **A direct `/check-it` asks nothing about the reviews**: it runs on the pick at
+  its start, shows the model table in its result, and changes a row only where
+  the request that started it says so. The model table gains the decision
+  model's row, Haiku 5.5 `medium`, set on the `Agent` call as `model: "haiku"`.
+- **A person's words may remove a floor review**: #112 lets the person change
+  the pick in words and names no exception; spend is the person's
+  (`thegraph`, *What holds everywhere*); and #95 already let the person drop the
+  reviewer. One removed is reported as removed by the person, and a removed
+  proving agent leaves the findings it would prove *unproven*, as before.
+- **A review the person removed at the confirm stop is not added back** by the
+  pick at `check-it`'s start; the result names it with the reason it was picked
+  again. #112 does not say, and #97 did not re-ask a default the person had
+  dropped, since a person's word is not undone by a later read of the diff.
+
+**Found by `check-it` on this change** (the refactoring reviewer, which the
+decision model added at the start, the reviewer, the bug reviewer, `lens` and the
+proving agent) and fixed at the maintainer's answer *fix as pre-ticked*:
+
+- The decision model runs at the confirm stop once ② is written, its line in
+  the question that carries ②, and again after a correction to ① rewinds the
+  reading: `read-it` asks ① alone where an issue reads two ways, so "before
+  asking, on the two statements" had no ② to read.
+- Its answer is waited for as any check started in the background (#92).
+- A review the `pick:` list leaves out is read as picked.
+- What the start adds is written where the confirm stop's pick is kept, so a
+  later start on the same issue keeps it; the deleted #97 sentence had kept the
+  re-ask's answer the same way.
+- The pick files are named in one place, with the cluster name and `<child>`.
+- ADR-0091 gets a note for #112, and `README.md` no longer calls a review
+  offered.
+- `thegraph` and `thegraph-herdr` point to `check-it` for the start's pick and
+  the row rule instead of restating them, the prompt's scope is written once,
+  and the prose-change paragraph no longer restates the table.
+
+Left unfixed by the maintainer's choice and carried to `ask-it`: whether the
+floor binds the person (the text still says both); whether a "no" grounded by a
+described search, not a quoted line, counts as grounded; the security reviewer
+not on the floor while text in the issue or diff reaches the decision model (two
+injection probes on Haiku 5.5 were resisted, so steering is not shown); a
+shorter brief for the decision model; the model table shown only after a
+direct `/check-it`; and a cluster's start pick overwritten per child, as every
+`<run sheet>.<name>.md` report already is.
+
+**What the decision did not cover:**
+
+- Whether the floor binds the person, and whether the start's pick may re-add
+  what the person removed: both decided above as derivations, both open to the
+  maintainer.
+- Text in the issue or the diff can steer the decision model, and the floor does
+  not hold the security reviewer. The prose trial's own answer to question 2
+  named it: *an injected issue could suppress it*.
+- Whether a pick that differs from the person's earlier habit, such as the
+  security reviewer on a local CLI flag, costs more than the strength's *usual*
+  did. #96's measurements are the place to compare.
+
+**Measured on the change**, 2026-11-20, four calls of the decision model through
+`Agent` (`model: "haiku"`, `effort: "medium"`), each given *Choosing the
+reviews*' quoted text as `check-it` now writes it and the change; every
+assistant message in the four transcripts names `claude-haiku-5-5`. Two
+changes:
+
+- **Code**: a scratch Python repository in the run folder whose issue asks for a
+  `--json` flag on `report.py`, the text output kept. The diff did that and also,
+  unasked, read amounts from a feed file named by `REPORT_FEED` when none are
+  given, with a comment and a `# noqa: SIM115` on the new function.
+- **Prose**: this change, #112: at the confirm stop from #112's body and the two
+  statements of its brief, and at the start from `git diff HEAD` over
+  `check-it`, `thegraph`, `thegraph-herdr`, `GLOSSARY.md` and `README.md`
+  before this section was written.
+
+| Change, moment | 1 | 2 | 3 | 4 | 5 | 6 | Picked | Time | Tokens |
+|---|---|---|---|---|---|---|---|---|---|
+| code, confirm stop | yes | yes | yes | yes | no | no | bug, security, `lens` | 24.5 s | 39,928 |
+| code, start | yes | yes | yes | yes | yes | yes | refactoring, bug, security, `lens`, `comment-it` | 20.9 s | 39,894 |
+| prose, confirm stop | yes | yes | yes | yes | yes | no | refactoring, bug, security, `lens` | 24.8 s | 45,103 |
+| prose, start | yes | yes | yes | yes | yes | no | refactoring, bug, security, `lens` | 33.5 s | 64,334 |
+
+- **Every answer carried its lines**: file and line from the diff at the start
+  (`report.py:15`, `prose.diff:202-203`), and the sentence of the issue or
+  statement at the confirm stop (*"The text output stays as it is."*). Every
+  review had one line of reason, picked or not.
+- **The start added two reviews on the code change**, with reasons: the
+  refactoring reviewer for the new `load_rows` and `--json` tested in two
+  places, and `comment-it` for the new comment and the `noqa`. Question 2's
+  ground moved from `argv` to `REPORT_FEED` and the feed file's content. The
+  prose change's start added nothing, which is the ordinary case.
+- **Seen**: at the code confirm stop question 2 went yes on the program's own
+  `argv`, under *cannot tell*; the two code calls answered in Korean and the two
+  prose calls in English, the user-level instructions asking for Korean, with
+  the shape held in all four.
+
+Not measured: a confirm stop run by `thegraph` or `thegraph-herdr` itself, with a
+person changing the pick in words; the run sheet and brief lines; a call that
+fails.

@@ -20,24 +20,25 @@ person picks which findings are fixed (*One report, one question*).
 | 1 | Did every check actually run, and pass; does a property the project's verify skill proved still hold | — ; the verify skill's own check, run in this session | the project has checks; the verify check where a verify skill covers a file the diff touches | — |
 | 2 | Did the files land where the rule said they would | — | the change added or moved a file | the same |
 | 3 | Does it work against something real | — | the change compiles or runs | — |
-| 4 | Does it re-make what the repository already has, is it simpler, wasteful, rightly general, easy to maintain | the refactoring reviewer, a fresh agent | offered | offered |
+| 4 | Does it re-make what the repository already has, is it simpler, wasteful, rightly general, easy to maintain | the refactoring reviewer, a fresh agent | picked | picked |
 | 5 | Does it do what the issue asked, and keep what the repository wrote down | the spec and rules reviewer, a fresh agent | always | always |
-| 6 | What bugs does it carry, in whatever it makes run | the bug reviewer, a fresh agent | always | offered |
-| 7 | Can untrusted input reach it, or does it mishandle authentication, permissions or secrets | the security reviewer, a fresh agent | offered | offered |
-| 8 | What did it leave out or do differently from its siblings and the prior art | `lens`, a fresh agent given its skill's body | offered | offered |
-| 9 | Do the new comments and lint suppressions keep the repository's comment rule | `comment-it`, a fresh agent given its skill's body | always | — |
+| 6 | What bugs does it carry, in whatever it makes run | the bug reviewer, a fresh agent | picked | picked |
+| 7 | Can untrusted input reach it, or does it mishandle authentication, permissions or secrets | the security reviewer, a fresh agent | picked | picked |
+| 8 | What did it leave out or do differently from its siblings and the prior art | `lens`, a fresh agent given its skill's body | picked | picked |
+| 9 | Do the new comments and lint suppressions keep the repository's comment rule | `comment-it`, a fresh agent given its skill's body | picked | picked |
 | 10 | Will it get slower | `benchmark.md`, when it applies | the change adds state, loops, or I/O | — |
-| 11 | Which findings of 4, 6, 7 and 8 hold | the proving agent, a fresh agent | always | over what ran of 4 and 6–8 |
+| 11 | Which findings of 4, 6, 7 and 8 hold | the proving agent, a fresh agent | whenever 4, 6, 7 or 8 runs | the same |
 | 12 | Which surfaces now describe it wrongly | `sweep` | always | always |
 
-Every row from 4 to 11 marked *always* or *offered* is a review the person
-chooses for this change (*Choosing the reviews*); `sweep` (12) is not one, since
-the surfaces a change leaves wrong are kept in line through it (ADR-0055), and
-the verify check is not one either, since it is part of (1). *Always* means it is recommended by default and
-runs unless the person dropped it; one they dropped is reported as dropped by
-the person, and any other skip is reported with its reason. *Offered* means it
-runs where the person chose it. One they did not choose is reported as not
-chosen, and neither of those is a skip (ADR-0102, amended for #95).
+Rows 4 to 9 and 11 are the reviews, and none of them is asked per change
+(*Choosing the reviews*). *Always* and *whenever 4, 6, 7 or 8 runs* are the
+floor; *picked* means it runs where the decision model picked it, or a person
+added it in words. `sweep` (12) is not a review, since the surfaces a change
+leaves wrong are kept in line through it (ADR-0055), and the verify check is not
+one either, since it is part of (1). A review the person removed in words is
+reported as removed by the person, one not picked as not picked with the
+decision model's reason, and any other skip with its reason; neither of the
+first two is a skip (ADR-0102, amended for #112).
 
 **The order is cost, then what each step needs.** A red gate makes every
 expensive pass below it a waste, so 1 to 3 go first. Then 4 to 10 run at the
@@ -47,16 +48,15 @@ reviews, since it works on their findings. Then every finding goes into one
 report and one question (*One report, one question*), the findings the person
 picks are fixed, and `sweep` (12) runs on the change as it then stands.
 
-**What each review cost goes in the result**, one line per review that ran:
-its wall-clock time and its tokens. Every review is an `Agent` call, whose
-completion reports `subagent_tokens` and `duration_ms`. The person picks the
-reviews from these numbers, so a line left out is a review whose cost nobody
-can weigh.
+**What each review cost goes in the result**, one line per review that ran,
+and one per call of the decision model: its wall-clock time and its tokens.
+Every review and every pick is an `Agent` call, whose completion reports
+`subagent_tokens` and `duration_ms`. A person weighs the pick against these
+numbers, so a line left out is a call whose cost nobody can weigh.
 
-**A prose change runs 5 and 12, plus 2 where it added or moved a file, and the
-offered reviews the person chose, with 11 over what ran of 4 and 6 to 8; the
-reviewer does not run where the person dropped it.** There are no gates to run and no round trip to prove. A run that reports those as passed has
-reported on work it did not do.
+**A prose change has no gates to run and no round trip to prove**: it runs 2
+where it added or moved a file, its reviews, and 12. A run that reports those as
+passed has reported on work it did not do.
 
 **Running the checks (1).** The list is the project's CI workflow, or the gate
 list its guidance names where CI gates nothing, plus whatever those do not
@@ -77,95 +77,93 @@ says.
 
 ### Choosing the reviews
 
-`thegraph` and `thegraph-herdr` ask which reviews run at their confirm stop,
-and the answer reaches this step on the run sheet or in the worker's brief. **A
-direct `/check-it`, with no confirm stop before it, asks once, at its start.**
-Every review from 4 to 11 this change's column marks *always* or *offered* is a
-candidate, and the person may drop any of them (ADR-0102, amended for #95).
+**No review is asked per change.** A fresh agent, **the decision model**,
+answers six fixed questions about the change and picks the reviews from them;
+the floor is added to its pick (ADR-0102, amended for #112). It runs twice:
 
-**The call opens with the review strength**, one question with three options,
-and the strength picks which reviews arrive ticked in the questions after it.
-Every one of them can still be ticked or unticked there (ADR-0102, amended for
-the strength question):
+- **At the confirm stop**, from the planned change. `thegraph` and
+  `thegraph-herdr` start it for each issue once ② is written, with the issue
+  and the two statements as its change, and wait for its answer as for any
+  check started in the background (*Briefing the fresh agents*). Where `read-it`
+  asks ① alone first, the pick waits for ②; a correction to ① that rewinds the
+  reading runs it again on the new statements. The pick is shown as one line
+  inside the question that carries ②, and the person can change it there in
+  words. Nothing else about the reviews is asked. The pick as the person left
+  it reaches this step on the run sheet or in the worker's brief.
+- **At this skill's start**, before (1), on the real diff: `git diff HEAD` plus
+  every untracked file. A review it picks that is not already chosen is added
+  without asking, and the result names it with the decision model's reason.
+  **Nothing chosen is removed**, the person's additions and a review whose
+  question now answers no included. A review the person removed at the confirm
+  stop is not added back; the result names it with the reason it was picked
+  again. **What it adds is written where the confirm stop's pick is kept**: on
+  the run sheet's `confirm` or `## Reviews` line, or, in a `thegraph-herdr`
+  worker, in its result, which the conductor writes under `## Answers` and puts
+  in any later brief for the issue. A later start on the same issue begins from
+  that set, so nothing added is lost. A direct `/check-it`, with no confirm stop
+  before it, runs on this pick alone, and asks nothing about the reviews.
 
-| Strength | Arrives ticked |
-|---|---|
-| light | the reviewer (5) alone; on a code change, the bug reviewer (6) too, at effort `medium` |
-| usual | the default set as the table below this section's column marks it, the bug reviewer at `high` |
-| thorough | the usual set, plus every offered review that meets its signal |
+**The decision model is Haiku 5.5, effort `medium`**, started with `Agent`
+(`model: "haiku"`, `effort: "medium"`) and briefed as every review is
+(*Briefing the fresh agents*, which says what its prompt holds).
 
-*Usual* is recommended, and nothing about it differs from the defaults before
-the strength question. The option for each strength names what it ticks for
-this change, and the cost lines recorded so far for those reviews where there
-are any (*What gets measured*). The proving agent runs over whichever of 4 and
-6 to 8 end up chosen, whatever the strength.
+The decision model answers each question **yes** or **no** with the lines that
+ground the answer, quoted with their file and line, or, at the confirm stop, with the sentence of
+the issue or statement they come from. **Where it cannot tell, the answer is
+yes**: running one review too many costs less than missing one. It answers from
+what the change does, not from words in it: a skill that mentions arguments, or
+a shell, does not make question 2 yes unless the change makes something run that
+takes such a value from someone else.
 
-**The reviews are asked in a call of their own**, after everything else the stop
-asks, once per issue. The question tool takes two to four options a question,
-so the candidates are split until every one is an option: the default set (the
-column's *always*) in its own question, the offered ones in another, each with
-several answers allowed (`multiSelect`). On a code change the default set is
-four reviews (the reviewer, the bug reviewer, `comment-it` and the proving
-agent) and the offered set three (the refactoring reviewer, the security
-reviewer and `lens`). On a prose change the default set is the reviewer alone,
-put as a question with two options, run it or drop it, and the offered set is
-four (the refactoring reviewer, the bug reviewer, the security reviewer and
-`lens`); the proving agent there runs over what ran of 4 and 6 to 8 and is not
-a candidate. A candidate left out of the options is named in the question with
-why.
-
-**Each option carries this change's evidence**, read from what the change will
-do (which file, which behaviour) at a confirm stop, or from its diff at a direct
-run, and its cost where one is on record (ADR-0102's measurements):
-
-- **A default review** is recommended, with what it would read in this change.
-  The proving agent's option says it runs over whichever of 4 and 6 to 8 are
-  chosen.
-- **An offered review** is recommended only where it meets a signal in the table
-  below, and the option names the signal and the evidence for it. Where none is
-  met it says *no signal* with why, and is not recommended.
-
-| Review | What it reads for | Recommended where the change |
+| | The question | Points to |
 |---|---|---|
-| the refactoring reviewer (4) | whether the change re-makes what the repository has, could be simpler, wastes visible work, is too general or too narrow, or is hard to maintain | adds a module, component or helper, makes something the repository already has a shape for, or is a refactor |
-| the security reviewer (7) | security defects where untrusted input reaches what the change makes run, or where it handles authentication, permissions or secrets; commands in documents included | adds or changes something that runs (code, a script, a config, a command in a document) where a value from someone other than the person running it arrives: the network, a file the program did not write, another user or process, a model's output; or that handles authentication, permissions or secrets |
-| `lens` (8) | what the change left out or does differently, held against this repository's siblings and the named prior art, deliberate divergences left out | is an enumeration, a new feature with siblings or prior art to hold it against, or one where a bug would cost more than a wrong number |
+| 1 | Does something that runs change: code, scripts, config, or commands written in docs? | the bug reviewer (6) |
+| 2 | Does input from outside the process reach changed code, or does changed code handle authentication, permissions or secrets? | the security reviewer (7) |
+| 3 | Does it change a promise others depend on: a public API, a contract between skills, a file format, exit codes? | `lens` (8), the bug reviewer (6) |
+| 4 | Are there siblings or prior art to hold it against, or something that must be listed in full? | `lens` (8) |
+| 5 | Does it add a function, module or doc section, or change structure? | the refactoring reviewer (4) |
+| 6 | Does it add or change comments or lint suppressions? | `comment-it` (9) |
 
-On a prose change, the bug reviewer (6) is offered too, recommended where the
-change puts a command or a recipe to run into a document, such as a skill or a
-README: on #86 the bug review `check-it` ran then found such a recipe that
-exited 1. That is one run, the maintainer's call on it (2026-11-19). No
-size of change recommends a review: no line-count threshold has been measured.
-A signal is read from what the change does, not from words in it: a skill that
-mentions arguments, or a shell, is not a signal for the security reviewer unless
-the change makes something run that takes such a value from someone else.
+Then, with the reviews' descriptions in hand, **it picks the reviews itself**,
+one line of reason for each, picked or not:
 
-**Asked again at the start, where the diff carries a new signal.** A confirm
-stop chose from what the change would do; the diff is what it did. So at its
-start, before (1), `check-it` holds the real diff (`git diff HEAD` plus every
-untracked file) against the signals above: the table, and on a prose change
-the bug reviewer's in the paragraph below it. **An offered review the confirm stop did
-not choose that now meets a signal is asked once**, with the signal and the diff
-lines that carry it: through the conductor where there is one (in a
-`thegraph-herdr` worker, the brief's `## Question` and its `hc send` line), and
-directly otherwise. **A change confirmed as prose whose diff now runs** (it adds
-or changes code) takes the code column: each review that column marks *always*
-and the prose one did not, the bug reviewer and `comment-it`, is asked in the
-same question as a default, recommended. Where none does, nothing is asked, which is
-the ordinary case. **A review already chosen whose signal is gone still runs**: the person
-chose it, and the diff does not unchoose it. The answer is kept where the
-confirm stop's is, so a later start of `check-it` on the same issue does not ask
-again: on the run sheet's `confirm` or `## Reviews` line, or, in a
-`thegraph-herdr` worker, with the conductor, who writes it under `## Answers`
-and puts it in any later brief for the issue. A direct `/check-it` reads its
-diff for its review question already, so it asks nothing again (ADR-0102, amended
-for #97).
+| Review | What it reads for |
+|---|---|
+| the refactoring reviewer (4) | whether the change re-makes what the repository has, could be simpler, wastes visible work, is too general or too narrow, or is hard to maintain |
+| the bug reviewer (6) | correctness bugs in whatever the change makes run: code, scripts, configuration, and commands written in documents |
+| the security reviewer (7) | security defects where untrusted input reaches what the change makes run, or where it handles authentication, permissions or secrets; commands in documents included |
+| `lens` (8) | what the change left out or does differently, held against this repository's siblings and the named prior art, deliberate divergences left out |
+| `comment-it` (9) | whether the comments and lint suppressions the change adds or changes keep the repository's comment rule |
 
-**How the answer reads.** The ticked options run. A default review left unticked
-in a question the person answered is dropped by the person, since they saw it
-recommended and left it. A question left unanswered, or answered with text that
-names no review, keeps its defaults and chooses none of its offered ones, and
-the result says so. A dropped proving agent leaves the findings of 4 and 6 to 8
+Its answer has this shape, and nothing after it:
+
+```
+1. yes|no — <one line> — <the lines that ground it>
+2. …
+6. …
+pick:
+- <review> — yes|no — <one line of reason>
+```
+
+**The floor is added after the pick, whatever it says**: the spec and rules
+reviewer (5) always runs, and the proving agent (11) runs whenever the
+refactoring, bug, security or `lens` reviewer runs. **The answer is read for
+gaps**: a question left unanswered, or answered no with no line grounding it, is
+read as yes, and the review it points to is added with that as its reason; a
+review the `pick:` list leaves out is read as picked. A call that returns no
+answer, or fails, picks every review, and the result says so.
+
+**The answer is saved** as *Save each report* names it. Its cost line goes in
+the result with the reviews', the confirm stop's from the run sheet or the
+brief.
+
+**The line in the reading question** names the reviews that will run, the floor
+included, and the path of the saved answer, for example: *reviews: the reviewer,
+the bug reviewer, `lens`, the proving agent (the decision model; answers in
+`….pick-confirm.md`); say which to add or remove*. **How the person's words
+read**: a review they name to add runs, one they name to remove is removed by
+the person, the floor's included, and words that name no review leave the pick
+as it is. A removed proving agent leaves the findings of 4 and 6 to 8
 unreproduced: each goes into the report as *unproven* with what would show it,
 and none is pre-ticked.
 
@@ -184,18 +182,21 @@ would otherwise hand its reviews that model too.
 | `lens` (8) | Opus 5.5, `high` |
 | `comment-it` (9) | Sonnet 5.5, `medium` |
 | the proving agent (11) | Opus 5.5, `medium` |
+| the decision model (*Choosing the reviews*) | Haiku 5.5, `medium` |
 
 **Every row is set on its `Agent` call**, as `model` and `effort`: `model:
-"opus"` or `model: "sonnet"`, and the effort as the row says. `lens`'s and
+"opus"`, `model: "sonnet"` or `model: "haiku"`, and the effort as the row says. `lens`'s and
 `comment-it`'s frontmatter also names a model, for a caller that runs them with
 `Skill`; here the `Agent` call sets it. The verify check has no row: it is part
 of (1), runs the project's own command in this session, and its reading follows
 that project's skill.
 
-`thegraph` and `thegraph-herdr` show this table at their confirm stop, beside
-the reviews, and a direct `/check-it` shows it with its question. **A
-row changes only where the person asks**, and the changed row reaches this step
-the way the chosen reviews do. A changed row takes effect for that run, except
+`thegraph` and `thegraph-herdr` show this table at their confirm stop, before
+the reading question that carries the pick, and a direct `/check-it` shows it in
+its result. **A row changes only where the person asks**: at a confirm stop in
+the same words that change the pick, and in a direct run where the request that
+started it says so. The changed row reaches this step the way the pick does. A
+changed row takes effect for that run, except
 that an `Agent` call takes only a model alias (`sonnet`, `opus`, `haiku`,
 `fable`), so a model with none cannot go on a row, and a session on another
 Opus version runs the Opus rows on its own version. The confirm stop says so
@@ -256,7 +257,7 @@ untracked file) against the files each verify skill names as covered: the code
 its check describes, not every file the skill mentions (its model, its scripts
 and the files it lists as not covered are not covered files). A file in both
 puts that skill's check on (1)'s list. Nobody is asked: it is a check, not a
-review, so it is not offered at a confirm stop and not dropped there (ADR-0102,
+review, so the decision model does not pick it and nobody removes it (ADR-0102,
 amended for #105). A skill that covers only some functions of a file
 still counts the file: whether the change reaches a covered function is the
 verify skill's own first step, and the check runs either way. The candidates are
@@ -331,7 +332,8 @@ re-opens the source and quotes it. Each finding comes back as one of three:
 
 **Each finding's line also gives the time spent on it**, from the first probe
 to the verdict. No cap applies yet. The times are recorded so a cap can be set
-from them, or left unset (ADR-0102, amended for the strength question).
+from them, or left unset (ADR-0102, *The review strength, and what each review
+cost*).
 
 Each finding also says **whether this change introduced it**, measured as
 *Whose is it* says where a run can show it, and read from the diff where only
@@ -550,7 +552,7 @@ does not fire. Anything genuinely ambiguous goes out as a question, not a verdic
 **Every review runs in a fresh agent** that never saw this session (ADR-0091,
 ADR-0095, ADR-0102): the refactoring reviewer (4), the reviewer (5), the bug
 reviewer (6), the security reviewer (7), `lens` (8), `comment-it` (9) and the
-proving agent (11). That is the point: the hand that shaped the change is the
+proving agent (11), and so does the decision model that picks them. That is the point: the hand that shaped the change is the
 worst judge of it. So the brief is all it gets: the prompt of a newly started
 general-purpose agent (not a fork of this conversation, which inherits it),
 started with `Agent` on its row's model and effort, told to edit nothing,
@@ -578,7 +580,11 @@ repo's records. Then each prompt carries its review's own part:
   the same diff as the scope;
 - **the proving agent (11)**: (11) quoted as written here, *Whose is it* whole,
   since it measures each finding's owner that way, and every finding it is to
-  prove.
+  prove;
+- **the decision model**: *Choosing the reviews* from *The decision model
+  answers* to the end of the answer's shape, quoted as written here; at a
+  confirm stop, where there is no diff yet, the issue and the two statements
+  stand in its place.
 
 A skill's body links to files beside it, such as `../clean-it/RULES.md`, and an
 agent reads those links from its own working folder, where they do not resolve.
@@ -587,9 +593,15 @@ path, the links to be read from there.
 
 **Save each report** beside the run sheet, as `<run sheet>.<name>.md` with the
 name `refactoring` (4), `spec-rules` (5), `bug` (6), `security` (7), `lens` (8),
-`comments` (9), `proving` (11), `verify` for the verify check of (1), or
-`findings` for the gathered report, or in the OS temp folder when there is no run
-sheet, so a compaction does not lose it. Then **re-run each command the
+`comments` (9), `proving` (11), `verify` for the verify check of (1),
+`findings` for the gathered report, or `pick` for the decision model's answer
+at this skill's start, or in the OS temp folder when there is no run sheet, so
+a compaction does not lose it. The decision model's answer at a confirm stop is
+`<run sheet>.pick-confirm.md`, where the run sheet is the per-issue one in
+`thegraph-herdr` (`….<slug>.pick-confirm.md`), and in a `thegraph` cluster
+`<run sheet>.<child>.pick-confirm.md`, `<child>` being the child's issue number
+as its `## Children` line names it without the `#`, or its issue file's name
+without the extension. Then **re-run each command the
 reviewer's kept findings carry, and each passed finding's reproduction, before
 it goes into the report's first group**: a finding is a candidate until it was reproduced here. An
 *unproven* finding is carried to a person with what would show it. A skip, such
@@ -602,7 +614,8 @@ once with `status: "async_launched"` and an `outputFile`. That file stays
 empty: measured on 2026-11-19 on Claude Code 2.1.328 (#92), it was still 0
 bytes after the agent had finished. The report arrives only in the task
 notification naming that agent, as its `<result>`. Any other check whose call returns
-before its report is the same case. Wait for each report where it arrives, and
+before its report is the same case, the decision model's call at a confirm stop
+included. Wait for each report where it arrives, and
 save the report itself, never the launch receipt, as the file named above. The
 run does not move past the reviews, to the proving agent, the report, `sweep`
 or the result, until every check it started has its report read or is reported

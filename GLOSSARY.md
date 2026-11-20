@@ -242,7 +242,7 @@ _Avoid_: Verdict (the Acceptance Gate's term)
 
 **Reviewer** (thegraph):
 The spec and rules reviewer, the fresh agent [`check-it`](check-it/) starts on
-every change unless the person drops it at the confirm stop. It reads the whole diff, the issue and the repository's records, and
+every change, on the **Review floor**, unless the person removes it at the confirm stop. It reads the whole diff, the issue and the repository's records, and
 answers apart whether the change does what the issue asked and whether it holds up
 against what the repository wrote down
 ([ADR-0095](docs/adr/0095-check-it-reviews-in-a-fresh-agent.md),
@@ -255,9 +255,9 @@ _Avoid_: review agent (see the Acceptance Gate)
 The fresh agent [`check-it`](check-it/) starts for correctness bugs in whatever
 the change makes run: code, scripts, configuration, and commands written in
 documents. Its brief is [`check-it/reviewers/bug.md`](check-it/reviewers/bug.md);
-it edits nothing, and the **Proving agent** reproduces its findings. A default
-review on a code change, offered on a prose one
-([ADR-0102](docs/adr/0102-check-it-reviews-are-a-catalog-chosen-per-change.md), #105).
+it edits nothing, and the **Proving agent** reproduces its findings. It runs
+where the **Decision model** picks it
+([ADR-0102](docs/adr/0102-check-it-reviews-are-a-catalog-chosen-per-change.md), #105, #112).
 _Avoid_: `/review` (the command bundled with Claude Code that `check-it` ran
 before #105, which also reported rules and cleanups)
 
@@ -267,8 +267,9 @@ untrusted input reaches what the change makes run, or where it handles
 authentication, permissions or secrets; commands in documents included. Its
 brief is [`check-it/reviewers/security.md`](check-it/reviewers/security.md),
 which names who controls each input rather than which channel carries it; it
-edits nothing, and the **Proving agent** reproduces its findings. Offered
-([ADR-0102](docs/adr/0102-check-it-reviews-are-a-catalog-chosen-per-change.md), #105).
+edits nothing, and the **Proving agent** reproduces its findings. It runs where
+the **Decision model** picks it
+([ADR-0102](docs/adr/0102-check-it-reviews-are-a-catalog-chosen-per-change.md), #105, #112).
 _Avoid_: `/security-review` (the bundled command `check-it` ran before #105,
 which read only commits and no markdown)
 
@@ -278,8 +279,9 @@ what the repository has, could be simpler, wastes visible work, is too general o
 too narrow, or is hard to maintain. Each finding gives a file, a line and its
 cost. Its brief is
 [`check-it/reviewers/refactoring.md`](check-it/reviewers/refactoring.md); it
-edits nothing, and the **Proving agent** reproduces its findings. Offered
-([ADR-0102](docs/adr/0102-check-it-reviews-are-a-catalog-chosen-per-change.md), #105).
+edits nothing, and the **Proving agent** reproduces its findings. It runs where
+the **Decision model** picks it
+([ADR-0102](docs/adr/0102-check-it-reviews-are-a-catalog-chosen-per-change.md), #105, #112).
 _Avoid_: design reviewer (read as a review of a screen); `/simplify` (the
 bundled command `check-it` ran before #105, which applied its own fixes)
 
@@ -290,24 +292,23 @@ each finding of the **Refactoring reviewer**, the **Bug reviewer**, the **Securi
 show it ([ADR-0102](docs/adr/0102-check-it-reviews-are-a-catalog-chosen-per-change.md)).
 _Avoid_: finding vote (the name before it was decided to reproduce rather than vote)
 
-**Default review** (thegraph):
-A review [`check-it`](check-it/) recommends for every change of a kind, the ones
-its table marks *always*: on a code change the reviewer, the bug reviewer,
-`comment-it` and the proving agent; on a prose change the reviewer. Asked at the
-confirm stop in the same call as the offered reviews, in a question of its own,
-each recommended; one the person leaves unticked in a question they answered is
-dropped by the person and reported so
+**Decision model** (thegraph):
+The fresh Haiku 5.5 agent [`check-it`](check-it/) starts to pick its reviews. It
+answers six fixed questions about the change, each with the lines that ground the
+answer and yes where it cannot tell, then picks the reviews with one line of
+reason each. It runs at the confirm stop on the planned change, its pick shown as
+one line in the reading question for the person to change in words, and again at
+`check-it`'s start on the real diff, where a review it adds is added without
+asking and nothing chosen is removed. The **Review floor** is added to its pick
 ([ADR-0102](docs/adr/0102-check-it-reviews-are-a-catalog-chosen-per-change.md),
-#95). `sweep` is not one: it always runs.
+#112).
+_Avoid_: default review, offered review (the per-change choice before #112)
 
-**Offered review** (thegraph):
-A review [`check-it`](check-it/) runs only where the person chose it for the
-change: the refactoring reviewer, the security reviewer and `lens`, and the bug
-reviewer on a prose change. It is asked at the confirm stop, or once at the start of a direct
-`/check-it`, in a call of its own with the default reviews, recommended only
-where the change meets its signal; one not chosen is asked once more at
-`check-it`'s start where the diff meets its signal (#97). One not chosen is reported as not chosen, not
-as a skip.
+**Review floor** (thegraph):
+The reviews that run whatever the **Decision model** picks: the reviewer always,
+and the **Proving agent** whenever the refactoring, bug or security reviewer or
+`lens` runs. A person can still remove one in words at the confirm stop, and
+`check-it` reports it removed by the person (#112).
 
 **Brief** (thegraph):
 The three things [`check-it`](check-it/) assembles and hands to `lens` — this repo's

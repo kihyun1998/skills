@@ -167,17 +167,14 @@ Two statements go to the maintainer — what this issue **is**, in your own word
 and what this change **will do** and deliberately leave alone. `read-it` holds
 what each has to carry and what a correction to each one means.
 
-**On a prose or code route, which reviews `check-it` runs is asked here too,
-in a call of its own after the reading, per issue**, as `check-it`'s *Choosing the
-reviews* words it: the review strength first (light, usual, thorough), which
-picks what arrives ticked; then every review is an option, the default ones too, each with
-this change's evidence and its cost, and a candidate left out is named with why.
-That way the person answers once, with the issue already read, and `check-it`
-asks again only where the diff gives an offered review not chosen a signal, or
-reaches code its column gives a default review nobody was asked about
-(`check-it`, *Asked again at the start*). **Beside them goes `check-it`'s table of each
-review's model** (*Each review's model*), as it stands; a row changes only where
-the person asks, and the table says which changes cannot apply within a run.
+**On a prose or code route, the reading also carries the reviews `check-it` will
+run, as one line.** Once ② is written, start `check-it`'s decision model on the
+issue and the two statements, wait for its answer, and put its pick, the floor
+added, as one line in the question that carries ②, as `check-it`'s *Choosing
+the reviews* says, which also says when it runs again. Nothing else about the
+reviews is asked, and there is no call of its own. **Before the question goes
+`check-it`'s table of each review's model** (*Each review's model*), as it
+stands, with what that section says about changing a row.
 
 **This is not `ask-it`.** That one comes at the end and asks what to *file*; this
 one asks whether the reading is right, before anything has run.
@@ -189,12 +186,14 @@ is the maintainer's call, so it is recorded as theirs.
 to be a typo ends here, said out loud. That is a result, not a skipped step.
 
 The answer is checked off on the run sheet as `confirm`, with what it changed
-written under it for the next step, the offered reviews chosen, the default ones
-the person dropped and any review model the person changed included. In a
-cluster, where the step list is rewritten for each child, the choice is each
-child's, kept in a `## Reviews` section without checkboxes, one line per child
-(`- #38 — lens, security reviewer; dropped: bug reviewer; reviewer: opus, xhigh`, the
-dropped default reviews and a changed row after semicolons).
+written under it for the next step: the reviews that will run as the person
+left them, what the person added or removed in words, the decision model's cost
+line, and any review model the person changed. In a cluster, where the step list
+is rewritten for each child, the pick is each child's, kept in a `## Reviews`
+section without checkboxes, one line per child (`- #38 — reviewer, bug
+reviewer, security reviewer, proving agent; removed by the person: lens; reviewer: opus,
+xhigh; pick: <time>, <tokens>`, what the person changed, a changed row and
+the cost line after semicolons).
 
 ### 3. Follow the route
 
@@ -215,9 +214,9 @@ present.**
 
 The last two share a row because the conditions live inside the skills. `make-it`
 calls `design-it` first for a new screen and `encode-it` for a check-adding change, and skips its test section for a change
-that does not run; `check-it` runs fewer checks for prose than for code, less
-the default reviews dropped and plus the offered ones chosen at step 2 or at
-`check-it`'s start.
+that does not run; `check-it` runs fewer checks for prose than for code, and the
+reviews the decision model picked at step 2 and at `check-it`'s start, as the
+person changed them.
 
 ## The signals that do not wait for their turn
 

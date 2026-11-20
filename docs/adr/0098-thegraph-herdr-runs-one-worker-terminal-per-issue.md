@@ -36,6 +36,13 @@
 > confirm stop no longer asks it.
 
 > **Amended by [ADR-0102](0102-check-it-reviews-are-a-catalog-chosen-per-change.md),
+> for #112.** The confirm stop no longer asks the reviews in a call of their own:
+> `check-it`'s decision model, a Haiku 5.5 agent, picks them per issue from the
+> planned change, and its pick is one line in the reading question that the person
+> changes in words. The worker's brief carries that pick, and the worker's
+> `check-it` adds without asking a review its diff gives cause for.
+
+> **Amended by [ADR-0102](0102-check-it-reviews-are-a-catalog-chosen-per-change.md),
 > for #102.** The default reviews asked at the confirm stop include `check-it`'s
 > verify review where a verify skill in the repository covers a file the change
 > will touch, and the worker's brief carries it kept or dropped.

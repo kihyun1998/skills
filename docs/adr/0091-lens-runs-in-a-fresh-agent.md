@@ -20,6 +20,12 @@
 > by the brief, on the model and effort its row sets. The skill, its fork and
 > its frontmatter stand for every other caller.
 
+> **Amended by [ADR-0102](0102-check-it-reviews-are-a-catalog-chosen-per-change.md),
+> for #112.** In `check-it`, `lens` is no longer offered and chosen by the
+> person: `check-it`'s decision model, a Haiku 5.5 agent, picks it from six fixed
+> questions, at the confirm stop and again at `check-it`'s start, and the person
+> can change the pick in words.
+
 > **Amended for #93 on 2026-11-19.** `lens`'s sentence is now *edit nothing,
 > and write no file outside the OS temp folder*, the line `check-it`'s reviewer
 > already had: one fork had written a probe test in the reviewed repository and

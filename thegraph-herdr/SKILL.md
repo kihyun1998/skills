@@ -64,8 +64,9 @@ are.
 - **A worker's name** is `tg-<run id>-<slug>`. `hc` takes 1 to 32 characters of
   `a-z 0-9 - _`, unique among every live terminal of this user.
 - **An issue's files** start with the run sheet's path without `.md`, then
-  `.<slug>`: `….<slug>.brief.md`, `….<slug>.report.md`, and `….<slug>.md`, the
-  run sheet the worker's skills are told to keep their files beside. So every one
+  `.<slug>`: `….<slug>.brief.md`, `….<slug>.report.md`, `….<slug>.md`, the
+  run sheet the worker's skills are told to keep their files beside, and
+  `….<slug>.pick-confirm.md`, the decision model's answer at the confirm stop. So every one
   of them is named after the run sheet.
 - **The run's Stop hook** is the run sheet's path without `.md`, then
   `.stop-hook.json`, written once per run and passed to every worker with
@@ -110,7 +111,8 @@ Each model question names the row it rests on, in the table's words, with the
 evidence for each signal, or says that no signal applies. The question tool takes
 at most four questions a call: the reading goes first, then the conductor's model where it is asked, then the children's models
 in order, then the permission mode, in as many calls as that
-takes; each issue's reviews come last, in a call of their own per issue (below). The worker runs on what the person's
+takes. The reviews are not a question of their own: each issue's pick is a line
+inside the reading question (below). The worker runs on what the person's
 answers leave standing. Any other model or effort runs only where the person names
 it.
 
@@ -129,22 +131,19 @@ worker under this session's terminal, and
 `herdr-app do terminal.peek --terminal <address>` shows it over the tab, with
 keep-as-tab and close controls.
 
-**Ask which reviews `check-it` runs**, for each prose or code issue, in a call
-of its own after the reading, the models and the permission mode,
-and never folded into one of theirs. It is put as `check-it`'s *Choosing the
-reviews* words it: the review strength first (light, usual, thorough), which
-picks what arrives ticked; then every review is an option, the default ones too, split over
-as many questions as the tool's four options take; each option carries this
-change's evidence and its cost; a candidate left out is named with why.
-`check-it`'s table of each review's model goes beside them (*Each review's
-model*); a row changes only where the person asks, and the table says which
-changes cannot apply within a run. The answer goes into that worker's brief, so the
-worker asks again only where its diff gives a review not chosen a signal
-(`check-it`, *Choosing the reviews*).
+**The reading carries each prose or code issue's reviews as one line.** Once an
+issue's ② is written, start `check-it`'s decision model on the issue and the two
+statements, wait for its answer, and put its pick, the floor added, as one line
+in that issue's question that carries ②, as `check-it`'s *Choosing the reviews*
+says, which also says when it runs again. Nothing else about the reviews is
+asked. `check-it`'s table of each review's model goes before the question
+(*Each review's model*), with what that section says about changing a row. The
+pick as the person left it goes into that worker's brief.
 
 Check `confirm` on the sheet with what it changed written under it, the
-permission mode, the reviews chosen and dropped, and any review
-model changed included.
+permission mode, each issue's reviews as the person left them with what they
+changed in words and the decision model's cost line, and any review model
+changed included.
 
 ### 3. Follow the route
 
@@ -192,8 +191,8 @@ For each issue:
 
    | Arrives | Do |
    |---|---|
-   | `done <report path>` | Read the report. Read the commit with `git log -1 --stat` and the tree with `git status --porcelain`. Where there is no new commit, its hash differs from the report's, the tree is not clean, or the commit touches files ② left alone other than those a fix the person picked at `check-it`'s question touched, each listed in the report's `## Result` with its finding's number in the gathered report, `hc send` the worker what differs and end the turn. Once they agree, copy its carried items under `## Carried`, update `## Children`, then `hc kill` and `hc rm` the worker |
-   | `question <report path>` | Put the report's question to the person with the question tool, options included. Write it and the answer under `## Answers`, then `hc send` the worker the answer and end the turn. Where it is `check-it` asking a review again, a later brief for this issue carries the answer in its reviews line. Where it is `check-it`'s one question on its gathered report (`check-it`, *One report, one question*), put its three options as they came, with the report's path and the pre-ticked findings, and send back what the person chose, or that they gave no answer, which fixes nothing and stops the worker uncommitted, reporting `stuck` |
+   | `done <report path>` | Read the report. Read the commit with `git log -1 --stat` and the tree with `git status --porcelain`. Where there is no new commit, its hash differs from the report's, the tree is not clean, or the commit touches files ② left alone other than those a fix the person picked at `check-it`'s question touched, each listed in the report's `## Result` with its finding's number in the gathered report, `hc send` the worker what differs and end the turn. Once they agree, copy its carried items under `## Carried` and the reviews its `check-it` added under `## Answers`, update `## Children`, then `hc kill` and `hc rm` the worker |
+   | `question <report path>` | Put the report's question to the person with the question tool, options included. Write it and the answer under `## Answers`, then `hc send` the worker the answer and end the turn. Where it is `check-it`'s one question on its gathered report (`check-it`, *One report, one question*), put its three options as they came, with the report's path and the pre-ticked findings, and send back what the person chose, or that they gave no answer, which fixes nothing and stops the worker uncommitted, reporting `stuck` |
    | `stuck <report path>` | The issue departed from the plan or cannot proceed. Stop and put it to the person: their answer resumes the cluster, or ends it with `ask-it` over the children done. Write it under `## Answers`. Where the answer lets this worker go on, `hc send` it the answer and end the turn; otherwise `hc kill` and `hc rm` it, and check the tree as in 1, before anything else starts. Where the model fell short, including the same failure surviving three fixes, offer these options, the first that applies recommended: a way for the worker to check its own work, where it has none; a new worker one effort level up on the same model, as far as `high`; a second worker on the same model and effort; where Sonnet 5.5 fell short at `high`, a new worker on Opus 5.5 at `medium`; after two Opus 5.5 `high` workers fell short on the issue, a new worker on Fable 5.2 at `medium`. Where a worker was refused, or fell back to another model, on a cyber classifier, offer the same brief on Mythos 5.2 (`--model claude-mythos-5-2`, `high`). A new worker's brief carries what this one tried and why it fell short |
    | `turn ended`, with no report from that worker since its last one | `hc read` it. A question in plain text is handled as `question`, from its screen. Anything else: `hc send` it that a turn ending is not a report, and that it reports with the brief's `hc send` lines. A turn ending that follows a report already handled is no news |
    | `blocked` | `hc read` the worker. A question on its screen, from a skill that asked directly instead of through the report file, goes to the person with the question tool, options included; write it and the answer under `## Answers`. Send the chosen option with `hc keys`, using the keys the screen shows; an answer the options do not hold, the person types into the peeked worker. A permission prompt goes to the person the same way. Then end the turn |
@@ -254,7 +253,7 @@ What the earlier workers changed that bears on this: <or "nothing">
 Corrections received so far in this run, which hold for this work too: <each with whether it was a repeat, or "none">
 Earlier attempts at this issue: <or "none": what each tried and why it fell short>
 Left in the tree for you: <or "nothing": the files the person handed over>
-Reviews chosen at the confirm stop: <default: each of check-it's default reviews for this route, kept or dropped by the person; offered: each of the refactoring reviewer, the security reviewer and lens, chosen or not, and the bug reviewer too on a prose route>
+Reviews picked at the confirm stop: <each review check-it's decision model picked, the floor included, as the person left it, with its one line of reason; what the person added or removed in words; any review an earlier worker's check-it added on this issue, with its reason; the path of the decision model's answer; its cost line>
 Review models changed at the confirm stop: <each row of check-it's model table the person changed, or "none">
 Report file: <its report file>
 This run's run sheet: <its per-issue run sheet path>. It does not exist; the skills
