@@ -109,7 +109,9 @@ the floor is added to its pick (ADR-0102, amended for #112). It runs twice:
 
 The decision model answers each question **yes** or **no** with the lines that
 ground the answer, quoted with their file and line, or, at the confirm stop, with the sentence of
-the issue or statement they come from. **Where it cannot tell, the answer is
+the issue or statement they come from. A no that rests on finding nothing is
+grounded by the search it ran and what that search printed, which anyone can run
+again. **Where it cannot tell, the answer is
 yes**: running one review too many costs less than missing one. It answers from
 what the change does, not from words in it: a skill that mentions arguments, or
 a shell, does not make question 2 yes unless the change makes something run that
@@ -145,11 +147,12 @@ pick:
 - <review> — yes|no — <one line of reason>
 ```
 
-**The floor is added after the pick, whatever it says**: the spec and rules
-reviewer (5) always runs, and the proving agent (11) runs whenever the
-refactoring, bug, security or `lens` reviewer runs. **The answer is read for
-gaps**: a question left unanswered, or answered no with no line grounding it, is
-read as yes, and the review it points to is added with that as its reason; a
+**The floor is added after the pick, whatever the pick says**: the spec and
+rules reviewer (5) always runs, and the proving agent (11) runs whenever the
+refactoring, bug, security or `lens` reviewer runs. Only the person removes a
+floor review, in words at the confirm stop, and this skill's start does not add
+it back. **The answer is read for gaps**: a question left unanswered, or answered
+no with neither a line nor a search grounding it, is read as yes, and the review it points to is added with that as its reason; a
 review the `pick:` list leaves out is read as picked. A call that returns no
 answer, or fails, picks every review, and the result says so.
 
@@ -192,8 +195,9 @@ of (1), runs the project's own command in this session, and its reading follows
 that project's skill.
 
 `thegraph` and `thegraph-herdr` show this table at their confirm stop, before
-the reading question that carries the pick, and a direct `/check-it` shows it in
-its result. **A row changes only where the person asks**: at a confirm stop in
+the reading question that carries the pick. A direct `/check-it` shows it with
+the pick, as lines before its reviews start, asking nothing, and again in its
+result. **A row changes only where the person asks**: at a confirm stop in
 the same words that change the pick, and in a direct run where the request that
 started it says so. The changed row reaches this step the way the pick does. A
 changed row takes effect for that run, except

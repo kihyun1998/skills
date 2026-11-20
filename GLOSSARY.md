@@ -307,8 +307,9 @@ _Avoid_: default review, offered review (the per-change choice before #112)
 **Review floor** (thegraph):
 The reviews that run whatever the **Decision model** picks: the reviewer always,
 and the **Proving agent** whenever the refactoring, bug or security reviewer or
-`lens` runs. A person can still remove one in words at the confirm stop, and
-`check-it` reports it removed by the person (#112).
+`lens` runs. A person can still remove one in words at the confirm stop;
+`check-it`'s start does not add it back, and reports it removed by the person
+(#112).
 
 **Brief** (thegraph):
 The three things [`check-it`](check-it/) assembles and hands to `lens` — this repo's

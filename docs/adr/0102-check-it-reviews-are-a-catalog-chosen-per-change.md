@@ -949,11 +949,24 @@ direct `/check-it`; and a cluster's start pick overwritten per child, as every
 **What the decision did not cover:**
 
 - Whether the floor binds the person, and whether the start's pick may re-add
-  what the person removed: both decided above as derivations, both open to the
-  maintainer.
+  what the person removed: both decided above as derivations, then **confirmed by
+  the maintainer** at #112's `ask-it` (2026-11-20): a person may remove a floor
+  review in words, and the start adds back nothing the person removed, the floor
+  included. Spend is the person's, as #95 let them drop the reviewer.
 - Text in the issue or the diff can steer the decision model, and the floor does
   not hold the security reviewer. The prose trial's own answer to question 2
-  named it: *an injected issue could suppress it*.
+  named it: *an injected issue could suppress it*. Two injection probes on Haiku
+  5.5 were resisted. **Left open by the maintainer's call** at the same
+  `ask-it`: the issues and diffs the decision model reads here are mostly the
+  maintainer's own, the probes held, and the security reviewer on the floor
+  would cost every code run about 193 s and 85k tokens. A grounding check would
+  not close it, since a no can rest on finding nothing. Reopen it when `check-it`
+  reviews changes written by someone else.
+- Added at the same `ask-it`, each the maintainer's choice: a no that rests on
+  finding nothing is grounded by the search and what it printed, since the
+  strict reading turns nearly every no into yes; and a direct `/check-it` shows
+  the pick and the model table before its reviews start, as it showed the table
+  before #112.
 - Whether a pick that differs from the person's earlier habit, such as the
   security reviewer on a local CLI flag, costs more than the strength's *usual*
   did. #96's measurements are the place to compare.
