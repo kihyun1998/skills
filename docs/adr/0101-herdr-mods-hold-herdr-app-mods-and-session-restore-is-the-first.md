@@ -490,3 +490,62 @@ maintainer asked for it in the session that built #99.
 - Typing in the live window was not driven from here: that letters are dropped, and where
   the cursor goes when they are, rests on the maintainer's look and on `digitsOnly`'s tests.
 - Whether 8 px a digit centres the number exactly at every zoom.
+
+## Amendment (issue #103): a save's id is never given twice
+
+Save ids were the highest id present plus one, so deleting the newest save let the
+next save take its id. The merge dialog knows a save only by its id, so a dialog
+opened on the deleted save took the new save for it. Reproduced on fa7c3d0: history
+saves 4 (d), 3 (c), 1 (a); delete 4; a save of x takes id 4; a merge of [4, 1]
+keeping x, a and d made a save `from: [1, 4]` of x and a, and d was dropped without
+a word.
+
+### The maintainer's call (2026-11-20)
+
+- **Ids never come back (option a)**, chosen over matching the dialog's saves by id
+  and time together (option b), after a lens pass over both. The history file keeps
+  `lastId`, the highest id it has given; the next id is one more than `lastId` or
+  than the highest id present, whichever is higher. A merge takes its id the same
+  way. Consequences, said then:
+  - A copy of the mod from before this change, still running until Herdr restarts,
+    reads no `lastId` and can give a deleted save's id again, as before; it cannot
+    give an id still present, since it takes the highest present plus one. It keeps
+    `lastId` in the file when it writes, as it spreads the history it read.
+  - A history file reset or lost starts the ids at 1 again.
+
+### Derived
+
+- A delete records `lastId` too, as the highest of `lastId` and every id present
+  before the delete. Recording it only when an id is given, as the call was first worded, let an
+  existing history file with no `lastId` reuse an id once: delete its newest save
+  and the next save takes that id. With the delete recording it, the first delete
+  on such a file holds the deleted ids.
+- A `lastId` or a save id that is not a whole number from 1 up to below
+  `Number.MAX_SAFE_INTEGER` (a hand edit, a damaged file) is left out of the next
+  id, so the next id is always a whole number that counts up by one and differs from
+  every id present. /review found that `Number.isInteger` alone let a `lastId` of
+  `2**53 - 1` or `1e300` give one id twice, and that a save with no id made the next
+  id NaN, written as `lastId: null` at a delete; the proving pass reproduced both, and
+  that checking `lastId` alone still repeated an id once `2**53` was in the save list.
+
+### Measured
+
+- Seven tests were added (six in `logic.test.mjs`, one in `io.test.mjs` that goes
+  through the history file); four failed on fa7c3d0's code, among them the
+  reproduction above, which made its `from: [1, 4]` save. The other three, for the
+  ids left out of the count, failed on the first build of this change. Mutations of
+  the change (no `lastId` at a delete, at a save or at a merge; `lastId` ignored;
+  save ids not checked; the upper bound removed; a delete recording only the highest
+  id left) each turned at least one of them red. The suite passed 139 of 139.
+- On a copy of the live history file (ids 22 to 14, no `lastId`), deleting save 22
+  through `save.js` wrote `lastId: 22`, and the next save and a merge each took 23.
+
+### Not covered
+
+- Option (b), matching by id and time, was not built.
+- The panel state defects of #104, and the merge dialog's other behaviour.
+- A history file that does not parse reads as empty, and the next save or a delete
+  writes over it; lens noted it as outside this issue, and with this change a file
+  lost that way also starts the ids at 1.
+- A delete of ids no longer in the history still writes the file, with the same
+  bytes, and can fail on a write conflict; it did before this change too.

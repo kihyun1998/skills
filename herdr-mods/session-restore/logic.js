@@ -461,7 +461,11 @@ export function folderChange(paths, dir, files) {
 export const mergeDialog = (ids) =>
   ({ mod: "session-restore", props: { view: "merge", ids }, kind: "dialog", key: "session-restore.merge", keep: false, width: 760, height: 640 });
 
-/** The save history's text read: { version, saves }, newest first, empty when there is none or it does not parse. */
+/**
+ * The save history's text read: { version, saves, lastId }, saves newest first, empty when there is
+ * none or it does not parse. lastId, the highest id the history has given, is as the file holds it,
+ * and missing in a history from before it or with no save yet.
+ */
 export function parseHistory(text) {
   try {
     const h = JSON.parse(text ?? "null");
@@ -471,7 +475,9 @@ export function parseHistory(text) {
 }
 
 const idsOf = (entries) => entries.map((e) => e.sessionId).sort().join("\n");
-const nextId = (history) => Math.max(0, ...history.saves.map((s) => s.id)) + 1;
+const usableId = (v) => Number.isInteger(v) && v >= 1 && v < Number.MAX_SAFE_INTEGER;
+const highestId = (history) => Math.max(0, ...[history.lastId, ...history.saves.map((s) => s.id)].filter(usableId));
+const nextId = (history) => highestId(history) + 1;
 
 /** The history with only its newest limit saves; the same history with no limit. */
 export const trimHistory = (history, limit) =>
@@ -487,11 +493,12 @@ export const overLimit = (history, limit) => (limit == null ? 0 : Math.max(0, hi
 export function withSnapshot(history, entries, { now, limit }) {
   if (!entries.length) return history;
   if (history.saves[0] && idsOf(history.saves[0].entries) === idsOf(entries)) return history;
-  return trimHistory({ ...history, saves: [{ id: nextId(history), at: now, entries }, ...history.saves] }, limit);
+  const id = nextId(history);
+  return trimHistory({ ...history, lastId: id, saves: [{ id, at: now, entries }, ...history.saves] }, limit);
 }
 
-/** The history without the saves with the given ids. */
-export const withoutSnapshots = (history, ids) => ({ ...history, saves: history.saves.filter((s) => !ids.includes(s.id)) });
+/** The history without the saves with the given ids; its lastId stays the highest id it has given, so no id comes back. */
+export const withoutSnapshots = (history, ids) => ({ ...history, lastId: highestId(history), saves: history.saves.filter((s) => !ids.includes(s.id)) });
 
 /**
  * Every session of the saves once, newest save first: { entry, in }, entry its record in the newest
@@ -532,7 +539,8 @@ export function mergeSnapshots(history, ids, keep, { now }) {
   const entries = mergeSessions(saves).filter((r) => keep.includes(r.entry.sessionId)).map((r) => r.entry);
   if (saves.length < 2 || !entries.length) return history;
   const from = saves.map((s) => s.id).sort((a, b) => a - b);
-  return { ...history, saves: [{ id: nextId(history), at: now, from, entries }, ...history.saves] };
+  const id = nextId(history);
+  return { ...history, lastId: id, saves: [{ id, at: now, from, entries }, ...history.saves] };
 }
 
 /** A terminal title without what an agent puts before it (a status glyph, a [ ! ] mark). */

@@ -483,6 +483,53 @@ test("withoutSnapshots deletes the saves with the given ids", () => {
   assert.deepEqual(withoutSnapshots(h, [3, 1]).saves.map((s) => s.id), [2]);
 });
 
+test("a save after the newest save is deleted takes a new id, not the deleted one", () => {
+  const h = { version: 1, saves: [snap(4, 40, ["d"]), snap(3, 30, ["c"]), snap(1, 10, ["a"])] };
+  const made = withSnapshot(withoutSnapshots(h, [4]), [live("x")], { now: 50, limit: 50 });
+  assert.deepEqual(made.saves.map((s) => s.id), [5, 3, 1]);
+  assert.equal(made.lastId, 5);
+});
+
+test("a history file with no lastId keeps the deleted ids from coming back", () => {
+  const h = { version: 1, saves: [snap(4, 40, ["d"]), snap(3, 30, ["c"])] };
+  const gone = withoutSnapshots(h, [4, 3]);
+  assert.deepEqual(gone.saves, []);
+  assert.equal(gone.lastId, 4);
+  assert.deepEqual(withSnapshot(gone, [live("x")], { now: 50, limit: 50 }).saves.map((s) => s.id), [5]);
+});
+
+test("lastId below the ids present, or not a whole number, gives way to the highest id present", () => {
+  for (const lastId of [2, "9", 7.5, null, 1e300, -3]) {
+    const h = { version: 1, lastId, saves: [snap(4, 40, ["d"])] };
+    assert.deepEqual(withSnapshot(h, [live("x")], { now: 50, limit: 50 }).saves.map((s) => s.id), [5, 4]);
+  }
+});
+
+test("a lastId at the end of the safe numbers gives no id twice", () => {
+  let h = { version: 1, lastId: Number.MAX_SAFE_INTEGER, saves: [snap(4, 40, ["d"])] };
+  h = withSnapshot(h, [live("x")], { now: 50, limit: 50 });
+  h = withSnapshot(h, [live("y")], { now: 60, limit: 50 });
+  const ids = h.saves.map((s) => s.id);
+  assert.equal(new Set(ids).size, ids.length);
+  assert.ok(ids.every(Number.isSafeInteger));
+});
+
+test("a save with no id keeps lastId at a delete, and the next save still takes a whole id", () => {
+  const h = { version: 1, lastId: 10, saves: [snap(3, 30, ["c"]), { at: 5, entries: [live("a")] }] };
+  const gone = withoutSnapshots(h, [3]);
+  assert.equal(gone.lastId, 10);
+  assert.equal(withSnapshot(gone, [live("x")], { now: 50, limit: 50 }).saves[0].id, 11);
+});
+
+test("a merge after the newest save is deleted takes a new id, and a dialog on the deleted save makes nothing", () => {
+  const h = { version: 1, saves: [snap(4, 40, ["d"]), snap(3, 30, ["c"]), snap(1, 10, ["a"])] };
+  const after = withSnapshot(withoutSnapshots(h, [4]), [live("x")], { now: 50, limit: 50 });
+  assert.equal(mergeSnapshots(after, [4, 1], ["x", "a", "d"], { now: 60 }), after);
+  const merged = mergeSnapshots(withoutSnapshots(h, [4]), [3, 1], ["c", "a"], { now: 60 });
+  assert.equal(merged.saves[0].id, 5);
+  assert.equal(merged.lastId, 5);
+});
+
 test("mergeSessions lists every session of the saves once, with the newest save's record and the saves it is in", () => {
   const older = snap(1, 10, ["a", "b"]);
   older.entries[1] = live("b", { tabName: "2" });

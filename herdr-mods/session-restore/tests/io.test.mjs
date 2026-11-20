@@ -610,6 +610,18 @@ test("deleteSaves and mergeSaves change the history file", async () => {
   assert.deepEqual((await readHistory(m.io)).saves.map((s) => s.id), [3]);
 });
 
+test("the history file keeps the highest id given, so a save after deleting the newest takes a new one", async () => {
+  const saves = [{ id: 2, at: 20, entries: [{ sessionId: "b" }] }, { id: 1, at: 10, entries: [{ sessionId: "a" }] }];
+  const one = oneClaude("s9");
+  const m = machine({ ...one, files: { ...one.files, [historyPath(APP)]: JSON.stringify({ version: 1, saves }) } });
+  await deleteSaves(m.io, [2]);
+  assert.equal(JSON.parse(m.files[historyPath(APP)]).lastId, 2);
+  await saveOnce(m.io);
+  const h = await readHistory(m.io);
+  assert.deepEqual(h.saves.map((s) => s.id), [3, 1]);
+  assert.equal(h.lastId, 3);
+});
+
 test("mergeSaves makes nothing and names the gone save when one source save is gone and one is left", async () => {
   const saves = [{ id: 2, at: 20, entries: [{ sessionId: "b" }] }];
   const m = machine({ files: { [historyPath(APP)]: JSON.stringify({ version: 1, saves }) } });

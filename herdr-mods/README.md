@@ -137,7 +137,13 @@ rewritten for each Herdr version and are the truth about the API.
   the unfolded save, cleared at the press, stay cleared).
 - **The history** is in `~/.config/herdr-app/data/session-restore.history.json`,
   newest first. Each save adds `current` to it as save N unless it lists the same
-  sessions as the newest one, or none. The History tab opens a save to its
+  sessions as the newest one, or none. A save's number is never given twice: the
+  file keeps `lastId`, the highest number it has given, and a new save or merge takes
+  one more than that or than the highest number present, so deleting the newest save
+  does not free its number for the next. A number that is not a whole number of 1 or
+  more (a hand edit, a damaged file) is left out of that count. A history file reset or lost starts again
+  at 1, and a copy of the mod from before `lastId`, still running until Herdr restarts,
+  can give a deleted save's number again, though never one still in the history. The History tab opens a save to its
   sessions, each with Open or Go by what is open now, and deletes one with ×.
   Saves are ticked one by one or all at once; the ticked ones are deleted
   together (after a confirm) or merged. **Merge** opens a dialog of its own with
