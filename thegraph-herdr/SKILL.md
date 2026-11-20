@@ -135,6 +135,9 @@ and never folded into one of theirs. It is put as `check-it`'s *Choosing the
 reviews* words it: every review is an option, the default ones too, split over
 as many questions as the tool's four options take; each option carries this
 change's evidence and its cost; a candidate left out is named with why.
+The default ones include `check-it`'s verify review where a verify skill in the
+repository covers a file the change will touch, found by reading its
+`.claude/skills/` (`check-it`, *A project's verify skill*).
 `check-it`'s table of each review's model goes beside them (*Each review's
 model*); a row changes only where the person asks, and the table says which rows
 cannot change within a run. The answer goes into that worker's brief, so the
@@ -253,7 +256,7 @@ What the earlier workers changed that bears on this: <or "nothing">
 Corrections received so far in this run, which hold for this work too: <each with whether it was a repeat, or "none">
 Earlier attempts at this issue: <or "none": what each tried and why it fell short>
 Left in the tree for you: <or "nothing": the files the person handed over>
-Reviews chosen at the confirm stop: <default: each of check-it's default reviews for this route, kept or dropped by the person; offered: each of /security-review, /simplify and lens, chosen or not, and /review too on a prose route>
+Reviews chosen at the confirm stop: <default: each of check-it's default reviews for this route, the verify review included where a verify skill covers a file the change will touch, kept or dropped by the person; offered: each of /security-review, /simplify and lens, chosen or not, and /review too on a prose route>
 Review models changed at the confirm stop: <each row of check-it's model table the person changed, or "none">
 Report file: <its report file>
 This run's run sheet: <its per-issue run sheet path>. It does not exist; the skills

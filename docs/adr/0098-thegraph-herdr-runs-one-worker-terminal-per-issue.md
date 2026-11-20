@@ -28,6 +28,11 @@
 > lists as kept by `/simplify` outside the change, once the saved `/simplify`
 > report bears it out; such a list reaches `ask-it` with the carried items.
 
+> **Amended by [ADR-0102](0102-check-it-reviews-are-a-catalog-chosen-per-change.md),
+> for #102.** The default reviews asked at the confirm stop include `check-it`'s
+> verify review where a verify skill in the repository covers a file the change
+> will touch, and the worker's brief carries it kept or dropped.
+
 > **Amended on 2026-11-17.** A worker no longer copies the conductor's permission
 > flag. The confirm stop asks the person once for the run's worker permission mode:
 > approve everything, auto mode, or ask each time. The maintainer chose this. The

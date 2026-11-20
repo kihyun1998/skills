@@ -1,6 +1,6 @@
 ---
 name: check-it
-requires: [lens, sweep, comment-it, review, security-review, simplify]
+requires: [lens, sweep, comment-it, review, security-review, simplify, statechart]
 description: "Measure a finished change before anyone calls it done, cheapest check first. Use once a change is written and before it reaches a person."
 ---
 
@@ -27,11 +27,12 @@ person chose it, and keeps them as *What `/simplify`'s edits keep* says.
 | 8 | What is missing | `lens`, forked by `Skill` | offered | offered |
 | 9 | Do the new comments and lint suppressions keep the repository's comment rule | `comment-it`, forked by `Skill` | always | — |
 | 10 | Will it get slower | `benchmark.md`, when it applies | the change adds state, loops, or I/O | — |
-| 11 | Which findings of 6, 7 and 8 hold | the proving agent, a fresh agent | always | over what ran of 6–8 |
-| 12 | Which surfaces now describe it wrongly | `sweep` | always | always |
+| 11 | Does a property the project's verify skill proved still hold | the verify skill's own check, run in this session | always, where a verify skill covers a file the diff touches | — |
+| 12 | Which findings of 6, 7 and 8 hold | the proving agent, a fresh agent | always | over what ran of 6–8 |
+| 13 | Which surfaces now describe it wrongly | `sweep` | always | always |
 
-Every row from 4 to 11 marked *always* or *offered* is a review the person
-chooses for this change (*Choosing the reviews*); `sweep` (12) is not one, since
+Every row from 4 to 12 marked *always* or *offered* is a review the person
+chooses for this change (*Choosing the reviews*); `sweep` (13) is not one, since
 the surfaces a change leaves wrong are kept in line through it (ADR-0055). *Always* means it is recommended by default and
 runs unless the person dropped it; one they dropped is reported as dropped by
 the person, and any other skip is reported with its reason. *Offered* means it
@@ -40,14 +41,15 @@ chosen, and neither of those is a skip (ADR-0102, amended for #95).
 
 **The order is cost, then what each step needs.** A red gate makes every
 expensive pass below it a waste, so 1 to 3 go first. `/simplify` (4) goes next,
-because it edits; 1 to 3 run again on its edits. Then 5 to 10 run at the same
+because it edits; 1 to 3 run again on its edits. Then 5 to 11 run at the same
 time: they read the same diff and ask different questions, which is not
-splitting material but the opposite. The proving agent (11) runs last of the
-reviews, since it works on their findings. `sweep` (12) runs on the change as it
+splitting material but the opposite. The one exception is 11, which waits for
+10 where 10 runs (*A project's verify skill*). The proving agent (12) runs last of the
+reviews, since it works on their findings. `sweep` (13) runs on the change as it
 stands once the findings acted on are fixed.
 
-**A prose change runs 5 and 12, plus 2 where it added or moved a file, and the
-offered reviews the person chose, with 11 over what ran of 6 to 8; the reviewer
+**A prose change runs 5 and 13, plus 2 where it added or moved a file, and the
+offered reviews the person chose, with 12 over what ran of 6 to 8; the reviewer
 does not run where the person dropped it.** There are no gates to run and no round trip to prove. A run that reports those as passed has
 reported on work it did not do.
 
@@ -70,7 +72,7 @@ design question.
 `thegraph` and `thegraph-herdr` ask which reviews run at their confirm stop,
 and the answer reaches this step on the run sheet or in the worker's brief. **A
 direct `/check-it`, with no confirm stop before it, asks once, at its start.**
-Every review from 4 to 11 this change's column marks *always* or *offered* is a
+Every review from 4 to 12 this change's column marks *always* or *offered* is a
 candidate, and the person may drop any of them (ADR-0102, amended for #95).
 
 **The reviews are asked in a call of their own**, after everything else the stop
@@ -78,9 +80,14 @@ asks, once per issue. The question tool takes two to four options a question,
 so the candidates are split until every one is an option: the default set (the
 column's *always*) in its own question or questions, the offered ones in
 another, each with several answers allowed (`multiSelect`). On a code change
-the default set is four reviews and fits one question. On a prose change it is
-the reviewer alone, put as a question with two options, run it or drop it; the
-proving agent there runs over what ran of 6 to 8 and is not a candidate. A
+the default set is four reviews and fits one question; where a verify skill
+covers a file the change touches (11), it is five, split over two. On a prose
+change it is the reviewer alone, put as a question with two options, run it or
+drop it; the proving agent there runs over what ran of 6 to 8 and is not a
+candidate, and the verify review is not one either, since the files it covers
+are code. Where no verify skill covers a file the change touches, the verify
+review is not a candidate and the question does not name it; the result says it
+was looked for. A
 candidate left out of the options is named in the question with why, such as `/security-review` where there is no
 `origin/HEAD` (below).
 
@@ -90,6 +97,8 @@ run, and its cost where one is on record (ADR-0102's measurements):
 
 - **A default review** is recommended, with what it would read in this change.
   The proving agent's option says it runs over whichever of 6 to 8 are chosen.
+  The verify review's names the verify skill, the covered files the change
+  touches, and the run time its skill records (ADR-0102 has justssh's).
 - **An offered review** is recommended only where it meets a signal in the table
   below, and the option names the signal and the evidence for it. Where none is
   met it says *no signal* with why, and is not recommended.
@@ -121,7 +130,10 @@ lines that carry it: through the conductor where there is one (in a
 directly otherwise. **A change confirmed as prose whose diff now runs** (it adds
 or changes code) takes the code column: each review that column marks *always*
 and the prose one did not, `/review` and `comment-it`, is asked in the same
-question as a default, recommended. Where none does, nothing is asked, which is
+question as a default, recommended. **A diff that touches a file a verify skill
+covers, where the confirm stop did not offer the verify review**, asks it in the
+same question, as a default, recommended, with the files. Where none does,
+nothing is asked, which is
 the ordinary case. **A review already chosen whose signal is gone still runs**: the person
 chose it, and the diff does not unchoose it. The answer is kept where the
 confirm stop's is, so a later start of `check-it` on the same issue does not ask
@@ -151,9 +163,12 @@ would otherwise hand its reviews that model too.
 | `/review` (6) | Opus 5.5, `high` | `--model claude-opus-5-5 --effort high` on its process, and `high` as the command's level |
 | `/security-review` (7) | Opus 5.5, `high` | `--model claude-opus-5-5 --effort high` on its process |
 | `lens` (8) | Opus 5.5, `high` | `model` and `effort` in `lens`'s frontmatter |
-| the proving agent (11) | Opus 5.5, `medium` | `model: "opus"` and `effort: "medium"` on the `Agent` call |
+| the proving agent (12) | Opus 5.5, `medium` | `model: "opus"` and `effort: "medium"` on the `Agent` call |
 | `/simplify` (4) | Opus 5.5, `medium` | `--model claude-opus-5-5 --effort medium` on its process, whose four agents run on its model and effort |
 | `comment-it` (9) | Sonnet 5.5, `medium` | `model` and `effort` in `comment-it`'s frontmatter |
+
+The verify review (11) has no row: it runs the project's own command in this
+session, and its reading follows that project's skill.
 
 `thegraph` and `thegraph-herdr` show this table at their confirm stop, beside
 the reviews, and a direct `/check-it` shows it with its question. **A
@@ -221,7 +236,7 @@ the one the #91 trial measured, and a process that never saw this session.
 - Do not append the issue to the command: everything after `/review` and its
   flags is read as the review target (`code-review-local.md`). The review reads
   this repository's `CLAUDE.md`; the issue reaches the reviewer (5) and the
-  proving agent (11), which judge against it.
+  proving agent (12), which judge against it.
 - Start each with its row's `--model` and `--effort` (*Each review's model*),
   and give `/review` its level as the command's first word (`/review high`):
   with no level typed, `/review` reuses the last level the person typed in any
@@ -247,7 +262,7 @@ the one the #91 trial measured, and a process that never saw this session.
   holds this branch's commits not yet on `origin`; where there are any, say so.
 
 Their findings name a file, a line and a failure scenario in words, and are not
-run. That is what the proving agent (11) is for.
+run. That is what the proving agent (12) is for.
 
 ### What `/simplify`'s edits keep (4)
 
@@ -280,7 +295,74 @@ on the list is **outside the change**.
 as kept, once the saved report bears it out, and the list reaches `ask-it` with
 the worker's carried items (ADR-0102, amended for #97).
 
-### The proving agent (11)
+### A project's verify skill (11)
+
+A **verify skill** is defined in `GLOSSARY.md`: the project-local skill
+`create-formal-verification-skill` writes, under the repository's
+`.claude/skills/`, committed or not. Nothing here builds one or calls that skill
+(#78).
+
+**The signal is mechanical**: the files the diff touches (`git diff HEAD
+--name-only --no-renames`, which names both paths of a move, and every
+untracked file) against the files each verify skill names as covered: the code
+its check describes, not every file the skill mentions (its model, its scripts
+and the files it lists as not covered are not covered files). A file in both
+turns the review on for that skill; at a confirm stop, the files the change will
+touch stand in for the diff. A skill that covers only some functions of a file
+still counts the file: whether the change reaches a covered function is the
+verify skill's own first step, and the check runs either way. The candidates are
+found by reading each `.claude/skills/*/SKILL.md`: one that names the files it
+covers and the commit it was confirmed at (its sync commit) is a verify skill,
+wherever in it it writes them, and one without both is not.
+
+**Running it.** It runs after (10) where (10) runs, since a check such as TLC
+can take every core and a benchmark wants a quiet machine, and beside 5 to 9
+otherwise. It runs in this session. Follow the verify skill's steps for whether
+the change touches the verified code and for running its command, run bare as
+(1) runs a check. Save the output, as `<run sheet>.verify.md` or in the OS temp
+folder. A check that cannot run here, such as one whose tool is not installed,
+is reported as not run, with why, and never as a pass.
+
+**Where the check runs on a model rather than on the code, a code change cannot
+turn it red by itself.** So where the verify skill's own test says the change
+touches the verified code (a mapped function, or a new step of the kind its
+model makes an action) and the model no longer describes the new code, bring the
+model in line with the new code, as the first step of the skill's section for an
+intended change says, **in a copy in the OS temp folder**, and run the check
+there once, with its own temporary folder, so its logs do not replace the
+repository run's. Only that first step: the copy is not changed again until it
+passes, and the repository's model, the skill and its sync commit are left as they are,
+since nothing here fixes anything. The repository run is the baseline *Whose is
+it* compares against, where no commit after the sync commit touched the covered
+files.
+
+**Reading the result.** A failed run's counterexample is read with the tool the
+verify skill names, `statechart` for a TLA+ check, which this session invokes
+itself since #100, even where an older verify skill says a person runs it; a
+passing run is read from its own output, since `statechart` reruns the check.
+The result says, as the verify skill's steps tell a real bug from a modelling
+error:
+
+- **Whether the model needed bringing in line.** Where it did, that is drift,
+  and it goes to a person with the functions and the model change the copy
+  needed, whatever the copy's run gave. Where the covered files also changed in
+  commits after the sync commit (`git log --oneline <sync commit>..HEAD --
+  <covered files>` lists any), the drift may be older than this change, and the
+  result names `/maintain-formal-verification-skill`, which a person invokes.
+- **What the run gave**, on the repository's model where it still describes the
+  code, or on the copy:
+  - **pass**;
+  - **a bug**: a property fails, and every step of the counterexample can happen
+    in the new code. One this change introduced goes back to `make-it`; one the
+    tree without it also fails on goes to a person (*Going back, and
+    stopping*). A finding the skill already records is an expected failure in
+    its check;
+  - **a recorded finding now passes**: the change fixed it. It goes to a person
+    with the skill's steps for moving that property, not back as a defect;
+  - **a modelling error**: a step of the counterexample cannot happen in the
+    code. It goes to a person as drift, with that step and the code it maps to.
+
+### The proving agent (12)
 
 One fresh agent, briefed as the reviewer is, given every finding of 6, 7 and 8
 as each report gave it, with its grade or severity, and each finding `/simplify`
@@ -442,7 +524,7 @@ does not fire. Anything genuinely ambiguous goes out as a question, not a verdic
 
 ## Briefing the fresh agents
 
-**The reviewer (5), the proving agent (11), `lens` and `comment-it` each run in a
+**The reviewer (5), the proving agent (12), `lens` and `comment-it` each run in a
 fresh agent** that never saw this session (ADR-0091, ADR-0095, ADR-0102), and
 the built-ins in a process of their own. That is the point: the hand that shaped
 the change is the worst judge of it. So the brief is all it gets: for `lens`, the
@@ -456,12 +538,12 @@ git, as `lens` says (#93): a worktree, or a copy that keeps `.git`, writes into
 this repository's gitdir. That prompt names the diff as `git diff HEAD` plus every
 untracked file, so a new file is in it, and it points at the issue and this
 repo's records. The reviewer's prompt quotes (5)'s two questions and the
-paragraph after them as written here; the proving agent's quotes (11) as written
+paragraph after them as written here; the proving agent's quotes (12) as written
 here, and every finding it is to prove.
 
 **Save each report** beside the run sheet, as `<run sheet>.<name>.md` with the
 name `simplify` (4), `spec-rules` (5), `review` (6), `security` (7), `lens` (8),
-`comments` (9) or `proving` (11), or in the OS temp folder when there is no run
+`comments` (9), `verify` (11) or `proving` (12), or in the OS temp folder when there is no run
 sheet, so a compaction does not lose it. Then **re-run each command the
 reviewer's kept findings carry, and each passed finding's reproduction, before
 acting on it**: a finding is a candidate until it was reproduced here. An

@@ -17,6 +17,10 @@
 > in files outside it, listed with why. *Not decided here*'s second and third
 > items are decided there. It amends ADR-0098's `done` check: a file so listed
 > as kept is not sent back.
+>
+> **Amended for #102 on 2026-11-20** (*A project's verify skill*, below). Where
+> the repository has a verify skill and the diff touches a file its coverage
+> record names, `check-it` runs that skill's check as a default review.
 
 **Status:** accepted. Implements #91 (anchor #94). Amends
 [ADR-0090](0090-four-delegates-retire-into-their-callers.md),
@@ -41,6 +45,7 @@ person chose them. The bundled reviews run in a `claude -p` process each.
 | design review | bundled `/simplify`, which applies its fixes; the earlier checks run again on them | offered on risk | offered |
 | `lens` | as is | offered on risk | offered |
 | performance review | the worker's conditional measurement (`benchmark.md`) | when its condition holds | — |
+| verify review (#102) | the project's verify skill's own check, run in the working session | default where a verify skill covers a file the diff touches | — |
 
 Order: `/simplify` first, then the cheap checks again, then the reading reviews at
 the same time, the proving agent last. The offered reviews are asked at
@@ -478,3 +483,109 @@ scratch repositories:
   the signal (a shell command, an argument from outside) and the diff line,
   recommended; it did not ask about `/simplify` (no signal) or `lens` (chosen).
   Not measured: a diff with no new signal, where nothing should be asked.
+
+## A project's verify skill (#102, 2026-11-20)
+
+**The call is the maintainer's**, made in `/grilling` on #78 and filed as #102
+on 2026-11-20: where the repository has a verify skill (`GLOSSARY.md`, the kind
+`create-formal-verification-skill` writes) and the diff touches a file its
+coverage record names, `check-it` runs that skill's check as a **default**
+review, droppable at the confirm stop like every review since #95. The signal is
+the diff's files against the coverage record. A failure is reported as a bug or
+as drift, as the verify skill's own steps tell, and drift across commits names
+`/maintain-formal-verification-skill`, which stays user-invoked.
+`create-formal-verification-skill` is not wired in: the 37 minutes of building
+a check are spent only when a person asks. Ground as given: one run took 43 s in
+the #78 trial, and a proved property that silently stops holding after a change
+is the case this guards against.
+
+**Derivations made at build**, the later ones from `check-it` on this change
+(the reviewer, `/review`, `lens`, the proving agent):
+
+- It is row 11 of `check-it`'s table, among the reading reviews, and waits for
+  the benchmark (10) where that runs, since TLC takes every core (`-workers
+  auto`) and a benchmark wants a quiet machine. The proving agent becomes 12
+  and `sweep` 13. It gives the proving agent nothing: it is a run with its own
+  pass rule.
+- Its prose column is empty: the files it covers are code, and a diff that
+  reaches code takes the code column, where the start-of-run re-ask already
+  asks a default review nobody was asked about.
+- It runs in the working session and has no row in *Each review's model*.
+- A verify skill is found by reading each `.claude/skills/*/SKILL.md` of the
+  repository, committed or not, for the files it covers and its sync commit. The
+  generated format fixes no heading for either, so finding them is a reading;
+  the comparison with the diff is the mechanical part. The diff's files come
+  from `git diff HEAD --name-only --no-renames` and the untracked list: without
+  `--no-renames`, a covered file moved with `git mv`, or one marked
+  `--intent-to-add`, shows only its new path and the signal stays off
+  (reproduced by `lens` and the proving agent, git 2.50.1). A file whose
+  coverage is some of its functions counts as a whole file; the check runs
+  either way.
+- A check on a model rather than the code cannot go red from a code change
+  alone: justssh's `check.sh` reads only `BrokerTokens.tla` and its configs.
+  The first draft therefore sent a change that removed a guard to a person as
+  drift, never back to `make-it` as a bug (`lens`, passed by the proving
+  agent). So where the verify skill's own test says the change touches the
+  verified code and the model no longer describes it, the session brings the
+  model in line, the first step of the skill's section for an intended change
+  and no further (its later steps run the check until it is green and move the
+  sync commit), in a copy in the OS temp folder, and runs the check there once.
+  That the model needed it is drift, reported whatever the copy's run gave; the
+  run itself reads as pass, a bug when every step of the counterexample can
+  happen in the code, a recorded finding now passing, or a modelling error. The
+  repository run is the baseline where no commit after the sync commit touched
+  the covered files. The re-read of the revision found the first wording made a
+  copy's pass read as both pass and drift, and keyed the copy to a mapped
+  function where the skill's own test also counts a new step that takes the
+  lock. `create-formal-verification-skill`,
+  `maintain-formal-verification-skill` and the generated skill all update the
+  model to the code before running; the copy keeps `check-it`'s *nothing here
+  fixes anything*, and the repository's model and sync commit are left alone.
+- A recorded finding that now passes is a result of its own: the change fixed
+  it, and it goes to a person with the skill's steps for moving the property.
+- *Drift across commits* is read as the covered files having changed in commits
+  after the sync commit (`git log <sync commit>..HEAD -- <files>`), not as a
+  count of commits, since none was measured, and the result says the drift *may*
+  be older, since those commits need not be what drifted.
+- `statechart` is model-invoked since #100, so the session invokes it even where
+  an older verify skill, such as justssh's, says a person runs it; only on a
+  failed run, since it reruns TLC with one worker and `pins.cfg` holds 11.6
+  million states (#78). A passing run is read from its own output.
+
+**What the decision did not cover:**
+
+- A diff that touches a verify skill's own files (its model, its script, its
+  `SKILL.md`) but no covered code does not turn the review on.
+- Several verify skills covering the same diff each run; their cost adds up, and
+  no repository has two yet.
+- Whether the reading, which on a model check is where the review happens, runs
+  in a fresh agent rather than the session that wrote the change (`lens`,
+  unadjudicated): that needs a model row, which is the maintainer's (#86).
+- The generated verify skills say to read every result with `statechart`,
+  passes included; `check-it` reads only failures with it. The family's rule is
+  not changed here.
+
+**Measured on the change**, 2026-11-20, in justssh at `6caf14d`, with
+`verify-broker-tokens` and `crates/justssh-broker/verify/` untracked; one run
+each, a fresh Opus 5.5 agent (`medium`) given only the new *A project's verify
+skill* section of `check-it`:
+
+| Scratch diff | Signal | What ran |
+|---|---|---|
+| one blank line appended to `crates/justssh-broker/src/tokens.rs` | on: `tokens.rs` is in the diff and in the skill's covered files | the skill's `git diff 6caf14d -- …` step (the hunk is after `mint()`, which the skill lists as not covered), then `bash crates/justssh-broker/verify/tokens/check.sh`: exit 0 in 64 s, `pins.cfg` and `launch.cfg` pass, the two `finding-*` configs violate the invariants the skill expects |
+| one blank line appended to `README.md` | off: neither `tokens.rs` nor `caller.rs` is in the diff | nothing |
+
+The first agent's notes changed the section before the second ran: the coverage
+record has no heading of its own in justssh's skill, the check runs even when the
+touched function is not covered, `statechart` was written as person-invoked, and
+the cost on record was 43 s against 64 s here. The second agent asked whether
+the untracked model files count as covered; the section now says they do not.
+The spec and rules reviewer reproduced both rows in a copy of justssh without
+`.git` (62 s, exit 0). The re-read of the revised section walked a diff that
+removes the `issued.frozen` check from `Tokens::authorize`: the repository's
+model passes; a copy with the model's `/\ ~frozen` (`BrokerTokens.tla:142`)
+removed to match the new code gave `pins.cfg` `got NoGrantWhileFrozen …
+UNEXPECTED`, exit 1, in 1 s, a counterexample every step of which the new code
+allows, so the change goes back to `make-it`. Not measured: the whole run on a
+copy, reading it with `statechart`, and a person reading the drift report; the scratch diffs were removed and justssh's tree
+left as found.

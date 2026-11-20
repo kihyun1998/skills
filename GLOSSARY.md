@@ -260,7 +260,8 @@ _Avoid_: finding vote (the name before it was decided to reproduce rather than v
 **Default review** (thegraph):
 A review [`check-it`](check-it/) recommends for every change of a kind, the ones
 its table marks *always*: on a code change the reviewer, `/review`,
-`comment-it` and the proving agent; on a prose change the reviewer. Asked at the
+`comment-it` and the proving agent, and the verify review where a verify skill
+covers a file the change touches (#102); on a prose change the reviewer. Asked at the
 confirm stop in the same call as the offered reviews, in a question of its own,
 each recommended; one the person leaves unticked in a question they answered is
 dropped by the person and reported so
@@ -478,6 +479,8 @@ command that reruns the check, the files and functions it covers, its guard
 table (each guard in the covered code with the property that catches it, or
 `uncovered` with the reason, #101) and the commit it was last confirmed at.
 `maintain-formal-verification-skill` brings one back in line with the code.
+`check-it` runs its check as a default review where a diff touches a file its
+coverage record names (#102).
 Where the check is a TLA+ model, its agent reads each result with `statechart`
 itself (#100).
 _Avoid_: verification skill (ambiguous with the two skills that write and maintain one)
@@ -552,7 +555,7 @@ _Avoid_: verification skill (ambiguous with the two skills that write and mainta
   |---|---|
   | [`read-it`](read-it/) | `firsthand` (`spine` absorbed, ADR-0090) |
   | [`make-it`](make-it/) | `tdd` (`redden` absorbed, ADR-0090); `design-it` for a new screen (ADR-0097); `encode-it` for a check-adding change (#80) |
-  | [`check-it`](check-it/) | `lens`, `sweep`, `comment-it` (#75); the bundled `/simplify`, `/review` and `/security-review`, each in its own `claude -p` (ADR-0102) (`bare` and `boundary` absorbed, ADR-0090; `assay` and `silt` absorbed, ADR-0092; the spec and rules reviewer and the proving agent, ADR-0095, ADR-0102) |
+  | [`check-it`](check-it/) | `lens`, `sweep`, `comment-it` (#75); the bundled `/simplify`, `/review` and `/security-review`, each in its own `claude -p` (ADR-0102); `statechart` for a failed verify check (#102) (`bare` and `boundary` absorbed, ADR-0090; `assay` and `silt` absorbed, ADR-0092; the spec and rules reviewer and the proving agent, ADR-0095, ADR-0102) |
   | [`ask-it`](ask-it/) | — (`envelope` and `byartifact` were absorbed, ADR-0089) |
 
   The seam is the same every time: **a method governs work of its kind anywhere;

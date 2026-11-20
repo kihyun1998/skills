@@ -167,8 +167,13 @@ what each has to carry and what a correction to each one means.
 in a call of its own after the reading, per issue**, as `check-it`'s *Choosing the
 reviews* words it: every review is an option, the default ones too, each with
 this change's evidence and its cost, and a candidate left out is named with why.
+The default ones include `check-it`'s verify review where a verify skill in the
+repository covers a file the change will touch, found by reading its
+`.claude/skills/` (`check-it`, *A project's verify skill*).
 That way the person answers once, with the issue already read, and `check-it`
-asks again only where the diff gives an offered review not chosen a signal. **Beside them goes `check-it`'s table of each
+asks again only where the diff gives an offered review not chosen a signal, or
+reaches code its column or a verify skill gives a default review nobody was
+asked about (`check-it`, *Asked again at the start*). **Beside them goes `check-it`'s table of each
 review's model** (*Each review's model*), as it stands; a row changes only where
 the person asks, and the table says which rows cannot change within a run.
 
