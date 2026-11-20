@@ -241,7 +241,7 @@ export default class Sessions {
   button(t, id, label, action, primary = false) {
     return div().id(id).flex_none().px(8).h(24).flex().items_center().rounded(6).text_size(12).cursor_pointer()
       .text_color(primary ? t.accent : t.muted).hover((s) => s.bg(t.hover).text_color(primary ? t.accent : t.foreground))
-      .on_click((_e, cx) => { cx.stop_propagation(); action(cx); })
+      .on_click((_e, cx) => { cx.stop_propagation(); action(cx); cx.notify(); })
       .child(label);
   }
 
