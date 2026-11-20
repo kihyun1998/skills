@@ -84,6 +84,23 @@ direct `/check-it`, with no confirm stop before it, asks once, at its start.**
 Every review from 4 to 12 this change's column marks *always* or *offered* is a
 candidate, and the person may drop any of them (ADR-0102, amended for #95).
 
+**The call opens with the review strength**, one question with three options,
+and the strength picks which reviews arrive ticked in the questions after it.
+Every one of them can still be ticked or unticked there (ADR-0102, amended for
+the strength question):
+
+| Strength | Arrives ticked |
+|---|---|
+| light | the reviewer (5) alone; on a code change, `/review` (6) too, at level `medium` |
+| usual | the default set as the table below this section's column marks it, `/review` at `high` |
+| thorough | the usual set, plus every offered review that meets its signal |
+
+*Usual* is recommended, and nothing about it differs from the defaults before
+the strength question. The option for each strength names what it ticks for
+this change, and the cost lines recorded so far for those reviews where there
+are any (*What gets measured*). The proving agent runs over whichever of 6 to 8
+end up chosen, whatever the strength.
+
 **The reviews are asked in a call of their own**, after everything else the stop
 asks, once per issue. The question tool takes two to four options a question,
 so the candidates are split until every one is an option: the default set (the
@@ -388,6 +405,10 @@ re-opens the source and quotes it. Each finding comes back as one of three:
 - **unproven**: no run here can show it, because it needs a live screen,
   another machine or a person to drive it. It says what would show it, and it
   goes to a person. It is never passed and never dropped.
+
+**Each finding's line also gives the time spent on it**, from the first probe
+to the verdict. No cap applies yet. The times are recorded so a cap can be set
+from them, or left unset (ADR-0102, amended for the strength question).
 
 A passed finding still goes where *Going back, and stopping* sends it: one this
 change did not introduce, or one that asks for a decision, goes to a person.

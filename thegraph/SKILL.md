@@ -165,7 +165,8 @@ what each has to carry and what a correction to each one means.
 
 **On a prose or code route, which reviews `check-it` runs is asked here too,
 in a call of its own after the reading, per issue**, as `check-it`'s *Choosing the
-reviews* words it: every review is an option, the default ones too, each with
+reviews* words it: the review strength first (light, usual, thorough), which
+picks what arrives ticked; then every review is an option, the default ones too, each with
 this change's evidence and its cost, and a candidate left out is named with why.
 The default ones include `check-it`'s verify review where a verify skill in the
 repository covers a file the change will touch, found by reading its

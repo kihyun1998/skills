@@ -589,3 +589,15 @@ UNEXPECTED`, exit 1, in 1 s, a counterexample every step of which the new code
 allows, so the change goes back to `make-it`. Not measured: the whole run on a
 copy, reading it with `statechart`, and a person reading the drift report; the scratch diffs were removed and justssh's tree
 left as found.
+
+## The review strength, and what each review cost (2026-11-20)
+
+**The call.** It is the maintainer's, made at the ask-it of the `/thegraph-herdr 78` run. The maintainer said `check-it` uses a great deal, uncounted, and asked whether to choose fewer reviews, or to say first what a change should get. Two changes came out of it, and one was deferred:
+
+- **Each review's cost goes in the result.** Each review gets one line with its time and, where the harness reports them, its tokens and cost. An `Agent` call reports `subagent_tokens` and `duration_ms`. A `claude -p` process run with `--output-format json` reports `total_cost_usd`, `duration_ms` and `modelUsage`; one call was measured, 2026-11-20. A forked `Skill` reports neither, so its line gives the time only.
+- **The review strength opens the review call.** It has three options. *light* ticks the reviewer, plus `/review` at `medium` on code. *usual* ticks the default set as it was, and is recommended. *thorough* ticks the usual set plus every offered review that meets its signal. Every review can still be ticked or unticked after the strength is picked.
+- **A cap on the proving agent was not set.** At first the conductor proposed ten minutes a finding. It then withdrew that: on #100 the long probes were the ones that found real defects (the janitor's EPERM cleanup, a kill sent to a pid that had already exited), and a capped finding goes to a person who can reproduce it less easily. So the proving agent records the time each finding took, and a cap is decided from those times, with #96's week of measurement.
+
+**Rejected.** A Haiku layer that reads the person's intent and picks the reviews and their models. Choosing is one question and costs little; the cost is in running the reviews. A model picked by a model also runs against "a person picks every model" (`thegraph-herdr`) and against #86's rows changing only where the person asks.
+
+**What it did not cover.** Which reviews *light* holds on a prose change beyond the reviewer, and whether the strength should also lower an effort other than `/review`'s. Both wait for the recorded costs.

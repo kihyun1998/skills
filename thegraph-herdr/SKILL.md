@@ -132,7 +132,8 @@ keep-as-tab and close controls.
 **Ask which reviews `check-it` runs**, for each prose or code issue, in a call
 of its own after the reading, the models and the permission mode,
 and never folded into one of theirs. It is put as `check-it`'s *Choosing the
-reviews* words it: every review is an option, the default ones too, split over
+reviews* words it: the review strength first (light, usual, thorough), which
+picks what arrives ticked; then every review is an option, the default ones too, split over
 as many questions as the tool's four options take; each option carries this
 change's evidence and its cost; a candidate left out is named with why.
 The default ones include `check-it`'s verify review where a verify skill in the
