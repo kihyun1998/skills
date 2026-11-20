@@ -29,6 +29,13 @@
 > report bears it out; such a list reaches `ask-it` with the carried items.
 
 > **Amended by [ADR-0102](0102-check-it-reviews-are-a-catalog-chosen-per-change.md),
+> for #105.** No review edits any more, so the `done` check's exemption for files
+> kept by `/simplify` is gone. `check-it`'s one question on its gathered report
+> reaches the person through the conductor, and the brief's reviews line names
+> the new reviewers. The verify check is part of `check-it`'s check (1), so the
+> confirm stop no longer asks it.
+
+> **Amended by [ADR-0102](0102-check-it-reviews-are-a-catalog-chosen-per-change.md),
 > for #102.** The default reviews asked at the confirm stop include `check-it`'s
 > verify review where a verify skill in the repository covers a file the change
 > will touch, and the worker's brief carries it kept or dropped.

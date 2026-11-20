@@ -247,21 +247,53 @@ answers apart whether the change does what the issue asked and whether it holds 
 against what the repository wrote down
 ([ADR-0095](docs/adr/0095-check-it-reviews-in-a-fresh-agent.md),
 [ADR-0102](docs/adr/0102-check-it-reviews-are-a-catalog-chosen-per-change.md)).
-Who could reach the change is `/security-review`'s question, not its.
-_Avoid_: review agent (see the Acceptance Gate); `/review` (the bundled bug review)
+Who could reach the change is the **Security reviewer**'s question, and whether
+it is built well for maintaining is the **Refactoring reviewer**'s, not its.
+_Avoid_: review agent (see the Acceptance Gate)
+
+**Bug reviewer** (thegraph):
+The fresh agent [`check-it`](check-it/) starts for correctness bugs in whatever
+the change makes run: code, scripts, configuration, and commands written in
+documents. Its brief is [`check-it/reviewers/bug.md`](check-it/reviewers/bug.md);
+it edits nothing, and the **Proving agent** reproduces its findings. A default
+review on a code change, offered on a prose one
+([ADR-0102](docs/adr/0102-check-it-reviews-are-a-catalog-chosen-per-change.md), #105).
+_Avoid_: `/review` (the command bundled with Claude Code that `check-it` ran
+before #105, which also reported rules and cleanups)
+
+**Security reviewer** (thegraph):
+The fresh agent [`check-it`](check-it/) starts for security defects where
+untrusted input reaches what the change makes run, or where it handles
+authentication, permissions or secrets; commands in documents included. Its
+brief is [`check-it/reviewers/security.md`](check-it/reviewers/security.md),
+which names who controls each input rather than which channel carries it; it
+edits nothing, and the **Proving agent** reproduces its findings. Offered
+([ADR-0102](docs/adr/0102-check-it-reviews-are-a-catalog-chosen-per-change.md), #105).
+_Avoid_: `/security-review` (the bundled command `check-it` ran before #105,
+which read only commits and no markdown)
+
+**Refactoring reviewer** (thegraph):
+The fresh agent [`check-it`](check-it/) starts to ask whether the change re-makes
+what the repository has, could be simpler, wastes visible work, is too general or
+too narrow, or is hard to maintain. Each finding gives a file, a line and its
+cost. Its brief is
+[`check-it/reviewers/refactoring.md`](check-it/reviewers/refactoring.md); it
+edits nothing, and the **Proving agent** reproduces its findings. Offered
+([ADR-0102](docs/adr/0102-check-it-reviews-are-a-catalog-chosen-per-change.md), #105).
+_Avoid_: design reviewer (read as a review of a screen); `/simplify` (the
+bundled command `check-it` ran before #105, which applied its own fixes)
 
 **Proving agent** (thegraph):
 The fresh agent [`check-it`](check-it/) starts last of its reviews. It reproduces
-each finding of `/review`, `/security-review` and `lens`, and what `/simplify` named and left unfixed, and returns each as
+each finding of the **Refactoring reviewer**, the **Bug reviewer**, the **Security reviewer** and `lens`, and returns each as
 *passed*, *dropped* with why, or *unproven* for a person where no run here can
 show it ([ADR-0102](docs/adr/0102-check-it-reviews-are-a-catalog-chosen-per-change.md)).
 _Avoid_: finding vote (the name before it was decided to reproduce rather than vote)
 
 **Default review** (thegraph):
 A review [`check-it`](check-it/) recommends for every change of a kind, the ones
-its table marks *always*: on a code change the reviewer, `/review`,
-`comment-it` and the proving agent, and the verify review where a verify skill
-covers a file the change touches (#102); on a prose change the reviewer. Asked at the
+its table marks *always*: on a code change the reviewer, the bug reviewer,
+`comment-it` and the proving agent; on a prose change the reviewer. Asked at the
 confirm stop in the same call as the offered reviews, in a question of its own,
 each recommended; one the person leaves unticked in a question they answered is
 dropped by the person and reported so
@@ -270,8 +302,8 @@ dropped by the person and reported so
 
 **Offered review** (thegraph):
 A review [`check-it`](check-it/) runs only where the person chose it for the
-change: `/security-review`, `/simplify` and `lens`, and `/review` on a prose
-change. It is asked at the confirm stop, or once at the start of a direct
+change: the refactoring reviewer, the security reviewer and `lens`, and the bug
+reviewer on a prose change. It is asked at the confirm stop, or once at the start of a direct
 `/check-it`, in a call of its own with the default reviews, recommended only
 where the change meets its signal; one not chosen is asked once more at
 `check-it`'s start where the diff meets its signal (#97). One not chosen is reported as not chosen, not
@@ -479,8 +511,8 @@ command that reruns the check, the files and functions it covers, its guard
 table (each guard in the covered code with the property that catches it, or
 `uncovered` with the reason, #101) and the commit it was last confirmed at.
 `maintain-formal-verification-skill` brings one back in line with the code.
-`check-it` runs its check as a default review where a diff touches a file its
-coverage record names (#102).
+`check-it` runs its check as part of its project checks (1), unasked, where a
+diff touches a file its coverage record names (#102, #105).
 Its agent reads each result from the checker's own output itself (#100, #113).
 _Avoid_: verification skill (ambiguous with the two skills that write and maintain one)
 
@@ -586,7 +618,7 @@ nothing else (ADR-0103).
   |---|---|
   | [`read-it`](read-it/) | `firsthand` (`spine` absorbed, ADR-0090) |
   | [`make-it`](make-it/) | `tdd` (`redden` absorbed, ADR-0090); `design-it` for a new screen (ADR-0097); `encode-it` for a check-adding change (#80) |
-  | [`check-it`](check-it/) | `lens`, `sweep`, `comment-it` (#75); the bundled `/simplify`, `/review` and `/security-review`, each in its own `claude -p` (ADR-0102) (`bare` and `boundary` absorbed, ADR-0090; `assay` and `silt` absorbed, ADR-0092; the spec and rules reviewer and the proving agent, ADR-0095, ADR-0102) |
+  | [`check-it`](check-it/) | `lens`, `sweep`, `comment-it` (#75); its own refactoring, bug and security reviewers, each a fresh agent (ADR-0102, #105) (`bare` and `boundary` absorbed, ADR-0090; `assay` and `silt` absorbed, ADR-0092; the spec and rules reviewer and the proving agent, ADR-0095, ADR-0102) |
   | [`ask-it`](ask-it/) | — (`envelope` and `byartifact` were absorbed, ADR-0089) |
 
   The seam is the same every time: **a method governs work of its kind anywhere;

@@ -6,6 +6,11 @@
 > Bugs go to the bundled `/review`, and a proving agent reproduces its findings.
 
 > **Amended by [ADR-0102](0102-check-it-reviews-are-a-catalog-chosen-per-change.md),
+> for #105.** Harm goes to `check-it`'s own security reviewer and bugs to its own
+> bug reviewer, fresh agents that replace the bundled commands. The reviewer
+> leaves maintainability structure to the refactoring reviewer.
+
+> **Amended by [ADR-0102](0102-check-it-reviews-are-a-catalog-chosen-per-change.md),
 > for #86.** The reviewer no longer runs on the session's model: the `Agent`
 > call starts it on Opus 5.5 at `high`, whatever the worker runs on.
 

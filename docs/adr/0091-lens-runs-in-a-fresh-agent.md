@@ -14,6 +14,12 @@
 > for #86.** `lens` no longer inherits the session's model: its frontmatter
 > sets Opus 5.5 at `high`, whatever the caller runs on.
 
+> **Amended by [ADR-0102](0102-check-it-reviews-are-a-catalog-chosen-per-change.md),
+> for #105.** In `check-it`, `lens` is no longer forked with `Skill`: `check-it`
+> starts a fresh agent with `Agent`, its prompt `lens`'s SKILL.md body followed
+> by the brief, on the model and effort its row sets. The skill, its fork and
+> its frontmatter stand for every other caller.
+
 > **Amended for #93 on 2026-11-19.** `lens`'s sentence is now *edit nothing,
 > and write no file outside the OS temp folder*, the line `check-it`'s reviewer
 > already had: one fork had written a probe test in the reviewed repository and

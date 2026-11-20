@@ -26,6 +26,17 @@
 > **Amended for #102 on 2026-11-20** (*A project's verify skill*, below). Where
 > the repository has a verify skill and the diff touches a file its coverage
 > record names, `check-it` runs that skill's check as a default review.
+>
+> **Amended for #105 on 2026-11-20** (*Every review is `check-it`'s own
+> subagent*, below). The bundled `/review`, `/security-review` and `/simplify`
+> no longer run: `check-it`'s own bug, security and refactoring reviewers take
+> their places, and every review, `lens` and `comment-it` included, is a fresh
+> agent started with `Agent` that edits nothing. Every finding goes into one
+> report and one question, and a person picks what is fixed. The verify check
+> leaves the catalog for check (1). This reverses, in the parts named there,
+> the built-ins of the catalog above and *How the built-ins start*, #86's rows
+> and recipe for the built-ins, #97's *`/simplify` outside the change*, #102's
+> verify check as a default review, and *What it amends*'s ADR-0090 item.
 
 **Status:** accepted. Implements #91 (anchor #94). Amends
 [ADR-0090](0090-four-delegates-retire-into-their-callers.md),
@@ -606,3 +617,192 @@ left as found.
 **Rejected.** A Haiku layer that reads the person's intent and picks the reviews and their models. Choosing is one question and costs little; the cost is in running the reviews. A model picked by a model also runs against "a person picks every model" (`thegraph-herdr`) and against #86's rows changing only where the person asks.
 
 **What it did not cover.** Which reviews *light* holds on a prose change beyond the reviewer, and whether the strength should also lower an effort other than `/review`'s. Both wait for the recorded costs.
+
+## Every review is `check-it`'s own subagent (#105, 2026-11-20)
+
+**The call is the maintainer's**, made in two grillings on 2026-11-20 and
+recorded in #105's body, during and after the `/thegraph-herdr 78` run. A worker
+there reported fixing a bug that appeared after `/simplify` ran: `/simplify`
+edits, and its edits went on through checks 1 to 3 and the worker's repairs with
+no person in between. Read from the prompts bundled in Claude Code 2.1.329:
+`/simplify` always applies its fixes and has no report-only mode; `/review`
+reports only, but also reports `CLAUDE.md` rules and cleanups, overlapping the
+reviewer and `/simplify`, with no flag to turn that off; `/security-review`
+reads only commits, excludes markdown, and treats command-line arguments and
+environment variables as trusted, while `check-it` offered it on prose and named
+"arguments" and "shell" as signals. Decided:
+
+- **`/simplify`, `/review` and `/security-review` are replaced** by the
+  refactoring reviewer, the bug reviewer and the security reviewer, each a fresh
+  agent briefed in `check-it`, its prompt written fresh rather than copied from
+  the bundled one, and none of them edits. The refactoring reviewer was first
+  named the design reviewer; "design" read as a review of a screen, so it was
+  renamed, and *design reviewer* is an avoided term in `GLOSSARY.md`. Rejected
+  for `/simplify`: running the built-in in a throwaway worktree and taking its
+  diff as proposals, and running it without `Edit` and `Write`.
+- **Each review's description and model**, agreed one at a time against the
+  bundled prompts and the `lens` and `comment-it` files: the reviewer Opus 5.5
+  `high`, now leaving maintainability structure to the refactoring reviewer; the
+  bug reviewer Opus 5.5 `high`, for correctness bugs in whatever runs, commands
+  in documents included; the security reviewer Opus 5.5 `high`; the refactoring
+  reviewer Opus 5.5 `medium`, on reuse, simplicity, visible waste (a slowdown to
+  be measured stays the benchmark's), generality and maintainability; `lens`
+  Opus 5.5 `high` and `comment-it` Sonnet 5.5 `medium`, each started as a
+  subagent given its skill's body, the skills staying for their other callers;
+  the proving agent unchanged, Opus 5.5 `medium`.
+- **The refactoring reviewer stays offered**, recommended on `/simplify`'s
+  signal row; its findings, like the bug and security reviewers', go through
+  the proving agent.
+- **One gathered report and one question.** After the proving agent, every
+  finding of the refactoring reviewer, the reviewer, the bug reviewer, the
+  security reviewer, `lens` and `comment-it` goes into one numbered report, the
+  drops listed with their grounds and confirmed once, as `ask-it` treats drops.
+  One question: fix as pre-ticked, fix nothing, or pick by number. In a
+  `thegraph-herdr` worker it goes through the conductor; a direct `/check-it`
+  asks it directly. No answer fixes nothing and stops the run uncommitted. A
+  passed finding the person leaves unfixed is carried to `ask-it` as their
+  choice. After the fixes the rule stands: checks 1 to 3 again, and a review
+  again only where a fix opened a surface it did not walk.
+- **The verify check leaves the catalog** and runs as part of check (1),
+  unasked, wherever a verify skill covers a file the diff touches, its bug or
+  drift reading kept.
+- **Choosing the reviews automatically** is #112, built on this catalog. Until
+  then the confirm stop asks as before, with the new catalog and descriptions.
+
+**The structure is the maintainer's call**, made at #105's confirm stop: each of
+the three new reviewers' briefs is a file of its own, `check-it/reviewers/<name>.md`,
+read only when that review runs and passed to `Agent`, as `check-it/benchmark.md`
+is read only when it applies. A separate skill for each was weighed and not
+taken: each has one caller, and a model-invoked skill's description is loaded
+in every session ([ADR-0090](0090-four-delegates-retire-into-their-callers.md),
+#44), where `check-it` reading a file costs nothing until the review runs.
+
+**Derivations made at build:**
+
+- **What *pre-ticked* holds.** #105 says pre-ticked is "only the findings that 11
+  passed as introduced by this change, which is what is fixed without a person
+  today". What was fixed without a person included the reviewer's reproduced
+  violations and `comment-it`'s findings, which carry their own evidence and do
+  not pass through the proving agent. So group 1 holds a proving-agent pass
+  introduced by this change and asking no decision, a reviewer *violation*
+  whose command re-ran here on what this change wrote, and a `comment-it`
+  finding on a comment the diff adds or changes. That keeps what is fixed by
+  default as it was, with a person in between. It is a reading of the
+  decision, confirmed by the maintainer on 2026-11-20 at the question of
+  `check-it` on this change.
+- **The numbers.** With the built-ins' order and the verify review gone, the
+  refactoring reviewer keeps `/simplify`'s 4, the proving agent becomes 11 and
+  `sweep` 12, which is how #105's body numbers them.
+- **The proving agent says whether each finding is introduced**, measured as
+  *Whose is it* says where a run can show it, since the pre-tick depends on it.
+- **The verify check now runs before the benchmark**, as part of (1), so the
+  wait #102 added between them is no longer needed; it also runs again with (1)
+  after the picked fixes.
+- **The security reviewer is offered on any change with an `origin` or
+  without**: the `origin/HEAD` condition was the bundled command's diff, and a
+  subagent reads `git diff HEAD` plus the untracked files like every review.
+- **Every review's cost line is an `Agent` call's** `subagent_tokens` and
+  `duration_ms`; `claude -p`'s cost fields and a forked `Skill`'s missing tokens
+  no longer arise. A model row can now change within a run for `lens` and
+  `comment-it` too, since the `Agent` call sets it; only a model with no alias
+  cannot go on a row.
+- **`lens` and `comment-it` get their skill's body in the prompt, and are told
+  not to call `Skill`.** #87's empty forks were a general-purpose agent calling
+  `Skill` with no `args`; with the method in the prompt, nothing is handed on.
+- **A sentence on signals**: a signal is read from what the change does, not from
+  a word in it, since "arguments" and "shell" in a skill's text recommended
+  `/security-review` on prose it could not read.
+- **An answer to the one question that names no option and no number is no
+  answer**, which in a `thegraph-herdr` worker ends as a `stuck` report, the
+  brief's way to say the issue cannot proceed.
+- `docs/agents/skill-dependencies.md` loses the `review`, `security-review` and
+  `simplify` rows: no live skill names them after this change.
+- **The refactoring reviewer does not ask altitude**, whether a fix sits at the
+  root or patches a symptom, which `/simplify` asked: #105's second-grilling
+  table names five questions without it, and `check-it`'s *The shape nobody
+  will have marked* already asks it of each defensive line in the working
+  session.
+
+Found by `check-it` on this change (the reviewer, the bug reviewer, `lens`, the
+proving agent) and fixed at the maintainer's answer *fix as pre-ticked*:
+
+- A skill body pasted into an `Agent` prompt reads its relative links, such as
+  `../clean-it/RULES.md`, from the agent's working folder, where they do not
+  resolve, so the prompt names the skill's folder; `lens` and `comment-it` say
+  that `check-it` starts them this way, and `comment-it`'s description no
+  longer names `check-it` as its trigger.
+- One defect found by several reviews is one numbered line in the highest group
+  any reaches, as `ask-it` counts sightings; the reviewer's *violation* marked
+  *not run* goes in group 2, since nothing reproduced it here.
+- The proving agent's prompt carries *Whose is it*, since it measures each
+  finding's owner that way.
+- A measured slowdown (10) keeps its row in *Going back*; the narrowed row for
+  review findings had dropped it.
+- An unanswered question leaves the run sheet in place, and a `thegraph-herdr`
+  worker, whose run sheet does not exist, writes the report's path in its report
+  file and reports `stuck`.
+- No review agent runs a command that acts outside its copy (a tracker, a
+  remote, another terminal or process); such a command is reported as traced.
+  `lens` found it on the bug reviewer, which is told to run commands written in
+  documents, and the rule went into the brief every review agent gets, since the
+  security reviewer and the proving agent run probes too.
+
+Left unfixed by the maintainer's choice and carried to `ask-it`: the `done`
+check against a picked fix outside what the confirm stop said is left alone,
+refactoring proposals that change behaviour being pre-ticked, angles and
+exclusions of the bundled prompts the new briefs leave out, *light* and the
+proving agent, and two index lines.
+
+**What the decision did not cover:**
+
+- Whether the new reviewers catch what the built-ins caught. The trial below is
+  one small change; #96's measurements are the place to compare.
+- Whether a benchmark's measured slowdown (10) goes into the gathered report.
+  #105 lists the report's sources without it, so it stays a defect that goes back
+  to `make-it`, as before.
+- Whether *light* lowers any effort beyond the bug reviewer's.
+
+**Measured on the change**, 2026-11-20, Claude Code 2.1.329, one run: a
+headless worker (`claude -p --model claude-opus-5-5 --effort medium`) ran this
+branch's `/check-it` on a scratch Python repository whose uncommitted change
+added `parse_duration` with four planted faults: an empty string returning 0
+where the issue asks for `ValueError`, a re-made `hours_to_seconds`, a comment
+the repository's rule forbids, and an import inside the function. Every review
+was chosen; the prompt told it to write its one question to a file and take
+*fix nothing* as the answer (280 s, $3.47 for the worker and its agents).
+
+| Review | Model, read from its transcript | Time | Tokens |
+|---|---|---|---|
+| refactoring (4) | `claude-opus-5-5`, `medium` | 39.1 s | 26,554 |
+| spec and rules (5) | `claude-opus-5-5`, `high` | 50.5 s | 27,068 |
+| bug (6) | `claude-opus-5-5`, `high` | 39.8 s | 27,015 |
+| security (7) | `claude-opus-5-5`, `high` | 39.5 s | 26,310 |
+| `lens` (8) | `claude-opus-5-5`, `high` | 106.2 s | 40,793 |
+| `comment-it` (9) | `claude-sonnet-5-5`, `medium` | 7.2 s | 23,152 |
+| proving (11) | `claude-opus-5-5`, `medium` | 137.7 s | 39,706 |
+
+- **No review edited.** No agent's transcript holds an `Edit` or `Write` call,
+  and the hash of `git diff HEAD` plus the untracked list was the same before
+  the run and after it.
+- **The findings went through the proving agent** and into one report of 12:
+  group 1 held the empty string (found by the reviewer, the bug reviewer and
+  `lens`), the comment (the reviewer, `lens`, `comment-it`) and five refactoring
+  proposals; group 2 a trailing newline and non-ASCII digits being accepted,
+  which the issue does not settle, and the single test; three drops with
+  grounds. The security reviewer found nothing, with the path `text` takes.
+- **The question appeared** with the three options, the report's path and
+  group 1 listed; *fix nothing* left the tree as the reviews found it.
+- **#87 did not recur**: the `lens` and `comment-it` agents' prompts held their
+  skill's body (`lens`'s opening line and `comment-it`'s heading found in the
+  prompt), neither called `Skill`, and both returned a report.
+- Seen and not from this change: `clean-it` had no link in `~/.claude/skills`
+  on this machine (`scripts/install-skills.sh` had not run since it was added),
+  so `../clean-it/RULES.md` did not resolve and the worker wrote the cleanup
+  rules into each brief itself; it wrote its
+  shared brief text to `/tmp/checkit`, outside the run folder; and it read the
+  README and docstring itself rather than calling `sweep`.
+
+Not measured: a code change through `thegraph-herdr`, where the question goes
+through the conductor; a person answering by number; a fix and the checks
+after it.
+

@@ -14,7 +14,9 @@ It sees none of that session's conversation, so everything it reads arrives in
 the brief, passed as this skill's argument: the subject, the corpora as paths or
 commands, and the deliberate-divergence list with its records. A caller passes
 it whole in `Skill`'s `args`, directly, never through an agent started to call
-this: from its caller, only those arguments reach the fork (#87). Where the brief
+`Skill`: from its caller, only those arguments reach the fork (#87). `check-it`
+instead starts an agent with this body and the brief in its prompt, and the
+brief there is the argument. Where the brief
 lacks one of the three, say so first, and read what was given. Where the arguments are empty, or
 only point elsewhere (*"see task message"*), say the brief was empty and stop:
 that is the check not run, and the caller reports it so. **The report is the

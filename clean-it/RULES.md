@@ -91,7 +91,7 @@ session closed before that leaves its ledger for `clean-it`.
 `<run folder>/build/<repository name>/`. Every copy and worktree of that
 repository in the run builds into it, so a review copy does not build the
 dependencies again. A process that cannot be told this in words, such as a
-`claude -p` review, gets it through its environment, and the step that starts
+build a script starts, gets it through its environment, and the step that starts
 it writes the ledger lines for what it is pointed at.
 
 - **Rust**: set `CARGO_TARGET_DIR` to it (Cargo also reads `--target-dir` and

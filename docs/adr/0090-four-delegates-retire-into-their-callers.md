@@ -13,6 +13,11 @@ steps never borrowed them.
 > `security-review` is back in `check-it`'s `requires:`, as the bundled skill run
 > in its own `claude -p` process where the person chose it.
 
+> **Amended by [ADR-0102](0102-check-it-reviews-are-a-catalog-chosen-per-change.md),
+> for #105.** `security-review` leaves `check-it`'s `requires:` again:
+> `check-it`'s own security reviewer, a fresh agent briefed in
+> `check-it/reviewers/security.md`, asks who could reach a change.
+
 The rules that bound now sit where the work happens:
 
 | Retired | Into | What moved |

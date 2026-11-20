@@ -172,15 +172,12 @@ in a call of its own after the reading, per issue**, as `check-it`'s *Choosing t
 reviews* words it: the review strength first (light, usual, thorough), which
 picks what arrives ticked; then every review is an option, the default ones too, each with
 this change's evidence and its cost, and a candidate left out is named with why.
-The default ones include `check-it`'s verify review where a verify skill in the
-repository covers a file the change will touch, found by reading its
-`.claude/skills/` (`check-it`, *A project's verify skill*).
 That way the person answers once, with the issue already read, and `check-it`
 asks again only where the diff gives an offered review not chosen a signal, or
-reaches code its column or a verify skill gives a default review nobody was
-asked about (`check-it`, *Asked again at the start*). **Beside them goes `check-it`'s table of each
+reaches code its column gives a default review nobody was asked about
+(`check-it`, *Asked again at the start*). **Beside them goes `check-it`'s table of each
 review's model** (*Each review's model*), as it stands; a row changes only where
-the person asks, and the table says which rows cannot change within a run.
+the person asks, and the table says which changes cannot apply within a run.
 
 **This is not `ask-it`.** That one comes at the end and asks what to *file*; this
 one asks whether the reading is right, before anything has run.
@@ -196,7 +193,7 @@ written under it for the next step, the offered reviews chosen, the default ones
 the person dropped and any review model the person changed included. In a
 cluster, where the step list is rewritten for each child, the choice is each
 child's, kept in a `## Reviews` section without checkboxes, one line per child
-(`- #38 — lens, /security-review; dropped: /review; reviewer: opus, xhigh`, the
+(`- #38 — lens, security reviewer; dropped: bug reviewer; reviewer: opus, xhigh`, the
 dropped default reviews and a changed row after semicolons).
 
 ### 3. Follow the route

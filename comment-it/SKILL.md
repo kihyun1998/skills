@@ -1,6 +1,6 @@
 ---
 name: comment-it
-description: "Judge the comments and lint suppressions in a scope against the repository's comment rule, and report each one that breaks it. Use when `check-it` measures a code change, or with a path to survey the comments already there."
+description: "Judge the comments and lint suppressions in a scope against the repository's comment rule, and report each one that breaks it. Use with a path to survey the comments already there, or on a diff a caller hands over."
 context: fork
 background: false
 model: claude-sonnet-5-5
@@ -12,8 +12,9 @@ effort: medium
 **This runs in a fresh agent, not in the session that wrote the code**, as
 `lens` does. Everything it reads arrives in the argument: the repository's root
 and the scope, passed whole in `Skill`'s `args` by a caller that calls this
-directly, never through an agent started to call it, since from its caller
-only those arguments reach the fork (#87). **Edit nothing, and write no file outside the OS temp folder** (#93): a probe
+directly, never through an agent started to call `Skill`, since from its caller
+only those arguments reach the fork (#87). `check-it` instead starts an agent
+with this body and the argument in its prompt, on a code change's diff. **Edit nothing, and write no file outside the OS temp folder** (#93): a probe
 that traces a claim is written there, and one that must run inside the tree runs
 in a copy made there without its `.git`, with `git init` where it needs git,
 since a linked worktree's `.git` points at the reviewed repository's own. That
