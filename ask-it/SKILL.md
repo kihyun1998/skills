@@ -49,6 +49,7 @@ a drop, with that as its ground.
 | **Tracker** | which tracker was searched, for what, and what came back | *"not searched: proposed as a drop"* or *"…as a decision"*. Every item that could be filed is searched before it is presented (see below) |
 | **Done already** | what you changed, ran or committed on its account | *"nothing yet"*, written out, since silence reads as *a fix is already in the tree* |
 | **Still the plan?** | whether the agreed direction survives this item | *"it moved: here is where"*. Never omitted, since a batch of reasonable items can add up to a different plan from the one approved |
+| **Why not now** | for an item proposed for filing, the judgement that still holds it open: a call that is the person's, or a design nobody has settled | *"none"* means it is not filed: it is done now, as *a small, measured follow-up* says, and reported as done. Several items in one filed issue each carry their own |
 
 **A decide item arrives with each option's consequences and a
 recommendation.** That includes deferring: where deferring is recommended, say
@@ -70,8 +71,8 @@ plain text is right.
 
 | Kind | What the reader is being asked |
 |---|---|
-| something to **file** — a defect, a follow-up, a deferral | file it, or drop it |
-| a **check candidate** — a repeated correction a check could hold, carried with where it was already written, or a constraint taken out of a comment | file it as an issue that `/thegraph` builds through `make-it` and `encode-it`, or drop it |
+| something to **file** — a defect, a follow-up, a deferral, each with its *why not now* | file it, or drop it |
+| a **check candidate** — a repeated correction a check could hold, carried with where it was already written, or a constraint taken out of a comment | build it now through `encode-it` where its shape is known; otherwise file it as an issue that `/thegraph` builds through `make-it` and `encode-it`; or drop it |
 | a **first correction** to record as a rule — carried with where the rule would go and a draft line | write the line there as drafted or reworded and commit it before the push, or drop it |
 | something to **decide** — an adversarial finding the sources could not settle, a patch standing in for a deeper fix | a judgement, not a filing |
 | something that belongs to **another repository** — a defect in the method itself rather than in this code | it is filed elsewhere, and this repository is the wrong tracker to search |
