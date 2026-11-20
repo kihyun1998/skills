@@ -19,12 +19,15 @@ git -C pstack log --oneline e1cc031..origin/main -- pstack/skills/create-formal-
 
 ## Changes from upstream
 
-- `SKILL.md` (kihyun1998/skills#100): the agent reads every TLA+ result with
-  `statechart` itself, while it builds the check and when it proves it, and the
-  generated skill's agent does the same, instead of asking the user to run it. In
-  the #78 trial the generated skill asked the person. `statechart` is named as
-  this catalog's skill, not as pstack's, and `requires: [statechart]` declares
-  the call, as this repository's `CLAUDE.md` asks.
+- `SKILL.md` (kihyun1998/skills#100, then #113): the agent reads every result
+  itself from the checker's output, while it builds the check and when it proves
+  it, tells each violation as its shortest path in the code's words, and the
+  generated skill's agent does the same, instead of asking the user to run
+  anything. Upstream reads a TLA+ result with pstack's `statechart`; #100 made the
+  agent run it, and #113 retired it here (`retired/statechart`): this repository
+  has no TLA+ model, and inside a run the agent reads the counterexample itself,
+  so `statechart` reran the check to draw a picture for a person the run does not
+  show it to. In the #78 trial the generated skill asked the person.
 - `SKILL.md` (kihyun1998/skills#101): a new section, *Find what no property
   covers*, breaks each guard in the target code and records which property
   catches it against the run on the unchanged code, in a guard table that goes

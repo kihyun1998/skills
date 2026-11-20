@@ -1,6 +1,5 @@
 ---
 name: create-formal-verification-skill
-requires: [statechart]
 description: "Generate a project-local skill that formally verifies the code where a bug costs the most and tests reach the least, in any language, with whichever verification tool fits. Use for /create-formal-verification-skill, \"model-check this race\", \"prove this invariant\", or when concurrency, retries, state machines, parsers, or unsafe code need more than tests."
 disable-model-invocation: true
 ---
@@ -49,7 +48,7 @@ Keep the result as a guard table, one row per guard: the file and function, the 
 
 Write a project-local skill with frontmatter that names the area and says when to use it. Without frontmatter, the skill never registers. From the skill alone, the next agent must be able to tell whether a change touches the verified code, run the check, tell a real bug from a modeling error, and update the verification when a change is intended. Put the coverage record, with the guard table, and the sync commit in the skill. Tell the next agent to add, change, or remove a row when a change adds, moves, or removes a guard, and to move the sync commit forward only after it confirms that the verification describes the code at the new commit. Use this repo's real commands, paths, and nouns, and leave no placeholders.
 
-If the check is a TLA+ model, read every result it gives with the [`statechart`](../statechart/SKILL.md) skill: invoke the skill yourself, while you build the check and when you prove it, and do not ask the user to run it. It shows each invariant violation the checker finds as its shortest path in plain words. When the check passes, `statechart` draws a chart of how the system moves between states. Tell the next agent to do the same: the generated skill names `statechart`, and the agent that follows it invokes `statechart` itself. Refer to `statechart` by name. Its commands, options, and file paths change between releases and machines, so copy none of them into the generated skill or its scripts.
+Read every result the check gives from the checker's own output, while you build the check and when you prove it, and do not ask the user to run anything to read it. Tell each violation as its shortest path in the code's words. The generated skill tells the next agent to read results the same way.
 
 ## Prove it before you hand off
 

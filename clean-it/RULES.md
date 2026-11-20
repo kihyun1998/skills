@@ -105,7 +105,7 @@ it writes the ledger lines for what it is pointed at.
 ### Tool state
 
 Tool state goes to a set place under the step's folder and is deleted with the
-step. For TLC, read from `tla2tools.jar` v1.7.4 (the version `statechart` pins)
+step. For TLC, read from `tla2tools.jar` v1.7.4 (the version the retired `statechart` pinned)
 with Java 17, and run on 2026-11-20:
 
 - Without `-metadir`, TLC writes `states/` beside the spec. **Each run leaves a
@@ -122,9 +122,6 @@ with Java 17, and run on 2026-11-20:
 - The JVM's `hsperfdata_<user>` folder does not follow `java.io.tmpdir`. On
   Windows it follows `TMP` and `TEMP`; `-XX:-UsePerfData` stops the JVM writing
   it at all. Where it goes on POSIX was not checked.
-
-`statechart` already sends TLC's state into its own temporary folder and deletes
-it; this is for every other way TLC is run.
 
 ### Worktrees
 

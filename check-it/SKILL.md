@@ -1,6 +1,6 @@
 ---
 name: check-it
-requires: [lens, sweep, comment-it, review, security-review, simplify, statechart]
+requires: [lens, sweep, comment-it, review, security-review, simplify]
 description: "Measure a finished change before anyone calls it done, cheapest check first. Use once a change is written and before it reaches a person."
 ---
 
@@ -370,12 +370,11 @@ since nothing here fixes anything. The repository run is the baseline *Whose is
 it* compares against, where no commit after the sync commit touched the covered
 files.
 
-**Reading the result.** A failed run's counterexample is read with the tool the
-verify skill names, `statechart` for a TLA+ check, which this session invokes
-itself since #100, even where an older verify skill says a person runs it; a
-passing run is read from its own output, since `statechart` reruns the check.
-The result says, as the verify skill's steps tell a real bug from a modelling
-error:
+**Reading the result.** This session reads the run's own output, a failed run's
+counterexample included, and tells a counterexample as a short sequence of steps
+in the code's words. It runs nothing else to read it, even where an older verify
+skill names a tool for that. The result says, as the verify skill's steps tell a
+real bug from a modelling error:
 
 - **Whether the model needed bringing in line.** Where it did, that is drift,
   and it goes to a person with the functions and the model change the copy

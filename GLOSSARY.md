@@ -470,7 +470,7 @@ is `thegraph-panel`'s value, read with `$.state.get` (ADR-0099).
 _Avoid_: cwd (the absolute path it is read from — not what is shown), session root
 (the engine's `$.session.root()`, which a shell `cd` does not move)
 
-### create-formal-verification-skill / statechart
+### create-formal-verification-skill
 
 **Verify skill** (create-formal-verification-skill):
 The project-local skill `create-formal-verification-skill` leaves in a target
@@ -481,17 +481,16 @@ table (each guard in the covered code with the property that catches it, or
 `maintain-formal-verification-skill` brings one back in line with the code.
 `check-it` runs its check as a default review where a diff touches a file its
 coverage record names (#102).
-Where the check is a TLA+ model, its agent reads each result with `statechart`
-itself (#100).
+Its agent reads each result from the checker's own output itself (#100, #113).
 _Avoid_: verification skill (ambiguous with the two skills that write and maintain one)
 
 **Vendored skill**:
 A skill folder copied from another catalog without changes, with an
 `UPSTREAM.md` that records the source repository, the commit it was copied
-at, and every change made since. `create-formal-verification-skill`,
-`maintain-formal-verification-skill` and `statechart` are vendored from
-pstack at `e1cc031` (#78). Folder paths stay upstream's, so the copy can be
-compared with later upstream commits.
+at, and every change made since. `create-formal-verification-skill` and
+`maintain-formal-verification-skill` are vendored from pstack at `e1cc031`
+(#78); `statechart`, vendored with them, is retired (#113). Folder paths stay
+upstream's, so the copy can be compared with later upstream commits.
 _Avoid_: fork (the folder is a pinned copy with recorded changes, not a
 diverging line of development)
 
@@ -587,7 +586,7 @@ nothing else (ADR-0103).
   |---|---|
   | [`read-it`](read-it/) | `firsthand` (`spine` absorbed, ADR-0090) |
   | [`make-it`](make-it/) | `tdd` (`redden` absorbed, ADR-0090); `design-it` for a new screen (ADR-0097); `encode-it` for a check-adding change (#80) |
-  | [`check-it`](check-it/) | `lens`, `sweep`, `comment-it` (#75); the bundled `/simplify`, `/review` and `/security-review`, each in its own `claude -p` (ADR-0102); `statechart` for a failed verify check (#102) (`bare` and `boundary` absorbed, ADR-0090; `assay` and `silt` absorbed, ADR-0092; the spec and rules reviewer and the proving agent, ADR-0095, ADR-0102) |
+  | [`check-it`](check-it/) | `lens`, `sweep`, `comment-it` (#75); the bundled `/simplify`, `/review` and `/security-review`, each in its own `claude -p` (ADR-0102) (`bare` and `boundary` absorbed, ADR-0090; `assay` and `silt` absorbed, ADR-0092; the spec and rules reviewer and the proving agent, ADR-0095, ADR-0102) |
   | [`ask-it`](ask-it/) | — (`envelope` and `byartifact` were absorbed, ADR-0089) |
 
   The seam is the same every time: **a method governs work of its kind anywhere;

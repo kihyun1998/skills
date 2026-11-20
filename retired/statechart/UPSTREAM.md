@@ -114,7 +114,7 @@ One change is not for #100:
   run folder those rules name, with a ledger line, and it and each `--out`
   folder go at the end of the step that ran the check (no issue; the maintainer's grilling of 2026-11-20): points at
   this catalog's `clean-it/RULES.md`, the one copy of the cleanup rules
-  ([ADR-0103](../docs/adr/0103-what-a-step-makes-it-deletes.md)). Upstream says
+  ([ADR-0103](../../docs/adr/0103-what-a-step-makes-it-deletes.md)). Upstream says
   nothing about deleting what a run makes; agents' leftovers filled the drive.
 
 Apart from the CR drop, and from the follow-ups of #100 that run there too (the
