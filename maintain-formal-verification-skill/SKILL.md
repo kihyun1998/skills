@@ -31,7 +31,7 @@ Every run of a check in the steps below, the first one included, sends what the 
 
 2. **Run it as it is.** Run each check once before you change anything, and record the result. A pass here does not tell you that the code is correct. It tells you that the old description still holds. A failure here can be drift or a bug. Do not decide which until step 5.
 
-3. **Read every change to covered code.** Diff the covered files from the sync commit to the current commit, and read each commit message. Also look for code that moved: a covered function that is renamed, split, or moved to another file is still covered code. Also look for new code that touches the state that a check guards, such as a new function that writes the same fields. For each change, decide which of these it is:
+3. **Read every change to covered code.** Diff the covered files from the sync commit to the current commit, and read each commit message. Also look for code that moved: a covered function that is renamed, split, or moved to another file is still covered code. Also look for new code that touches the state that a check guards, such as a new function that writes the same fields. Where the verify skill keeps a guard table, list each guard in the covered code that the range added, changed, moved or removed. For each change, decide which of these it is:
    - **No effect.** The change does not alter anything the verification describes, such as formatting, comments, or code paths that the verification does not cover. Check this against the model or harness, not against the commit message.
    - **The verification no longer describes the code.** A step that was one indivisible action is now two, a branch was added or removed, a check moved, a new path reaches the guarded state, or a value now has a different range. The model or harness must change.
    - **The promise changed on purpose.** The change alters what the code promises, and evidence in the change says that this is intended: the doc comment, the tests, the changelog, or the commit message. The property must change, and you must cite that evidence.
@@ -42,8 +42,9 @@ Every run of a check in the steps below, the first one included, sends what the 
 5. **Rerun and judge each result.**
    - **Pass:** the check can now pass on a description that has lost the ability to fail. Break the new code the way the property guards against, such as removing a new check or reordering a new step, and confirm that the check catches it. Then drop the break.
    - **Fail:** replay the counterexample against the real code, step by step. If a step cannot happen in the code, the verification is wrong. Fix the verification, and say what was wrong. If every step can happen, it is a bug. Name the commit that introduced it, tell the counterexample as a sequence of steps in the code's own words, and state the harm in one sentence. If a cheap test or reproduction against the real code shows the bug, add it to the report as evidence. Do not commit it to the product code.
+   - **Guards:** for each guard step 3 found added or changed, make its variant and run the check, as `create-formal-verification-skill`'s *Find what no property covers* says, and write its row from what catches it, or name it uncovered with the reason. Only those guards run again: a guard the range did not touch keeps its row.
 
-6. **Update the verify skill.** Update the code that each check covers, the commands, the bounds, the assumptions, and the sync commit. Set the sync commit to the commit that you checked. Do not move the sync commit for a blocked check, and say so in the report. Then follow the verify skill once as the next agent would, so that you know its steps still run.
+6. **Update the verify skill.** Update the code that each check covers, the guard table (a new or changed guard's row from step 5, a moved guard's row at its new place, a removed guard's row deleted), the commands, the bounds, the assumptions, and the sync commit. Set the sync commit to the commit that you checked. Do not move the sync commit for a blocked check, and say so in the report. Then follow the verify skill once as the next agent would, so that you know its steps still run.
 
 ## Report
 
@@ -53,6 +54,7 @@ Tell the user, for each check:
 - what changed in the verification and why, with a short reason for each change: the code changed shape, or the promise changed on purpose (with the evidence);
 - the rerun result, and the break that you used to show the updated check can still fail;
 - each bug, in plain words: the counterexample as steps in the code's words, the harm, and the commit that introduced it;
+- the guard table's rows that changed, and each guard now named uncovered, with the reason;
 - what the verification still does not cover, including new code that it should cover and does not.
 
 Say outright which failures were drift in the verification and which were bugs in the code. For a check that passed before you updated it and fails after, say that the old pass was on a stale description.

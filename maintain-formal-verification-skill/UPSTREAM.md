@@ -24,3 +24,9 @@ git -C pstack log --oneline e1cc031..origin/main -- pstack/skills/maintain-forma
   this catalog's `clean-it/RULES.md`, the one copy of the cleanup rules
   ([ADR-0103](../docs/adr/0103-what-a-step-makes-it-deletes.md)). Upstream says
   nothing about deleting what a run makes; agents' leftovers filled the drive.
+- `SKILL.md`, *Pass* and *Report* (kihyun1998/skills#107): the verify skill's
+  guard table, which `create-formal-verification-skill` writes since #101, is
+  kept in step: step 3 lists the guards the range added, changed, moved or
+  removed, step 5 runs the variant of each added or changed guard only, and
+  step 6 rewrites, moves or deletes their rows. Upstream has no guard table, so
+  the table went stale on the first change to covered code.

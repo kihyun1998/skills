@@ -513,6 +513,15 @@ _Avoid_: cwd (the absolute path it is read from — not what is shown), session 
 
 ### create-formal-verification-skill
 
+**Guard** (create-formal-verification-skill):
+A condition in the code a verify skill covers that decides a branch: an early
+return, a check before a write, a comparison that lets a case through. Each one
+is broken on purpose to see which property catches it, and the result is a row
+of the verify skill's guard table (#101); `maintain-formal-verification-skill`
+runs again only the guards a change added or changed (#107). The retired
+`thegraph` sense, an edge's condition, survives only for reading old records.
+_Avoid_: check (the verify check is the whole run, not one condition)
+
 **Verify skill** (create-formal-verification-skill):
 The project-local skill `create-formal-verification-skill` leaves in a target
 repository: how to tell whether a change touches the verified code, the one
