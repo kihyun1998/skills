@@ -497,7 +497,7 @@ export function parseHistory(text) {
   if (text === null || text === undefined) return { version: 1, saves: [] };
   try {
     const h = JSON.parse(text);
-    if (h && Array.isArray(h.saves)) return h;
+    if (h && Array.isArray(h.saves) && h.saves.every((s) => s && typeof s === "object" && Array.isArray(s.entries))) return h;
   } catch {}
   return null;
 }

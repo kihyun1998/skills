@@ -441,6 +441,9 @@ test("parseHistory reads a history back, an empty one when there is none, and nu
   assert.equal(parseHistory('{"version":1,"saves":"x"}'), null);
   assert.equal(parseHistory('{"saves":{}}'), null);
   assert.equal(parseHistory("null"), null);
+  assert.equal(parseHistory('{"version":1,"saves":[1,"x"]}'), null);
+  assert.equal(parseHistory('{"version":1,"saves":[{"id":1,"at":1}]}'), null);
+  assert.equal(parseHistory('{"version":1,"saves":[null]}'), null);
   const h = { version: 1, saves: [snap(1, 5, ["a"])] };
   assert.deepEqual(parseHistory(JSON.stringify(h)), h);
 });
