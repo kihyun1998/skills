@@ -29,9 +29,25 @@ Pick the tool that answers the question at the lowest cost: a model checker, a p
 - **Cheap to rerun.** One command, a reproducible tool version, and a run short enough that the next agent will use it on every relevant change.
 - **Kept in step with the code.** Record which files and functions each check covers, and the commit at which you last confirmed that the verification describes them. When the covered code changes after that commit, the next agent can see that the verification needs another look.
 
+## Find what no property covers
+
+Being able to fail is asked of each property. Ask it the other way round as well: is each guard in the target code caught by some property? A guard is anything in the code that stops a bad outcome: a condition, an early return, a check before a state change, a value taken so that it cannot be used twice, a call that cancels pending work. List every guard in the covered functions.
+
+For each guard, make the variant that breaks it the way the code could break: drop the early return, invert the condition, move the check after the state change, copy the value instead of taking it, or drop the cancelling call. Make it where the check runs: in the model if the check is a model, in the code if the verifier runs on the code. Before you read the result, confirm that the variant changed what you meant to change and nothing else. Then run the check and compare it with the run on the unchanged code. A property catches the guard only if it fails on the variant and passes on the unchanged code; a property that already fails on the unchanged code, such as one behind a finding you will report, catches nothing here. Restore the unchanged code and confirm that the check is back where it started.
+
+A guard that no property catches is a gap. Before you write a property for it, find out why nothing caught it:
+
+- **The broken branch never runs in the check**, because the model leaves out what would reach it or does not represent the guard at all. For a TLA+ check, TLC's coverage report shows the branch evaluated zero times. No property can catch it until the model reaches it: widen the model, or name the guard as uncovered for this reason.
+- **The variant changes nothing the check can reach**, because another guard already stops the same case. Name the guard as uncovered, and name the guard that stops the case. A property written for it would only restate the guard.
+- **The variant causes a harm that no property states.** Say the harm in one plain sentence, in the words of the promise, and write the property. Show it failing on the variant and passing on the unchanged code, or failing there only on the findings you will report.
+
+Any guard can instead be named as uncovered with its reason, such as a check that the model takes as passed on purpose. Do not drop a guard from the list.
+
+Keep the result as a guard table, one row per guard: the file and function, the guard in the code's words, where the variant was made (the model's action and line, or the code's line) and what it changed, and the property that caught it, or `uncovered` with the reason. Another agent must be able to make each variant again from its row.
+
 ## Generate the verify skill
 
-Write a project-local skill with frontmatter that names the area and says when to use it. Without frontmatter, the skill never registers. From the skill alone, the next agent must be able to tell whether a change touches the verified code, run the check, tell a real bug from a modeling error, and update the verification when a change is intended. Put the coverage record and the sync commit in the skill, and tell the next agent to move the sync commit forward only after it confirms that the verification describes the code at the new commit. Use this repo's real commands, paths, and nouns, and leave no placeholders.
+Write a project-local skill with frontmatter that names the area and says when to use it. Without frontmatter, the skill never registers. From the skill alone, the next agent must be able to tell whether a change touches the verified code, run the check, tell a real bug from a modeling error, and update the verification when a change is intended. Put the coverage record, with the guard table, and the sync commit in the skill. Tell the next agent to add, change, or remove a row when a change adds, moves, or removes a guard, and to move the sync commit forward only after it confirms that the verification describes the code at the new commit. Use this repo's real commands, paths, and nouns, and leave no placeholders.
 
 If the check is a TLA+ model, read every result it gives with the [`statechart`](../statechart/SKILL.md) skill: invoke the skill yourself, while you build the check and when you prove it, and do not ask the user to run it. It shows each invariant violation the checker finds as its shortest path in plain words. When the check passes, `statechart` draws a chart of how the system moves between states. Tell the next agent to do the same: the generated skill names `statechart`, and the agent that follows it invokes `statechart` itself. Refer to `statechart` by name. Its commands, options, and file paths change between releases and machines, so copy none of them into the generated skill or its scripts.
 
@@ -41,4 +57,4 @@ Follow the generated skill once, as the next agent would, on a scratch change th
 
 ## Hand off
 
-Tell the user what you verified, which tool you used and why, the bounds, what the check found in plain words, how to run it, and what it does not cover. Suggest a second target only if you found a close one. Point the user at `/maintain-formal-verification-skill` for bringing the verification back in line after changes that did not recheck it.
+Tell the user what you verified, which tool you used and why, the bounds, what the check found in plain words, how to run it, and what it does not cover, naming every guard that the guard table marks `uncovered`. Suggest a second target only if you found a close one. Point the user at `/maintain-formal-verification-skill` for bringing the verification back in line after changes that did not recheck it.

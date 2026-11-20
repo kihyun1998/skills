@@ -25,3 +25,14 @@ git -C pstack log --oneline e1cc031..origin/main -- pstack/skills/create-formal-
   the #78 trial the generated skill asked the person. `statechart` is named as
   this catalog's skill, not as pstack's, and `requires: [statechart]` declares
   the call, as this repository's `CLAUDE.md` asks.
+- `SKILL.md` (kihyun1998/skills#101): a new section, *Find what no property
+  covers*, breaks each guard in the target code and records which property
+  catches it against the run on the unchanged code, in a guard table that goes
+  into the generated skill's coverage record; a guard nothing catches gets a
+  property or is named `uncovered` there and in the hand-off, after the step
+  finds out why nothing caught it (the branch never runs in the check, another
+  guard stops the same case, or a harm no property states). Upstream asks only
+  whether each property can fail on some broken variant. In the #78 trial,
+  removing the `first_at.is_some()` early return in justssh `Tokens::launched`
+  was caught by none of the 6 invariants that pass on the unchanged model; the
+  other 2 already fail there, on findings.

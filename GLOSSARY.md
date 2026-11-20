@@ -474,10 +474,12 @@ _Avoid_: cwd (the absolute path it is read from — not what is shown), session 
 **Verify skill** (create-formal-verification-skill):
 The project-local skill `create-formal-verification-skill` leaves in a target
 repository: how to tell whether a change touches the verified code, the one
-command that reruns the check, the files and functions it covers and the commit
-it was last confirmed at. `maintain-formal-verification-skill` brings one back in
-line with the code. Where the check is a TLA+ model, its agent reads each result
-with `statechart` itself (#100).
+command that reruns the check, the files and functions it covers, its guard
+table (each guard in the covered code with the property that catches it, or
+`uncovered` with the reason, #101) and the commit it was last confirmed at.
+`maintain-formal-verification-skill` brings one back in line with the code.
+Where the check is a TLA+ model, its agent reads each result with `statechart`
+itself (#100).
 _Avoid_: verification skill (ambiguous with the two skills that write and maintain one)
 
 ## Relationships
