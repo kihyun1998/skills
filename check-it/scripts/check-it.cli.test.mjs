@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { REVIEWS } from './assemble.mjs';
 
@@ -32,6 +32,7 @@ git(repo, 'commit', '-q', '-m', 'base');
 git(repo, 'mv', 'src/moved.c', 'src/renamed.c');
 writeFileSync(join(repo, 'src', 'kept.c'), 'int kept = 1;\n');
 writeFileSync(join(repo, 'src', 'new file.c'), 'int fresh;\n');
+const top = resolve(git(repo, 'rev-parse', '--show-toplevel').trim());
 const runFolder = join(scratch, 'run');
 mkdirSync(runFolder);
 writeFileSync(join(scratch, 'run.bug.md'), 'BUG FINDING ONE\n');
@@ -60,7 +61,7 @@ for (const [name, entry] of [['directly', here], ['through a link', linked]]) {
       assert.match(r.stdout, /^# How you work\n/, review);
       assert.doesNotMatch(r.stdout, /Read when `check-it`|`check-it`'s script puts this first/, review);
       assert.doesNotMatch(r.stdout, /\{\{\w+\}\}/, review);
-      assert.ok(r.stdout.includes(realpathSync(repo)), review);
+      assert.ok(r.stdout.includes(top), review);
     }
   });
 
