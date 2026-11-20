@@ -53,6 +53,20 @@ worth a finding where the departure opens a path; one that follows it is not.
 - Memory-safety bugs in a memory-safe language.
 - Files used only by tests.
 - A race or timing attack you cannot make concrete.
+- Untrusted text in a log, unless the log holds a secret; untrusted text in a
+  regular expression, and slow regular expressions.
+- A request whose untrusted part sets only the path, not the host or the
+  protocol.
+- A missing permission or authentication check in code that runs on the
+  client, whose input the server must check anyway.
+- Cross-site scripting in React or Angular output, unless it goes through
+  `dangerouslySetInnerHTML`, `bypassSecurityTrustHtml` or the like.
+- A UUID taken as unguessable; a memory or file-descriptor leak; a missing
+  audit log.
+- Low-impact web issues (tabnabbing, cross-site leaks, prototype pollution, an
+  open redirect) unless the path is certain.
+- Untrusted text reaching a model's prompt, by itself. What the model's output
+  then makes run or touch is in scope, traced as any untrusted value above.
 - Whether the change does what the issue asked, its bugs that need no attacker,
   and its maintainability: the spec and rules reviewer (5), the bug reviewer
   (6) and the refactoring reviewer (4).

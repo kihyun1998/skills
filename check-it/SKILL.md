@@ -373,7 +373,8 @@ gap as one item. The groups are four:
 
 1. **To fix, pre-ticked**: reproduced here and introduced by this change. A
    finding of 4, 6, 7 or 8 the proving agent passed as introduced by this change
-   and asking for no decision; a finding of 5 graded *violation* whose command,
+   and asking for no decision, where a refactoring proposal (4) that changes
+   behaviour or edits a file outside the diff asks for one; a finding of 5 graded *violation* whose command,
    re-run here, printed what it carries, on what this change wrote; a finding
    of 9 on a comment or suppression the diff adds or changes. This group is what
    *Going back, and stopping* sends to `make-it` (ADR-0102, amended for #105).

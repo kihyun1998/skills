@@ -21,7 +21,9 @@ is a proposal a person may take or leave.
   same job.
 - **Is there visible waste?** Work done twice, a file read or a process started
   again where the result is in hand, independent steps run one after another,
-  work added to a startup or a hot path. Only waste you can see in the code: a
+  work added to a startup or a hot path, a long-lived object built from a
+  closure that keeps the whole enclosing scope alive where a small object
+  holding only the fields it needs would do. Only waste you can see in the code: a
   slowdown that has to be measured belongs to the benchmark (10), so name the
   path and leave the number to it.
 - **Is the generality right?** Too general for its one use: a parameter, a hook

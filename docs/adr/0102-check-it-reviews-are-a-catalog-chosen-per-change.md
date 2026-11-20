@@ -753,6 +753,22 @@ refactoring proposals that change behaviour being pre-ticked, angles and
 exclusions of the bundled prompts the new briefs leave out, *light* and the
 proving agent, and two index lines.
 
+At that `ask-it` the maintainer had all of them done in a follow-up commit
+except *light* and the proving agent, dropped because #112 removes the strength
+question. Two of them were the maintainer's call: **a refactoring proposal that
+changes behaviour or edits a file outside the diff is not pre-ticked**, since the
+built-in `/simplify` skipped both kinds and the trial pre-ticked five proposals
+beside two defects; and **the `done` check accepts a file outside what the
+confirm stop left alone where a fix the person picked touched it**, listed with
+its finding's number. The briefs took the bundled prompts' angles and exclusions
+read from Claude Code 2.1.329's binary: the callee side, a deleted test,
+wrappers and regex anchors for the bug reviewer; log, regex, path-only SSRF,
+client-side checks, framework-escaped XSS, UUIDs, leaks, audit logs and low-impact
+web issues for the security reviewer, which keeps its own rule that a model's
+output is untrusted; closure-retained scope for the refactoring reviewer. The
+bundled rule that environment variables and flags are trusted stays out, as
+decided above.
+
 **What the decision did not cover:**
 
 - Whether the new reviewers catch what the built-ins caught. The trial below is
