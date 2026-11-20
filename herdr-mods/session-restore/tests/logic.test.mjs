@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   keptFlags, nextSave, coreIdentity, planOpen, placement, resumeArgv, shellLine, isClaude, isShell, summarize, linkParents, openable, groupsOf, chipState, openProgress, groupProgress, batchResult, startOpen, endOpen, reopenable, withMarks, settleOpen, withoutRows, keepLive, liveOf, STALE_MS,
-  DEFAULT_SETTINGS, parseSettings, staleAfter, parseHistory, withSnapshot, overLimit, trimHistory, withoutSnapshots, mergeSessions, mergeSnapshots, goneSaves, mergeGroups, folderChange, mergeDialog, withRunning, cleanTitle,
+  DEFAULT_SETTINGS, parseSettings, staleAfter, parseHistory, withSnapshot, overLimit, trimHistory, withoutSnapshots, mergeSessions, mergeSnapshots, goneSaves, mergeGroups, folderChange, mergeDialog, withRunning, cleanTitle, digitsOnly, clampWhole, SETTING_BOUNDS,
   IDLE, begin, press, finish, free, busyWith, anyBusy, errorAt, dismiss,
 } from "../logic.js";
 
@@ -228,24 +228,24 @@ test("summarize counts what can be restored and changes its sig only when that d
 test("chipState: green with the count saved, amber with what can be restored, red when stalled, none before a save", () => {
   const s = (over) => ({ restorable: 0, working: 0, saved: 0, stalled: false, sig: "", ...over });
   assert.deepEqual(chipState(s({ saved: 18 })), { label: "⟲ 18", dot: "green" });
-  assert.deepEqual(chipState(s({ saved: 2, restorable: 5 })), { label: "복원할 세션 5", dot: "amber" });
-  assert.deepEqual(chipState(s({ saved: 2, restorable: 5, stalled: true })), { label: "save 멈춤", dot: "red" });
-  assert.deepEqual(chipState(s({ stalled: true })), { label: "save 멈춤", dot: "red" });
-  assert.deepEqual(chipState(null), { label: "save 없음", dot: "dim" });
+  assert.deepEqual(chipState(s({ saved: 2, restorable: 5 })), { label: "5 to restore", dot: "amber" });
+  assert.deepEqual(chipState(s({ saved: 2, restorable: 5, stalled: true })), { label: "Save stalled", dot: "red" });
+  assert.deepEqual(chipState(s({ stalled: true })), { label: "Save stalled", dot: "red" });
+  assert.deepEqual(chipState(null), { label: "Not saved yet", dot: "dim" });
 });
 
 test("chipState shows the open under way over every other state, and not once it has nothing left", () => {
   const stalled = { restorable: 5, working: 0, saved: 0, stalled: true, sig: "" };
-  assert.deepEqual(chipState(stalled, { opened: 2, total: 5 }), { label: "여는 중 · 2/5", dot: "green" });
-  assert.deepEqual(chipState(null, { opened: 0, total: 1 }), { label: "여는 중 · 0/1", dot: "green" });
-  assert.deepEqual(chipState(stalled, { opened: 0, total: 0 }), { label: "save 멈춤", dot: "red" });
+  assert.deepEqual(chipState(stalled, { opened: 2, total: 5 }), { label: "Opening 2/5", dot: "green" });
+  assert.deepEqual(chipState(null, { opened: 0, total: 1 }), { label: "Opening 0/1", dot: "green" });
+  assert.deepEqual(chipState(stalled, { opened: 0, total: 0 }), { label: "Save stalled", dot: "red" });
 });
 
 test("chipState turns red when no save has ended for longer than a stalled save may age", () => {
   const ok = { restorable: 3, working: 0, saved: 4, stalled: false, sig: "" };
-  assert.deepEqual(chipState(ok, null, STALE_MS, STALE_MS), { label: "복원할 세션 3", dot: "amber" });
-  assert.deepEqual(chipState(ok, null, STALE_MS + 1, STALE_MS), { label: "save 멈춤", dot: "red" });
-  assert.deepEqual(chipState(null, null, STALE_MS + 1, STALE_MS), { label: "save 멈춤", dot: "red" });
+  assert.deepEqual(chipState(ok, null, STALE_MS, STALE_MS), { label: "3 to restore", dot: "amber" });
+  assert.deepEqual(chipState(ok, null, STALE_MS + 1, STALE_MS), { label: "Save stalled", dot: "red" });
+  assert.deepEqual(chipState(null, null, STALE_MS + 1, STALE_MS), { label: "Save stalled", dot: "red" });
 });
 
 test("openProgress counts only the batch being opened, not rows an earlier open left behind", () => {
@@ -406,17 +406,17 @@ test("liveOf maps each session a save lists live to its address", () => {
 // ---- settings, history, merge, refresh (#83) ----
 
 test("parseSettings fills what is missing or wrong with the defaults: every 10 minutes, 50 saves kept", () => {
-  assert.deepEqual(DEFAULT_SETTINGS, { saveEveryMinutes: 10, historyLimit: 50 });
+  assert.deepEqual(DEFAULT_SETTINGS, { saveEveryMinutes: 10, historyLimit: 50, autoSave: true });
   assert.deepEqual(parseSettings(null), DEFAULT_SETTINGS);
   assert.deepEqual(parseSettings("not json"), DEFAULT_SETTINGS);
-  assert.deepEqual(parseSettings('{"saveEveryMinutes": 3}'), { saveEveryMinutes: 3, historyLimit: 50 });
+  assert.deepEqual(parseSettings('{"saveEveryMinutes": 3}'), { saveEveryMinutes: 3, historyLimit: 50, autoSave: true });
   assert.deepEqual(parseSettings('{"saveEveryMinutes": 0, "historyLimit": -2}'), DEFAULT_SETTINGS);
-  assert.deepEqual(parseSettings('{"saveEveryMinutes": 2.6, "historyLimit": 7.2}'), { saveEveryMinutes: 3, historyLimit: 7 });
+  assert.deepEqual(parseSettings('{"saveEveryMinutes": 2.6, "historyLimit": 7.2}'), { saveEveryMinutes: 3, historyLimit: 7, autoSave: true });
   assert.deepEqual(parseSettings('{"saveEveryMinutes": "5"}'), DEFAULT_SETTINGS);
 });
 
 test("parseSettings reads a null historyLimit as no limit", () => {
-  assert.deepEqual(parseSettings('{"historyLimit": null}'), { saveEveryMinutes: 10, historyLimit: null });
+  assert.deepEqual(parseSettings('{"historyLimit": null}'), { saveEveryMinutes: 10, historyLimit: null, autoSave: true });
 });
 
 test("staleAfter is three save intervals", () => {
@@ -582,12 +582,12 @@ test("withRunning marks each entry live by what the terminals hold now, at the a
 
 test("chipState says a save is running under an open and a stalled save, over what can be restored and the count saved", () => {
   const s = (over) => ({ restorable: 0, working: 0, saved: 0, stalled: false, sig: "", ...over });
-  assert.deepEqual(chipState(s({ saved: 18 }), null, 0, STALE_MS, true), { label: "저장 중", dot: "green", spin: true });
-  assert.deepEqual(chipState(s({ saved: 2, restorable: 5 }), null, 0, STALE_MS, true), { label: "저장 중", dot: "amber", spin: true });
-  assert.deepEqual(chipState(null, null, 0, STALE_MS, true), { label: "저장 중", dot: "dim", spin: true });
-  assert.deepEqual(chipState(s({ stalled: true }), null, 0, STALE_MS, true), { label: "save 멈춤", dot: "red" });
-  assert.deepEqual(chipState(s({ saved: 2 }), null, STALE_MS + 1, STALE_MS, true), { label: "save 멈춤", dot: "red" });
-  assert.deepEqual(chipState(s({ stalled: true }), { opened: 1, total: 3 }, 0, STALE_MS, true), { label: "여는 중 · 1/3", dot: "green" });
+  assert.deepEqual(chipState(s({ saved: 18 }), null, 0, STALE_MS, true), { label: "Saving", dot: "green", spin: true });
+  assert.deepEqual(chipState(s({ saved: 2, restorable: 5 }), null, 0, STALE_MS, true), { label: "Saving", dot: "amber", spin: true });
+  assert.deepEqual(chipState(null, null, 0, STALE_MS, true), { label: "Saving", dot: "dim", spin: true });
+  assert.deepEqual(chipState(s({ stalled: true }), null, 0, STALE_MS, true), { label: "Save stalled", dot: "red" });
+  assert.deepEqual(chipState(s({ saved: 2 }), null, STALE_MS + 1, STALE_MS, true), { label: "Save stalled", dot: "red" });
+  assert.deepEqual(chipState(s({ stalled: true }), { opened: 1, total: 3 }, 0, STALE_MS, true), { label: "Opening 1/3", dot: "green" });
   assert.deepEqual(chipState(s({ saved: 18 }), null, 0, STALE_MS, false), { label: "⟲ 18", dot: "green" });
 });
 
@@ -686,4 +686,49 @@ test("activity: a press that does not clear (the refresh unfolding runs) keeps t
   assert.equal(errorAt(unfold.act, "sessions"), "The session is still in the save: boom");
   assert.deepEqual(press(unfold.act, "refresh", [null], { clear: false }).go, []);
   assert.equal(errorAt(press(failed, "refresh", [null]).act, "sessions"), null);
+});
+
+test("parseSettings reads autoSave: on unless the file says false", () => {
+  assert.equal(DEFAULT_SETTINGS.autoSave, true);
+  assert.equal(parseSettings('{"autoSave": false}').autoSave, false);
+  assert.equal(parseSettings('{"autoSave": true}').autoSave, true);
+  assert.equal(parseSettings('{"autoSave": "no"}').autoSave, true);
+  assert.equal(parseSettings('{"autoSave": false, "saveEveryMinutes": 4}').saveEveryMinutes, 4);
+});
+
+test("chipState with auto save off says so in grey, never turns red for age, and keeps an open, a failed save, a save running and what can be restored above it", () => {
+  const s = (o) => ({ restorable: 0, working: 0, saved: 0, stalled: false, sig: "", ...o });
+  const off = (summary, opening = null, since = 0, saving = false) => chipState(summary, opening, since, STALE_MS, saving, false);
+  assert.deepEqual(off(s({ saved: 18 })), { label: "Auto save off", dot: "dim" });
+  assert.deepEqual(off(null), { label: "Auto save off", dot: "dim" });
+  assert.deepEqual(off(s({ saved: 18 }), null, STALE_MS * 100), { label: "Auto save off", dot: "dim" });
+  assert.deepEqual(off(null, null, STALE_MS * 100), { label: "Auto save off", dot: "dim" });
+  assert.deepEqual(off(s({ saved: 2, restorable: 3 })), { label: "3 to restore", dot: "amber" });
+  assert.deepEqual(off(s({ stalled: true })), { label: "Save stalled", dot: "red" });
+  assert.deepEqual(off(s({ saved: 18 }), null, 0, true), { label: "Saving", dot: "green", spin: true });
+  assert.deepEqual(off(s({ saved: 18 }), { opened: 1, total: 2 }), { label: "Opening 1/2", dot: "green" });
+  assert.deepEqual(chipState(s({ saved: 18 }), null, STALE_MS + 1, STALE_MS, false, true), { label: "Save stalled", dot: "red" });
+});
+
+test("digitsOnly keeps the digits a number field was given and drops everything else", () => {
+  assert.equal(digitsOnly("12"), "12");
+  assert.equal(digitsOnly("1a2b"), "12");
+  assert.equal(digitsOnly("-5"), "5");
+  assert.equal(digitsOnly("3.7"), "37");
+  assert.equal(digitsOnly(" 4 "), "4");
+  assert.equal(digitsOnly("abc"), "");
+  assert.equal(digitsOnly("１２"), "");
+});
+
+test("clampWhole keeps a whole number inside the bounds, and reads text that is no number as null", () => {
+  assert.equal(clampWhole("0", 1, 1440), 1);
+  assert.equal(clampWhole("2000", 1, 1440), 1440);
+  assert.equal(clampWhole("30", 1, 1440), 30);
+  assert.equal(clampWhole(7, 1, 500), 7);
+  assert.equal(clampWhole("", 1, 500), null);
+  assert.equal(clampWhole("x", 1, 500), null);
+});
+
+test("the settings' bounds: an interval of 1 to 1440 minutes, a history of 1 to 500 saves", () => {
+  assert.deepEqual(SETTING_BOUNDS, { saveEveryMinutes: { min: 1, max: 1440 }, historyLimit: { min: 1, max: 500 } });
 });

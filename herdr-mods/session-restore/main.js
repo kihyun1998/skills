@@ -13,6 +13,8 @@ import MergeDialog from "./merge.js";
 const DOT = { green: "ansi2", amber: "ansi3", red: "ansi1", dim: "dim" };
 /** The unfolded panel's size and its gap above the chip, in px. */
 const PANEL_W = 380, PANEL_H = 640, GAP = 8;
+/** One width for every label, so the chip's window, placed by its top left, does not move the panel. */
+const CHIP_W = 156;
 /** How far the pointer may move between press and release for it to count as a press, not a drag. */
 const PRESS_SLOP = 4;
 
@@ -51,9 +53,9 @@ export default class SessionRestore extends View {
     if (this.merge) return this.merge.render(cx);
     const t = theme();
     const stale = staleAfter(this.panel.settings.saveEveryMinutes);
-    const { label, dot, spin } = chipState(shared(SHARED) ?? null, this.panel.progress(), Date.now() - this.savedAt, stale, anyBusy(this.panel.activity, "save"));
+    const { label, dot, spin } = chipState(shared(SHARED) ?? null, this.panel.progress(), Date.now() - this.savedAt, stale, anyBusy(this.panel.activity, "save"), this.panel.settings.autoSave);
     // A press that does not move toggles the panel; one that moves is Herdr dragging the window.
-    const chip = h_flex().id("chip").h(28).px(11).gap(7).flex_none().items_center().rounded_full()
+    const chip = h_flex().id("chip").w(CHIP_W).h(28).px(11).gap(7).flex_none().items_center().rounded_full()
       .bg(t.surface).border_1().border_color(t.border).shadow_md()
       .text_size(12).text_color(t.foreground).cursor_pointer().hover((s) => s.bg(t.hover))
       .on_mouse_down("left", (e) => { this.down = e.position; })
@@ -69,8 +71,8 @@ export default class SessionRestore extends View {
       .child(spin
         ? svg(SPINNER).size(10).flex_none().text_color(t[DOT[dot]]).spin(900)
         : div().size(7).flex_none().rounded_full().bg(t[DOT[dot]]))
-      .child(div().child(label))
-      .child(div().text_color(t.dim).child(this.open ? "▾" : "▴"));
+      .child(div().flex_1().min_w(0).truncate().child(label))
+      .child(div().flex_none().text_color(t.dim).child(this.open ? "▾" : "▴"));
     return Popup.new("sessions-popup", chip).anchor("bottom_right")
       .when(this.open, (el) => el.content(v_flex().pb(GAP)
         // Presses in the panel are the panel's, never a drag of the window.

@@ -247,7 +247,7 @@ export const CHECK_EVERY_MS = 60_000;
 /**
  * The chip's save: once now, then whenever the settings' interval has passed since the last one
  * (looked at every CHECK_EVERY_MS, the settings read each time), and at once on the "save" command;
- * one at a time. Each summary goes to share(summary, save, history), with the save it is of and the history. The first
+ * one at a time. With the settings' autoSave false, only the "save" command saves. Each summary goes to share(summary, save, history), with the save it is of and the history. The first
  * successful save on a core holder the panel has not unfolded itself on marks that holder shown,
  * and unfolds the panel when something can be restored. settings() is the settings last read.
  * every(ms, fn) and spawn(cx, job) are the host's timer and task; cx is passed through untouched,
@@ -256,13 +256,14 @@ export const CHECK_EVERY_MS = 60_000;
  */
 export function startSaving(io, { every, spawn, share, unfold, saving: told = () => {} }, cx) {
   let saving = false, first = true, lastAt = null, settings = parseSettings(null);
-  const run = (cx, force) => {
+  const run = (cx, mode) => {
     if (saving) return false;
     saving = true;
     spawn(cx, async (taskCx) => {
       try {
         settings = await readSettings(io);
-        if (!force && lastAt !== null && io.now() - lastAt < settings.saveEveryMinutes * 60_000) return;
+        if (mode !== "now" && !settings.autoSave) return;
+        if (mode === "timer" && lastAt !== null && io.now() - lastAt < settings.saveEveryMinutes * 60_000) return;
         lastAt = io.now();
         told(true, taskCx);
         const { save, history, summary } = await saveAndSummarize(io, settings).finally(() => told(false, taskCx));
@@ -280,8 +281,8 @@ export function startSaving(io, { every, spawn, share, unfold, saving: told = ()
     });
     return true;
   };
-  const tick = (cx) => run(cx, true);
-  tick(cx);
-  every(CHECK_EVERY_MS, (cx) => run(cx, false));
+  const tick = (cx) => run(cx, "now");
+  run(cx, "start");
+  every(CHECK_EVERY_MS, (cx) => run(cx, "timer"));
   return { tick, command: (name, cx) => name === "save" && tick(cx), settings: () => settings };
 }

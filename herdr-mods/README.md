@@ -78,19 +78,22 @@ rewritten for each Herdr version and are the truth about the API.
   send it `session-restore.close` (`herdr-app do session-restore.close`, or a
   `keys.json` binding), or run `mod.open` again; after Herdr reopened the chip at start, `mod.open` has to be run twice
   (the first reopens it, the second closes it).
-- **The chip's label** is green `⟲ N` with N sessions saved, amber `복원할 세션 N`
-  when something can be restored, red `save 멈춤` when the save stalled (failed,
+- **The chip's label** is green `⟲ N` with N sessions saved, amber `N to restore`
+  when something can be restored, red `Save stalled` when the save stalled (failed,
   unreadable pid files, sessions whose transcript could not be looked for, or older
-  than three save intervals), `여는 중 · k/N` while sessions reopen, `저장 중` with a turning
+  than three save intervals, which auto save off does not count), `Opening k/N` while sessions reopen, `Saving` with a turning
   ring in the dot's place while a save runs (the timed one or one the panel started), and
-  `save 없음` before the first save. The order is: reopening, red, `저장 중`, amber, green;
+  `Not saved yet` before the first save. The chip keeps one width for every label, so the
+  panel above it does not move when the label changes. With auto save off, grey `Auto save off` takes the place of
+  green and of `Not saved yet`. The order is: reopening, red, `Saving`, amber, green or grey;
   so a stalled save stays red while a new one runs. Pressed without moving, the chip unfolds the
   Sessions panel above itself and refreshes it; pressed again, it folds it. A press that moves drags
   the chip.
 - **The save** is in `~/.config/herdr-app/data/session-restore.json`. `current` is the
   Claude sessions alive at the last save, replaced at each save. The chip runs the
   save, one at a time, once at start and then every `saveEveryMinutes` (it looks each
-  minute whether one is due); the panel's button runs it at once, and so does the
+  minute whether one is due), unless auto save is off; the panel's button runs it at once
+  whatever the setting, and so does the
   `session-restore.save` command, which a `keys.json` binding can send (none is installed). For each live terminal whose foreground is Claude, it reads
   `~/.claude/sessions/<pid>.json` for the session id, and records the terminal's
   name, parent, folder, space and tab, title, status and Claude flags. The task
@@ -152,9 +155,15 @@ rewritten for each Herdr version and are the truth about the API.
   the list.
   The panel reads the history and settings again whenever either file changes.
 - **The settings** are in `~/.config/herdr-app/data/session-restore.settings.json`:
+  `autoSave` (default `true`; `false` turns off the save at start and on the timer, while
+  the panel's button and the `session-restore.save` command still save),
   `saveEveryMinutes` (default 10) and `historyLimit` (default 50; `null` keeps
-  every save). The Settings tab writes them; a limit below the number of saves
-  asks before it deletes the oldest. A hand edit applies at the chip's next check.
+  every save). The Settings tab writes them: a switch for auto save, and number fields
+  for the other two that take only digits and apply on Enter or on leaving the field,
+  beside their − and +, each with its range shown and kept to it (an interval 1–1440
+  minutes, a limit 1–500 saves; − or + at an end is greyed). A hand edit of the file is not
+  held to those ranges. A limit below the
+  number of saves asks before it deletes the oldest. A hand edit applies at the chip's next check.
 - **Unfolding by itself.** When Herdr starts, the chip's first successful save
   unfolds the panel once if there is something to restore and the panel has not
   unfolded itself on that core holder yet. A core restart with the window open

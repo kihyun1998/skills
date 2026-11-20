@@ -589,7 +589,7 @@ test("saveOnce keeps the history to the limit in the settings file", async () =>
 test("readSettings gives the defaults with no file, and writeSettings writes the file and trims the history to a lower limit", async () => {
   const saves = [3, 2, 1].map((id) => ({ id, at: id, entries: [{ sessionId: "s" + id }] }));
   const m = machine({ files: { [historyPath(APP)]: JSON.stringify({ version: 1, saves }) } });
-  assert.deepEqual(await readSettings(m.io), { saveEveryMinutes: 10, historyLimit: 50 });
+  assert.deepEqual(await readSettings(m.io), { saveEveryMinutes: 10, historyLimit: 50, autoSave: true });
   await writeSettings(m.io, { saveEveryMinutes: 5, historyLimit: 2 });
   assert.deepEqual(JSON.parse(m.files[settingsPath(APP)]), { saveEveryMinutes: 5, historyLimit: 2 });
   assert.deepEqual((await readHistory(m.io)).saves.map((s) => s.id), [3, 2]);
@@ -644,4 +644,35 @@ test("mergeSaves at the history limit deletes no save, each merge one more over,
   assert.deepEqual((await readHistory(m.io)).saves.map((s) => s.id), [6, 5, 4, 3, 2, 1]);
   await saveOnce(m.io);
   assert.deepEqual((await readHistory(m.io)).saves.map((s) => s.id), [7, 6, 5, 4]);
+});
+
+test("with auto save off the chip saves nothing at start or on its timer, and the save command still saves", async () => {
+  const m = machine({ files: { [settingsPath(APP)]: JSON.stringify({ autoSave: false }) } });
+  let now = 1_000_000;
+  m.io.now = () => now;
+  const r = saver(m);
+  await r.settle();
+  assert.equal(saveCount(m), 0);
+  assert.deepEqual(r.saving, []);
+  now += 30 * 60_000;
+  r.timers[0].fn();
+  await r.settle();
+  assert.equal(saveCount(m), 0);
+  r.s.command("save");
+  await r.settle();
+  assert.equal(saveCount(m), 1);
+});
+
+test("auto save turned back on in the settings file saves at the next check", async () => {
+  const m = machine({ files: { [settingsPath(APP)]: JSON.stringify({ autoSave: false }) } });
+  let now = 1_000_000;
+  m.io.now = () => now;
+  const r = saver(m);
+  await r.settle();
+  assert.equal(saveCount(m), 0);
+  m.files[settingsPath(APP)] = JSON.stringify({ autoSave: true });
+  now += 60_000;
+  r.timers[0].fn();
+  await r.settle();
+  assert.equal(saveCount(m), 1);
 });

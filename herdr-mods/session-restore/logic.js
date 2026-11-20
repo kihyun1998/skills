@@ -43,7 +43,20 @@ export const isShell = (fg) => /^(pwsh|powershell|cmd|bash|zsh|fish|sh|dash|ksh|
 const MIN = 60_000;
 
 /** The settings a missing or unreadable settings file stands for. historyLimit null keeps every save. */
-export const DEFAULT_SETTINGS = { saveEveryMinutes: 10, historyLimit: 50 };
+export const DEFAULT_SETTINGS = { saveEveryMinutes: 10, historyLimit: 50, autoSave: true };
+
+/** What the Settings tab lets each number be. A history of 500 saves is about 9 MB at the 18 KB a save took on 2026-11-20. */
+export const SETTING_BOUNDS = { saveEveryMinutes: { min: 1, max: 1440 }, historyLimit: { min: 1, max: 500 } };
+
+/** The ASCII digits of what a number field was given, in order. */
+export const digitsOnly = (text) => String(text ?? "").replace(/[^0-9]/g, "");
+
+/** A whole number from a field's text or a number, kept within min and max; null for no number. */
+export function clampWhole(value, min, max) {
+  const n = typeof value === "number" ? value : String(value ?? "").trim() === "" ? NaN : Number(value);
+  if (!Number.isFinite(n)) return null;
+  return Math.min(max, Math.max(min, Math.round(n)));
+}
 
 const whole = (v) => (typeof v === "number" && Number.isFinite(v) && Math.round(v) >= 1 ? Math.round(v) : null);
 
@@ -55,6 +68,7 @@ export function parseSettings(text) {
   return {
     saveEveryMinutes: whole(raw.saveEveryMinutes) ?? DEFAULT_SETTINGS.saveEveryMinutes,
     historyLimit: raw.historyLimit === null ? null : whole(raw.historyLimit) ?? DEFAULT_SETTINGS.historyLimit,
+    autoSave: raw.autoSave !== false,
   };
 }
 
@@ -208,14 +222,16 @@ export function summarize(save, { now, failed, staleMs = STALE_MS }) {
  * ({ opened, total }). sinceSave is how long ago the chip's last save ended, in ms; longer than
  * staleMs reads as stalled. saving is whether a save runs now. The order: an open under way, a
  * stalled save (red), a save running (spin, its dot the color the count would have), then what can
- * be restored (amber) and the count saved (green).
+ * be restored (amber) and the count saved (green). With autoSave false no age reads as stalled, and
+ * "Auto save off" (dim) takes the place of the count saved and of no save yet.
  */
-export function chipState(summary, opening = null, sinceSave = 0, staleMs = STALE_MS, saving = false) {
-  if (opening?.total > 0) return { label: "여는 중 · " + opening.opened + "/" + opening.total, dot: "green" };
-  if (summary?.stalled || sinceSave > staleMs) return { label: "save 멈춤", dot: "red" };
-  if (saving) return { label: "저장 중", dot: !summary ? "dim" : summary.restorable > 0 ? "amber" : "green", spin: true };
-  if (!summary) return { label: "save 없음", dot: "dim" };
-  if (summary.restorable > 0) return { label: "복원할 세션 " + summary.restorable, dot: "amber" };
+export function chipState(summary, opening = null, sinceSave = 0, staleMs = STALE_MS, saving = false, autoSave = true) {
+  if (opening?.total > 0) return { label: "Opening " + opening.opened + "/" + opening.total, dot: "green" };
+  if (summary?.stalled || (autoSave && sinceSave > staleMs)) return { label: "Save stalled", dot: "red" };
+  if (saving) return { label: "Saving", dot: !summary ? "dim" : summary.restorable > 0 ? "amber" : "green", spin: true };
+  if (summary?.restorable > 0) return { label: summary.restorable + " to restore", dot: "amber" };
+  if (!autoSave) return { label: "Auto save off", dot: "dim" };
+  if (!summary) return { label: "Not saved yet", dot: "dim" };
   return { label: "⟲ " + summary.saved, dot: "green" };
 }
 
