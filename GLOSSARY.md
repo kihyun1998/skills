@@ -485,6 +485,16 @@ Where the check is a TLA+ model, its agent reads each result with `statechart`
 itself (#100).
 _Avoid_: verification skill (ambiguous with the two skills that write and maintain one)
 
+**Vendored skill**:
+A skill folder copied from another catalog without changes, with an
+`UPSTREAM.md` that records the source repository, the commit it was copied
+at, and every change made since. `create-formal-verification-skill`,
+`maintain-formal-verification-skill` and `statechart` are vendored from
+pstack at `e1cc031` (#78). Folder paths stay upstream's, so the copy can be
+compared with later upstream commits.
+_Avoid_: fork (the folder is a pinned copy with recorded changes, not a
+diverging line of development)
+
 ## Relationships
 
 - An **AFK agent** produces work in response to one **issue**; the
