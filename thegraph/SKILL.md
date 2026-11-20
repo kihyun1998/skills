@@ -169,7 +169,9 @@ what each has to carry and what a correction to each one means.
 
 **On a prose or code route, the reading also carries the reviews `check-it` will
 run, as one line.** Once ② is written, start `check-it`'s decision model on the
-issue and the two statements, wait for its answer, and put its pick, the floor
+issue and the two statements, with the prompt and the file names `check-it`'s
+script prints (`pick-confirm` and `change` in its *Briefing the fresh agents*;
+in a cluster with `--child`), wait for its answer, and put its pick, the floor
 added, as one line in the question that carries ②, as `check-it`'s *Choosing
 the reviews* says, which also says when it runs again. Nothing else about the
 reviews is asked, and there is no call of its own. **Before the question goes

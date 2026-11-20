@@ -72,8 +72,9 @@ A benchmark has no pass or fail of its own, so it is read through (10). Never mo
 one green, and report a check not run, with why. **The same
 failure surviving three fixes stops the repairs** and goes to a person as a
 design question. **Where a verify skill covers a file the diff touches, its
-check is on the list**, run without being asked, as *A project's verify skill, in (1)*
-says.
+check is on the list**, run without being asked: where the repository has a
+`.claude/skills/` folder, read [verify.md](verify.md), which says how it is
+found, run and read.
 
 ### Choosing the reviews
 
@@ -83,8 +84,9 @@ the floor is added to its pick (ADR-0102, amended for #112). It runs twice:
 
 - **At the confirm stop**, from the planned change. `thegraph` and
   `thegraph-herdr` start it for each issue once ② is written, with the issue
-  and the two statements as its change, and wait for its answer as for any
-  check started in the background (*Briefing the fresh agents*). Where `read-it`
+  and the two statements as its change (`pick-confirm` and `change` in
+  *Briefing the fresh agents*), and wait for its answer as for any check
+  started in the background. Where `read-it`
   asks ① alone first, the pick waits for ②; a correction to ① that rewinds the
   reading runs it again on the new statements. The pick is shown as one line
   inside the question that carries ②, and the person can change it there in
@@ -103,49 +105,11 @@ the floor is added to its pick (ADR-0102, amended for #112). It runs twice:
   that set, so nothing added is lost. A direct `/check-it`, with no confirm stop
   before it, runs on this pick alone, and asks nothing about the reviews.
 
-**The decision model is Haiku 5.5, effort `medium`**, started with `Agent`
-(`model: "haiku"`, `effort: "medium"`) and briefed as every review is
-(*Briefing the fresh agents*, which says what its prompt holds).
-
-The decision model answers each question **yes** or **no** with the lines that
-ground the answer, quoted with their file and line, or, at the confirm stop, with the sentence of
-the issue or statement they come from. A no that rests on finding nothing is
-grounded by the search it ran and what that search printed, which anyone can run
-again. **Where it cannot tell, the answer is
-yes**: running one review too many costs less than missing one. It answers from
-what the change does, not from words in it: a skill that mentions arguments, or
-a shell, does not make question 2 yes unless the change makes something run that
-takes such a value from someone else.
-
-| | The question | Points to |
-|---|---|---|
-| 1 | Does something that runs change: code, scripts, config, or commands written in docs? | the bug reviewer (6) |
-| 2 | Does input from outside the process reach changed code, or does changed code handle authentication, permissions or secrets? | the security reviewer (7) |
-| 3 | Does it change a promise others depend on: a public API, a contract between skills, a file format, exit codes? | `lens` (8), the bug reviewer (6) |
-| 4 | Are there siblings or prior art to hold it against, or something that must be listed in full? | `lens` (8) |
-| 5 | Does it add a function, module or doc section, or change structure? | the refactoring reviewer (4) |
-| 6 | Does it add or change comments or lint suppressions? | `comment-it` (9) |
-
-Then, with the reviews' descriptions in hand, **it picks the reviews itself**,
-one line of reason for each, picked or not:
-
-| Review | What it reads for |
-|---|---|
-| the refactoring reviewer (4) | whether the change re-makes what the repository has, could be simpler, wastes visible work, is too general or too narrow, or is hard to maintain |
-| the bug reviewer (6) | correctness bugs in whatever the change makes run: code, scripts, configuration, and commands written in documents |
-| the security reviewer (7) | security defects where untrusted input reaches what the change makes run, or where it handles authentication, permissions or secrets; commands in documents included |
-| `lens` (8) | what the change left out or does differently, held against this repository's siblings and the named prior art, deliberate divergences left out |
-| `comment-it` (9) | whether the comments and lint suppressions the change adds or changes keep the repository's comment rule |
-
-Its answer has this shape, and nothing after it:
-
-```
-1. yes|no — <one line> — <the lines that ground it>
-2. …
-6. …
-pick:
-- <review> — yes|no — <one line of reason>
-```
+**Its questions, the reviews' descriptions and its answer's shape are
+[reviewers/decision-model.md](reviewers/decision-model.md)**, which the script
+puts in its prompt: six questions, each answered yes or no with the lines that
+ground it, or the search that found nothing, **yes where it cannot tell**, then
+a `pick:` list with one line of reason for each review, picked or not.
 
 **The floor is added after the pick, whatever the pick says**: the spec and
 rules reviewer (5) always runs, and the proving agent (11) runs whenever the
@@ -207,144 +171,27 @@ Opus version runs the Opus rows on its own version. The confirm stop says so
 when it shows the table, and a change asked anyway that cannot apply is
 reported as not applied, with the reason.
 
-### The spec and rules reviewer (5)
+### Each review's own brief
 
-One fresh agent, given the **whole** diff, the issue, and what this repo wrote
-down: its `CLAUDE.md`, decision records and conventions. It is briefed and
-handled as `lens` is (*Briefing the fresh agents*), and it answers two
-questions, reported apart, each with its own worst finding and never merged into
-one ranking:
-
-- **Rules: does it hold up** against what this repo wrote down: its
-  `CLAUDE.md`, its decision records, its conventions? Whether it is built well
-  for maintaining, where nothing written says, is the refactoring reviewer's
-  question (4), not this one.
-- **Spec: does it do what the issue asked?** What is missing, what crept in that
-  nobody asked for, and what looks done but is done wrongly.
-
-Each finding is graded **violation** (cite the rule), **judgement**, or **already
-decided** (a record settled it; one line), and carries its reproduction: the
-exact command, the output it printed, and the output the intent requires. A
-finding a run could show and nobody ran is left out; one no run here can show,
-such as a naming rule, is kept and marked *not run*, with why. The report ends with
-`lens`'s safety line (*Verification*, item 6), for the fact the change's safety
-rests on. A clean answer is a result.
-
-Who could reach the change and what it exposes is the security reviewer's
-question (7), not this reviewer's. Where 7 did not run, nothing asked it, and
-the result says so.
-
-### The refactoring, bug and security reviewers (4, 6, 7)
-
-Each is one fresh agent, briefed as the reviewer is (*Briefing the fresh
-agents*), and its own part of the brief is a file beside this one. **Read the
-file only when that review runs**, and pass its text whole in the agent's
-prompt:
+Each review is one fresh agent (*Briefing the fresh agents*), and its own part
+of the brief is a file beside this one, which the script puts in its prompt
+whole. None of them edits.
 
 - the refactoring reviewer (4): [reviewers/refactoring.md](reviewers/refactoring.md)
+- the spec and rules reviewer (5): [reviewers/spec-rules.md](reviewers/spec-rules.md).
+  Who could reach the change is the security reviewer's question (7); where 7
+  did not run, nothing asked it, and the result says so.
 - the bug reviewer (6): [reviewers/bug.md](reviewers/bug.md)
 - the security reviewer (7): [reviewers/security.md](reviewers/security.md)
+- `lens` (8) and `comment-it` (9): their skill's body, then
+  [reviewers/lens.md](reviewers/lens.md) or
+  [reviewers/comment-it.md](reviewers/comment-it.md) as its argument
+- the proving agent (11): [reviewers/proving.md](reviewers/proving.md), then
+  *Whose is it* whole and every finding of 4, 6, 7 and 8, each returned
+  passed, dropped or unproven. The reviewer's findings (5) and `comment-it`'s
+  (9) carry their own evidence and do not go through it.
 
-None of them edits. Their findings name a file, a line, and what shows each, run
-or traced; the proving agent (11) reproduces them.
-
-### A project's verify skill, in (1)
-
-A **verify skill** is defined in `GLOSSARY.md`: the project-local skill
-`create-formal-verification-skill` writes, under the repository's
-`.claude/skills/`, committed or not. Nothing here builds one or calls that skill
-(#78).
-
-**The signal is mechanical**: the files the diff touches (`git diff HEAD
---name-only --no-renames`, which names both paths of a move, and every
-untracked file) against the files each verify skill names as covered: the code
-its check describes, not every file the skill mentions (its model, its scripts
-and the files it lists as not covered are not covered files). A file in both
-puts that skill's check on (1)'s list. Nobody is asked: it is a check, not a
-review, so the decision model does not pick it and nobody removes it (ADR-0102,
-amended for #105). A skill that covers only some functions of a file
-still counts the file: whether the change reaches a covered function is the
-verify skill's own first step, and the check runs either way. The candidates are
-found by reading each `.claude/skills/*/SKILL.md`: one that names the files it
-covers and the commit it was confirmed at (its sync commit) is a verify skill,
-wherever in it it writes them, and one without both is not.
-
-**Running it.** It runs with the rest of (1), before the reviews and the
-benchmark (10), so a check such as TLC, which can take every core, never shares
-the machine with a benchmark that wants it quiet. It runs again with (1) after
-the fixes the person picks. It runs in this session. Follow the verify skill's steps for whether
-the change touches the verified code and for running its command, its tool
-state sent to a set place and deleted after as [`clean-it`'s rules](../clean-it/RULES.md)
-say, run bare as
-(1) runs a check. Save the output, as `<run sheet>.verify.md` or in the OS temp
-folder. A check that cannot run here, such as one whose tool is not installed,
-is reported as not run, with why, and never as a pass.
-
-**Where the check runs on a model rather than on the code, a code change cannot
-turn it red by itself.** So where the verify skill's own test says the change
-touches the verified code (a mapped function, or a new step of the kind its
-model makes an action) and the model no longer describes the new code, bring the
-model in line with the new code, as the first step of the skill's section for an
-intended change says, **in a copy in its own folder in the run folder**, and run the check
-there once, with its own temporary folder, so its logs do not replace the
-repository run's. The copy and the check's tool state go at the end of this
-check, as [`clean-it`'s rules](../clean-it/RULES.md) say. Only that first step: the copy is not changed again until it
-passes, and the repository's model, the skill and its sync commit are left as they are,
-since nothing here fixes anything. The repository run is the baseline *Whose is
-it* compares against, where no commit after the sync commit touched the covered
-files.
-
-**Reading the result.** This session reads the run's own output, a failed run's
-counterexample included, and tells a counterexample as a short sequence of steps
-in the code's words. It runs nothing else to read it, even where an older verify
-skill names a tool for that. The result says, as the verify skill's steps tell a
-real bug from a modelling error:
-
-- **Whether the model needed bringing in line.** Where it did, that is drift,
-  and it goes to a person with the functions and the model change the copy
-  needed, whatever the copy's run gave. Where the covered files also changed in
-  commits after the sync commit (`git log --oneline <sync commit>..HEAD --
-  <covered files>` lists any), the drift may be older than this change, and the
-  result names `/maintain-formal-verification-skill`, which a person invokes.
-- **What the run gave**, on the repository's model where it still describes the
-  code, or on the copy:
-  - **pass**;
-  - **a bug**: a property fails, and every step of the counterexample can happen
-    in the new code. One this change introduced goes back to `make-it`; one the
-    tree without it also fails on goes to a person (*Going back, and
-    stopping*). A finding the skill already records is an expected failure in
-    its check;
-  - **a recorded finding now passes**: the change fixed it. It goes to a person
-    with the skill's steps for moving that property, not back as a defect;
-  - **a modelling error**: a step of the counterexample cannot happen in the
-    code. It goes to a person as drift, with that step and the code it maps to.
-
-### The proving agent (11)
-
-One fresh agent, briefed as the reviewer is, given every finding of 4, 6, 7 and
-8 as each report gave it, with its grade or severity. For each one it
-reproduces the finding: it runs the
-command that shows it, with the output it printed and the output the intent
-requires, or, for a finding about text such as a citation or a missing case, it
-re-opens the source and quotes it. Each finding comes back as one of three:
-
-- **passed**: reproduced, with that evidence;
-- **dropped**: shown not to hold, or to need no action, with why;
-- **unproven**: no run here can show it, because it needs a live screen,
-  another machine or a person to drive it. It says what would show it, and it
-  goes to a person. It is never passed and never dropped.
-
-**Each finding's line also gives the time spent on it**, from the first probe
-to the verdict. No cap applies yet. The times are recorded so a cap can be set
-from them, or left unset (ADR-0102, *The review strength, and what each review
-cost*).
-
-Each finding also says **whether this change introduced it**, measured as
-*Whose is it* says where a run can show it, and read from the diff where only
-text can. A passed finding goes into the report (*One report, one question*),
-pre-ticked only where this change introduced it and it asks for no decision.
-The reviewer's findings (5) and `comment-it`'s (9) carry their own evidence and
-do not go through it.
+### Cost (10) and comments (9)
 
 **Cost (10)**: no defect without a number. A slowdown that was measured, with
 something to compare it against, is a defect. A shape nobody measured is a
@@ -368,9 +215,8 @@ mode or of a missing rule is passed on as it came.
 
 **After the proving agent (11), every finding goes into one numbered report**:
 those of the refactoring reviewer (4), the reviewer (5), the bug reviewer (6),
-the security reviewer (7), `lens` (8) and `comment-it` (9). Save it as `<run
-sheet>.findings.md`, or in the OS temp folder where there is no run sheet, and
-write its path on the run sheet; a `thegraph-herdr` worker, whose run sheet does
+the security reviewer (7), `lens` (8) and `comment-it` (9). Save it as
+`findings` (*Save each report*), and write its path on the run sheet; a `thegraph-herdr` worker, whose run sheet does
 not exist, writes it in its report file's `## Question` and `## Result`. The
 numbers run once through the whole report, **one number for one defect**: where
 several reviews found the same one, its line names each, and it goes in the
@@ -554,63 +400,67 @@ does not fire. Anything genuinely ambiguous goes out as a question, not a verdic
 ## Briefing the fresh agents
 
 **Every review runs in a fresh agent** that never saw this session (ADR-0091,
-ADR-0095, ADR-0102): the refactoring reviewer (4), the reviewer (5), the bug
-reviewer (6), the security reviewer (7), `lens` (8), `comment-it` (9) and the
-proving agent (11), and so does the decision model that picks them. That is the point: the hand that shaped the change is the
-worst judge of it. So the brief is all it gets: the prompt of a newly started
-general-purpose agent (not a fork of this conversation, which inherits it),
-started with `Agent` on its row's model and effort, told to edit nothing,
-write no file outside the OS temp folder, and run nothing that acts outside its
-copy: no write to a tracker or a remote, nothing sent to another terminal or a
-process it did not start. Such a command is read and reported as traced. A probe that can only run inside the tree runs in a copy
-made in the agent's own folder in the run folder, without its `.git`, with `git init` where it needs
-git, as `lens` says (#93): a worktree, or a copy that keeps `.git`, writes into
-this repository's gitdir. **The brief names the run folder and the ledger**, and
-what the agent copies, builds, installs or starts follows
-[`clean-it`'s rules](../clean-it/RULES.md): a ledger line when it is made, deleted before
-the report returns with its size in the report, except the run's shared build
-folder, which stays for the run. That prompt names the diff as `git diff HEAD` plus every
-untracked file, so a new file is in it, and it points at the issue and this
-repo's records. Then each prompt carries its review's own part:
+ADR-0095, ADR-0102), 4 to 9 and 11, and so does the decision model that picks
+them. That is the point: the hand that shaped the change is the worst judge of it. So the brief
+is all it gets: the prompt of a newly started general-purpose agent (not a fork
+of this conversation, which inherits it), started with `Agent` on its row's
+model and effort.
 
-- **the reviewer (5)**: (5)'s two questions and the paragraph after them, quoted
-  as written here;
-- **the refactoring, bug and security reviewers (4, 6, 7)**: their file under
-  `reviewers/`, whole;
-- **`lens` (8)**: the body of [`lens`'s SKILL.md](../lens/SKILL.md) below its
-  frontmatter, whole, then the brief below as that skill's argument;
-- **`comment-it` (9)**: the body of [`comment-it`'s SKILL.md](../comment-it/SKILL.md)
-  below its frontmatter, whole, then its argument: the repository's root, and
-  the same diff as the scope;
-- **the proving agent (11)**: (11) quoted as written here, *Whose is it* whole,
-  since it measures each finding's owner that way, and every finding it is to
-  prove;
-- **the decision model**: *Choosing the reviews* from *The decision model
-  answers* to the end of the answer's shape, quoted as written here; at a
-  confirm stop, where there is no diff yet, the issue and the two statements
-  stand in its place.
+**The prompt is what this skill's script prints, handed to `Agent` as it is**
+(ADR-0102, amended for #114). Run it in the repository, `<check-it>` being this
+skill's folder:
 
-A skill's body links to files beside it, such as `../clean-it/RULES.md`, and an
-agent reads those links from its own working folder, where they do not resolve.
-So each `lens` and `comment-it` prompt names the skill's folder as an absolute
-path, the links to be read from there.
+```
+node <check-it>/scripts/check-it.mjs prompt <review> --issue <issue> --run-folder <run folder> --ledger <ledger>
+```
 
-**Save each report** beside the run sheet, as `<run sheet>.<name>.md` with the
-name `refactoring` (4), `spec-rules` (5), `bug` (6), `security` (7), `lens` (8),
-`comments` (9), `proving` (11), `verify` for the verify check of (1),
-`findings` for the gathered report, or `pick` for the decision model's answer
-at this skill's start, or in the OS temp folder when there is no run sheet, so
-a compaction does not lose it. The decision model's answer at a confirm stop is
-`<run sheet>.pick-confirm.md`, where the run sheet is the per-issue one in
-`thegraph-herdr` (`….<slug>.pick-confirm.md`), and in a `thegraph` cluster
-`<run sheet>.<child>.pick-confirm.md`, `<child>` being the child's issue number
-as its `## Children` line names it without the `#`, or its issue file's name
-without the extension. Then **re-run each command the
+- `<review>` is `refactoring`, `spec-rules`, `bug`, `security`, `lens`,
+  `comments`, `proving`, `pick` for the decision model at this skill's start,
+  or `pick-confirm` for it at a confirm stop.
+- `proving` adds `--findings <report>` for each saved report of 4, 6, 7 and 8
+  that ran; `pick-confirm` adds `--change <file>`, the issue and the two
+  statements.
+- `<issue>` is the issue's reference, or the request where there is none; the
+  run folder and the ledger are [`clean-it`'s](../clean-it/RULES.md).
+
+The prompt is [reviewers/brief.md](reviewers/brief.md) filled in, the change
+named as `git diff HEAD` plus every untracked file, each file listed (`range`
+prints the list), then the review's own part (*Each review's own brief*).
+`lens`'s and `comment-it`'s carry their skill's folder as an absolute path,
+since a body's links do not resolve from the agent's own folder.
+
+**The script stops with an error when any piece is missing**: an empty diff, a
+file that cannot be read or is empty, an option not given. A review it would
+not assemble has not started: fix what the error names and run it again, or
+report the review as not run with the error as the reason. A prompt written by
+hand around the error is not that review.
+
+**Never start `lens` or `comment-it` through `Skill`.** Their method is in the
+prompt, so nothing is handed on and nothing can arrive empty. Calling them
+through an agent that was to call `Skill` is what failed before (#87,
+`docs/research/check-it-subagent-models.md` Part A): a quarter of `lens` forks
+and 30% of `comment-it` forks did nothing, 85 of those 89 under a
+general-purpose agent that held the brief in its own prompt and called `Skill`
+with no `args`, or with `"see task message"`. **A reply saying the brief was
+empty or missing is that check not run**, and it is reported as not run, with
+that reply as the reason. It is never a pass, and a pass done by some other
+agent in its place is not that check either.
+
+**Save each report** at the path
+`node <check-it>/scripts/check-it.mjs name <name> --sheet <run sheet>` prints,
+or with `--run-folder <run folder>` in place of `--sheet` where there is no
+run sheet, so a compaction does not lose it. The name is the review's as above, `verify` for
+the verify check of (1), `findings` for the gathered report, `pick` for the
+decision model's answer at this skill's start, and at a confirm stop
+`pick-confirm` for its answer and `change` for the planned change it reads. In
+`thegraph-herdr` the run sheet is the per-issue one; in a `thegraph` cluster
+the name takes `--child <child>`, the child's issue number as its `## Children`
+line names it, or its issue file's name. Then **re-run each command the
 reviewer's kept findings carry, and each passed finding's reproduction, before
-it goes into the report's first group**: a finding is a candidate until it was reproduced here. An
-*unproven* finding is carried to a person with what would show it. A skip, such
-as a two-sentence change with nothing for the reviewer to read, is reported with
-its reason, never silent.
+it goes into the report's first group**: a finding is a candidate until it was
+reproduced here. An *unproven* finding is carried to a person with what would
+show it. A skip, such as a two-sentence change with nothing for the reviewer to
+read, is reported with its reason, never silent.
 
 **A check started in the background is waited for, and its report read, before
 the run moves on** (#92). An `Agent` call made from a script can come back at
@@ -626,32 +476,6 @@ or the result, until every check it started has its report read or is reported
 not run. **A check whose report never came back is reported as not run**: the
 notification says it failed or was stopped, or the agent ended with no report.
 The result names what was waited on and where, and it is never a pass.
-
-**Start `lens` and `comment-it` with their skill's body in the prompt, and tell
-the agent not to call `Skill`.** The method is in the prompt, so nothing is
-handed on and nothing can arrive empty. Calling them through an agent that was
-to call `Skill` is what failed before (#87,
-`docs/research/check-it-subagent-models.md` Part A): a quarter of `lens` forks
-and 30% of `comment-it` forks did nothing, 85 of those 89 under a
-general-purpose agent that held the brief in its own prompt and called `Skill`
-with no `args`, or with `"see task message"`. **A reply saying the brief was
-empty or missing is that check not run**, and it is reported as not run, with
-that reply as the reason. It is never a pass, and a pass done by some other
-agent in its place is not that check either.
-
-`lens` needs three things or it reports a divergence on a layer where the
-reference has no vote at all — and reports it as urgent, because from inside the
-brief it is:
-
-- **this repo's siblings** — the features that already solve the adjacent problem
-- **the named prior art** — read as sources, in full, never sampled
-- **what this project diverges from on purpose** — read from the **decision
-  records**, where the record that decided each one already lives. Where the code
-  plainly diverges and no record says why, that absence is itself a finding.
-
-And the sentence that settles a clash: **this project's own measurement wins, and
-an unmeasured preference does not. Where a record has already settled a
-particular clash, the record governs.**
 
 ## Going back, and stopping
 

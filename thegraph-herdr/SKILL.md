@@ -65,9 +65,11 @@ are.
   `a-z 0-9 - _`, unique among every live terminal of this user.
 - **An issue's files** start with the run sheet's path without `.md`, then
   `.<slug>`: `….<slug>.brief.md`, `….<slug>.report.md`, `….<slug>.md`, the
-  run sheet the worker's skills are told to keep their files beside, and
-  `….<slug>.pick-confirm.md`, the decision model's answer at the confirm stop. So every one
-  of them is named after the run sheet.
+  run sheet the worker's skills are told to keep their files beside, and the
+  decision model's answer at the confirm stop and the planned change it reads,
+  named by `check-it`'s script against that per-issue run sheet
+  (`….<slug>.pick-confirm.md`, `….<slug>.change.md`). So every one of them is
+  named after the run sheet.
 - **The run's Stop hook** is the run sheet's path without `.md`, then
   `.stop-hook.json`, written once per run and passed to every worker with
   `--settings`. It makes each turn a worker ends say so to this session:
@@ -133,7 +135,8 @@ keep-as-tab and close controls.
 
 **The reading carries each prose or code issue's reviews as one line.** Once an
 issue's ② is written, start `check-it`'s decision model on the issue and the two
-statements, wait for its answer, and put its pick, the floor added, as one line
+statements, with the prompt `check-it`'s script prints (`pick-confirm` in its
+*Briefing the fresh agents*), wait for its answer, and put its pick, the floor added, as one line
 in that issue's question that carries ②, as `check-it`'s *Choosing the reviews*
 says, which also says when it runs again. Nothing else about the reviews is
 asked. `check-it`'s table of each review's model goes before the question

@@ -1,0 +1,28 @@
+name: skill-scripts
+
+# Node expands the quoted test globs itself, so the same line runs under the
+# Windows runner's PowerShell and macOS's bash.
+on:
+  push:
+    paths: &paths ['check-it/scripts/**', 'check-it/reviewers/**', 'check-it/SKILL.md', 'lens/SKILL.md', 'comment-it/SKILL.md', 'grill-the-graph/scripts/**', '.github/workflows/skill-scripts.yml']
+  pull_request:
+    paths: *paths
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: node --test "check-it/scripts/*.test.mjs" "grill-the-graph/scripts/*.test.mjs"

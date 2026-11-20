@@ -244,7 +244,8 @@ _Avoid_: Verdict (the Acceptance Gate's term)
 The spec and rules reviewer, the fresh agent [`check-it`](check-it/) starts on
 every change, on the **Review floor**, unless the person removes it at the confirm stop. It reads the whole diff, the issue and the repository's records, and
 answers apart whether the change does what the issue asked and whether it holds up
-against what the repository wrote down
+against what the repository wrote down. Its brief is
+[`check-it/reviewers/spec-rules.md`](check-it/reviewers/spec-rules.md)
 ([ADR-0095](docs/adr/0095-check-it-reviews-in-a-fresh-agent.md),
 [ADR-0102](docs/adr/0102-check-it-reviews-are-a-catalog-chosen-per-change.md)).
 Who could reach the change is the **Security reviewer**'s question, and whether
@@ -289,14 +290,17 @@ bundled command `check-it` ran before #105, which applied its own fixes)
 The fresh agent [`check-it`](check-it/) starts last of its reviews. It reproduces
 each finding of the **Refactoring reviewer**, the **Bug reviewer**, the **Security reviewer** and `lens`, and returns each as
 *passed*, *dropped* with why, or *unproven* for a person where no run here can
-show it ([ADR-0102](docs/adr/0102-check-it-reviews-are-a-catalog-chosen-per-change.md)).
+show it. Its brief is
+[`check-it/reviewers/proving.md`](check-it/reviewers/proving.md) ([ADR-0102](docs/adr/0102-check-it-reviews-are-a-catalog-chosen-per-change.md)).
 _Avoid_: finding vote (the name before it was decided to reproduce rather than vote)
 
 **Decision model** (thegraph):
 The fresh Haiku 5.5 agent [`check-it`](check-it/) starts to pick its reviews. It
 answers six fixed questions about the change, each with the lines that ground the
 answer and yes where it cannot tell, then picks the reviews with one line of
-reason each. It runs at the confirm stop on the planned change, its pick shown as
+reason each, from
+[`check-it/reviewers/decision-model.md`](check-it/reviewers/decision-model.md).
+It runs at the confirm stop on the planned change, its pick shown as
 one line in the reading question for the person to change in words, and again at
 `check-it`'s start on the real diff, where a review it adds is added without
 asking and nothing chosen is removed. The **Review floor** is added to its pick
@@ -312,7 +316,8 @@ and the **Proving agent** whenever the refactoring, bug or security reviewer or
 (#112).
 
 **Brief** (thegraph):
-The three things [`check-it`](check-it/) assembles and hands to `lens` — this repo's
+The three things [`check-it`](check-it/) hands to `lens`, written in
+[`check-it/reviewers/lens.md`](check-it/reviewers/lens.md) — this repo's
 siblings, the reference implementations, and **what this project diverges from on
 purpose**, read from the decision records where each divergence's own record
 lives. None of the three is where `lens` would look, which is why assembling it

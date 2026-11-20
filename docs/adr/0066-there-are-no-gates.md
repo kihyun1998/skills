@@ -1,5 +1,12 @@
 # ADR-0066 — There are no gates
 
+> **Amended for #114 on 2026-11-20** ([ADR-0102](0102-check-it-reviews-are-a-catalog-chosen-per-change.md),
+> *The briefs are files, and the fixed steps a script*). Tests of the scripts a
+> skill runs are run by CI. They are not a check that two copies of a fact
+> agree, the class this record removed: they test code a skill actually runs,
+> as *And the comparison is unflattering* says `obra/superpowers` and `caveman`
+> do.
+
 **Status:** accepted.
 
 `scripts/check-skills.py` (1,149 lines) and `scripts/hooks/pre-commit` (78) are

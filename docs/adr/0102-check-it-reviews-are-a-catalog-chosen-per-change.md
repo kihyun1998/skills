@@ -49,6 +49,15 @@
 > reverses #95's *every review is choosable* per change, #97's question asked
 > again at the start, the review strength (*The review strength, and what each
 > review cost*), and that section's rejection of a Haiku layer.
+>
+> **Amended for #114 on 2026-11-20** (*The briefs are files, and the fixed
+> steps a script*, below). Every brief pasted whole into a fresh agent is a file
+> under `check-it/reviewers/`, and the verify check is `check-it/verify.md`. A
+> script, `check-it/scripts/check-it.mjs`, prints each review's prompt, each
+> report's file name, the diff's range and the verify match, and stops with an
+> error when a piece is missing; `thegraph` and `thegraph-herdr` use it at the
+> confirm stop. This replaces #112's *its prompt is the text of Choosing the
+> reviews, quoted* and the naming in `check-it`'s *Save each report*.
 
 **Status:** accepted. Implements #91 (anchor #94). Amends
 [ADR-0090](0090-four-delegates-retire-into-their-callers.md),
@@ -1010,3 +1019,93 @@ changes:
 Not measured: a confirm stop run by `thegraph` or `thegraph-herdr` itself, with a
 person changing the pick in words; the run sheet and brief lines; a call that
 fails.
+
+## The briefs are files, and the fixed steps a script (#114, 2026-11-20)
+
+**The call is the maintainer's**, made at a grilling on 2026-11-20 and recorded
+in #114's body under *Decided*, which is the source for every point here. Ground
+as given there: `check-it` is prose an agent must follow, it had grown to 673
+body lines against the repository's 500-line guidance
+(`docs/skill-authoring.md`), and twice an agent not following the prose was
+answered with more prose (#87, #92). Decided:
+
+- **Every brief pasted whole into a fresh agent lives in its own file**, as the
+  bug, security and refactoring reviewers' have since #105: the spec and rules
+  reviewer, the proving agent, and the decision model's questions and tables
+  under `check-it/reviewers/`. **The verify check's section** is its own file,
+  since only a repository with a verify skill needs it. The sections every run
+  reads stay in the body, since moving them would add a step a run can skip.
+- **Four fixed steps are a script**, each giving the same output for the same
+  input: each review's prompt; each report's file name; the diff's range
+  (`git diff HEAD` plus every untracked file); and matching the diff against the
+  files a verify skill covers. A script cannot start an agent: it prints the
+  prompt, and the model hands that to `Agent` as it is.
+- **The script has tests, and CI runs them** on macOS and Windows, with
+  `grill-the-graph/scripts`' tests. This amends ADR-0066 where it says the repo
+  validates nothing mechanically: those were checks that two copies of a fact
+  agreed, and tests of code a skill runs are not that, as ADR-0066's own
+  comparison with `obra/superpowers` and `caveman` says.
+- **`thegraph` and `thegraph-herdr` use the same script** for the decision
+  model's prompt at their confirm stop and for the `pick-confirm.md` name.
+
+Derived in #114's body, not asked: the script stops with an error when any piece
+is missing, so a review never starts on an empty brief (#87's quarter of `lens`
+runs and 30% of `comment-it` runs); it is Node `.mjs`, run without a shell, safe
+on native Windows (`docs/environment/windows.md`), as `grill-the-graph/scripts`
+are; one command with subcommands. Passing `windowsHide` to every child process
+is that note's own rule, applied at build.
+
+**Derivations made at build:**
+
+- **The command** is `node check-it/scripts/check-it.mjs` with `range`, `name`,
+  `verify` and `prompt`, the logic in `assemble.mjs` beside it and the entry
+  running `main()` unconditionally, as `grill-the-graph/scripts` split
+  `attribution-check.mjs` from `no-attribution.mjs`, for the same reason: it is
+  reached through the `~/.claude/skills` link.
+- **The fixed sentences are a file too**, `check-it/reviewers/brief.md`, with
+  `{{name}}` placeholders the script fills in one pass, so a value such as an
+  issue's text is never expanded again. `lens`'s and `comment-it`'s arguments
+  are `reviewers/lens.md` and `reviewers/comment-it.md`. So every sentence an
+  agent reads is in markdown, and the script holds paths and order. A
+  placeholder the script does not fill is an error.
+- **The change's files are listed in the prompt**, from `git diff HEAD
+  --name-only --no-renames -z` and `git ls-files --others --exclude-standard
+  -z`, both run at the repository's top level. A name holding a control
+  character or a backtick is written as a JSON string, so an untracked file's
+  name cannot add lines to the prompt.
+- **The planned change at a confirm stop is a file**, named `change` beside
+  `pick-confirm`, since the script takes its input from a file and ② was until
+  now written only in the question.
+- **The links a body holds resolve from an absolute path**: the brief names
+  `clean-it/RULES.md` by its absolute path, and the spec and rules reviewer's
+  file names `lens`'s by its, as `lens`'s and `comment-it`'s prompts already
+  named their folder.
+- **The proving agent's *Whose is it*** is read from `check-it`'s body by its
+  heading, since every run reads that section and it stays there.
+- **Where there is no run sheet**, a report goes in the run folder as
+  `check-it.<name>.md`, the maintainer's pick at #114's `check-it`: a fixed name
+  in the OS temp folder let two repositories with the same folder name write
+  over each other, and on a shared `/tmp` let another account create the file
+  first. The run folder's name is random per run.
+- **A file is read with CRLF turned into LF**, the maintainer's pick at the same
+  question: `.gitattributes` sets no line ending, so a Windows checkout can give
+  CRLF, and a prompt would then carry it.
+- **`verify` stops on a covered path that is not a file in the tree**, the
+  maintainer's pick at the same question: a folder, a function name or another
+  form the exact match cannot read would otherwise print `none` and drop the
+  check from (1). A covered file the diff deletes still matches.
+- **The CI job** (`.github/workflows/skill-scripts.yml`) runs on a push or pull
+  request touching the scripts, the files the prompts read, or itself, with
+  read-only contents and no credentials kept by the checkout.
+
+**Measured on the change**, 2026-11-20: `check-it`'s body is 497 lines with the
+frontmatter excluded, from 673 at `7edfcd8`; `node --test
+"check-it/scripts/*.test.mjs"` passes 37 of 37 on Node 24.11.1, macOS, and 37 of
+37 on a copy with every `.md` turned to CRLF; each of 21 mutations to the
+script turned at least one test red; `windowsHide` removed turned none red,
+since no test here can see a window. Every review prompt of #114's own
+`check-it` was printed by the script and handed to `Agent` as printed.
+
+**What the decision did not cover:** the tests of `grill-the-graph/scripts` fail
+2 of 92 (2 skipped) on macOS before this change, so the new job's macOS leg is red until
+they are fixed; the Windows leg was not run here.
