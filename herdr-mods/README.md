@@ -80,7 +80,8 @@ rewritten for each Herdr version and are the truth about the API.
   (the first reopens it, the second closes it).
 - **The chip's label** is green `⟲ N` with N sessions saved, amber `N to restore`
   when something can be restored, red `Save stalled` when the save stalled (failed,
-  unreadable pid files, sessions whose transcript could not be looked for, or older
+  unreadable pid files, sessions whose transcript could not be looked for, a history file
+  that cannot be read, or older
   than three save intervals, which auto save off does not count), `Opening k/N` while sessions reopen, `Saving` with a turning
   ring in the dot's place while a save runs (the timed one or one the panel started), and
   `Not saved yet` before the first save. The chip keeps one width for every label, so the
@@ -173,6 +174,22 @@ rewritten for each Herdr version and are the truth about the API.
   made, the dialog says so and stays open, and a failed Make shows its error under
   the list.
   The panel reads the history and settings again whenever either file changes.
+- **A file that cannot be read.** The history file or the save file cannot be read when
+  its text does not parse, parses to something that is not a history or a save, or the
+  read gives nothing for a file that is there. A history file that cannot be read is never
+  written over: the save still writes the save file, the chip shows `Save stalled` at once
+  and the Sessions tab says why with the file's path, the History tab says the file cannot
+  be read in place of `No saves yet`, and a delete, a merge or a Settings change writes
+  nothing to it (the merge dialog says the history cannot be read). While it cannot be read,
+  the Settings tab does not let the history limit change, and says why: a lower limit would
+  ask nothing, as the number of saves it drops is unknown, and the first save after the file is
+  fixed would drop them. Fix or remove the file
+  and the next save writes the history again. A save file that cannot be read is first
+  copied, byte for byte, beside it as `session-restore.broken-<hash>.json` (one copy for
+  each distinct content, however many saves or retries meet it), then written as before; a
+  line at the foot of the Sessions tab gives the copy's path until its × is pressed. The
+  settings file is left as it was: one that cannot be read stands for the defaults, and a
+  Settings change writes over it.
 - **The settings** are in `~/.config/herdr-app/data/session-restore.settings.json`:
   `autoSave` (default `true`; `false` turns off the save at start and on the timer, while
   the panel's button and the `session-restore.save` command still save),

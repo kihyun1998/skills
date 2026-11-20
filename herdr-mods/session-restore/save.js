@@ -1,6 +1,5 @@
 // The save: the Claude session each live terminal holds, and the restore list, in the app's
-// data folder, with the save history and the settings beside it, and the chip's cadence for it. Side effects go through io ({ hc, read, write,
-// exists, list, spaces, now, home, appHome }).
+// data folder, with the save history and the settings beside it, and the chip's cadence for it.
 import { coreIdentity, goneSaves, isClaude, keptFlags, mergeSnapshots, nextSave, parseHistory, parseSettings, staleAfter, summarize, trimHistory, withSnapshot, withoutSnapshots } from "./logic.js";
 
 const trimEnd = (path) => String(path).replace(/[\\/]+$/, "");
@@ -36,7 +35,7 @@ async function hasTranscript(io, cwd, id, seen) {
   return (await seen.ids).has(id);
 }
 
-/** A save read back, or null when there is none or it does not parse. */
+/** A save read back, or null when there is none, it does not parse, or it is not a save. */
 export function parseSave(text) {
   try {
     const save = JSON.parse(text ?? "null");
@@ -87,18 +86,51 @@ export function observe(t, sessionId, spaces, prior) {
   };
 }
 
+/** Where a copy of a save file that could not be read goes: beside it, named by its content. */
+export const brokenCopyPath = (appHome, tag, n = 1) => trimEnd(appHome) + "/data/session-restore.broken-" + tag + (n > 1 ? "-" + n : "") + ".json";
+
+const tagOf = (bytes) => {
+  let h = 0x811c9dc5;
+  for (const b of bytes) h = Math.imul(h ^ b, 0x01000193);
+  return (h >>> 0).toString(16).padStart(8, "0");
+};
+const sameBytes = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+
+async function copyAside(io, path) {
+  const bytes = await io.readBytes(path), tag = tagOf(bytes);
+  for (let n = 1; ; n++) {
+    const copy = brokenCopyPath(io.appHome, tag, n);
+    if (!(await io.exists(copy))) { await io.writeBytes(copy, bytes); return copy; }
+    if (sameBytes(await io.readBytes(copy), bytes)) return copy;
+  }
+}
+
+async function readParsed(io, path, parse) {
+  const text = await io.read(path), value = parse(text);
+  const broken = text === null ? await io.exists(path).catch(() => false) : value === null;
+  return { text, value, broken };
+}
+
 // Reads, changes and writes a file, again once when the write finds the file changed. A change
 // that returns what it was given writes nothing.
-async function updateFile(io, path, parse, change) {
+async function updateFile(io, path, parse, change, onBroken, found = {}) {
   for (let attempt = 0; ; attempt++) {
     const readTurn = turnOf(io);
-    const before = await io.read(path);
-    const prev = parse(before);
+    const read = await readParsed(io, path, parse);
+    const before = read.text;
+    let prev = read.value;
+    if (read.broken) {
+      const kept = await onBroken(io, path);
+      if (kept.refuse) return { value: kept.value, turn: { n: readTurn, kind: "read" }, copied: found.copied ?? null };
+      found.copied = kept.copied;
+      prev = null;
+    }
     const next = await change(prev);
-    if (next === prev) return { value: next, turn: { n: readTurn, kind: "read" } };
+    const copied = found.copied ?? null;
+    if (next === prev) return { value: next, turn: { n: readTurn, kind: "read" }, copied };
     try {
       await io.write(path, JSON.stringify(next, null, 2) + "\n", before);
-      return { value: next, turn: { n: turnOf(io), kind: "write" } };
+      return { value: next, turn: { n: turnOf(io), kind: "write" }, copied };
     } catch (err) {
       if (attempt > 0) throw err;
     }
@@ -107,23 +139,27 @@ async function updateFile(io, path, parse, change) {
 
 const turnOf = (io) => io.turn?.() ?? null;
 
-const update = (io, change) => updateFile(io, savePath(io.appHome), parseSave, change);
-const updateHistory = (io, change) => updateFile(io, historyPath(io.appHome), parseHistory, change);
+const brokenHistory = () => ({ version: 1, saves: [], broken: true });
+
+const update = (io, change, found) => updateFile(io, savePath(io.appHome), parseSave, change, async (io, path) => ({ copied: await copyAside(io, path) }), found);
+const updateHistory = (io, change) => updateFile(io, historyPath(io.appHome), parseHistory, change, async () => ({ refuse: true, value: brokenHistory() }));
 
 /** The settings on disk, the defaults where the file has none. */
 export async function readSettings(io) {
   return parseSettings(await io.read(settingsPath(io.appHome)));
 }
 
-/** The save history on disk. */
+/** The save history on disk; with broken true, and no saves, when the file is there but cannot be read. */
 export async function readHistory(io) {
-  return parseHistory(await io.read(historyPath(io.appHome)));
+  const { value, broken } = await readParsed(io, historyPath(io.appHome), parseHistory);
+  return broken ? brokenHistory() : value;
 }
 
 /**
  * Writes the settings, and trims the history to their limit. Returns { history, settingsTurn,
  * historyTurn }: each { n, kind }, the io.turn() taken once that file was written, or before the
- * history was read when the trim wrote nothing (kind "read").
+ * history was read when the trim wrote nothing (kind "read"). A history file that cannot be read is
+ * not trimmed, and history is readHistory's broken one.
  */
 export async function writeSettings(io, settings) {
   const path = settingsPath(io.appHome);
@@ -133,7 +169,10 @@ export async function writeSettings(io, settings) {
   return { history, settingsTurn, historyTurn };
 }
 
-/** Deletes saves from the history by id. Returns { history, turn }, turn as writeSettings' are. */
+/**
+ * Deletes saves from the history by id. Returns { history, turn }, turn as writeSettings' are. A
+ * history file that cannot be read is left as it is, and history is readHistory's broken one.
+ */
 export async function deleteSaves(io, ids) {
   const { value: history, turn } = await updateHistory(io, (h) => withoutSnapshots(h, ids));
   return { history, turn };
@@ -142,7 +181,8 @@ export async function deleteSaves(io, ids) {
 /**
  * Adds a save of the kept sessions from several saves to the history (mergeSnapshots). Returns
  * { history, made, gone }: made the new save, or null when nothing was made; gone the ids of the
- * saves no longer in the history, when any is, nothing being made then.
+ * saves no longer in the history, when any is, nothing being made then. A history file that cannot
+ * be read is left as it is: nothing is made, gone is empty, and history is readHistory's broken one.
  */
 export async function mergeSaves(io, ids, keep) {
   let made = null, gone = [];
@@ -187,15 +227,18 @@ export async function runningSessions(io) {
 
 /**
  * Looks at every live terminal and writes the save: the Claude sessions alive now, and the restore
- * list (nextSave); a session with no transcript is left out. The sessions alive now go into the
- * history when they are not the newest save's (withSnapshot). Returns it with the number of Claude
+ * list (nextSave); a session with no transcript is left out. A save file that cannot be read is
+ * copied aside first (copied, its path; null when none was). The sessions alive now go into the
+ * history when they are not the newest save's (withSnapshot), unless the history file cannot be
+ * read: then it is left as it is, and history is broken. found.copied is set as soon as a copy is
+ * made, so a caller learns of it when the save then throws. Returns it with the number of Claude
  * pid files that had no session id (unreadable) and of sessions whose transcript could not be looked
  * for (unchecked), and turns: { save, history }, each as writeSettings' turns are.
  */
-export async function saveOnce(io, settings = null) {
+export async function saveOnce(io, settings = null, found = {}) {
   const { historyLimit } = settings ?? (await readSettings(io));
   let unreadable = 0, unchecked = 0;
-  const { value: save, turn: saveTurn } = await update(io, async (prev) => {
+  const { value: save, turn: saveTurn, copied } = await update(io, async (prev) => {
     unreadable = 0;
     unchecked = 0;
     const seen = {};
@@ -218,16 +261,19 @@ export async function saveOnce(io, settings = null) {
       observed.push(observe(t, id, io.spaces(), prior.get(id)));
     }
     return nextSave(prev, observed, { core, now });
-  });
+  }, found);
   const { value: history, turn: historyTurn } = await updateHistory(io, (h) => withSnapshot(h, save.current, { now: save.savedAt, limit: historyLimit }));
-  return { save, history, unreadable, unchecked, turns: { save: saveTurn, history: historyTurn } };
+  return { save, history, unreadable, unchecked, copied, turns: { save: saveTurn, history: historyTurn } };
 }
 
-/** Takes entries out of the restore list by key: the panel's remove. Returns { save, turn }, turn as writeSettings' are. */
+/**
+ * Takes entries out of the restore list by key: the panel's remove. Returns { save, turn, copied },
+ * turn as writeSettings' are, copied as saveOnce's.
+ */
 export async function removeEntries(io, keys) {
   const drop = new Set(keys);
-  const { value: save, turn } = await update(io, (prev) => ({ ...(prev ?? { version: 1, current: [] }), restore: (prev?.restore ?? []).filter((e) => !drop.has(e.key)) }));
-  return { save, turn };
+  const { value: save, turn, copied } = await update(io, (prev) => ({ ...(prev ?? { version: 1, current: [] }), restore: (prev?.restore ?? []).filter((e) => !drop.has(e.key)) }));
+  return { save, turn, copied };
 }
 
 /** Records the core holder the Sessions panel last opened itself on. */
@@ -236,15 +282,18 @@ export async function markShown(io, core) {
 }
 
 /**
- * Saves once and summarizes: summarize()'s fields with unreadable, unchecked and the error, with
- * the save, the history and their turns (saveOnce's). A save that throws leaves the files as they
- * were, and the summary is of that save, read back, each turn taken before its read.
+ * Saves once and summarizes: summarize()'s fields with unreadable, unchecked, historyBroken (the
+ * history file cannot be read, which stalls the save), saveCopied (where saveOnce copied a save
+ * file that could not be read, or null) and the error, with the save, the history and their turns
+ * (saveOnce's). A save that throws leaves the files as they were, and the summary is of that save,
+ * read back, each turn taken before its read.
  */
 export async function saveAndSummarize(io, settings = null) {
   let save = null, history = null, unreadable = 0, unchecked = 0, error = null, turns = null;
+  const found = {};
   settings ??= await readSettings(io);
   try {
-    ({ save, history, unreadable, unchecked, turns } = await saveOnce(io, settings));
+    ({ save, history, unreadable, unchecked, turns } = await saveOnce(io, settings, found));
   } catch (err) {
     error = String(err?.message ?? err);
     turns = { save: { n: turnOf(io), kind: "read" } };
@@ -252,8 +301,9 @@ export async function saveAndSummarize(io, settings = null) {
     turns.history = { n: turnOf(io), kind: "read" };
     history = await readHistory(io);
   }
-  const failed = Boolean(error) || unreadable > 0 || unchecked > 0;
-  return { save, history, turns, summary: { ...summarize(save, { now: io.now(), failed, staleMs: staleAfter(settings.saveEveryMinutes) }), unreadable, unchecked, error } };
+  const historyBroken = Boolean(history?.broken);
+  const failed = Boolean(error) || unreadable > 0 || unchecked > 0 || historyBroken;
+  return { save, history, turns, summary: { ...summarize(save, { now: io.now(), failed, staleMs: staleAfter(settings.saveEveryMinutes) }), unreadable, unchecked, historyBroken, saveCopied: found.copied ?? null, error } };
 }
 
 /** How often the chip looks whether a save is due. */

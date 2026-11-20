@@ -33,7 +33,7 @@ export default class SessionRestore extends View {
     this.saver = startSaving(herdrIo(cx), {
       every: (ms, fn) => cx.timer.every(ms, fn),
       spawn: (cx, job) => cx.spawn(async (cx) => { await job(cx); cx.notify(); }),
-      share: (summary, save, history, turns) => { this.savedAt = Date.now(); this.panel.saved(save, history, turns); shareSummary(summary); },
+      share: (summary, save, history, turns) => { this.savedAt = Date.now(); this.panel.saved(save, history, turns, summary); shareSummary(summary); },
       unfold: (cx) => { this.open = true; if (cx) this.panel.refresh(cx, false); },
       saving: (on, cx) => this.panel.timedSave(on, cx),
     }, cx);

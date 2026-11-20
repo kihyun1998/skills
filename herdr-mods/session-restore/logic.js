@@ -489,15 +489,17 @@ export const mergeDialog = (ids) =>
 
 /**
  * The save history's text read: { version, saves, lastId }, saves newest first, empty when there is
- * none or it does not parse. lastId, the highest id the history has given, is as the file holds it,
- * and missing in a history from before it or with no save yet.
+ * none (null), and null when the text does not parse or is not a history. lastId, the highest id the
+ * history has given, is as the file holds it, and missing in a history from before it or with no
+ * save yet.
  */
 export function parseHistory(text) {
+  if (text === null || text === undefined) return { version: 1, saves: [] };
   try {
-    const h = JSON.parse(text ?? "null");
+    const h = JSON.parse(text);
     if (h && Array.isArray(h.saves)) return h;
   } catch {}
-  return { version: 1, saves: [] };
+  return null;
 }
 
 const idsOf = (entries) => entries.map((e) => e.sessionId).sort().join("\n");

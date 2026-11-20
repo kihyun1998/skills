@@ -547,6 +547,13 @@ a word.
 - A history file that does not parse reads as empty, and the next save or a delete
   writes over it; lens noted it as outside this issue, and with this change a file
   lost that way also starts the ids at 1.
+
+  > **Amended 2026-11-20 (issue #109).** "or a delete" held when this was written (#109
+  > measured it on fa7c3d0 and dbfe7ad) and stopped holding at e6cf61d, which made
+  > `withoutSnapshots` return a history it removes nothing from unchanged: from then on a
+  > delete over such a file wrote nothing, and only the next save wrote over it (lens and
+  > #109's probe on 3afa955). The amendment "Amendment (issue #109)" at the end holds the
+  > change that stops the save too.
 - A delete of ids no longer in the history still writes the file, with the same
   bytes, and can fail on a write conflict; it did before this change too.
 
@@ -737,3 +744,117 @@ limit's maximum of 500 against Herdr's `readTextFile`, which reads "up to 1 MiB"
   `{ every 10, limit 40 }`).
 - `historyLimit: null` (keep every save) is not capped, so such a history passes 1 MiB past
   about 84 saves; what an unreadable history then does is #109's.
+
+## Amendment (issue #109): a history file that cannot be read is not written over, and a save file that cannot be read is copied first
+
+`parseHistory` read a history file that did not parse as an empty history, and
+`parseSave` read such a save file as no save, so the next write replaced the file. Lens
+on 3afa955, running copies of `save.js` and `logic.js`, and this change's probe on the
+same code: over a history of `{"version":1,"saves":[` or `{"saves":{}}`, a delete, a
+merge and the Settings trim wrote nothing, and `saveOnce` wrote the history over; over a
+save file that did not parse, `saveOnce` and `removeEntries` wrote it over.
+
+### The maintainer's call (2026-11-20)
+
+- **Option (가), per file, after a lens pass.** The history file is never written over
+  when it cannot be read: the save goes on writing the save file and the history write is
+  refused. The save file, when it cannot be read, is copied first, beside it, under a name
+  that does not wake the panel's folder watch, one copy per distinct content (not one per
+  save or per `updateFile` retry), then written as before.
+- **"Cannot be read"** is: the text does not parse, it parses to something of the wrong
+  shape, or the read gives null for a file that `exists` says is there.
+- **Carried as a value, never a throw.** Lens reproduced that a throw from `readHistory`
+  inside `saveAndSummarize`'s catch made the whole save reject, so `share` never ran and
+  the chip turned red only after three intervals, and that the panel's first read
+  (`Promise.all`) would drop the save and the settings with it. So the summary carries it,
+  as it carries `unreadable` and `unchecked`: the chip shows `Save stalled` at once, the
+  History tab says the file cannot be read with its path in place of "No saves yet", and the
+  merge dialog says the history cannot be read rather than that a save is "no longer in the
+  history". A copy of the save file is said once (the chip or the Sessions footer), with its
+  path.
+- **The history limit cannot change while the history file cannot be read (option 1)**,
+  chosen after lens found, and the proving agent reproduced, that a broken history reads as no
+  saves, so lowering the limit skipped its confirm, the trim was refused, and the first save
+  after the file was fixed trimmed to the new limit without asking (`[3, 2, 1]` to `[4]`).
+  Shown with always asking while it is broken (option 2) and recording it as a consequence
+  (option 3).
+- **Left alone:** the settings file (a settings file that cannot be read still stands for
+  the defaults, and a Settings change writes over it), what `readTextFile` does past 1 MiB
+  (#111), and #110.
+
+### Derived
+
+- `parseHistory` returns null for text that does not parse or is not a history, and an
+  empty history only for no text; `parseSave` already returned null for both. One
+  `readParsed` in `save.js` reads a file and calls it broken when the text is there and
+  parses to null, or the read gave null and `exists` says the file is there. An `exists`
+  that rejects counts as no file, as the call words it ("a file that exists"). The first build
+  counted it as there; the reviewer, `/review` and lens showed that a missing save file then
+  failed every save with ENOENT and a missing history read as broken, where 3afa955 wrote both
+  (the proving agent reproduced it against 3afa955).
+- `updateFile` hands a broken file to the file's own rule before `change` runs. The
+  history's rule returns `{ version: 1, saves: [], broken: true }` and writes nothing, so
+  every writer of the history (`saveOnce`, `deleteSaves`, `mergeSaves`, the Settings trim)
+  refuses in one place and returns that value; `readHistory` returns it too. The save's
+  rule copies the file and goes on as from no file.
+- The copy is byte for byte, through `fs/promises` `readFile` and `writeFile` (`io.readBytes`,
+  `io.writeBytes`), since a file whose read gave null has no text to copy. It is named
+  `session-restore.broken-<hash>.json`, the hash a 32-bit FNV-1a of the bytes; a copy of
+  that name with the same bytes is used again, and one with other bytes moves on to
+  `-2`, `-3`. The name does not start with the history or settings file's name, so
+  `folderChange` reads it as "skip". A copy that fails throws before the save file is
+  written, so the save fails and leaves the file as it was.
+- The summary gains `historyBroken`, counted as a failed save, and `saveCopied`, the
+  copy's path or null. The Sessions tab's stalled line says the history cannot be read, with its
+  path, as it says the other causes of a stalled save. `saveCopied` is kept from the moment the
+  copy is made, through an `updateFile` retry that finds the file whole and through a save that
+  throws after the copy (a failed `hc` call, a history write conflict); the first build lost it
+  in those cases (/review, lens, reproduced by the proving agent). The copy is said in one place, a line at the foot of the Sessions tab,
+  kept until its × is pressed; it is set from a save's summary or a remove's result, since
+  a remove over such a file copies it too. The chip does not say it: the save succeeded, and
+  the chip's label has no room for a path.
+
+### Measured
+
+- 24 tests were added to `io.test.mjs` and the `parseHistory` test in `logic.test.mjs` was
+  changed to the new contract. With 3afa955's `save.js` and `logic.js` under the first
+  build's tests, 22 failed. Mutations (a null read not counted as broken, a parse to null not
+  counted, no copy, a copy per save, `saveCopied` or `removeEntries`' copy dropped,
+  `historyBroken` not stalling, `parseHistory("null")` read as empty, a rejected `exists`
+  counted as there, the copy's path forgotten on a retry or on a save that throws) each turned
+  at least one red. The suite passed 177 of 177.
+- On a copy of the live data folder with the history and save files cut short, a save through
+  `save.js` with Node's `fs` in Herdr's place left the history file byte for byte as it was,
+  stalled the summary with `historyBroken`, and wrote a copy whose bytes matched the old save
+  file.
+- `herdr-app check` passed on the mod, and on throwaway copies with a fixture: the History tab
+  with a broken history, the Sessions tab with a copy note, the merge dialog with a broken
+  history, and the Settings tab with a broken history and a limit confirm pending; a throw
+  planted in each of those four texts failed the check, so each is drawn.
+- The limit lock: a throwaway Node harness loaded `panel.js` with `herdr`, `gpui-kit`,
+  `gpui-base` and `fs/promises` stubbed. With the history broken, `setLimit(1)` and
+  `setLimit(null)` started no write and left the limit at 50; with the guard removed, a write
+  started and the limit became `null`. With a whole history, `setLimit(1)` asked as before. The
+  Settings tab also hides a limit confirm already open when the history turns broken. The panel
+  wiring has no test in the repository; the harness was throwaway.
+
+### Not covered
+
+- The live window, and Herdr's `readFile`/`writeFile` on a real broken file: the copy was
+  run against the tests' fake only.
+- A save file whose read gives null for a file that is there: the copy is made, then the
+  write passes `expected` null, which `writeTextFile` documents as creating a new file. Whether
+  it then rejects as stale was not measured; if it does, every save fails with that error and
+  the save file is left as it was. The tests assert only that the copy comes first.
+- A read that rejects (rather than giving null) still throws, as before, for both files;
+  what `readTextFile` does past 1 MiB is #111's.
+- The settings file, by the maintainer's call.
+- A copy of the mod from before this change, still running until Herdr restarts or the chip
+  is reopened, writes over a history file that cannot be read, as before.
+- A history whose `saves` holds something that is not a save (`{"saves":[null]}`) still reads
+  as a history: every save fails with a TypeError and writes nothing to it, as on 3afa955.
+  Whether "the wrong shape" reaches into the list was not decided.
+- With `exists` rejecting, a history file whose read gives null is written over, as no file.
+- `markShown` copies a save file that broke between a save and it, and says nothing; two
+  removes overlapping on the same broken file can leave a second copy (`-2`) of the same
+  bytes, as Herdr's `writeFile` is not documented as atomic.

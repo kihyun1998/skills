@@ -57,6 +57,7 @@ export default class Sessions {
     this.picked = [];
     this.askDelete = false;
     this.askLimit = null;
+    this.copied = null;
     this.turns = {};
     this.inputs = {
       every: this.numberInput(() => this.settings.saveEveryMinutes, SETTING_BOUNDS.saveEveryMinutes, (n, cx) => this.setEvery(n, cx)),
@@ -107,9 +108,11 @@ export default class Sessions {
 
   /**
    * The save the chip's last save left: the one it wrote, or the last good one when it failed. The
-   * opened marks it shows gone are dropped (keepLive).
+   * opened marks it shows gone are dropped (keepLive). A copy the save made of a save file that could
+   * not be read is kept to show (copied) until it is closed.
    */
-  saved(save, history, turns) {
+  saved(save, history, turns, summary = null) {
+    if (summary?.saveCopied) this.copied = summary.saveCopied;
     if (history && this.take("history", turns?.history)) this.history = history;
     if (!save || !this.take("save", turns?.save)) return;
     this.save = save;
@@ -191,8 +194,8 @@ export default class Sessions {
 
   runSave(cx, targets) {
     return this.track(cx, "save", targets, async () => {
-      const { save, history, turns } = await saveAndShare(cx);
-      this.saved(save, history, turns);
+      const { save, history, turns, summary } = await saveAndShare(cx);
+      this.saved(save, history, turns, summary);
     });
   }
 
@@ -266,6 +269,7 @@ export default class Sessions {
 
   // A lower limit that would drop saves asks first.
   setLimit(n, cx) {
+    if (this.history.broken) return;
     const { min, max } = SETTING_BOUNDS.historyLimit;
     const next = { ...this.settings, historyLimit: n == null ? null : clampWhole(n, min, max) };
     if (overLimit(this.history, next.historyLimit) > 0) { this.askLimit = next; cx.notify(); return; }
@@ -318,7 +322,8 @@ export default class Sessions {
     if (!go.length) return;
     cx.spawn(async (cx) => {
       await this.track(cx, "remove", go, async () => {
-        const { save, turn } = await removeEntries(herdrIo(cx), go);
+        const { save, turn, copied } = await removeEntries(herdrIo(cx), go);
+        if (copied) this.copied = copied;
         if (this.take("save", turn)) this.save = save;
         this.state = withoutRows(this.state, go);
       });
@@ -428,6 +433,8 @@ export default class Sessions {
     const why = stalled
       ? summary?.error
         ? "The save failed: " + summary.error + ". The last good save is kept."
+        : summary?.historyBroken
+          ? "The history file cannot be read: " + historyPath(appHome()) + ". The save goes on; nothing is written to the history until the file is fixed or removed."
         : summary?.unreadable
           ? "Could not read " + summary.unreadable + " session id(s). A Claude Code update may have changed its session files. The last good save is kept."
           : summary?.unchecked
@@ -478,12 +485,19 @@ export default class Sessions {
             (cx) => this.remove(ended.failed, cx))))
         : null;
 
+    const copiedNote = this.copied && h_flex().id("copied").px(10).py(8).gap(8).flex_none().items_start().border_t(1).border_color(t.border)
+      .text_size(12).text_color(t.ansi3)
+      .child(div().flex_1().min_w(0).child("The save file could not be read and was written anew. Its old content is kept in " + this.copied + "."))
+      .child(div().id("copied-close").cursor_pointer().text_color(t.muted).accessibility_label("Close").child("×")
+        .on_click((_e, cx) => { cx.stop_propagation(); this.copied = null; cx.notify(); }));
+
     const loading = !save && anyBusy(this.activity, "load"), banner = this.banner(t, "sessions");
     return v_flex().size_full().min_h(0)
       .when(Boolean(banner), (el) => el.child(banner))
       .child(header)
       .child(loading ? this.loading(t) : entries.length ? list : empty)
-      .when(Boolean(foot), (el) => el.child(foot));
+      .when(Boolean(foot), (el) => el.child(foot))
+      .when(Boolean(copiedNote), (el) => el.child(copiedNote));
   }
 
   box(t, id, on, action) {
@@ -526,8 +540,11 @@ export default class Sessions {
       const marked = withMarks(all, this.state);
       return [head, ...groupsOf(marked, this.state).flatMap((g) => g.rows.map((r) => div().pl(14).child(this.row(t, r.entry, r.depth, marked, sv.id))))];
     });
-    const empty = div().p(16).text_size(12).text_color(t.dim)
-      .child("No saves yet. A save is kept here each time the list of open sessions changes.");
+    const empty = this.history.broken
+      ? div().p(16).text_size(12).text_color(t.ansi1)
+        .child("The history file cannot be read: " + historyPath(appHome()) + ". Saves go on into the save file, and nothing is written to the history until the file is fixed or removed.")
+      : div().p(16).text_size(12).text_color(t.dim)
+        .child("No saves yet. A save is kept here each time the list of open sessions changes.");
     const picked = this.picked.filter((id) => saves.some((s) => s.id === id)), n = picked.length;
     const allOn = n > 0 && n === saves.length, deleting = deletingPicked(this.activity, picked);
     const selectAll = h_flex().id("pick-all").gap(8).items_center().cursor_pointer()
@@ -588,7 +605,7 @@ export default class Sessions {
 
   // The Settings tab: the save interval in minutes and how many saves the history keeps.
   settingsTab(t) {
-    const s = this.settings, count = this.history.saves.length;
+    const s = this.settings, count = this.history.saves.length, locked = Boolean(this.history.broken);
     const every = (n, cx) => this.setEvery(n, cx), limit = (n, cx) => this.setLimit(n, cx);
     const ask = this.askLimit;
     const section = (title) => div().text_size(12.5).font_semibold().child(title);
@@ -612,16 +629,21 @@ export default class Sessions {
         : "Off: nothing saves by itself, at start or on a timer. Save now still saves."))
       .child(div().h(1).mt(4).mb(4).bg(t.border))
       .child(section("History"))
-      .child(h_flex().gap(10).items_center()
+      .when(locked, (el) => el.child(h_flex().gap(10).items_center()
+        .child(div().text_size(12.5).text_color(t.muted).child("Keep"))
+        .child(div().text_size(12.5).text_color(t.dim).child(s.historyLimit == null ? "every save" : s.historyLimit + " saves"))))
+      .when(locked, (el) => el.child(div().id("limit-locked").text_size(11.5).text_color(t.ansi1)
+        .child("The history file cannot be read, so the limit cannot change until it is fixed or removed: " + historyPath(appHome()))))
+      .when(!locked, (el) => el.child(h_flex().gap(10).items_center()
         .child(div().text_size(12.5).text_color(t.muted).child("Keep"))
         .when(s.historyLimit != null, (el) => el.child(this.stepper(t, "limit", this.inputs.limit, s.historyLimit, limit, SETTING_BOUNDS.historyLimit)).child(div().text_size(12).text_color(t.muted).child("saves"))
           .child(div().text_size(11.5).text_color(t.dim).child(SETTING_BOUNDS.historyLimit.min + "–" + SETTING_BOUNDS.historyLimit.max)))
         .when(s.historyLimit == null, (el) => el.child(div().text_size(12.5).child("every save")))
         .child(div().flex_1())
         .child(this.button(t, "limit-toggle", s.historyLimit == null ? "Set a limit" : "No limit",
-          (cx) => limit(s.historyLimit == null ? DEFAULT_SETTINGS.historyLimit : null, cx))))
-      .child(div().text_size(11.5).text_color(t.dim).child(count + (count === 1 ? " save" : " saves") + " now"))
-      .when(Boolean(ask), (el) => el.child(v_flex().mt(4).p(10).gap(8).rounded(7).border_1().border_color(t.ansi3)
+          (cx) => limit(s.historyLimit == null ? DEFAULT_SETTINGS.historyLimit : null, cx)))))
+      .when(!locked, (el) => el.child(div().text_size(11.5).text_color(t.dim).child(count + (count === 1 ? " save" : " saves") + " now")))
+      .when(Boolean(ask) && !locked, (el) => el.child(v_flex().mt(4).p(10).gap(8).rounded(7).border_1().border_color(t.ansi3)
         .child(div().text_size(12.5).child("Keep only the newest " + ask.historyLimit + " saves?"))
         .child(div().text_size(11.5).text_color(t.muted).child(overLimit(this.history, ask.historyLimit) + " older saves will be deleted."))
         .child(h_flex().gap(6)

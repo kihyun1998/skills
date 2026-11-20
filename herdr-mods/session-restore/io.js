@@ -1,6 +1,6 @@
 // The herdr side of session-restore: the io save.js and open.js take, and one save with its
 // summary shared.
-import { exists, readdir } from "fs/promises";
+import { exists, readdir, readFile, writeFile } from "fs/promises";
 import { hc, readTextFile, writeTextFile, spaces, run, home, appHome, shared, setShared } from "herdr";
 import { parseSave, saveAndSummarize, savePath } from "./save.js";
 
@@ -18,6 +18,8 @@ export function herdrIo(cx) {
     hc: (args) => hc(args),
     read: (path) => readTextFile(path),
     write: (path, text, expected) => writeTextFile(path, text, expected),
+    readBytes: (path) => readFile(path),
+    writeBytes: (path, bytes) => writeFile(path, bytes),
     exists: (path) => exists(path),
     list: (dir) => readdir(dir, { withFileTypes: true }),
     spaces: () => spaces(),

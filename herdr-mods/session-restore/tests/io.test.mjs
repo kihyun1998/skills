@@ -3,13 +3,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { lookAtTerminals, runningSessions, saveOnce, savePath, removeEntries, startSaving, CHECK_EVERY_MS, settingsPath, historyPath, readSettings, writeSettings, readHistory, deleteSaves, mergeSaves, saveAndSummarize } from "../save.js";
 import { openSessions } from "../open.js";
-import { parseSettings, settleOpen, withMarks } from "../logic.js";
+import { folderChange, parseSettings, settleOpen, withMarks } from "../logic.js";
 
 const HOME = "C:/Users/U", APP = "C:/Users/U/.config/herdr-app";
 const SPACES = [{ id: "sp1", name: "skills", named: false, folder: "", tabs: [{ id: "tb1", name: "1", named: false }] }];
 
 // A fake machine: terminals as hc get answers them, files by path, and every hc call recorded.
-function machine({ terminals = [], files = {}, holder = "h1", now = 1_000_000, gone = new Set() } = {}) {
+function machine({ terminals = [], files = {}, holder = "h1", now = 1_000_000, gone = new Set(), nullRead = new Set() } = {}) {
   let nextPid = 500;
   // A resume shows its session. One of a session in `gone` does too, as Claude does, and then
   // prints why it cannot and ends two looks later.
@@ -32,7 +32,9 @@ function machine({ terminals = [], files = {}, holder = "h1", now = 1_000_000, g
   const ok = (v) => ({ code: 0, stdout: JSON.stringify(v), stderr: "" });
   const io = {
     home: HOME, appHome: APP, now: () => now, spaces: () => SPACES, sleep: async () => {},
-    read: async (p) => (p in files ? files[p] : null),
+    read: async (p) => (p in files && !nullRead.has(p) ? files[p] : null),
+    readBytes: async (p) => { if (!(p in files)) throw new Error("ENOENT " + p); return new TextEncoder().encode(files[p]); },
+    writeBytes: async (p, bytes) => { files[p] = new TextDecoder().decode(bytes); },
     exists: async (p) => p in files,
     list: async (dir) => {
       lists.push(dir);
@@ -775,4 +777,191 @@ test("deleteSaves on an empty or missing history writes nothing", async () => {
   m.files[historyPath(APP)] = JSON.stringify({ version: 1, saves: [] });
   await deleteSaves(m.io, [3]);
   assert.equal(writes, 0);
+});
+
+const BROKEN_HISTORIES = [
+  ["text that does not parse", (m) => { m.files[historyPath(APP)] = "{\"version\":1,\"saves\":["; }],
+  ["JSON that is not a history", (m) => { m.files[historyPath(APP)] = '{"saves":{}}'; }],
+  ["a file whose read gives null", (m) => { m.files[historyPath(APP)] = "\u0000binary"; m.nullRead.add(historyPath(APP)); }],
+];
+const brokenMachine = (extra, breakIt) => {
+  const nullRead = new Set();
+  const m = machine({ ...extra, nullRead });
+  m.nullRead = nullRead;
+  breakIt(m);
+  return m;
+};
+const countWrites = (m) => {
+  const paths = [], write = m.io.write;
+  m.io.write = (p, ...a) => { paths.push(p); return write(p, ...a); };
+  return paths;
+};
+
+for (const [what, breakIt] of BROKEN_HISTORIES) {
+  test("readHistory gives a broken history for " + what + ", and an empty one, not broken, for no file", async () => {
+    const m = brokenMachine({}, breakIt);
+    const h = await readHistory(m.io);
+    assert.equal(h.broken, true);
+    assert.deepEqual(h.saves, []);
+    const none = await readHistory(machine().io);
+    assert.deepEqual(none, { version: 1, saves: [] });
+  });
+
+  test("saveOnce over a history with " + what + " writes the save file and leaves the history file as it was", async () => {
+    const m = brokenMachine(oneClaude(), breakIt);
+    const before = m.files[historyPath(APP)];
+    const writes = countWrites(m);
+    const { save, history } = await saveOnce(m.io);
+    assert.deepEqual(save.current.map((e) => e.sessionId), ["s1"]);
+    assert.deepEqual(JSON.parse(m.files[savePath(APP)]).current.map((e) => e.sessionId), ["s1"]);
+    assert.equal(m.files[historyPath(APP)], before);
+    assert.deepEqual(writes, [savePath(APP)]);
+    assert.equal(history.broken, true);
+  });
+
+  test("saveAndSummarize over a history with " + what + " resolves with the save, stalled, and says the history cannot be read", async () => {
+    const m = brokenMachine(oneClaude(), breakIt);
+    const { save, history, summary } = await saveAndSummarize(m.io);
+    assert.deepEqual(save.current.map((e) => e.sessionId), ["s1"]);
+    assert.equal(history.broken, true);
+    assert.equal(summary.error, null);
+    assert.equal(summary.historyBroken, true);
+    assert.equal(summary.stalled, true);
+  });
+
+  test("deleteSaves, mergeSaves and writeSettings over a history with " + what + " write nothing to it", async () => {
+    const m = brokenMachine({}, breakIt);
+    const before = m.files[historyPath(APP)];
+    const writes = countWrites(m);
+    const deleted = await deleteSaves(m.io, [1]);
+    const merged = await mergeSaves(m.io, [1, 2], ["s1"]);
+    const set = await writeSettings(m.io, { saveEveryMinutes: 5, historyLimit: 1, autoSave: true });
+    assert.equal(m.files[historyPath(APP)], before);
+    assert.deepEqual(writes, [settingsPath(APP)]);
+    assert.equal(deleted.history.broken, true);
+    assert.deepEqual([merged.history.broken, merged.made, merged.gone], [true, null, []]);
+    assert.equal(set.history.broken, true);
+  });
+}
+
+test("saveAndSummarize over a good history does not say it cannot be read", async () => {
+  const m = machine(oneClaude());
+  const { summary } = await saveAndSummarize(m.io);
+  assert.equal(summary.historyBroken, false);
+  assert.equal(summary.stalled, false);
+});
+
+const brokenCopies = (m) => Object.keys(m.files).filter((p) => p.startsWith(APP + "/data/session-restore.broken-")).sort();
+
+for (const [what, text] of [["text that does not parse", '{"version":1,"current":['], ["JSON that is not a save", '{"current":{},"restore":[]}']]) {
+  test("saveOnce over a save file with " + what + " copies it aside first, then writes the save", async () => {
+    const m = machine({ ...oneClaude() });
+    m.files[savePath(APP)] = text;
+    const { save, copied } = await saveOnce(m.io);
+    assert.deepEqual(brokenCopies(m), [copied]);
+    assert.equal(m.files[copied], text);
+    assert.deepEqual(JSON.parse(m.files[savePath(APP)]).current.map((e) => e.sessionId), ["s1"]);
+    assert.deepEqual(save.current.map((e) => e.sessionId), ["s1"]);
+    assert.equal(folderChange([copied], APP + "/data", [historyPath(APP), settingsPath(APP)]), "skip");
+  });
+}
+
+test("a save file broken the same way twice is copied once, and broken another way is copied again", async () => {
+  const m = machine({ ...oneClaude() });
+  m.files[savePath(APP)] = "{";
+  const first = await saveAndSummarize(m.io);
+  m.files[savePath(APP)] = "{";
+  const again = await saveAndSummarize(m.io);
+  assert.equal(again.summary.saveCopied, first.summary.saveCopied);
+  assert.deepEqual(brokenCopies(m), [first.summary.saveCopied]);
+  m.files[savePath(APP)] = "[";
+  const other = await saveAndSummarize(m.io);
+  assert.notEqual(other.summary.saveCopied, first.summary.saveCopied);
+  assert.deepEqual(brokenCopies(m), [first.summary.saveCopied, other.summary.saveCopied].sort());
+  assert.deepEqual([m.files[first.summary.saveCopied], m.files[other.summary.saveCopied]], ["{", "["]);
+});
+
+test("a save whose write is retried copies the broken save file once", async () => {
+  const m = machine({ ...oneClaude() });
+  m.files[savePath(APP)] = "{";
+  const write = m.io.write;
+  let failed = false;
+  m.io.write = async (p, ...a) => { if (p === savePath(APP) && !failed) { failed = true; throw new Error("stale"); } return write(p, ...a); };
+  await saveOnce(m.io);
+  assert.equal(failed, true);
+  assert.equal(brokenCopies(m).length, 1);
+});
+
+test("a save file whose read gives null is copied byte for byte before it is written over", async () => {
+  const nullRead = new Set([savePath(APP)]);
+  const m = machine({ ...oneClaude(), nullRead });
+  m.files[savePath(APP)] = "\u0000\u00ffnot text";
+  const write = m.io.write, order = [];
+  m.io.write = (p, ...a) => { order.push(p === savePath(APP) ? "save" : p); return write(p, ...a); };
+  const writeBytes = m.io.writeBytes;
+  m.io.writeBytes = (p, b) => { order.push("copy"); return writeBytes(p, b); };
+  await saveOnce(m.io).catch(() => {});
+  assert.equal(brokenCopies(m).length, 1);
+  assert.equal(m.files[brokenCopies(m)[0]], "\u0000\u00ffnot text");
+  assert.equal(order[0], "copy");
+});
+
+test("removeEntries over a save file that cannot be read copies it aside and returns the copy", async () => {
+  const m = machine();
+  m.files[savePath(APP)] = "{";
+  const { copied } = await removeEntries(m.io, ["s1"]);
+  assert.deepEqual(brokenCopies(m), [copied]);
+  assert.equal(m.files[copied], "{");
+});
+
+test("a save over a good or missing save file copies nothing", async () => {
+  const m = machine(oneClaude());
+  const first = await saveAndSummarize(m.io);
+  const second = await saveAndSummarize(m.io);
+  assert.deepEqual([first.summary.saveCopied, second.summary.saveCopied, brokenCopies(m)], [null, null, []]);
+});
+
+test("with exists rejecting, a missing save file and history are written, as no file", async () => {
+  const m = machine(oneClaude());
+  m.io.exists = async () => { throw new Error("outside every granted read root"); };
+  const { summary } = await saveAndSummarize(m.io);
+  assert.equal(summary.error, null);
+  assert.equal(summary.historyBroken, false);
+  assert.deepEqual(JSON.parse(m.files[savePath(APP)]).current.map((e) => e.sessionId), ["s1"]);
+  assert.deepEqual(JSON.parse(m.files[historyPath(APP)]).saves.map((s) => s.id), [1]);
+});
+
+test("a save that fails after copying the save file still says where the copy is", async () => {
+  const m = machine(oneClaude());
+  m.files[savePath(APP)] = "{";
+  const hc = m.io.hc;
+  m.io.hc = async (args) => (args[0] === "server" ? { code: 1, stdout: "", stderr: "down" } : hc(args));
+  const { summary } = await saveAndSummarize(m.io);
+  assert.match(summary.error, /down/);
+  assert.equal(m.files[summary.saveCopied], "{");
+  assert.equal(m.files[savePath(APP)], "{");
+});
+
+test("a save whose history write fails after the save file was copied and written still says where the copy is", async () => {
+  const m = machine(oneClaude());
+  m.files[savePath(APP)] = "{";
+  const write = m.io.write;
+  m.io.write = async (p, ...a) => { if (p === historyPath(APP)) throw new Error("stale"); return write(p, ...a); };
+  const { summary } = await saveAndSummarize(m.io);
+  assert.equal(summary.error, "stale");
+  assert.equal(m.files[summary.saveCopied], "{");
+});
+
+test("a save that copied on its first try and found the file whole on its retry still says where the copy is", async () => {
+  const m = machine(oneClaude());
+  m.files[savePath(APP)] = "{";
+  const write = m.io.write;
+  let once = false;
+  m.io.write = async (p, ...a) => {
+    if (p === savePath(APP) && !once) { once = true; m.files[p] = JSON.stringify({ version: 1, core: "h1", current: [], restore: [] }); throw new Error("stale"); }
+    return write(p, ...a);
+  };
+  const { copied } = await saveOnce(m.io);
+  assert.equal(once, true);
+  assert.equal(m.files[copied], "{");
 });

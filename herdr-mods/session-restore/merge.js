@@ -3,9 +3,9 @@
 // mod with props { view: "merge", ids }.
 import { div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { theme, closeOverlay, checking } from "herdr";
+import { theme, closeOverlay, checking, appHome } from "herdr";
 import { cleanTitle, mergeGroups, mergeSessions } from "./logic.js";
-import { lookAtTerminals, mergeSaves, readHistory } from "./save.js";
+import { historyPath, lookAtTerminals, mergeSaves, readHistory } from "./save.js";
 import { herdrIo } from "./io.js";
 
 export default class MergeDialog {
@@ -19,6 +19,7 @@ export default class MergeDialog {
     this.error = null;
     this.note = null;
     this.making = false;
+    this.broken = false;
     if (checking()) return;
     cx.spawn(async (cx) => {
       const io = herdrIo(cx);
@@ -37,6 +38,7 @@ export default class MergeDialog {
   close() { if (this.overlay) closeOverlay(this.overlay); }
 
   load(history) {
+    this.broken = Boolean(history.broken);
     this.saves = history.saves.filter((s) => this.ids.includes(s.id));
     this.rows = mergeSessions(this.saves);
   }
@@ -54,7 +56,7 @@ export default class MergeDialog {
         this.load(history);
         const left = new Set(this.rows.map((r) => r.entry.sessionId));
         this.on = new Set([...this.on].filter((k) => left.has(k)));
-        this.note = { bad: false, text: gone.length
+        this.note = history.broken ? null : { bad: false, text: gone.length
           ? "Nothing was made: " + (gone.length === 1 ? "save " + gone[0] + " is" : "saves " + gone.join(", ") + " are") + " no longer in the history." + (this.saves.length > 1 ? " The list shows what is left." : "")
           : this.saves.length > 1 ? "Nothing was made: none of the ticked sessions is in these saves any more." : "Nothing was made." };
       } catch (err) {
@@ -117,6 +119,8 @@ export default class MergeDialog {
     const n = this.on.size;
     const body = this.error
       ? div().flex_1().p(18).text_size(12.5).text_color(t.ansi1).child(this.error)
+      : this.broken
+        ? div().flex_1().p(18).text_size(12.5).text_color(t.ansi1).child("The history file cannot be read: " + historyPath(appHome()) + ". Nothing can be merged until it is fixed or removed.")
       : this.saves === null
         ? div().flex_1().p(18).text_size(12.5).text_color(t.dim).child("Reading the saves…")
         : saves.length < 2

@@ -435,10 +435,12 @@ test("summarize and chipState read stalled against the stale time they are given
 
 const snap = (id, at, ids, over = {}) => ({ id, at, entries: ids.map((s) => live(s)), ...over });
 
-test("parseHistory reads a history back, and an empty one when there is none or it does not parse", () => {
+test("parseHistory reads a history back, an empty one when there is none, and null when it does not parse or is not a history", () => {
   assert.deepEqual(parseHistory(null), { version: 1, saves: [] });
-  assert.deepEqual(parseHistory("{"), { version: 1, saves: [] });
-  assert.deepEqual(parseHistory('{"version":1,"saves":"x"}'), { version: 1, saves: [] });
+  assert.equal(parseHistory("{"), null);
+  assert.equal(parseHistory('{"version":1,"saves":"x"}'), null);
+  assert.equal(parseHistory('{"saves":{}}'), null);
+  assert.equal(parseHistory("null"), null);
   const h = { version: 1, saves: [snap(1, 5, ["a"])] };
   assert.deepEqual(parseHistory(JSON.stringify(h)), h);
 });
