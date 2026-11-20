@@ -549,3 +549,77 @@ a word.
   lost that way also starts the ids at 1.
 - A delete of ids no longer in the history still writes the file, with the same
   bytes, and can fail on a write conflict; it did before this change too.
+
+## Amendment (issue #104): an overlapping or failed action leaves the panel's state right
+
+Four defects, traced on 10ba085: a failed settings write left the new settings shown
+(shown 5, on disk 10); a delete cleared the ticks and the unfolded save at the press, so a
+failed one lost them; the first read overwrote a newer history the chip's first save had
+handed the panel ([2, 1] before the read ended, [1] after); and the refresh and the Open
+check set the look they made without comparing when it was made, so an older look ending
+last won.
+
+### The maintainer's call (2026-11-20)
+
+- **These four only.** The timed save not waiting for a save the panel started went to an
+  issue of its own; every other behaviour stays as it was.
+
+### Derived
+
+- A failed settings write reads the settings file again and shows that, falling back to the
+  settings shown before the change when the read fails. `writeSettings` writes the settings,
+  then trims the history; when only the trim failed, the new settings are on disk, and
+  putting the previous ones back would show the mismatch the other way round. Either way it
+  writes nothing over a newer change shown by then (`ifUnchanged`). Where it puts settings
+  back, it brings each number field in line even while that field has the keyboard, as a change
+  pressed in the panel does; where a newer change is shown, it touches no field, so typing in
+  one is kept (/review and the reviewer found the first build forcing the fields either way).
+- The first read puts its history in only while the history shown is still the one it began
+  with (`ifUnchanged`, by identity), as `this.save ??=` already did for the save.
+- A look is ordered by its `at`, the time it started (`lookAtTerminals`). One older than the
+  look shown changes nothing (`withLook`), its `keepLive` pass included, so it cannot drop an
+  opened mark the newer look kept. A look with the same `at` is applied. An Open whose check
+  look was dropped plans and opens against the look shown, so one open uses one look, as the #69
+  amendment's "handing the same look" says; the first build planned against the shown look and
+  handed `openSessions` its own older one (/review, lens), which marked a closed row opened at
+  the older look's terminal, or failed a worker whose conductor the shown look had running.
+- The decisions are pure functions in `logic.js` (`ifUnchanged`, `afterDelete`, `withLook`),
+  tested in `logic.test.mjs`.
+
+### Measured
+
+- Three tests, which failed before the functions existed. Mutations of each predicate turned
+  them red, except dropping `view.lookAt != null`, an equivalent mutant (`at < null` is false
+  for a positive time).
+- A throwaway Node harness loaded `panel.js` with `herdr`, `gpui-kit`, `gpui-base` and
+  `fs/promises` stubbed and ran the four cases. On 10ba085's panel: settings shown 5 against
+  10 on disk, the first read left [1], and the older look's `at` ended up shown. On this
+  change: 10 shown and in the field, [2, 1], and the newer `at` kept; a failed delete kept the
+  ticks [3, 2] and save 2 unfolded, and one that landed left [3] and nothing unfolded; a failed
+  trim after a written settings file showed the new settings. Mutating the wiring (no
+  revert, a revert to the previous settings without reading the file, a revert without
+  `force` on a field with the keyboard, the delete clearing at the press, the first read
+  unguarded, the look unguarded) turned the matching case red each time.
+- The spec reviewer's harness pressed the real buttons and reproduced the press-time clear on
+  10ba085 (the confirm bar: ticks [] and nothing unfolded at the press; a row's ×: [2]).
+- After the review fixes, the reviewers' harnesses on this change: an Open whose check look was
+  older marked the row opening, not opened at the older look's terminal; the worker under a
+  conductor the shown look had running started opening instead of failing; a field being typed
+  in kept "12" when a write with nothing to put back failed. On the first build the same cases
+  gave the defects above.
+- `herdr-app check` passed on the mod and on three copies with a fixture (History with ticks
+  and a save unfolded, the delete confirm, Settings), the chip unfolded; a throw planted in
+  the History tab failed the check, so it draws that tab.
+
+### Not covered
+
+- The live window: no failure was forced there.
+- Reads of the settings outside the four, none of them changed here: the first read's
+  settings, the refresh's re-read of the settings, and the folder watch's reads of the history
+  and the settings are not ordered against a change pressed in the panel. The proving pass
+  reproduced each on 10ba085 and on this change alike (shown 10, on disk 5).
+- While a delete runs, its saves stay ticked, so `Delete · n` and `Merge · n` are offered on
+  them; a second delete is ignored as busy, and a merge of a save gone by then makes nothing
+  (the #103 path).
+- The panel wiring has no test in the repository: `logic.test.mjs` passes with 10ba085's
+  `panel.js` over this `logic.js`. The harnesses that drive it were throwaway.

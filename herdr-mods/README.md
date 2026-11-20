@@ -133,8 +133,15 @@ rewritten for each Herdr version and are the truth about the API.
   Sessions or Settings) with what failed and why, until the next action pressed
   there or its × (the refresh that unfolding runs does not clear it). A failed
   check before an Open shows no box: the open checks again, and a row that does
-  not open says why. A failed delete or remove leaves the save or the session in the list (the ticks and
-  the unfolded save, cleared at the press, stay cleared).
+  not open says why. A failed delete or remove leaves the save or the session in the list. A delete
+  lets go of the ticks and the unfolded save only once it is written, so a failed one keeps them. A
+  failed settings write shows the settings on disk again, the number fields included, or the
+  previous ones when the file cannot be read, unless a newer change is shown by then; then nothing
+  changes, and a field being typed in keeps what was typed.
+- **Overlapping reads.** The panel's first read does not replace a history the chip's first save
+  handed it meanwhile. Of two looks at which sessions run (a refresh and an Open's check), one
+  that started before the look already shown changes nothing when it ends last, and an Open whose
+  check ended so plans and opens against the look shown.
 - **The history** is in `~/.config/herdr-app/data/session-restore.history.json`,
   newest first. Each save adds `current` to it as save N unless it lists the same
   sessions as the newest one, or none. A save's number is never given twice: the

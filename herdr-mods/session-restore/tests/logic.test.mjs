@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import {
   keptFlags, nextSave, coreIdentity, planOpen, placement, resumeArgv, shellLine, isClaude, isShell, summarize, linkParents, openable, groupsOf, chipState, openProgress, groupProgress, batchResult, startOpen, endOpen, reopenable, withMarks, settleOpen, withoutRows, keepLive, liveOf, STALE_MS,
   DEFAULT_SETTINGS, parseSettings, staleAfter, parseHistory, withSnapshot, overLimit, trimHistory, withoutSnapshots, mergeSessions, mergeSnapshots, goneSaves, mergeGroups, folderChange, mergeDialog, withRunning, cleanTitle, digitsOnly, clampWhole, SETTING_BOUNDS,
-  IDLE, begin, press, finish, free, busyWith, anyBusy, errorAt, dismiss,
+  IDLE, begin, press, finish, free, busyWith, anyBusy, errorAt, dismiss, ifUnchanged, afterDelete, withLook,
 } from "../logic.js";
 
 const WORKER_ARGV = ["C:\\Users\\User\\.local\\bin\\claude.EXE", "--model", "opus", "--effort", "high", "--dangerously-skip-permissions",
@@ -778,4 +778,38 @@ test("clampWhole keeps a whole number inside the bounds, and reads text that is 
 
 test("the settings' bounds: an interval of 1 to 1440 minutes, a history of 1 to 500 saves", () => {
   assert.deepEqual(SETTING_BOUNDS, { saveEveryMinutes: { min: 1, max: 1440 }, historyLimit: { min: 1, max: 500 } });
+});
+
+test("ifUnchanged takes the new value only while the one shown is still the one seen", () => {
+  const seen = { saveEveryMinutes: 5 }, back = { saveEveryMinutes: 10 }, later = { saveEveryMinutes: 7 };
+  assert.equal(ifUnchanged(seen, seen, back), back);
+  assert.equal(ifUnchanged(later, seen, back), later);
+  const empty = parseHistory(null), arrived = parseHistory('{"version":1,"saves":[{"id":2,"at":2,"entries":[]},{"id":1,"at":1,"entries":[]}]}');
+  const read = parseHistory('{"version":1,"saves":[{"id":1,"at":1,"entries":[]}]}');
+  assert.equal(ifUnchanged(empty, empty, read), read);
+  assert.deepEqual(ifUnchanged(arrived, empty, read).saves.map((s) => s.id), [2, 1]);
+});
+
+test("afterDelete drops the deleted saves from the ticks and folds the unfolded one, leaving the rest", () => {
+  assert.deepEqual(afterDelete({ picked: [3, 2, 1], expanded: 2 }, [2, 1]), { picked: [3], expanded: null });
+  assert.deepEqual(afterDelete({ picked: [3, 2], expanded: 3 }, [2]), { picked: [3], expanded: 3 });
+  assert.deepEqual(afterDelete({ picked: [], expanded: null }, [5]), { picked: [], expanded: null });
+});
+
+test("withLook applies a look at least as new as the one shown, and drops an older one whole", () => {
+  const opened = new Map([["s1", { at: "opened", address: "t2", since: 50 }]]);
+  const shown = { states: opened, running: new Map([["s1", "t2"]]), lookAt: 100 };
+  const older = withLook(shown, { at: 90, running: new Map() });
+  assert.equal(older, shown);
+  assert.equal(older.states.get("s1")?.at, "opened");
+  const newer = withLook(shown, { at: 120, running: new Map() });
+  assert.equal(newer.lookAt, 120);
+  assert.equal(newer.running.size, 0);
+  assert.equal(newer.states.has("s1"), false);
+  const same = withLook(shown, { at: 100, running: new Map() });
+  assert.equal(same.lookAt, 100);
+  assert.equal(same.running.size, 0);
+  const first = withLook({ states: opened, running: null, lookAt: null }, { at: 10, running: new Map([["s1", "t2"]]) });
+  assert.equal(first.lookAt, 10);
+  assert.equal(first.states.get("s1")?.at, "opened");
 });

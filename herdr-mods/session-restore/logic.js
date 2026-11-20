@@ -377,6 +377,18 @@ export function keepLive(states, running, at) {
   return new Map([...states].filter(([k, s]) => !(s.at === "opened" && !(s.since > at) && running.get(k) !== s.address)));
 }
 
+export function withLook(view, look) {
+  if (view.lookAt != null && look.at < view.lookAt) return view;
+  return { states: keepLive(view.states, look.running, look.at), running: look.running, lookAt: look.at };
+}
+
+export const ifUnchanged = (shown, seen, next) => (shown === seen ? next : shown);
+
+export const afterDelete = ({ picked, expanded }, ids) => ({
+  picked: picked.filter((p) => !ids.includes(p)),
+  expanded: ids.includes(expanded) ? null : expanded,
+});
+
 /** The states once rows are taken out of the panel: their results forgotten, an open's opening mark left to that open. */
 export function withoutRows(states, keys) {
   const gone = new Set(keys);

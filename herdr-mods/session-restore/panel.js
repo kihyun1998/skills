@@ -5,7 +5,7 @@
 import { div, svg, image } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { run, theme, shared, checking, openOverlay, watchFolder, appHome } from "herdr";
-import { anyBusy, clampWhole, digitsOnly, SETTING_BOUNDS, batchResult, begin, busyWith, cleanTitle as clean, conductorOf, DEFAULT_SETTINGS, dismiss, endOpen, errorAt, finish, IDLE, press, entriesOf, folderChange, groupProgress, groupsOf, keepLive, liveOf, mergeDialog, openable, openProgress, overLimit, parseHistory, reopenable, settleOpen, staleAfter, startOpen, withMarks, withoutRows, withRunning } from "./logic.js";
+import { anyBusy, clampWhole, digitsOnly, SETTING_BOUNDS, batchResult, begin, busyWith, cleanTitle as clean, conductorOf, DEFAULT_SETTINGS, dismiss, endOpen, errorAt, finish, IDLE, press, entriesOf, folderChange, groupProgress, afterDelete, ifUnchanged, withLook, groupsOf, keepLive, liveOf, mergeDialog, openable, openProgress, overLimit, parseHistory, reopenable, settleOpen, staleAfter, startOpen, withMarks, withoutRows, withRunning } from "./logic.js";
 import { deleteSaves, historyPath, lookAtTerminals, readHistory, readSettings, removeEntries, settingsPath, writeSettings } from "./save.js";
 import { openSessions } from "./open.js";
 import { herdrIo, readSave, saveAndShare, SHARED } from "./io.js";
@@ -64,11 +64,12 @@ export default class Sessions {
     if (checking()) return;
     // The save, history and settings on disk, until the chip's first save hands the panel them.
     this.activity = begin(this.activity, "load", [null]);
+    const before = this.history;
     cx.spawn((cx) => this.track(cx, "load", [null], async () => {
       const io = herdrIo(cx);
       const [save, history, settings] = await Promise.all([readSave(), readHistory(io), readSettings(io)]);
       this.save ??= save;
-      this.history = history;
+      this.history = ifUnchanged(this.history, before, history);
       this.useSettings(settings);
     }));
     cx.spawn(async (cx) => {
@@ -109,14 +110,16 @@ export default class Sessions {
     cx.spawn((cx) => this.track(cx, "refresh", go, async () => {
       const io = herdrIo(cx);
       try {
-        const look = await lookAtTerminals(io);
-        this.running = look.running;
-        this.lookAt = look.at;
-        this.state = keepLive(this.state, look.running, look.at);
+        this.useLook(await lookAtTerminals(io));
       } finally {
         this.useSettings(await readSettings(io));
       }
     }));
+  }
+
+  useLook(look) {
+    const view = withLook({ states: this.state, running: this.running, lookAt: this.lookAt }, look);
+    ({ states: this.state, running: this.running, lookAt: this.lookAt } = view);
   }
 
   start(cx, action, targets, clear = true) {
@@ -184,10 +187,19 @@ export default class Sessions {
   }
 
   // A history change on disk, then the history shown.
-  changeHistory(cx, action, targets, change) {
+  changeHistory(cx, action, targets, change, done = () => {}) {
     const go = this.start(cx, action, targets);
     if (!go.length) return;
-    cx.spawn((cx) => this.track(cx, action, go, async () => { this.history = await change(herdrIo(cx), go); }));
+    cx.spawn((cx) => this.track(cx, action, go, async () => {
+      this.history = await change(herdrIo(cx), go);
+      done(go);
+    }));
+  }
+
+  deleteHistory(cx, ids) {
+    this.changeHistory(cx, "delete", ids, (io, go) => deleteSaves(io, go), (go) => {
+      ({ picked: this.picked, expanded: this.expanded } = afterDelete({ picked: this.picked, expanded: this.expanded }, go));
+    });
   }
 
   /**
@@ -243,9 +255,19 @@ export default class Sessions {
   }
 
   setSettings(next, cx) {
+    const prev = this.settings;
     this.useSettings(next, { force: true });
     this.askLimit = null;
-    this.changeHistory(cx, "settings", [++this.tasks], (io) => writeSettings(io, next));
+    this.changeHistory(cx, "settings", [++this.tasks], async (io) => {
+      try {
+        return await writeSettings(io, next);
+      } catch (err) {
+        const back = await readSettings(io).catch(() => prev);
+        const shown = ifUnchanged(this.settings, next, back);
+        if (shown !== this.settings) this.useSettings(shown, { force: true });
+        throw err;
+      }
+    });
   }
 
   // Reads which sessions run, drops the opened marks that shows gone, then marks and opens. A press
@@ -256,15 +278,14 @@ export default class Sessions {
     cx.spawn(async (cx) => {
       const io = herdrIo(cx);
       const look = await this.track(cx, "check", go, () => lookAtTerminals(io));
-      if (look) this.state = keepLive(this.state, look.running, look.at);
-      if (look) { this.running = look.running; this.lookAt = look.at; }
+      if (look) this.useLook(look);
       const all = withMarks(allOf(), this.state), id = ++this.opens;
       ({ states: this.state, batch: this.batch } = startOpen(this.state, this.batch, entries, all, id));
       cx.notify();
       await openSessions(io, entries, all, (r) => {
         this.state = settleOpen(this.state, id, r, Date.now());
         cx.notify();
-      }, look?.running ?? null);
+      }, look ? this.running : null);
       this.state = endOpen(this.state, id);
       await this.saveAfter(cx, "open");
     });
@@ -475,11 +496,7 @@ export default class Sessions {
         .when(deleting, (el) => el.loop("opacity", PULSE))
         .children(deleting ? [this.spinner(t, "Deleting save " + sv.id)] : [
           div().text_color(t.dim).child(open ? "▾" : "▸"),
-          this.button(t, "del-" + sv.id, "×", (cx) => {
-            this.picked = this.picked.filter((p) => p !== sv.id);
-            if (this.expanded === sv.id) this.expanded = null;
-            this.changeHistory(cx, "delete", [sv.id], (io, ids) => deleteSaves(io, ids));
-          }),
+          this.button(t, "del-" + sv.id, "×", (cx) => this.deleteHistory(cx, [sv.id])),
         ]);
       if (!open) return [head];
       const all = withRunning(sv.entries.map((e) => ({ ...e, key: e.key ?? e.sessionId })), live);
@@ -499,11 +516,8 @@ export default class Sessions {
       ? h_flex().p(10).gap(8).flex_none().items_center().border_t(1).border_color(t.border)
         .child(div().flex_1().text_size(12).child("Delete " + n + (n === 1 ? " save?" : " saves?")))
         .child(this.button(t, "delete-yes", "Delete", (cx) => {
-          const ids = picked;
-          this.picked = [];
           this.askDelete = false;
-          if (ids.includes(this.expanded)) this.expanded = null;
-          this.changeHistory(cx, "delete", ids, (io, go) => deleteSaves(io, go));
+          this.deleteHistory(cx, picked);
         }, true))
         .child(this.button(t, "delete-no", "Cancel", () => { this.askDelete = false; }))
       : h_flex().p(10).gap(6).flex_none().items_center().border_t(1).border_color(t.border)
