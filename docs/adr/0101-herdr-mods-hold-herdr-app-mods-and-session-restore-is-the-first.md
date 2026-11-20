@@ -394,3 +394,53 @@ The maintainer's, on 2026-11-18, in issue #69:
   either happens on a live terminal is not measured.
 - Whether Claude writes its pid file before a startup dialog or a large transcript load is
   not measured.
+
+## Amendment (issue #99): every action shows that it is under way, and its error
+
+Built in c748c10. What the person decided, on what they were shown, and what was derived.
+
+### The person's calls (2026-11-20)
+
+- **The look is variant B, the spinner.** Three variants were drawn as an HTML prototype,
+  each over the same eleven states (five chip states; History delete of one, several, and a
+  failure; Sessions × in progress, Clear failed and a failure; Refresh; Save now; the
+  Open check; a failed settings write; the first read). A: a dimmed row with
+  "deleting…", the panel's existing text style ("opening…", "Making…"). B: a braille
+  spinner on a pulsing row, Herdr's ring on both icons and in the chip's dot, and errors in
+  a red-bordered box at the top of the tab. C: struck-through rows and " · 저장 중"
+  appended to the chip's label. A was recommended. B was chosen with its consequences
+  shown: the row does not say in words whether it is deleting or removing, and the error
+  box sits at the top of the tab, away from the action.
+- **Errors go at the top of the action's tab**, which reverses the issue's "shown where
+  the action lives (the History footer, the Sessions footer, the Settings tab)". It is a
+  judgement, and the person's to reverse.
+- **A failed Open check shows no box.** The open checks again, and where that fails too,
+  each row it would have opened says why ("could not check which sessions run").
+- **The refresh that unfolding the chip runs does not clear an error.** Only Refresh or ×
+  pressed directly clears it, so the box is still there when the person unfolds the panel
+  to read it (the issue's user story 19).
+- **While the Open check runs, no Open shows**, in Sessions rows or History rows, as the
+  group buttons already were hidden. No press is ignored without a sign.
+
+### Derived
+
+- One activity record per panel, keyed by action and target, with each tab's last error;
+  the decisions are pure functions in `logic.js`, tested in `logic.test.mjs`, the one test
+  seam the maintainer confirmed when the issue was filed. `startSaving`'s new `saving(on)`
+  hook is tested beside its existing tests in `io.test.mjs`.
+- The chip's order: reopening, stalled (red), saving, restorable (amber), saved (green).
+  Stalled stays above saving, so a save stuck past three intervals still reads red.
+- Animation uses Herdr's native `frames`, `spin` and `loop`, as Herdr's `AGENTS.md` asks
+  ("Animate natively, never with a timer"). The ring is Herdr's own
+  `mods/workspace-chrome/spinner.svg`, by path, as Herdr's own mods use it.
+
+### Not covered
+
+- The live window. `herdr-app check` passed on the mod and on four copies with a fixture,
+  each failing under a deliberate bad animation argument, so the check reaches the new
+  elements; it does not lay out or animate. On 2026-11-20 the chip was reopened with
+  `mod.open` and a save sent: the chip read "⟲ 18" 0.7 s later and the save file was
+  written in the same second, so "저장 중" could not be told apart from old code. A save is
+  short (the #69 amendment measured the look at about 0.6 s for 22 terminals).
+- The pre-existing state defects the reviews found (an overlapping or failed action leaving
+  the panel's state wrong) are #104.
