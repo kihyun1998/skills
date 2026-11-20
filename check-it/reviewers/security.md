@@ -1,8 +1,8 @@
 # The security reviewer (7)
 
 Read when `check-it` runs its security reviewer. This is the reviewer's own
-part of the brief; `check-it`'s *Briefing the fresh agents* adds the diff, the
-issue, the records, the run folder and the rule to edit nothing.
+part of the brief; `reviewers/brief.md`, before it, adds the diff, the issue, the
+records, the run folder and the rule to edit nothing.
 
 ## What you look for
 

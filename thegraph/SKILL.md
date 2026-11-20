@@ -58,7 +58,7 @@ look in that folder for an unfinished sheet with this `repo` and this issue — 
 where it lives *or* its title, since a local issue moves when it is archived. If
 there is one, show its steps and its carried items and ask whether to continue it
 or start over; starting over deletes it, and continuing it under a path this text
-named moves its content there and deletes the old file.
+named moves its content there and deletes the old file. Make its run folder (`<run sheet>.made/`) and its ledger (`<run sheet>.made.md`) with it: `check-it`'s script stops where the run folder is not there.
 
 **What the run made goes before the sheet does**: every line still open in its
 ledger (`<run sheet>.made.md`) and its run folder (`<run sheet>.made/`), as

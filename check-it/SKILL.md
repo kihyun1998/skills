@@ -414,18 +414,20 @@ skill's folder:
 node <check-it>/scripts/check-it.mjs prompt <review> --issue <issue> --run-folder <run folder> --ledger <ledger>
 ```
 
-- `<review>` is `refactoring`, `spec-rules`, `bug`, `security`, `lens`,
-  `comments`, `proving`, `pick` for the decision model at this skill's start,
-  or `pick-confirm` for it at a confirm stop.
+- `<review>` is one of the names the script's usage lists (run it with no
+  command): each review's own, `pick` for the decision model at this skill's
+  start, and `pick-confirm` for it at a confirm stop.
 - `proving` adds `--findings <report>` for each saved report of 4, 6, 7 and 8
   that ran; `pick-confirm` adds `--change <file>`, the issue and the two
   statements.
 - `<issue>` is the issue's reference, or the request where there is none; the
-  run folder and the ledger are [`clean-it`'s](../clean-it/RULES.md).
+  run folder and the ledger are [`clean-it`'s](../clean-it/RULES.md), the run
+  folder made before the first call (a direct `/check-it` makes its own).
 
 The prompt is [reviewers/brief.md](reviewers/brief.md) filled in, the change
 named as `git diff HEAD` plus every untracked file, each file listed (`range`
-prints the list), then the review's own part (*Each review's own brief*).
+prints the list), then the review's own part (*Each review's own brief*), each
+file's title kept and the paragraph after it, for its maintainers, left out.
 `lens`'s and `comment-it`'s carry their skill's folder as an absolute path,
 since a body's links do not resolve from the agent's own folder.
 
@@ -449,10 +451,10 @@ agent in its place is not that check either.
 **Save each report** at the path
 `node <check-it>/scripts/check-it.mjs name <name> --sheet <run sheet>` prints,
 or with `--run-folder <run folder>` in place of `--sheet` where there is no
-run sheet, so a compaction does not lose it. The name is the review's as above, `verify` for
-the verify check of (1), `findings` for the gathered report, `pick` for the
-decision model's answer at this skill's start, and at a confirm stop
-`pick-confirm` for its answer and `change` for the planned change it reads. In
+run sheet, so a compaction does not lose it. The names are the script's, its
+usage the one list: the review's, `verify` for the verify check of (1),
+`findings` for the gathered report, and at a confirm stop `change` for the
+planned change the decision model reads. In
 `thegraph-herdr` the run sheet is the per-issue one; in a `thegraph` cluster
 the name takes `--child <child>`, the child's issue number as its `## Children`
 line names it, or its issue file's name. Then **re-run each command the

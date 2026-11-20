@@ -58,6 +58,7 @@ for (const [name, entry] of [['directly', here], ['through a link', linked]]) {
       const r = call(entry, ['prompt', review, ...brief, ...extra]);
       assert.equal(r.status, 0, `${review}: ${r.stderr}`);
       assert.match(r.stdout, /^# How you work\n/, review);
+      assert.doesNotMatch(r.stdout, /Read when `check-it`|`check-it`'s script puts this first/, review);
       assert.doesNotMatch(r.stdout, /\{\{\w+\}\}/, review);
       assert.ok(r.stdout.includes(realpathSync(repo)), review);
     }

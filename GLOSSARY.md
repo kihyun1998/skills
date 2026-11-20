@@ -316,11 +316,13 @@ and the **Proving agent** whenever the refactoring, bug or security reviewer or
 (#112).
 
 **Brief** (thegraph):
-The three things [`check-it`](check-it/) hands to `lens`, written in
-[`check-it/reviewers/lens.md`](check-it/reviewers/lens.md) — this repo's
-siblings, the reference implementations, and **what this project diverges from on
-purpose**, read from the decision records where each divergence's own record
-lives. None of the three is where `lens` would look, which is why assembling it
+The three kinds of thing `lens` needs, named in
+[`check-it/reviewers/lens.md`](check-it/reviewers/lens.md), which
+[`check-it`](check-it/) puts in its prompt — this repo's siblings, the reference
+implementations, and **what this project diverges from on purpose**, read from
+the decision records where each divergence's own record lives. The file names
+the kinds; `lens` finds this change's instances of each itself, since nothing
+hands them over per change. None of the three is where `lens` would look, which is why assembling it
 belongs to the caller while reading it belongs to the method. A fourth used to sit
 here, a tie-breaker for what wins when prior art and this project disagree; it was
 one sentence for a whole repository, which is either a truism or wrong case by

@@ -1,8 +1,8 @@
 # The bug reviewer (6)
 
 Read when `check-it` runs its bug reviewer. This is the reviewer's own part of
-the brief; `check-it`'s *Briefing the fresh agents* adds the diff, the issue,
-the records, the run folder and the rule to edit nothing.
+the brief; `reviewers/brief.md`, before it, adds the diff, the issue, the
+records, the run folder and the rule to edit nothing.
 
 ## What you look for
 

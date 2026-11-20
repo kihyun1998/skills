@@ -59,7 +59,7 @@
 > confirm stop. This replaces #112's *its prompt is the text of Choosing the
 > reviews, quoted* and the naming in `check-it`'s *Save each report*.
 
-**Status:** accepted. Implements #91 (anchor #94). Amends
+**Status:** accepted. Implements #91 (anchor #94), amended for #95, #86, #97, #102, #105, #112 and #114. Amends
 [ADR-0090](0090-four-delegates-retire-into-their-callers.md),
 [ADR-0091](0091-lens-runs-in-a-fresh-agent.md) and
 [ADR-0095](0095-check-it-reviews-in-a-fresh-agent.md) in the parts named below;
@@ -896,13 +896,16 @@ one.
 - **Its prompt is the text of *Choosing the reviews*, quoted**, from its answer
   rule to the end of the answer's shape, so the questions live in one place and a
   caller passes them as written, as `lens`'s and `comment-it`'s bodies are
-  passed. It is briefed as every review is and edits nothing.
+  passed. It is briefed as every review is and edits nothing. (Superseded by
+  the #114 amendment below: the questions live in `check-it/reviewers/decision-model.md`,
+  and the script prints the prompt.)
 - **Where its answer goes**: beside the run sheet, as `<run sheet>.pick-confirm.md`
   at the confirm stop (in a `thegraph-herdr` run, the per-issue run sheet, so
   the file is `….<slug>.pick-confirm.md`; in a `thegraph` cluster,
   `<run sheet>.<child>.pick-confirm.md`, `<child>` the child's issue number or
   issue file name) and as `<run sheet>.pick.md` at `check-it`'s start, named
-  in `check-it`'s *Save each report* with the other reports. The reading question's line names the path, and the
+  in `check-it`'s *Save each report* with the other reports (superseded by the
+  #114 amendment below: `check-it.mjs name` prints each path). The reading question's line names the path, and the
   brief's reviews line carries the pick, the person's changes, the path and the
   cost line.
 - **The route no longer picks a review.** `check-it`'s table reads *picked*
@@ -1109,3 +1112,33 @@ since no test here can see a window. Every review prompt of #114's own
 **What the decision did not cover:** the tests of `grill-the-graph/scripts` fail
 2 of 92 (2 skipped) on macOS before this change, so the new job's macOS leg is red until
 they are fixed; the Windows leg was not run here.
+
+**At #114's `ask-it`** (2026-11-21), the maintainer had these done in a
+follow-up, each with its finding in the gathered report:
+
+- Each file under `reviewers/` opens with its title and one paragraph for its
+  maintainers; the script keeps the title and leaves the paragraph out of the
+  prompt, and strips a leading byte-order mark from what it reads.
+- The three older review files name `reviewers/brief.md` as what comes before
+  them; the review and report names are listed only in the script's usage;
+  GLOSSARY's *Brief* says `reviewers/lens.md` names the kinds and `lens` finds
+  this change's instances; the run folder is made when the run starts, said in
+  `thegraph`, `clean-it/RULES.md` and `check-it`, since the script stops where it
+  is not a folder.
+- The lines above that #114 replaced are marked superseded, and the index,
+  this record's status and README name #114.
+- `docs/skill-authoring.md`'s count uses `awk`, which runs on macOS's BSD tools.
+- The two `grill-the-graph/scripts` tests the new job would have failed on
+  macOS pass: a PowerShell command's path reads `\` as a separator off Windows,
+  as those tests expected. Whether a real `pwsh` on macOS does the same was not
+  checked: none is installed here.
+- *Done when*'s replay of a past change: the script, run on #112's `e1b5e7c`
+  applied uncommitted to a scratch clone of its parent, listed that commit's
+  nine files, assembled the `spec-rules`, `bug`, `lens` and `pick` prompts
+  (3,369 to 12,810 bytes) with no placeholder left and no maintainer paragraph,
+  named the `pick` report in the run folder, and stopped on a `--covered` path
+  not in the tree. No review was run on it.
+
+Left unproven: a prompt over about 30,000 characters reaching the model as a
+preview (#96 watches it), and whether a Windows short temp path breaks a CLI
+test (the job's first Windows run shows it).

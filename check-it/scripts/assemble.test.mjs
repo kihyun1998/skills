@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { join, resolve } from 'node:path';
-import { CheckItError, REPORTS, SKILLS, fill, matchCovered, parseArgs, reportPath, run, section, skillBody } from './assemble.mjs';
+import { CheckItError, REPORTS, SKILLS, fill, matchCovered, ownPart, parseArgs, reportPath, run, section, skillBody } from './assemble.mjs';
 
 const REPO = resolve('/work/repo');
 const CHECK_IT = join(SKILLS, 'check-it');
@@ -215,7 +215,7 @@ test('an unknown command, option, extra argument or an option another command ta
 
 test('a file checked out with CRLF line endings reaches the prompt with LF only', () => {
   const crlf = {
-    [join(CHECK_IT, 'reviewers/brief.md')]: '# How you work\r\n\r\nrepo={{repo}} {{issue}} {{run_folder}} {{ledger}} {{skills}} {{change}}\r\n',
+    [join(CHECK_IT, 'reviewers/brief.md')]: '# How you work\r\n\r\nA note for its maintainers.\r\n\r\nrepo={{repo}} {{issue}} {{run_folder}} {{ledger}} {{skills}} {{change}}\r\n',
     [join(CHECK_IT, 'reviewers/lens.md')]: 'LENS\r\nARG {{skill_dir}}\r\n',
   };
   const out = prompt('lens', fakeDeps({ tracked: ['a'], files: crlf }).deps);
@@ -225,4 +225,35 @@ test('a file checked out with CRLF line endings reaches the prompt with LF only'
 
 test('skillBody keeps everything after the closing fence, CRLF included', () => {
   assert.equal(skillBody('---\r\na: b\r\n---\r\nBODY\r\n', 'f'), 'BODY\r\n');
+});
+
+test("a review file's title reaches the prompt, and the paragraph after it, for its maintainers, does not", () => {
+  const { deps } = fakeDeps({
+    tracked: ['a.js'],
+    files: { [join(CHECK_IT, 'reviewers/bug.md')]: '# The bug reviewer (6)\n\nRead when check-it runs it. A note for whoever\nmaintains this file.\n\n## What you look for\n\nBUG RULES\n' },
+  });
+  const out = run(['prompt', 'bug', '--issue', '#1', '--run-folder', '/work/run', '--ledger', '/work/run.md'], deps);
+  assert.match(out, /# The bug reviewer \(6\)\n\n## What you look for\n\nBUG RULES/);
+  assert.doesNotMatch(out, /Read when|whoever/);
+  assert.equal(ownPart('NO TITLE\n\nkept'), 'NO TITLE\n\nkept');
+});
+
+test('a review file that is only a title and its note stops the prompt as empty', () => {
+  const { deps } = fakeDeps({ tracked: ['a.js'], files: { [join(CHECK_IT, 'reviewers/bug.md')]: '# Title\n\nOnly a note.\n' } });
+  const err = assert.throws(() => run(['prompt', 'bug', '--issue', '#1', '--run-folder', '/work/run', '--ledger', '/work/run.md'], deps), CheckItError);
+});
+
+test('a file saved with a byte-order mark reaches the prompt without it, and a SKILL.md with one keeps its frontmatter read', () => {
+  const { deps } = fakeDeps({
+    tracked: ['a.js'],
+    files: {
+      [join(CHECK_IT, 'reviewers/bug.md')]: '\uFEFFBUG PART',
+      [join(SKILLS, 'lens', 'SKILL.md')]: '\uFEFF---\nname: lens\n---\n\nLENS BODY\n',
+    },
+  });
+  const bug = run(['prompt', 'bug', '--issue', '#1', '--run-folder', '/work/run', '--ledger', '/work/run.md'], deps);
+  assert.doesNotMatch(bug, /\uFEFF/);
+  const lens = run(['prompt', 'lens', '--issue', '#1', '--run-folder', '/work/run', '--ledger', '/work/run.md'], deps);
+  assert.match(lens, /LENS BODY/);
+  assert.doesNotMatch(lens, /\uFEFF/);
 });

@@ -39,6 +39,10 @@ path finds it, deletes it, and names the processes that belong to it:
   else a folder `made-<yyyymmdd-hhmm>-<8 random hex>` in the OS temp folder. The
   scratchpad's other files are not the run folder's.
 
+**It is made when the run starts**, by whoever writes the run sheet, or by the
+step that starts the run where there is none: `check-it`'s script stops where
+it is not a folder.
+
 **Each step works in a folder of its own inside it**, `<run folder>/<step>/`
 (`<run folder>/lens/`, `<run folder>/proving/`), since steps run at the same
 time. **The run folder itself is no step's item**: a step deletes its own folder,

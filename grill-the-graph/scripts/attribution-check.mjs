@@ -406,8 +406,11 @@ function unpushedRange(revs, git, dir) {
 const SHELLS = { bash: '-c', sh: '-c', zsh: '-c', pwsh: '-command', powershell: '-command' };
 
 // Git Bash on Windows names a drive as `/c/...`, which node reads as a folder.
-const local = (path, shell) =>
-  shell === 'bash' && process.platform === 'win32' && /^\/[a-zA-Z](\/|$)/.test(path) ? `${path[1].toUpperCase()}:${path.slice(2) || '/'}` : path;
+const local = (path, shell) => {
+  if (shell === 'bash' && process.platform === 'win32' && /^\/[a-zA-Z](\/|$)/.test(path)) return `${path[1].toUpperCase()}:${path.slice(2) || '/'}`;
+  if (shell === 'powershell' && process.platform !== 'win32') return path.replaceAll('\\', '/');
+  return path;
+};
 
 const MOVES = {
   bash: ['cd', 'chdir', 'pushd', 'popd'],

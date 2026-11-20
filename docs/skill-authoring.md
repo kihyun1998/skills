@@ -132,13 +132,14 @@ written here.** Ask:
 
 ```sh
 for f in */SKILL.md; do
-  n=$(sed '1{/^---$/!q};1,/^---$/d' "$f" | wc -l)
+  n=$(awk 'NR==1&&/^---$/{fm=1;next} fm&&/^---$/{fm=0;next} !fm' "$f" | wc -l)
   [ "$n" -gt 500 ] && echo "$n  $f"
 done
 ```
 
-**No live skill exceeds the line now**: the command prints nothing (2026-10-22).
-The two that did are records. `thegraph/SKILL.md` was cut by #40
+It counts the body below the frontmatter, under GNU and BSD `awk` alike. On
+2026-11-21 it printed one line, `grill-the-graph/SKILL.md`. Two earlier ones are
+records. `thegraph/SKILL.md` was cut by #40
 ([ADR-0057](adr/0057-the-catalog-points-somewhere.md)) and then rebuilt as four
 skills in order ([ADR-0071](adr/0071-thegraph-is-four-skills-in-order.md)). The
 first `grill-map/SKILL.md`, long because its rules carried their measurements

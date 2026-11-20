@@ -161,9 +161,21 @@ const read = (deps, path, what) => {
   } catch (err) {
     fail(`${what} could not be read: ${err.message}`);
   }
+  text = text.replace(/^\uFEFF/, '');
   piece(text, what);
   return text.replaceAll('\r\n', '\n');
 };
+
+export function ownPart(text) {
+  if (!text.startsWith('# ')) return text;
+  const lines = text.split('\n');
+  let i = 1;
+  while (i < lines.length && lines[i].trim() === '') i++;
+  while (i < lines.length && lines[i].trim() !== '') i++;
+  while (i < lines.length && lines[i].trim() === '') i++;
+  if (i >= lines.length) return '';
+  return [lines[0], '', ...lines.slice(i)].join('\n');
+}
 
 export function fill(template, values, what) {
   const names = [...template.matchAll(/\{\{(\w+)\}\}/g)].map((m) => m[1]);
@@ -202,7 +214,7 @@ export function assemblePrompt(review, opts, deps) {
   };
   const part = (rel) => {
     const path = join(checkIt, rel);
-    return fill(read(deps, path, path).trim(), values, path);
+    return fill(piece(ownPart(read(deps, path, path).trim()).trim(), path), values, path);
   };
 
   const parts = [part('reviewers/brief.md')];
