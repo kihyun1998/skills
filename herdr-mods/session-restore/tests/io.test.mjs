@@ -700,3 +700,14 @@ test("deleteSaves of an id the history no longer has writes nothing", async () =
   assert.equal(writes, 0);
   assert.equal(m.files[historyPath(APP)], text);
 });
+
+test("deleteSaves on an empty or missing history writes nothing", async () => {
+  const m = machine();
+  let writes = 0;
+  const write = m.io.write;
+  m.io.write = (...a) => { writes++; return write(...a); };
+  await deleteSaves(m.io, [3]);
+  m.files[historyPath(APP)] = JSON.stringify({ version: 1, saves: [] });
+  await deleteSaves(m.io, [3]);
+  assert.equal(writes, 0);
+});

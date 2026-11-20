@@ -511,10 +511,11 @@ export function withSnapshot(history, entries, { now, limit }) {
 
 /**
  * The history without the saves with the given ids; its lastId stays the highest id it has given, so
- * no id comes back. The same history when it has none of them and its lastId is already that.
+ * no id comes back. The same history when it has none of them: nothing removed, the highest id
+ * stays where it was.
  */
 export function withoutSnapshots(history, ids) {
-  if (history.lastId === highestId(history) && !history.saves.some((s) => ids.includes(s.id))) return history;
+  if (!history.saves.some((s) => ids.includes(s.id))) return history;
   return { ...history, lastId: highestId(history), saves: history.saves.filter((s) => !ids.includes(s.id)) };
 }
 
