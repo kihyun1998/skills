@@ -688,3 +688,15 @@ test("auto save turned back on in the settings file saves at the next check", as
   await r.settle();
   assert.equal(saveCount(m), 1);
 });
+
+test("deleteSaves of an id the history no longer has writes nothing", async () => {
+  const m = machine();
+  const text = JSON.stringify({ version: 1, lastId: 3, saves: [{ id: 3, at: 3, entries: [] }, { id: 1, at: 1, entries: [] }] });
+  m.files[historyPath(APP)] = text;
+  let writes = 0;
+  const write = m.io.write;
+  m.io.write = (...a) => { writes++; return write(...a); };
+  await deleteSaves(m.io, [2]);
+  assert.equal(writes, 0);
+  assert.equal(m.files[historyPath(APP)], text);
+});
