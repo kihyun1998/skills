@@ -660,8 +660,6 @@ test("readSettings gives the defaults with no file, and writeSettings writes the
   await writeSettings(m.io, { saveEveryMinutes: 5, historyLimit: 2 });
   assert.deepEqual(JSON.parse(m.files[settingsPath(APP)]), { saveEveryMinutes: 5, historyLimit: 2 });
   assert.deepEqual((await readHistory(m.io)).saves.map((s) => s.id), [3, 2]);
-  await writeSettings(m.io, { saveEveryMinutes: 5, historyLimit: null });
-  assert.deepEqual(JSON.parse(m.files[settingsPath(APP)]).historyLimit, null);
 });
 
 test("deleteSaves and mergeSaves change the history file", async () => {

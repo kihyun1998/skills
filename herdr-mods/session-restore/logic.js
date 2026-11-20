@@ -42,7 +42,7 @@ export const isShell = (fg) => /^(pwsh|powershell|cmd|bash|zsh|fish|sh|dash|ksh|
 
 const MIN = 60_000;
 
-/** The settings a missing or unreadable settings file stands for. historyLimit null keeps every save. */
+/** The settings a missing or unreadable settings file stands for. */
 export const DEFAULT_SETTINGS = { saveEveryMinutes: 10, historyLimit: 50, autoSave: true };
 
 /** What the Settings tab lets each number be. */
@@ -67,7 +67,7 @@ export function parseSettings(text) {
   if (!raw || typeof raw !== "object") return { ...DEFAULT_SETTINGS };
   return {
     saveEveryMinutes: whole(raw.saveEveryMinutes) ?? DEFAULT_SETTINGS.saveEveryMinutes,
-    historyLimit: raw.historyLimit === null ? null : Math.min(SETTING_BOUNDS.historyLimit.max, whole(raw.historyLimit) ?? DEFAULT_SETTINGS.historyLimit),
+    historyLimit: Math.min(SETTING_BOUNDS.historyLimit.max, whole(raw.historyLimit) ?? DEFAULT_SETTINGS.historyLimit),
     autoSave: raw.autoSave !== false,
   };
 }

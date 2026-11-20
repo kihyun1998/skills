@@ -193,8 +193,8 @@ rewritten for each Herdr version and are the truth about the API.
 - **The settings** are in `~/.config/herdr-app/data/session-restore.settings.json`:
   `autoSave` (default `true`; `false` turns off the save at start and on the timer, while
   the panel's button and the `session-restore.save` command still save),
-  `saveEveryMinutes` (default 10) and `historyLimit` (default 50; `null` keeps
-  every save). The Settings tab writes them: a switch for auto save, and number fields
+  `saveEveryMinutes` (default 10) and `historyLimit` (default 50; there is no "No limit":
+  a `null` from before reads as 50). The Settings tab writes them: a switch for auto save, and number fields
   for the other two that take only digits and apply on Enter or on leaving the field,
   beside their − and +, each with its range shown and kept to it (an interval 1–1440
   minutes, a limit 1–50 saves; − or + at an end is greyed). A hand edit of the interval is not

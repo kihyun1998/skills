@@ -858,3 +858,24 @@ save file that did not parse, `saveOnce` and `removeEntries` wrote it over.
 - `markShown` copies a save file that broke between a save and it, and says nothing; two
   removes overlapping on the same broken file can leave a second copy (`-2`) of the same
   bytes, as Herdr's `writeFile` is not documented as atomic.
+
+## Amendment (issue #111): the history cannot reach readTextFile's 1 MiB, so it is not measured
+
+Herdr's `readTextFile` reads "up to 1 MiB" (herdr.d.ts:27), and what it does past that
+was never measured. The maintainer's call (2026-11-20): close #111 by keeping the history
+under the limit rather than by measuring the limit. Shown before the call: since #109 a cut
+or failed read loses no history (the save stalls, the chip turns red); the only ways past
+1 MiB left were "No limit" and a merge; measuring needs a throwaway mod in the live window,
+and its answer would most likely lead to the same "do not reach it". A merge going past the
+limit until the next save trims (3f48b24's call) was shown as a second way to close and left
+as it is.
+
+- **"No limit" is gone.** The Settings tab no longer offers it, and a `historyLimit: null`
+  from before reads as the default 50, so the next save that adds to the history drops the
+  oldest saves past 50 without asking, as a limit over 50 already does (3afa955).
+- **What still holds.** At about 12.5 KB a save (225,192 bytes for 18 saves on 2026-11-20)
+  50 saves is about 630 KB, about 1.6 times under 1 MiB. A save holds every open session,
+  so many sessions make it larger. A merge can add one save past 50 until the next save
+  trims. Past 1 MiB the save stalls and the history is kept (#109).
+- **Not measured, and no longer needed for safety:** `readTextFile` past 1 MiB, and
+  `writeTextFile(path, text, null)` on a file that exists (#111's comment).

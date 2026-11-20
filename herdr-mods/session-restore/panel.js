@@ -271,7 +271,7 @@ export default class Sessions {
   setLimit(n, cx) {
     if (this.history.broken) return;
     const { min, max } = SETTING_BOUNDS.historyLimit;
-    const next = { ...this.settings, historyLimit: n == null ? null : clampWhole(n, min, max) };
+    const next = { ...this.settings, historyLimit: clampWhole(n, min, max) };
     if (overLimit(this.history, next.historyLimit) > 0) { this.askLimit = next; cx.notify(); return; }
     this.setSettings(next, cx);
   }
@@ -631,17 +631,14 @@ export default class Sessions {
       .child(section("History"))
       .when(locked, (el) => el.child(h_flex().gap(10).items_center()
         .child(div().text_size(12.5).text_color(t.muted).child("Keep"))
-        .child(div().text_size(12.5).text_color(t.dim).child(s.historyLimit == null ? "every save" : s.historyLimit + " saves"))))
+        .child(div().text_size(12.5).text_color(t.dim).child(s.historyLimit + " saves"))))
       .when(locked, (el) => el.child(div().id("limit-locked").text_size(11.5).text_color(t.ansi1)
         .child("The history file cannot be read, so the limit cannot change until it is fixed or removed: " + historyPath(appHome()))))
       .when(!locked, (el) => el.child(h_flex().gap(10).items_center()
         .child(div().text_size(12.5).text_color(t.muted).child("Keep"))
-        .when(s.historyLimit != null, (el) => el.child(this.stepper(t, "limit", this.inputs.limit, s.historyLimit, limit, SETTING_BOUNDS.historyLimit)).child(div().text_size(12).text_color(t.muted).child("saves"))
-          .child(div().text_size(11.5).text_color(t.dim).child(SETTING_BOUNDS.historyLimit.min + "–" + SETTING_BOUNDS.historyLimit.max)))
-        .when(s.historyLimit == null, (el) => el.child(div().text_size(12.5).child("every save")))
-        .child(div().flex_1())
-        .child(this.button(t, "limit-toggle", s.historyLimit == null ? "Set a limit" : "No limit",
-          (cx) => limit(s.historyLimit == null ? DEFAULT_SETTINGS.historyLimit : null, cx)))))
+        .child(this.stepper(t, "limit", this.inputs.limit, s.historyLimit, limit, SETTING_BOUNDS.historyLimit))
+        .child(div().text_size(12).text_color(t.muted).child("saves"))
+        .child(div().text_size(11.5).text_color(t.dim).child(SETTING_BOUNDS.historyLimit.min + "–" + SETTING_BOUNDS.historyLimit.max))))
       .when(!locked, (el) => el.child(div().text_size(11.5).text_color(t.dim).child(count + (count === 1 ? " save" : " saves") + " now")))
       .when(Boolean(ask) && !locked, (el) => el.child(v_flex().mt(4).p(10).gap(8).rounded(7).border_1().border_color(t.ansi3)
         .child(div().text_size(12.5).child("Keep only the newest " + ask.historyLimit + " saves?"))

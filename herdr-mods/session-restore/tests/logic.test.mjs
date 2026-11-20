@@ -415,8 +415,8 @@ test("parseSettings fills what is missing or wrong with the defaults: every 10 m
   assert.deepEqual(parseSettings('{"saveEveryMinutes": "5"}'), DEFAULT_SETTINGS);
 });
 
-test("parseSettings reads a null historyLimit as no limit", () => {
-  assert.deepEqual(parseSettings('{"historyLimit": null}'), { saveEveryMinutes: 10, historyLimit: null, autoSave: true });
+test("parseSettings reads a null historyLimit, the old No limit, as the default limit", () => {
+  assert.deepEqual(parseSettings('{"historyLimit": null}'), { saveEveryMinutes: 10, historyLimit: 50, autoSave: true });
 });
 
 test("staleAfter is three save intervals", () => {
@@ -789,7 +789,7 @@ test("a settings file holding a history limit over the Settings tab's maximum re
   assert.equal(parseSettings(JSON.stringify({ historyLimit: 80 })).historyLimit, 50);
   assert.equal(parseSettings(JSON.stringify({ historyLimit: 50 })).historyLimit, 50);
   assert.equal(parseSettings(JSON.stringify({ historyLimit: 7 })).historyLimit, 7);
-  assert.equal(parseSettings(JSON.stringify({ historyLimit: null })).historyLimit, null);
+  assert.equal(parseSettings(JSON.stringify({ historyLimit: null })).historyLimit, 50);
 });
 
 test("ifUnchanged takes the new value only while the one shown is still the one seen", () => {
