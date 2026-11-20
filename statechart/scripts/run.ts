@@ -100,7 +100,9 @@ export const killGroup = (pid: number) =>
     (process.platform === "win32"
       ? spawn("taskkill", ["/PID", String(pid), "/T", "/F"], { stdio: "ignore", windowsHide: true })
       : spawn("/bin/sh", ["-c", 'kill -s KILL -- "-$1"', "sh", String(pid)], { stdio: "ignore", windowsHide: true })
-    ).on("exit", resolve),
+    )
+      .on("exit", resolve)
+      .on("error", resolve),
   );
 
 export const messageOf = (error: unknown) =>

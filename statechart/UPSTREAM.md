@@ -65,10 +65,44 @@ skill, and the scripts had never run on native Windows.
 - `scripts/test/lines.test.ts`, `kill.test.ts`, `janitor.test.ts` and
   `out.test.ts` (new): the tests for the changes above. They run on POSIX too.
 
-Apart from the CR drop, the scripts behave on POSIX as upstream's.
+Each below is a follow-up of kihyun1998/skills#100, for defects found in the
+changes above and in code they now run on Windows.
+
+- `scripts/statechart.ts` and `scripts/janitor.ts`: once the worker exits, the
+  command writes the line `exited` to the janitor's stdin, and the janitor then
+  removes the folders without killing anything. Before, a removal that threw in the
+  command's `finally` skipped the janitor's kill, and the janitor then ran
+  `taskkill /T /F` on the dead worker's pid, which another process may hold by
+  then. The `/bin/sh` janitor honours the line the same way, since a killed
+  process group's id can come back too. The command ignores an error on that
+  pipe, since a janitor that has died already has nothing left to be told.
+- `scripts/statechart.ts`: on Windows, when the rename onto the emptied `--out`
+  folder still fails with `EPERM` (an antivirus or indexer holding a file just
+  written), the command retries it for up to 2 s, then puts the empty folder
+  back and says that the folder could not take the output. Before, the user's
+  folder was gone and a raw `EPERM` came out.
+- `scripts/statechart.ts`: the worker exits 0 or 1 only after it has moved its
+  output into place, so a worker that exits 0 or 1 without its output was killed
+  from outside, and the command now says so. On Windows a killed process
+  exits with code 1 and no signal, so the command exited 2 with nothing on
+  stderr. The usage text's exit codes say "something kills the check" in place
+  of "a signal kills the check".
+- `scripts/run.ts`: `killGroup` resolves when `taskkill` or `/bin/sh` cannot
+  start, instead of leaving the `error` unhandled. On Windows with no
+  `taskkill` on `PATH`, the janitor crashed on that error and left the stage
+  and temporary folders behind.
+- `scripts/test/windows-hide.test.ts` (new): reads the source of every `.ts`
+  file in `scripts/` and `scripts/test/`, and fails on any `spawn`,
+  `spawnSync`, `execFile` or `execFileSync` call whose arguments do not hold
+  `windowsHide: true`, the rule in the bullet above on `windowsHide`.
+
+Apart from the CR drop, and from the follow-ups of #100 that run there too (the
+`/bin/sh` janitor honouring `exited`, the message for a check that exits 0 or
+1 without its output, and `killGroup` resolving when `/bin/sh` cannot start),
+the scripts behave on POSIX as upstream's.
 Upstream's own `cli.test.ts`, `corpus.test.ts`, `tlc-out.test.ts` and
 `render.test.ts` still assume POSIX (a `.ts` launched as `JAVA` by its
 shebang, shell-script fakes, negative pids, `npm` spawned without a shell), so
 they do not run on Windows. The tests that do run there are `lines`, `kill`,
-`janitor`, `out`, `messages`, `pipeline`, `chart`, `plain-tlc`, `config-fuzz`
-and `differential`.
+`janitor`, `out`, `messages`, `pipeline`, `chart`, `plain-tlc`, `config-fuzz`,
+`differential` and `windows-hide`.

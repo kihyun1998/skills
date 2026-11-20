@@ -3,6 +3,7 @@ import { type ChildProcess, spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
 import { parseArgs } from "node:util";
 import { killGroup, messageOf } from "./run.ts";
 
@@ -19,7 +20,7 @@ draws only the paths to the rules that break, and with no rule broken there is n
                  property that breaks and each rule that breaks off the chart. The folder must
                  be new or empty. Default: SPEC-chart.
 Exit code: TLC's own on the config as written: 0 when every rule holds, 1 when a rule breaks,
-and 2 when TLC stops with an error, a signal kills the check, or the command cannot run. 130 or
+and 2 when TLC stops with an error, something kills the check, or the command cannot run. 130 or
 143 when SIGINT or SIGTERM stops the check. Only exits 0 and 1 write output.`;
 
 let stop: NodeJS.Signals | undefined;
@@ -135,7 +136,7 @@ try {
             "/bin/sh",
             [
               "-c",
-              'while read -r line; do :; done; kill -s KILL -- "-$1"; rm -rf -- "$2" "$3"',
+              'e=; while read -r line; do [ "$line" = exited ] && e=1; done; [ -n "$e" ] || kill -s KILL -- "-$1"; rm -rf -- "$2" "$3"',
               "sh",
               String(worker.pid),
               stage,
@@ -143,8 +144,12 @@ try {
             ],
             { detached: true, stdio: ["pipe", "ignore", "ignore"], windowsHide: true },
           );
+    janitor.stdin?.on("error", () => {});
     const exited = new Promise<number>((resolve) =>
-      worker.on("exit", (code) => resolve(code ?? 2)),
+      worker.on("exit", (code) => {
+        janitor?.stdin?.write("exited\n");
+        resolve(code ?? 2);
+      }),
     );
     await Promise.race([stopped, exited]);
     if (process.platform === "win32") worker.kill();
@@ -169,7 +174,20 @@ try {
           )
             throw error;
           fs.rmdirSync(dest);
-          fs.renameSync(done, dest);
+          for (let attempt = 1; ; attempt++)
+            try {
+              fs.renameSync(done, dest);
+              break;
+            } catch (error) {
+              if (codeOf(error) === "EPERM" && attempt < 20) await sleep(100);
+              else {
+                fs.mkdirSync(dest, { recursive: true });
+                throw new Error(
+                  `${out} could not take the output, so the command wrote nothing. ${messageOf(error)}.`,
+                  { cause: error },
+                );
+              }
+            }
         }
       } catch (error) {
         if (codeOf(error) !== "ENOTEMPTY" && codeOf(error) !== "EEXIST") throw error;
@@ -181,7 +199,11 @@ try {
       process.stdout.write(fs.readFileSync(path.join(dest, "report.md")));
       console.log(`\nWrote ${out}`);
       exitCode = verdict;
-    } else exitCode = 2;
+    } else {
+      if (verdict === 0 || verdict === 1)
+        console.error("Something killed the check, so the command wrote nothing.");
+      exitCode = 2;
+    }
   } finally {
     fs.rmSync(stage, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
     if (tmp) fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });

@@ -3,9 +3,13 @@ import { killGroup } from "./run.ts";
 
 const [pid, ...dirs] = process.argv.slice(2);
 
-process.stdin.on("data", () => {});
+let exited = false;
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", (text: string) => {
+  if (text.includes("exited")) exited = true;
+});
 process.stdin.on("close", async () => {
-  await killGroup(Number(pid));
+  if (!exited) await killGroup(Number(pid));
   for (const dir of dirs)
     try {
       fs.rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });

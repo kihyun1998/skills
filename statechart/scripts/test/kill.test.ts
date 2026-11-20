@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
+import path from "node:path";
 import { test } from "node:test";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { killGroup } from "../run.ts";
 
 const alive = (pid: number) => {
@@ -40,3 +42,28 @@ test("killGroup ends a detached process and the process it started", { timeout: 
     child.stdout.destroy();
   }
 });
+
+test(
+  "killGroup resolves when the program it kills with cannot start",
+  { timeout: 30000, skip: process.platform !== "win32" && "on POSIX killGroup starts /bin/sh by its absolute path" },
+  () => {
+  const run = pathToFileURL(path.join(path.dirname(fileURLToPath(import.meta.url)), "../run.ts")).href;
+  const missing = path.join(path.dirname(fileURLToPath(import.meta.url)), "no-such-folder");
+  const r = spawnSync(
+    process.execPath,
+    [
+      ...process.execArgv,
+      "--input-type=module",
+      "-e",
+      `const { killGroup } = await import(${JSON.stringify(run)}); await killGroup(2147483646); console.log("resolved");`,
+    ],
+    {
+      encoding: "utf8",
+      windowsHide: true,
+      env: { ...process.env, PATH: missing, Path: missing },
+    },
+  );
+  assert.equal(r.stdout, "resolved\n");
+  assert.equal(r.status, 0);
+  },
+);
