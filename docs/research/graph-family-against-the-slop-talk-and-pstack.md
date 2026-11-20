@@ -318,24 +318,26 @@ Recorded because each changed what was filed.
 ## L. Issues filed
 
 All under the anchor [#71](https://github.com/kihyun1998/skills/issues/71)
-(sub-issue relation), filed 2026-11-17. State as of the end of the session:
+(sub-issue relation), filed 2026-11-17. State as of 2026-11-21:
 
 | Issue | Subject | State |
 |---|---|---|
 | [#72](https://github.com/kihyun1998/skills/issues/72) | who raises a repeated correction as a check, and what builds it | **closed**; decisions in its closing comment (§I) |
-| [#73](https://github.com/kihyun1998/skills/issues/73) | raise a repeated correction as a check candidate (`ask-it`, `grill-map`, `grill-the-graph`) | built in `5b68ded`, `2e27d8a` (closes on push): a `thegraph` signal row catches the moment of correction; measured blind on justerm; follow-up #84 |
-| [#74](https://github.com/kihyun1998/skills/issues/74) | `check-it` (3) proves against the way to the real thing a repository already records | built in `db36301`, `2dc9842` (closes on push); replay on the issue |
-| [#75](https://github.com/kihyun1998/skills/issues/75) | the comment rule, a per-diff comment check, what the map keeps; the ADR-0076 amendment moved to #79 (2026-11-18) | built as `comment-it` in `8f5cf61` (closes on push); no marker word, #80 Q12 reopened; replay on justpdf on the issue |
-| [#76](https://github.com/kihyun1998/skills/issues/76) | reviewer findings carry their reproduction; reports carry the certainty level | built in `90999bc`, `2dc9842` (closes on push); replay on the issue |
-| [#77](https://github.com/kihyun1998/skills/issues/77) | `make-it` and `check-it` use the property, fuzz and benchmark lanes a repository runs; `benchmark-checklist`'s method as a file `check-it` reads only when a change needs it | built in `00dd86b` (closes on push); replays on the issue |
-| [#78](https://github.com/kihyun1998/skills/issues/78) | whether to bring formal verification in, starting with one trial | open; `needs-grill` |
+| [#73](https://github.com/kihyun1998/skills/issues/73) | raise a repeated correction as a check candidate (`ask-it`, `grill-map`, `grill-the-graph`) | built in `5b68ded`, `2e27d8a` (closed on push): a `thegraph` signal row catches the moment of correction; measured blind on justerm; follow-up #84 |
+| [#74](https://github.com/kihyun1998/skills/issues/74) | `check-it` (3) proves against the way to the real thing a repository already records | built in `db36301`, `2dc9842` (closed on push); replay on the issue |
+| [#75](https://github.com/kihyun1998/skills/issues/75) | the comment rule, a per-diff comment check, what the map keeps; the ADR-0076 amendment moved to #79 (2026-11-18) | built as `comment-it` in `8f5cf61` (closed on push); no marker word, #80 Q12 reopened; replay on justpdf on the issue |
+| [#76](https://github.com/kihyun1998/skills/issues/76) | reviewer findings carry their reproduction; reports carry the certainty level | built in `90999bc`, `2dc9842` (closed on push); replay on the issue |
+| [#77](https://github.com/kihyun1998/skills/issues/77) | `make-it` and `check-it` use the property, fuzz and benchmark lanes a repository runs; `benchmark-checklist`'s method as a file `check-it` reads only when a change needs it | built in `00dd86b` (closed on push); replays on the issue |
+| [#78](https://github.com/kihyun1998/skills/issues/78) | whether to bring formal verification in, starting with one trial | open; built #100-#102, statechart retired (#113, #108 not planned), #107 partly decided and waiting for a committed verify skill (§P) |
 | [#79](https://github.com/kihyun1998/skills/issues/79) | how decision records are written and how much they weigh (§M) | open; `needs-grill`; **deferred** 2026-11-18 (§M) |
 | [#80](https://github.com/kihyun1998/skills/issues/80) | `encode-it`: a skill that turns a repeated correction into a check | **closed** 2026-11-18; built as `encode-it` in `59f7a4a`, replay on justssh recorded on the issue; its direct run reads closed issues and rules, not history, after a trial on justssh (`8b39b15`, #80 comment) |
-| [#84](https://github.com/kihyun1998/skills/issues/84) | `thegraph-herdr` passes a correction received in a run to the next worker (from #73) | built in `f20b412` (closes on push); paper replay on the issue |
-| [#85](https://github.com/kihyun1998/skills/issues/85) | decide `thegraph-herdr`'s model table again, Mythos 5.2 included (filed 2026-11-18) | built in `9f9f1ae` (closes on push); the conductor asks for the model a run warrants (Q3 changed by the maintainer) |
-| [#82](https://github.com/kihyun1998/skills/issues/82) | clean up the comments target repositories carry from before #75's allow-list; sized by #75's survey (filed 2026-11-18) | open; `needs-grill`; blocked by #75 |
+| [#84](https://github.com/kihyun1998/skills/issues/84) | `thegraph-herdr` passes a correction received in a run to the next worker (from #73) | built in `f20b412` (closed on push); paper replay on the issue |
+| [#85](https://github.com/kihyun1998/skills/issues/85) | decide `thegraph-herdr`'s model table again, Mythos 5.2 included (filed 2026-11-18) | built in `9f9f1ae` (closed on push); the conductor asks for the model a run warrants (Q3 changed by the maintainer) |
+| [#82](https://github.com/kihyun1998/skills/issues/82) | clean up the comments target repositories carry from before #75's allow-list; sized by #75's survey (filed 2026-11-18) | open; `needs-grill`; #75 built, so unblocked |
+| [#117](https://github.com/kihyun1998/skills/issues/117) | `grill-the-graph`, 533 body lines, split as #114 split `check-it` (filed 2026-11-21) | open; `needs-grill` |
+| [#118](https://github.com/kihyun1998/skills/issues/118) | a push sends another run's local commits when two runs share a tree (filed 2026-11-21) | open; `needs-grill` |
 
-The order to take them is §O.2.
+The order to take them is §O.2, as updated in §P.
 
 Context comments, posted as context and not as scope (2026-11-17):
 
@@ -420,7 +422,7 @@ command for the issue at hand:
 > then issue #71, its children and their comments, and #72's closing comment,
 > before doing anything.
 
-The tracker is the current state; this file is the reasoning behind it. Where the
+Read §P, which records the work after this section was written, before §O.2's order. The tracker is the current state; this file is the reasoning behind it. Where the
 two disagree, the tracker wins and this file is stale — say so rather than follow
 it.
 
@@ -688,8 +690,51 @@ this repository; these are the points this session learned the hard way.
 
 ### O.6 Not filed, waiting on the maintainer
 
-- `docs/skill-authoring.md` says no live skill exceeds 500 lines (2026-10-22);
-  `grill-the-graph/SKILL.md` is now 515 body lines by the command that file gives.
+- (Filed since as #117, and the count command fixed in `b0b1166`.)
 - justrdp's `docs/agents/thegraph.md` names `check-it`'s `silt` step, retired by
   ADR-0092; other target repositories were not checked for the same.
 - The private HTML summary (§N) is stale; nothing depends on it.
+
+## P. After the hand-off (2026-11-20 to 2026-11-21)
+
+What one more session did on this work, recorded so §O's order does not
+mislead. Each item's detail is on its issue; commits are on `main`.
+
+- **#78, formal verification.** pstack's `create-formal-verification-skill`,
+  `maintain-formal-verification-skill` and `statechart` were vendored at
+  `e1cc031` (#78 Q6) and #100-#102 built on them. `statechart` was then
+  **retired** (`7b75bb2`, #113): this repository has no TLA+ model, and inside a
+  run the agent reads the counterexample itself, so it reran TLC only to draw a
+  picture for a person the run does not show it to; its Windows items (#108)
+  closed as not planned. #107 was grilled: items 7 and 8 done (`c864c54`:
+  `maintain-formal-verification-skill` keeps the guard table, GLOSSARY defines
+  *Guard*); items 1 and 3-6 wait until a verify skill is committed in some
+  repository, since none is and their cost cannot be measured.
+- **The prose grew the wrong way, and #114 turned it back.** Measured commit by
+  commit, `check-it`'s body went from 215 lines at this file's hand-off to 673,
+  most of it in #94's cluster: the talk's pyramid (§F) ranks skills among the
+  narrowest layer, and twice an agent not following the prose (#87, #92) was
+  answered with more prose. #105 replaced the bundled `/review`,
+  `/security-review` and `/simplify` with `check-it`'s own reviewers that edit
+  nothing and one report and question; #112 had a Haiku 5.5 decision model pick
+  the reviews from six fixed questions; #114 moved the briefs pasted into fresh
+  agents to `check-it/reviewers/` and the verify check to `check-it/verify.md`,
+  and put the fixed steps (prompt assembly, report names, the diff's range, the
+  verify match) in `check-it/scripts/check-it.mjs`, which stops where a piece is
+  missing. `check-it` is 499 lines. CI job `skill-scripts` now runs the scripts'
+  tests on macOS and Windows (ADR-0066 banner); its first Windows run caught a
+  test that expected an 8.3 short path (`4ea021b`).
+- **#106**: `grill-the-graph`'s attribution check no longer reads `CLAUDE.md`,
+  `CLAUDE.local.md` or `.claude/` paths as a Claude mention (`f0eeb87`); the same
+  run fixed two of its tests that had failed on macOS since 2026-10-23
+  (`b0b1166`).
+- **#117 and #118 filed** (2026-11-21): `grill-the-graph` is now the one skill
+  past 500 lines; and two runs sharing one tree pushed each other's commits —
+  #112's push sent #110's local commit and closed #110 before its run's
+  `ask-it`.
+
+**The order now** (replacing §O.2's): `/grilling 79` (ADR-0102 alone carries
+seven amendments, each superseded line marked by hand), `/grilling 82`, then
+`/grilling 117` and `/grilling 118`; #96's measurements around 2026-11-27; #107's
+rest when a verify skill is committed. A session on a nearly spent weekly limit
+takes the grillings first, since a `thegraph` run spends several Opus reviews.
