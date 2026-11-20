@@ -469,6 +469,17 @@ is `thegraph-panel`'s value, read with `$.state.get` (ADR-0099).
 _Avoid_: cwd (the absolute path it is read from — not what is shown), session root
 (the engine's `$.session.root()`, which a shell `cd` does not move)
 
+### create-formal-verification-skill / statechart
+
+**Verify skill** (create-formal-verification-skill):
+The project-local skill `create-formal-verification-skill` leaves in a target
+repository: how to tell whether a change touches the verified code, the one
+command that reruns the check, the files and functions it covers and the commit
+it was last confirmed at. `maintain-formal-verification-skill` brings one back in
+line with the code. Where the check is a TLA+ model, its agent reads each result
+with `statechart` itself (#100).
+_Avoid_: verification skill (ambiguous with the two skills that write and maintain one)
+
 ## Relationships
 
 - An **AFK agent** produces work in response to one **issue**; the

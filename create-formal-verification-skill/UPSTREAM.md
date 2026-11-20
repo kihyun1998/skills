@@ -1,10 +1,10 @@
 # Upstream
 
-This folder is a verbatim copy of `pstack/skills/create-formal-verification-skill` from
+This folder started as a verbatim copy of `pstack/skills/create-formal-verification-skill` from
 https://github.com/cursor/plugins at commit
 `e1cc03121a0e71129a4fb730d7c5528a0a3e43c8` (2026-11-16 22:18 -0800),
-copied on 2026-11-20. Every file except this one and `LICENSE` is byte-identical to
-that commit; `LICENSE` is `pstack/LICENSE` from the same commit (MIT, Lauren Tan).
+copied on 2026-11-20. Every file except this one and `LICENSE` was byte-identical to
+that commit when copied, and each file changed since is listed below; `LICENSE` is `pstack/LICENSE` from the same commit (MIT, Lauren Tan).
 
 It is the starting point for this repository's own version
 (kihyun1998/skills#78). Once a file here is changed, say what changed and why below,
@@ -19,4 +19,9 @@ git -C pstack log --oneline e1cc031..origin/main -- pstack/skills/create-formal-
 
 ## Changes from upstream
 
-None yet.
+- `SKILL.md` (kihyun1998/skills#100): the agent reads every TLA+ result with
+  `statechart` itself, while it builds the check and when it proves it, and the
+  generated skill's agent does the same, instead of asking the user to run it. In
+  the #78 trial the generated skill asked the person. `statechart` is named as
+  this catalog's skill, not as pstack's, and `requires: [statechart]` declares
+  the call, as this repository's `CLAUDE.md` asks.

@@ -40,6 +40,8 @@ import {
 import { addPast, deadEnds, finder, lasso, mark } from "./passes/annotate.ts";
 import { pathGraph } from "./passes/paths.ts";
 
+const lines = (text: string) => text.replace(/\r$/gm, "").split("\n");
+
 export function* fileLines(file: string) {
   const fd = fs.openSync(file, "r");
   try {
@@ -55,10 +57,10 @@ export function* fileLines(file: string) {
         kept = end;
         continue;
       }
-      yield* buf.toString("utf8", 0, cut).split("\n");
+      yield* lines(buf.toString("utf8", 0, cut));
       kept = buf.copy(buf, 0, cut + 1, end);
     }
-    yield buf.toString("utf8", 0, kept);
+    yield* lines(buf.toString("utf8", 0, kept));
   } finally {
     fs.closeSync(fd);
   }
@@ -82,7 +84,7 @@ const runChild = (file: string, args: string[], options: { cwd: string; env: Nod
     execFile(
       file,
       args,
-      { encoding: "utf8", maxBuffer: 1 << 30, ...options },
+      { encoding: "utf8", maxBuffer: 1 << 30, windowsHide: true, ...options },
       (error, stdout, stderr) =>
         resolve({
           status: error ? (typeof error.code === "number" ? error.code : null) : 0,
@@ -95,10 +97,10 @@ const runChild = (file: string, args: string[], options: { cwd: string; env: Nod
 
 export const killGroup = (pid: number) =>
   new Promise((resolve) =>
-    spawn("/bin/sh", ["-c", 'kill -s KILL -- "-$1"', "sh", String(pid)], { stdio: "ignore" }).on(
-      "exit",
-      resolve,
-    ),
+    (process.platform === "win32"
+      ? spawn("taskkill", ["/PID", String(pid), "/T", "/F"], { stdio: "ignore", windowsHide: true })
+      : spawn("/bin/sh", ["-c", 'kill -s KILL -- "-$1"', "sh", String(pid)], { stdio: "ignore", windowsHide: true })
+    ).on("exit", resolve),
   );
 
 export const messageOf = (error: unknown) =>
@@ -133,7 +135,7 @@ const joined = (files: string[]): Output => {
 
 const utf8 = new TextDecoder("utf-8", { ignoreBOM: true });
 
-function* outputLines(output: Output) {
+export function* outputLines(output: Output) {
   let rest: Uint8Array = new Uint8Array(0);
   for (const part of output) {
     const buf = rest.length ? Buffer.concat([rest, part]) : part;
@@ -142,10 +144,10 @@ function* outputLines(output: Output) {
       rest = buf;
       continue;
     }
-    yield* utf8.decode(buf.subarray(0, cut)).split("\n");
+    yield* lines(utf8.decode(buf.subarray(0, cut)));
     rest = buf.subarray(cut + 1);
   }
-  yield utf8.decode(rest);
+  yield* lines(utf8.decode(rest));
 }
 
 const messagesOf = (output: Output): Iterable<Part> => ({
@@ -170,7 +172,7 @@ const runToFiles = (
     for (const f of files) fds.push(fs.openSync(f, "w"));
     let child: ChildProcess;
     try {
-      child = spawn(file, args, { ...options, stdio: ["ignore", ...fds] });
+      child = spawn(file, args, { ...options, stdio: ["ignore", ...fds], windowsHide: true });
     } finally {
       for (const fd of fds) fs.closeSync(fd);
     }

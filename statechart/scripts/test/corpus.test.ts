@@ -30,7 +30,7 @@ for (const name of fs.readdirSync(corpus)) {
         out,
       ],
       {
-        encoding: "utf8",
+        encoding: "utf8", windowsHide: true,
         env: {
           ...process.env,
           JAVA: path.join(here, "java.ts"),
@@ -70,7 +70,7 @@ test("a spec in a folder whose name is not ASCII checks under the POSIX locale",
       "--out",
       out,
     ],
-    { encoding: "utf8", env: { ...process.env, LC_ALL: "POSIX", LC_CTYPE: "", LANG: "" } },
+    { encoding: "utf8", windowsHide: true, env: { ...process.env, LC_ALL: "POSIX", LC_CTYPE: "", LANG: "" } },
   );
   assert.equal(r.stderr, "");
   assert.equal(r.status, 0);
@@ -87,7 +87,7 @@ test("an invariant named NoDeadlock and a deadlock break as two rules", { skip }
       "--out",
       out,
     ],
-    { encoding: "utf8" },
+    { encoding: "utf8", windowsHide: true },
   );
   assert.equal(r.stderr, "");
   assert.equal(r.status, 1);
@@ -129,7 +129,7 @@ const plainTlc = (base: string) => {
       `${name}.cfg`,
       `${name}.tla`,
     ],
-    { cwd: path.dirname(base), encoding: "utf8" },
+    { cwd: path.dirname(base), encoding: "utf8", windowsHide: true },
   );
   return {
     exit: r.status === 0 ? 0 : [11, 12, 13].includes(r.status ?? -1) ? 1 : 2,
@@ -204,7 +204,7 @@ for (const [input, name, tla] of [
     const r = spawnSync(
       process.execPath,
       [path.join(here, "../statechart.ts"), `${base}.tla`, "--out", out],
-      { encoding: "utf8" },
+      { encoding: "utf8", windowsHide: true },
     );
     assert.equal(r.stderr, "");
     assert.equal(r.status, tlc.exit);
@@ -241,7 +241,7 @@ test("a property that breaks on a loop draws the loop and reports it", { skip },
   const r = spawnSync(
     process.execPath,
     [path.join(here, "../statechart.ts"), `${base}.tla`, "--out", out],
-    { encoding: "utf8" },
+    { encoding: "utf8", windowsHide: true },
   );
   assert.equal(r.stderr, "");
   assert.equal(r.status, 1);
@@ -280,7 +280,7 @@ test(
     const r = spawnSync(
       process.execPath,
       [path.join(here, "../statechart.ts"), `${base}.tla`, "--out", out],
-      { encoding: "utf8" },
+      { encoding: "utf8", windowsHide: true },
     );
     assert.equal(r.stderr, "");
     assert.equal(r.status, 1);
@@ -366,7 +366,7 @@ for (const [width, height, config, status, drawn, chart, header] of [
         process.execPath,
         [path.join(here, "../statechart.ts"), `${base}.tla`, "--out", out],
         {
-          encoding: "utf8",
+          encoding: "utf8", windowsHide: true,
           env: {
             ...process.env,
             JAVA: path.join(here, "java.ts"),

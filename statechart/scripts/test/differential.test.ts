@@ -264,6 +264,7 @@ const run = (command: string, args: string[], cwd: string) =>
       cwd,
       stdio: ["ignore", "pipe", "pipe"],
       env: { ...process.env, LC_ALL: "C.UTF-8" },
+      windowsHide: true,
     });
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];

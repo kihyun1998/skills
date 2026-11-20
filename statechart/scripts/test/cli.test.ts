@@ -48,6 +48,7 @@ function run(
     ],
     {
       encoding: "utf8",
+      windowsHide: true,
       env: {
         ...process.env,
         JAVA: java,
@@ -107,7 +108,7 @@ const launcher = path.join(here, "../statechart");
 const launcherTools = () => {
   const bin = fs.mkdtempSync(path.join(os.tmpdir(), "statechart-bin-"));
   for (const tool of ["dirname", "readlink", "sed"]) {
-    const found = spawnSync("sh", ["-c", `command -v ${tool}`], { encoding: "utf8" });
+    const found = spawnSync("sh", ["-c", `command -v ${tool}`], { encoding: "utf8", windowsHide: true });
     fs.symlinkSync(found.stdout.trim(), path.join(bin, tool));
   }
   return bin;
@@ -246,6 +247,7 @@ function startCommand(
         TMPDIR: tmpdir,
       },
       stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true,
     },
   );
 }
@@ -399,7 +401,7 @@ test(
     child.stderr.on("data", (chunk: Buffer) => (stderr += chunk));
     const closed = once(child, "close");
     while (!fs.existsSync(pidFile) || !read(pidFile)) await sleep(20);
-    const ps = spawnSync("ps", ["-o", "ppid=", "-p", read(pidFile)], { encoding: "utf8" });
+    const ps = spawnSync("ps", ["-o", "ppid=", "-p", read(pidFile)], { encoding: "utf8", windowsHide: true });
     process.kill(Number(ps.stdout), "SIGKILL");
     const [status] = await closed;
     assert.equal(stderr, "SIGKILL killed the check, so the command wrote nothing.\n");
@@ -487,9 +489,9 @@ fs.open(dot, "w", (error, fd) => {
 import { spawn, spawnSync } from "node:child_process";
 const args = process.argv.slice(2);
 const dot = args[args.indexOf("-dump") + 2] + ".dot";
-spawnSync("mkfifo", [dot]);
-const command = spawnSync("ps", ["-o", "ppid=", "-p", String(process.ppid)], { encoding: "utf8" }).stdout.trim();
-spawn(process.execPath, ["-e", ${JSON.stringify(sendWhileRead)}, dot, command, ${JSON.stringify(signal)}, ${JSON.stringify(path.join(corpus, "Login", "graph.dot"))}], { detached: true, stdio: "ignore" }).unref();
+spawnSync("mkfifo", [dot], { windowsHide: true });
+const command = spawnSync("ps", ["-o", "ppid=", "-p", String(process.ppid)], { encoding: "utf8", windowsHide: true }).stdout.trim();
+spawn(process.execPath, ["-e", ${JSON.stringify(sendWhileRead)}, dot, command, ${JSON.stringify(signal)}, ${JSON.stringify(path.join(corpus, "Login", "graph.dot"))}], { detached: true, stdio: "ignore", windowsHide: true }).unref();
 `,
       { mode: 0o755 },
     );
@@ -686,7 +688,8 @@ test("a java that cannot start stops the command with exit 2 on a runtime that e
 import { syncBuiltinESMExports } from "node:module";
 const { spawn } = childProcess;
 childProcess.spawn = (...args) => {
-  const child = spawn(...args);
+  const [file, list, options] = args;
+  const child = spawn(file, list, { ...options, windowsHide: true });
   const { emit } = child;
   child.emit = (name, ...rest) =>
     name === "close" && child.pid === undefined ? false : emit.call(child, name, ...rest);

@@ -56,6 +56,7 @@ test(
                 STATECHART_PLAIN: twin,
               },
               stdio: ["ignore", "ignore", "pipe"],
+              windowsHide: true,
             },
           );
           let stderr = "";

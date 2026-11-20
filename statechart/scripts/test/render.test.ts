@@ -31,7 +31,7 @@ const install = (name: string, ...packages: string[]) => {
   execFileSync(
     "npm",
     ["install", "--prefix", dir, "--no-audit", "--no-fund", "--save-exact", ...packages],
-    { stdio: ["ignore", "pipe", "pipe"] },
+    { stdio: ["ignore", "pipe", "pipe"], windowsHide: true },
   );
   return createRequire(path.join(dir, "package.json"));
 };

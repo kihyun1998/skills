@@ -110,26 +110,45 @@ try {
       {
         detached: true,
         stdio: ["ignore", "inherit", "inherit"],
-        env: { ...process.env, TMPDIR: tmp },
+        windowsHide: true,
+        env: {
+          ...process.env,
+          TMPDIR: tmp,
+          ...(process.platform === "win32" && { TEMP: tmp, TMP: tmp }),
+        },
       },
     );
-    janitor = spawn(
-      "/bin/sh",
-      [
-        "-c",
-        'while read -r line; do :; done; kill -s KILL -- "-$1"; rm -rf -- "$2" "$3"',
-        "sh",
-        String(worker.pid),
-        stage,
-        tmp,
-      ],
-      { detached: true, stdio: ["pipe", "ignore", "ignore"] },
-    );
+    janitor =
+      process.platform === "win32"
+        ? spawn(
+            process.execPath,
+            [
+              ...runtime,
+              path.join(import.meta.dirname, "janitor.ts"),
+              String(worker.pid),
+              stage,
+              tmp,
+            ],
+            { detached: true, stdio: ["pipe", "ignore", "ignore"], windowsHide: true },
+          )
+        : spawn(
+            "/bin/sh",
+            [
+              "-c",
+              'while read -r line; do :; done; kill -s KILL -- "-$1"; rm -rf -- "$2" "$3"',
+              "sh",
+              String(worker.pid),
+              stage,
+              tmp,
+            ],
+            { detached: true, stdio: ["pipe", "ignore", "ignore"], windowsHide: true },
+          );
     const exited = new Promise<number>((resolve) =>
       worker.on("exit", (code) => resolve(code ?? 2)),
     );
     await Promise.race([stopped, exited]);
-    await killGroup(worker.pid as number);
+    if (process.platform === "win32") worker.kill();
+    else await killGroup(worker.pid as number);
     const verdict = await exited;
     if (stop) {
       console.error(`${stop} stopped the check, so the command wrote nothing.`);
@@ -140,7 +159,18 @@ try {
     } else if ((verdict === 0 || verdict === 1) && fs.existsSync(done)) {
       fs.mkdirSync(path.dirname(dest), { recursive: true });
       try {
-        fs.renameSync(done, dest);
+        try {
+          fs.renameSync(done, dest);
+        } catch (error) {
+          if (
+            process.platform !== "win32" ||
+            codeOf(error) !== "EPERM" ||
+            !fs.statSync(dest, { throwIfNoEntry: false })?.isDirectory()
+          )
+            throw error;
+          fs.rmdirSync(dest);
+          fs.renameSync(done, dest);
+        }
       } catch (error) {
         if (codeOf(error) !== "ENOTEMPTY" && codeOf(error) !== "EEXIST") throw error;
         throw new Error(
@@ -153,8 +183,8 @@ try {
       exitCode = verdict;
     } else exitCode = 2;
   } finally {
-    fs.rmSync(stage, { recursive: true, force: true });
-    if (tmp) fs.rmSync(tmp, { recursive: true, force: true });
+    fs.rmSync(stage, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
+    if (tmp) fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
     janitor?.kill("SIGKILL");
   }
   process.exit(exitCode);
