@@ -1,5 +1,10 @@
 # ADR-0095 — `check-it`'s review and harm checks run in one fresh agent, on every code change
 
+> **Out of date on one point (#79, 2026-11-21).** The reviewer is no longer
+> read-only: since #76 (`90999bc`) every review agent may write in the OS temp
+> folder, in a copy, to run a finding's reproduction. The live rule is
+> `check-it/reviewers/brief.md`.
+
 > **Amended by [ADR-0102](0102-check-it-reviews-are-a-catalog-chosen-per-change.md).**
 > The reviewer keeps the rules and spec questions and runs on prose changes too;
 > harm leaves it for the bundled `/security-review`, offered on the change's risk.

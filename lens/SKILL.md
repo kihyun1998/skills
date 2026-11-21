@@ -59,7 +59,9 @@ action"*, which is the part that pays.
    and the **list of divergences that are deliberate**, each with the record that
    decided it. The grade table is this skill's own, below. The list is what a
    finding is graded *against*: where a record has already settled a clash
-   between the reference and this project, the record governs. A pass never
+   between the reference and this project, the divergence is deliberate, unless
+   the finding rests on a fact outside what the record was decided on, which
+   makes it a finding for the maintainer to reopen. A pass never
    given the list reports a divergence on a layer where the reference has no
    vote at all, and reports it as urgent, because from inside the brief it is.
 

@@ -21,4 +21,5 @@ brief it is:
 
 And the sentence that settles a clash: **this project's own measurement wins, and
 an unmeasured preference does not. Where a record has already settled a
-particular clash, the record governs.**
+particular clash, follow it, unless the finding rests on a fact outside what the
+record was decided on: that is a finding for the maintainer to reopen.**

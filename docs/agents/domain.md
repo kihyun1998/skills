@@ -50,6 +50,22 @@ If your output contradicts an existing ADR, surface it explicitly rather than si
 
 > _Contradicts ADR-0007 (event-sourced orders) — but worth reopening because…_
 
+## What gets a record, and how it reads
+
+**A record is for a decision that is hard to reverse, surprising without context,
+and the result of a real trade-off** — all three, as `domain-modeling`'s
+`ADR-FORMAT.md` puts it. Any other decision lives in the issue's decision comment
+and the commit message; a retirement lives in `retired/README.md`'s table (#79).
+
+**A record is short**: what was decided, what it was decided on (what the person
+was shown), and what would reopen it. Measurements, trial runs and costs go in
+the issue or `docs/research/`, linked from the record.
+
+**A record is read as grounds, not as a rule.** The live rule is in a skill,
+`CLAUDE.md` or a check. Where a record settled a question and nothing outside what
+it was decided on has come up, follow it; a fact outside that goes to the
+maintainer to reopen, neither followed nor overridden.
+
 ## When a decision supersedes an earlier one, say so in the earlier one
 
 A later ADR that supersedes, scopes, or amends an earlier one **adds a banner to

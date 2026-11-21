@@ -1,5 +1,11 @@
 # ADR-0098 — `thegraph-herdr` runs one worker terminal per issue
 
+> **Out of date on its models (#79, 2026-11-21).** Since #85 (`9f9f1ae`) a
+> person picks every model at the confirm stop, the route no longer does; the
+> conductor names the model the run warrants and asks the person to switch when
+> it runs below that or below a worker; Mythos 5.2 is offered on a cyber refusal.
+> The live rule is `thegraph-herdr/SKILL.md`, *Who picks a model*.
+
 > **Amended by [ADR-0099](0099-a-mod-reads-another-mods-state.md).** `thegraph-panel`
 > now follows this skill's runs too, conductor and worker, as a chip on `path-band`'s
 > line; the Consequences line saying it does not is superseded.

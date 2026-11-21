@@ -25,7 +25,10 @@ on `unsafe` is one); a tool directive; a doc comment on a public API; an issue
 or RFC link for a constraint the code cannot express. Nothing else: a surprise
 in our own code is fixed, not explained.
 
-A decision and its reason go to `docs/adr/`; history goes to the commit message.
+A decision that is hard to reverse, surprising without context and the result of a
+real trade-off goes to `docs/adr/`, short (`docs/agents/domain.md`); any other
+decision and its reason live in the issue's decision comment and the commit
+message, and history goes to the commit message.
 
 ## Agent skills
 

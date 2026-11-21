@@ -302,7 +302,9 @@ part nobody can ask you for: they do not know what you left out of frame.
 the signal that a decision is not arbitrary, and prior art shaves details a
 first-principles model under-reaches. Where they disagree, **this project's own
 measurement wins and an unmeasured preference does not** — and where a decision
-record has already settled that particular clash, the record governs. *"Perfect"*
+record has already settled that particular clash, follow it while nothing outside
+what it was decided on has come up; a fact outside that is neither followed nor
+overridden but taken to the maintainer to reopen. *"Perfect"*
 is not *"maximally granular"*; it is the right grain.
 
 **Size the thinking, and never let it buy the proof.** Raise it for ambiguity,

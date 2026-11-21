@@ -2,6 +2,12 @@
 
 **Status:** accepted.
 
+> **Out of date (#79, 2026-11-21).** Since #75 a comment is one of an allow-list,
+> nothing else: a license header, behaviour an outside dependency forces, a tool
+> directive, a public API doc comment, an issue or RFC link. The live rule is
+> `CLAUDE.md`'s *Comments*, checked per change by `comment-it`; the reasoning
+> below is what the earlier rule was decided on.
+
 > **Scoped by [ADR-0079](0079-in-a-repository-you-contribute-to-its-conventions-win.md).**
 > In a repository the maintainer contributes to rather than owns, that
 > repository's guidance and merged PRs govern comments, this rule's first
