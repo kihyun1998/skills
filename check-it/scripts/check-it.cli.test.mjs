@@ -1,7 +1,7 @@
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -183,4 +183,48 @@ test('a link already where the record goes stops record with the reason, not a s
   assert.equal(r.status, 1);
   assert.match(r.stderr, /^check-it: the run folder already holds a record at /);
   assert.doesNotMatch(r.stderr, /node:fs|EEXIST/);
+});
+
+test('an untracked file that cannot be read is not recorded and is always listed, with no stack', { skip: (process.platform === 'win32' || process.getuid?.() === 0) && 'mode 000 does not stop this user reading the file' }, () => {
+  const lockedRepo = join(scratch, 'locked-repo');
+  const folder = join(scratch, 'locked-run');
+  mkdirSync(lockedRepo);
+  mkdirSync(folder);
+  writeFileSync(join(lockedRepo, 'a.c'), 'int a;\n');
+  git(lockedRepo, 'init', '-q');
+  git(lockedRepo, 'add', '.');
+  git(lockedRepo, 'commit', '-q', '-m', 'base');
+  const locked = join(lockedRepo, 'locked.bin');
+  writeFileSync(locked, 'secret\n');
+  chmodSync(locked, 0o000);
+  try {
+    const made = call(here, ['record', '--run-folder', folder], lockedRepo);
+    assert.equal(made.status, 0, made.stderr);
+    assert.match(made.stdout, /recorded 0 untracked files/);
+    assert.match(made.stdout, /not recorded, .* always listed: `locked\.bin`/);
+    writeFileSync(join(lockedRepo, 'a.c'), 'int a = 1;\n');
+    const r = call(here, ['range', '--run-folder', folder], lockedRepo);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout, '- `a.c`\n- `locked.bin` (untracked)\n');
+  } finally {
+    chmodSync(locked, 0o600);
+  }
+});
+
+test('record --from the run folder through a link to it keeps the record', { skip: process.platform === 'win32' && 'a directory symlink needs Developer Mode on Windows' }, () => {
+  const sameRepo = join(scratch, 'same-repo');
+  const folder = join(scratch, 'same-run');
+  mkdirSync(sameRepo);
+  mkdirSync(folder);
+  writeFileSync(join(sameRepo, 'a.c'), 'int a;\n');
+  git(sameRepo, 'init', '-q');
+  git(sameRepo, 'add', '.');
+  git(sameRepo, 'commit', '-q', '-m', 'base');
+  writeFileSync(join(sameRepo, 'pre.txt'), 'there before\n');
+  assert.equal(call(here, ['record', '--run-folder', folder], sameRepo).status, 0);
+  const alias = join(scratch, 'same-run-link');
+  symlinkSync(folder, alias, 'dir');
+  const r = call(here, ['record', '--run-folder', folder, '--from', alias], sameRepo);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout, `kept the record ${join(folder, 'check-it.untracked.json')}\n`);
 });

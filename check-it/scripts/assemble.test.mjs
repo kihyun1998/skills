@@ -6,7 +6,7 @@ import { CheckItError, RECORD, REPORTS, SKILLS, fill, matchCovered, ownPart, par
 const REPO = resolve('/work/repo');
 const CHECK_IT = join(SKILLS, 'check-it');
 
-function fakeDeps({ files = {}, tracked = [], untracked = [], dirs = ['/work/run'], onDisk = [], hashes = {}, links = [] } = {}) {
+function fakeDeps({ files = {}, tracked = [], untracked = [], dirs = ['/work/run'], onDisk = [], hashes = {}, links = [], aliases = {} } = {}) {
   const base = {
     [join(CHECK_IT, 'reviewers/brief.md')]: 'BRIEF repo={{repo}} issue={{issue}} run={{run_folder}} ledger={{ledger}} rules={{skills}}/clean-it\nchange: {{change}}',
     [join(CHECK_IT, 'reviewers/bug.md')]: 'BUG PART',
@@ -36,6 +36,7 @@ function fakeDeps({ files = {}, tracked = [], untracked = [], dirs = ['/work/run
       isDir: (p) => dirs.map((d) => resolve(d)).includes(p),
       isFile: (p) => p in all || [...onDisk, ...untracked].map((f) => join(REPO, f)).includes(p),
       exists: (p) => p in all || links.includes(p) || dirs.map((d) => resolve(d)).includes(p),
+      realPath: (p) => (aliases[p] === undefined ? p : resolve(aliases[p])),
       hash: (p) => {
         hashed.push(p);
         return hashes[relative(REPO, p).replaceAll('\\', '/')] ?? null;
@@ -337,7 +338,7 @@ test('a record naming a path outside the repository, or not one check-it wrote, 
     [{ '../secret': H('a') }, /outside the repository/],
     [{ '/etc/passwd': H('a') }, /outside the repository/],
     [{ 'a/../../b': H('a') }, /outside the repository/],
-    [{ 'C:\\x': H('a') }, /outside the repository/],
+    [{ '..': H('a') }, /outside the repository/],
     [{ 'a.txt': 'short' }, /not a content hash/],
   ]) {
     const { deps, hashed } = fakeDeps({ tracked: ['a.js'], untracked: ['a.txt'], hashes: { 'a.txt': H('a') }, files: { [RECORDED]: recordOf(untracked) } });
@@ -382,4 +383,81 @@ test('verify leaves out the files the record leaves out', () => {
   assert.equal(run(['verify', '--covered', 'src/old.c', '--run-folder', '/work/run'], deps), 'none\n');
   assert.equal(run(['verify', '--covered', 'src/edited.c', '--covered', 'src/old.c', '--run-folder', '/work/run'], deps), 'src/edited.c\n');
   assert.equal(run(['verify', '--covered', 'src/old.c'], deps), 'src/old.c\n');
+});
+
+test('a record naming a legal POSIX name git writes is read, a drive-letter colon and a backslash being parts of a name', { skip: process.platform === 'win32' && 'a backslash is a separator on Windows, so git there never writes these names' }, () => {
+  const names = ['c:notes.txt', 'a\\..\\b', 'C:\\x', '...', 'a..b/c'];
+  const untracked = Object.fromEntries(names.map((n) => [n, H('a')]));
+  const hashes = Object.fromEntries(names.map((n) => [n.replaceAll('\\', '/'), H('a')]));
+  const { deps } = fakeDeps({ tracked: ['a.js'], untracked: names, hashes, files: { [RECORDED]: recordOf(untracked) } });
+  const out = run(['range', '--run-folder', '/work/run'], deps);
+  assert.equal(out, ['- `a.js`', '', `Left out: untracked before the run began and unchanged since, as ${RECORDED} records:`, ...names.map((n) => `- \`${n}\``), ''].join('\n'));
+});
+
+const EARLIER = resolve('/work/earlier');
+const EARLIER_RECORD = join(EARLIER, RECORD);
+
+test('record --from carries the earlier run folder\'s record into the new one, so a run started over or moved keeps what was there before it began', () => {
+  const { deps, written, hashed } = fakeDeps({
+    dirs: ['/work/run', '/work/earlier'],
+    untracked: ['.DS_Store', 'feature.c'],
+    hashes: { '.DS_Store': H('a'), 'feature.c': H('b') },
+    files: { [EARLIER_RECORD]: recordOf({ '.DS_Store': H('a') }) },
+  });
+  const out = run(['record', '--run-folder', '/work/run', '--from', '/work/earlier'], deps);
+  assert.deepEqual(Object.keys(written), [RECORDED]);
+  assert.deepEqual(JSON.parse(written[RECORDED]), { repo: REPO, untracked: { '.DS_Store': H('a') } });
+  assert.deepEqual(hashed, []);
+  assert.equal(out, `carried the record of 1 untracked file from ${EARLIER_RECORD} into ${RECORDED}\n`);
+  assert.match(run(['range', '--run-folder', '/work/run'], deps), /^- `feature\.c` \(untracked\)\n\nLeft out: .*\n- `\.DS_Store`\n$/);
+  throwsCheck(() => run(['record', '--run-folder', '/work/run', '--from', '/work/earlier'], deps), /already holds a record/);
+});
+
+test('record --from makes no record where the earlier run folder had none, so every untracked file is listed', () => {
+  for (const dirs of [['/work/run', '/work/earlier'], ['/work/run']]) {
+    const { deps, written, hashed } = fakeDeps({ dirs, tracked: ['a.c'], untracked: ['feature.c'], hashes: { 'feature.c': H('b') } });
+    const out = run(['record', '--run-folder', '/work/run', '--from', '/work/earlier'], deps);
+    assert.deepEqual(written, {});
+    assert.deepEqual(hashed, []);
+    assert.equal(out, `no record made, since there is no record at ${EARLIER_RECORD}: every untracked file is listed\n`);
+    assert.equal(run(['range', '--run-folder', '/work/run'], deps), '- `a.c`\n- `feature.c` (untracked)\n');
+  }
+});
+
+test('record --from the run folder itself keeps the record it has, or makes none where it has none', () => {
+  const kept = fakeDeps({ files: { [RECORDED]: recordOf({ x: H('a') }) } });
+  assert.equal(run(['record', '--run-folder', '/work/run', '--from', '/work/run'], kept.deps), `kept the record ${RECORDED}\n`);
+  assert.deepEqual(kept.written, {});
+  const none = fakeDeps();
+  assert.equal(run(['record', '--run-folder', '/work/run', '--from', '/work/run'], none.deps), `no record made, since there is no record at ${RECORDED}: every untracked file is listed\n`);
+  assert.deepEqual(none.written, {});
+});
+
+test('record --from stops on an earlier record check-it would not read, or a new run folder that already holds one', () => {
+  for (const [text, why] of [
+    [recordOf({ '../x': H('a') }), /outside the repository/],
+    [recordOf({ x: H('a') }, resolve('/elsewhere')), /was made for .*elsewhere/],
+    ['not json', /is not a record check-it wrote/],
+  ]) {
+    const { deps, written } = fakeDeps({ dirs: ['/work/run', '/work/earlier'], files: { [EARLIER_RECORD]: text } });
+    throwsCheck(() => run(['record', '--run-folder', '/work/run', '--from', '/work/earlier'], deps), why);
+    assert.deepEqual(written, {});
+  }
+  const { deps, written } = fakeDeps({ dirs: ['/work/run', '/work/earlier'], files: { [RECORDED]: recordOf({}) } });
+  throwsCheck(() => run(['record', '--run-folder', '/work/run', '--from', '/work/earlier'], deps), /already holds a record/);
+  assert.deepEqual(written, {});
+});
+
+test('record says a path it could not hash is not recorded, so always listed', () => {
+  const { deps, written } = fakeDeps({ untracked: ['locked.bin', 'a.c'], hashes: { 'a.c': H('a') } });
+  const out = run(['record', '--run-folder', '/work/run'], deps);
+  assert.deepEqual(JSON.parse(written[RECORDED]).untracked, { 'a.c': H('a') });
+  assert.match(out, /not recorded, since it could not be read as a file or a link, so always listed: `locked\.bin`/);
+});
+
+test('record --from the run folder by another path to it keeps the record it has', () => {
+  const alias = resolve('/work/alias');
+  const { deps, written } = fakeDeps({ dirs: ['/work/run', '/work/alias'], aliases: { [alias]: '/work/run' }, files: { [RECORDED]: recordOf({ x: H('a') }) } });
+  assert.equal(run(['record', '--run-folder', '/work/run', '--from', '/work/alias'], deps), `kept the record ${RECORDED}\n`);
+  assert.deepEqual(written, {});
 });

@@ -25,7 +25,7 @@ export const REPORTS = [...Object.keys(REVIEWS), 'verify', 'findings', 'change']
 const PER_CHILD = new Set(['pick-confirm', 'change']);
 
 const ALLOWED = {
-  record: ['repo', 'run-folder'],
+  record: ['repo', 'run-folder', 'from'],
   range: ['repo', 'run-folder'],
   name: ['repo', 'sheet', 'run-folder', 'child'],
   verify: ['repo', 'covered', 'run-folder'],
@@ -36,8 +36,12 @@ export const RECORD = 'check-it.untracked.json';
 
 export const USAGE = `Usage: node check-it.mjs <command> [options]
 
-  record --run-folder <dir>     records the untracked files there now, with a hash of each one's
-                                content, in <dir>/${RECORD}; made once, before any change is written
+  record --run-folder <dir> [--from <earlier dir>]
+                                records the untracked files there now, with a hash of each one's
+                                content, in <dir>/${RECORD}; made once, when a run's first run folder
+                                is made, before any change is written. With --from, a run started over
+                                or moved keeps the earlier run folder's record instead: it is carried
+                                into <dir>, and where the earlier folder holds none, none is made
   range [--run-folder <dir>]    the files the diff touches: git diff HEAD plus every untracked file,
                                 less those the run folder's record shows unchanged since it was made
   name <report> (--sheet <run sheet> | --run-folder <dir>) [--child <issue>]
@@ -94,8 +98,7 @@ const runFolderOf = (opts, deps) => {
   return dir;
 };
 
-const inRepo = (path) => path !== '' && !path.includes('\0') && !isAbsolute(path) && !/^[A-Za-z]:/.test(path)
-  && !path.split(/[\\/]/).includes('..');
+const inRepo = (path) => path !== '' && !path.includes('\0') && !path.startsWith('/') && !path.split('/').includes('..');
 
 export function readRecord(runFolder, repo, deps) {
   const path = join(runFolder, RECORD);
@@ -136,9 +139,33 @@ export function changedFiles(repo, deps, runFolder) {
 
 const changeIn = (repo, opts, deps) => changedFiles(repo, deps, opts['run-folder'] && runFolderOf(opts, deps));
 
-export function recordUntracked(repo, runFolder, deps) {
+const recordAt = (runFolder, deps) => {
   const path = join(runFolder, RECORD);
-  if (deps.exists(path)) fail(`the run folder already holds a record at ${path}; it is made once, when the run folder is made, before any change is written`);
+  if (deps.exists(path)) fail(`the run folder already holds a record at ${path}; it is made once, when the run's first run folder is made, before any change is written`);
+  return path;
+};
+
+const recordText = (repo, untracked) => `${JSON.stringify({ repo, untracked }, null, 2)}\n`;
+
+const untrackedFiles = (n) => `${n} untracked file${n === 1 ? '' : 's'}`;
+
+const noRecord = (path) => `no record made, since there is no record at ${path}: every untracked file is listed\n`;
+
+export function carryRecord(repo, runFolder, from, deps) {
+  const earlier = resolve(deps.cwd, from);
+  if (deps.realPath(earlier) === deps.realPath(runFolder)) {
+    const kept = readRecord(runFolder, repo, deps);
+    return kept ? `kept the record ${kept.path}\n` : noRecord(join(runFolder, RECORD));
+  }
+  const path = recordAt(runFolder, deps);
+  const record = readRecord(earlier, repo, deps);
+  if (!record) return noRecord(join(earlier, RECORD));
+  deps.writeFile(path, recordText(repo, Object.fromEntries(record.hashes)));
+  return `carried the record of ${untrackedFiles(record.hashes.size)} from ${record.path} into ${path}\n`;
+}
+
+export function recordUntracked(repo, runFolder, deps) {
+  const path = recordAt(runFolder, deps);
   const untracked = {};
   const skipped = [];
   for (const p of untrackedNow(repo, deps)) {
@@ -146,10 +173,9 @@ export function recordUntracked(repo, runFolder, deps) {
     if (hash === null) skipped.push(p);
     else untracked[p] = hash;
   }
-  deps.writeFile(path, `${JSON.stringify({ repo, untracked }, null, 2)}\n`);
-  const count = Object.keys(untracked).length;
-  const lines = [`recorded ${count} untracked file${count === 1 ? '' : 's'} in ${path}`];
-  if (skipped.length) lines.push(`not recorded, since neither a file nor a link, so always listed: ${skipped.map(shown).join(', ')}`);
+  deps.writeFile(path, recordText(repo, untracked));
+  const lines = [`recorded ${untrackedFiles(Object.keys(untracked).length)} in ${path}`];
+  if (skipped.length) lines.push(`not recorded, since it could not be read as a file or a link, so always listed: ${skipped.map(shown).join(', ')}`);
   return `${lines.join('\n')}\n`;
 }
 
@@ -157,7 +183,7 @@ export function listing({ tracked, untracked, leftOut = [], record }) {
   if (tracked.length + untracked.length === 0) {
     if (leftOut.length) {
       const one = leftOut.length === 1;
-      fail(`the diff is empty: git diff HEAD prints nothing, and the ${leftOut.length} untracked file${one ? '' : 's'} git ls-files --others --exclude-standard lists ${one ? 'is' : 'are'} left out as unchanged since ${record} was made`);
+      fail(`the diff is empty: git diff HEAD prints nothing, and the ${untrackedFiles(leftOut.length)} git ls-files --others --exclude-standard lists ${one ? 'is' : 'are'} left out as unchanged since ${record} was made`);
     }
     fail('the diff is empty: git diff HEAD and git ls-files --others --exclude-standard print nothing');
   }
@@ -326,7 +352,9 @@ export function run(argv, deps) {
     case 'record': {
       extra(0);
       if (!opts['run-folder']) fail('record needs --run-folder <dir>');
-      return recordUntracked(repoRoot(opts, deps), runFolderOf(opts, deps), deps);
+      const repo = repoRoot(opts, deps);
+      const runFolder = runFolderOf(opts, deps);
+      return opts.from === undefined ? recordUntracked(repo, runFolder, deps) : carryRecord(repo, runFolder, opts.from, deps);
     }
     case 'range': {
       extra(0);
