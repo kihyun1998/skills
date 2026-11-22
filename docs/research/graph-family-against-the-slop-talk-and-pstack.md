@@ -334,9 +334,11 @@ All under the anchor [#71](https://github.com/kihyun1998/skills/issues/71)
 | [#84](https://github.com/kihyun1998/skills/issues/84) | `thegraph-herdr` passes a correction received in a run to the next worker (from #73) | built in `f20b412` (closed on push); paper replay on the issue |
 | [#85](https://github.com/kihyun1998/skills/issues/85) | decide `thegraph-herdr`'s model table again, Mythos 5.2 included (filed 2026-11-18) | built in `9f9f1ae` (closed on push); the conductor asks for the model a run warrants (Q3 changed by the maintainer) |
 | [#82](https://github.com/kihyun1998/skills/issues/82) | clean up the comments target repositories carry from before #75's allow-list; sized by #75's survey (filed 2026-11-18) | open; `ready-for-human`; decided 2026-11-22, not run now: per repository, `grill-the-graph`'s *Update* first, then `comment-it` over a path (§P) |
-| [#117](https://github.com/kihyun1998/skills/issues/117) | `grill-the-graph`, 533 body lines, split as #114 split `check-it` (filed 2026-11-21) | open; `needs-grill` |
-| [#118](https://github.com/kihyun1998/skills/issues/118) | a push sends another run's local commits when two runs share a tree (filed 2026-11-21) | open; `needs-grill` |
-| [#121](https://github.com/kihyun1998/skills/issues/121) | bring the existing decision records to #79's rules, ADR-0102 first (filed 2026-11-21) | open; `needs-grill` |
+| [#117](https://github.com/kihyun1998/skills/issues/117) | `grill-the-graph`, 533 body lines, split as #114 split `check-it` (filed 2026-11-21) | **closed** 2026-11-22, `24bf5a6`: 533 → 419 body lines; contributor mode, attribution and release are files; `install` (with a preview) and `check` a script; follow-ups #128 |
+| [#118](https://github.com/kihyun1998/skills/issues/118) | a push sends another run's local commits when two runs share a tree (filed 2026-11-21) | **closed** 2026-11-22, `8e1eab1`: a run stops on another live run on its repository; `ask-it` pushes a listed hash, never `HEAD`; follow-ups #130 |
+| [#121](https://github.com/kihyun1998/skills/issues/121) | bring the existing decision records to #79's rules, ADR-0102 first (filed 2026-11-21) | open, the anchor of #124, #125, #126 (all `ready-for-agent`), grilled 2026-11-22 (§P) |
+| [#128](https://github.com/kihyun1998/skills/issues/128) | `grill-the-graph` follow-ups from #117: `install` follows symbolic links (first, no grilling needed; #127 merged in), then check order, half-write, `node` on PATH, refactors (filed 2026-11-22) | open; `needs-grill` |
+| [#130](https://github.com/kihyun1998/skills/issues/130) | a run's lifecycle: what a restart keeps and *that run is over* clears; follow-ups from #118 and #122 (#129 merged in) (filed 2026-11-22) | open; `needs-grill` |
 
 The order to take them is §O.2, as updated in §P.
 
@@ -422,8 +424,8 @@ Give the new session this as its first message (in Korean or English), then the
 command for the issue at hand:
 
 > Read `docs/research/graph-family-against-the-slop-talk-and-pstack.md` in full,
-> then issue #71, its children and their comments, and #72's closing comment,
-> before doing anything.
+> then issues #71 and #94, their open children and their comments, and #72's
+> closing comment, before doing anything.
 
 Read §P, which records the work after this section was written, before §O.2's order. The tracker is the current state; this file is the reasoning behind it. Where the
 two disagree, the tracker wins and this file is stale — say so rather than follow
@@ -761,10 +763,36 @@ mislead. Each item's detail is on its issue; commits are on `main`.
   with no spend bound to #123; the confirm wording sitting in the script against
   ADR-0102 to #121.
 
-**The order now** (replacing §O.2's): `/grilling 118`, `/grilling 117` (before
-#82, whose cleanup runs `grill-the-graph`'s *Update* in each repository) and
-`/grilling 121`; #122 in a `thegraph-herdr` run; `/grilling 123`; #96's
-measurements around 2026-11-27; #82 when the maintainer starts the cleanup;
-#107's rest when a verify skill is committed. A session on a nearly spent
-weekly limit takes the grillings first, since a `thegraph` run spends several
-Opus reviews.
+- **Four grillings, 2026-11-22**, each recorded in its issue's decision
+  comment: #118 (two runs on one tree are not supported; a start check; `ask-it`
+  checks the push), #117 (three files, `install` and `check` as a script, a
+  preview before writing), #121 (fold ADR-0102 and keep ADR-0101's first
+  decision, fix broken links with a check; children #124, #125, #126), #123 (a
+  review starts no agents, held by an agent definition without the `Agent`
+  tool).
+- **One `thegraph-herdr` run over #122, #118, #117, #123**, 2026-11-22, pushed
+  as `e8081da`, `8e1eab1`, `24bf5a6`, `09e4a52`. The maintainer moved three
+  proposed `opus high` workers to `opus medium` and, at every `check-it`
+  question, chose *fix as pre-ticked*. What was left went to #128 and #130
+  (under #71) and #131 and #132 (under #94); #127 and #129 were filed and then
+  merged into #128 and #130 at the maintainer's request (fewer issues, one root
+  each).
+- **Machine state a new session should know.** `~/.claude/agents/check-it-reviewer.md`
+  links to `check-it/agents/check-it-reviewer.md` (installed by #123's worker);
+  a session started before that install does not see the type. In `hc` worker
+  shells `node` is not on `PATH` (it lives under nvm,
+  `~/.nvm/versions/node/v24.11.1/bin`), which every worker of the run met.
+  `check-it/SKILL.md` is 516 body lines (#132).
+
+**Open work on 2026-11-22.** Under #71: #78 (waits on #107), #82 (`ready-for-human`),
+#121 with #124, #125, #126, #128, #130. Under #94: #96, #131, #132.
+
+**The order now** (replacing §O.2's): `/grilling 131` first (it reopens #123's
+goal: a `check-it-reviewer` can still start models through `Bash` and fork
+skills), then `/grilling 130`, `/grilling 128` and `/grilling 132`;
+`/thegraph-herdr 121` (#124, #125, #126 in that order) whenever a run fits the
+weekly limit; #128's first item (the symlink fix) needs no grilling and can go
+in any run; #96's measurements around 2026-11-27; #82 when the maintainer starts
+the cleanup; #107's rest when a verify skill is committed. A session on a nearly
+spent weekly limit takes the grillings first, since a `thegraph` run spends
+several Opus reviews.
