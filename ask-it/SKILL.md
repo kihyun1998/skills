@@ -198,6 +198,40 @@ worth writing rather than an empty section.
 manifests for this package's name. A stored roster is a derivable fact that rots
 the day a consumer changes.
 
+## Before the push
+
+**A push sends every local commit ahead of the remote, not only this run's.**
+A commit this step makes (a rule recorded, a small follow-up) goes on the run
+sheet's `commits` line when it lands, as `thegraph`'s run sheet says. Before
+the push is put to the person, run `git fetch <remote>` and list what it would
+send, `git log --format='%h %s' <remote>/<branch>..HEAD`, `<remote>` and
+`<branch>` being where the push goes (`origin` and `main` in most runs); where
+`<branch>` is not on the remote yet, list against the branch it started from.
+Hold each hash against the run's commits on its sheet, the `commits` line and
+the hashes on its `## Children` lines, two short hashes matching where one
+starts with the other.
+
+**The push is the person's either way**, and the list decides only what the
+question offers. Where every commit listed is the run's, the question is the
+push of those commits. Where any one is not, show those commits, each with its
+hash and subject, and offer:
+
+- *push them too*: they go out with this run's.
+- *push up to this run's last commit*. Offered only where the order allows it:
+  every commit between `<remote>/<branch>` and that one is the run's, and only
+  commits after it are not. Those stay local.
+- *do not push*: nothing goes out; the run's commits stay local, and an issue
+  they close stays open.
+
+**Push a hash from the list, never `HEAD`**: `git push <remote> <hash>:refs/heads/<branch>`
+(a bare `<hash>:<branch>` is refused where `<branch>` is not on the remote yet),
+`<hash>` being the newest commit listed for *push them too* or where every one
+is the run's, and the run's last commit for *push up to*. A commit that lands
+while the question is open is then not sent unseen.
+
+A run whose sheet is gone or holds no commits has nothing to hold the list
+against: every commit counts as not the run's.
+
 ## What this does not do
 
 **It does not file anything the reader did not keep.** Presenting is not filing,

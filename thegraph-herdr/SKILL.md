@@ -297,12 +297,15 @@ departs from the plan or cannot proceed, write why under `## Result` and send
 
 ## The run sheet
 
-Named and placed as `thegraph` says, and the conductor is its only writer. Its
-run folder and ledger are made with it, and the untracked files recorded in the
-run folder, as `thegraph` says, before the first worker starts: every worker's
+Named and placed as `thegraph` says, and the conductor is its only writer.
+Before its run folder is made, the conductor looks for another live run on this
+repository and stops on one, as `thegraph` says. Its run folder and ledger are
+then made, and the untracked files recorded in the run folder, as `thegraph`
+says, before the first worker starts: every worker's
 `check-it` reads that one record. A run continued or started over keeps its
 first record, carried with `record --from` as `thegraph` says. The
-children have no checkboxes, as in a `thegraph` cluster.
+children have no checkboxes, as in a `thegraph` cluster. A child's commit is on
+its line and a commit `ask-it` makes on the `commits` line, as `thegraph` says.
 
 ```markdown
 # thegraph-herdr run sheet
@@ -311,6 +314,7 @@ source: <owner/repo#number, or the issue file's absolute path>
 repo: <the working tree's absolute path>
 route: <read-it's label>
 conductor: <this session's model and effort>
+commits: <the short hash of each commit no `## Children` line names, as it lands>
 
 - [x] read-it
 - [x] confirm
@@ -333,8 +337,8 @@ conductor: <this session's model and effort>
 **An unfinished sheet with this `repo` and this issue is a run to continue.** Show
 its children, answers and carried items and ask whether to continue or start over.
 Either way, first find this run's live workers with `hc ls`, by the name prefix
-`tg-<run id>-`: show them to the person, then `hc kill` and `hc rm` each. Then
-check the tree as in step 4.1. To continue, read `git log` and resume at the first
+`tg-<run id>-`: show them to the person, then `hc kill` and `hc rm` each. Then,
+after the look for another live run, check the tree as in step 4.1. To continue, read `git log` and resume at the first
 child without a commit, its brief carrying what the earlier attempt left in its
 report.
 

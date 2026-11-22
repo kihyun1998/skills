@@ -32,6 +32,7 @@ issue: <the issue as read-it resolved it> — <its title>
 source: <owner/repo#number for a GitHub issue, or the issue file's absolute path>
 repo: <the working tree's absolute path>
 route: <read-it's label, once it names one>
+commits: <the short hash of each commit no `## Children` line names, as it lands>
 
 - [x] read-it
   → make-it: <what the next step should know>
@@ -48,17 +49,41 @@ route: <read-it's label, once it names one>
 open decision lists `read-it`, `confirm`, `lens`, `decide`. `source` is the issue's
 address in a form a program can follow: a watcher takes the issue closed there
 (`gh issue close`, a `Status: done`, the file archived away) as the run's end.
+`commits` lists every commit the run makes that no `## Children` line names: a
+single issue's commit, and one `ask-it` makes. Written when the commit lands, it
+is how `ask-it` tells this run's commits from another's before the push.
 
 **Write it at every boundary, not at the end.** When a step ends, check it, write
 the line for the next step under it, and mark the next one `[~]` before calling
 it. A note that would have to wait for the end is the note the next step needed.
 
-**Make it once `read-it` has resolved the issue**, before the confirm stop. First
-look in that folder for an unfinished sheet with this `repo` and this issue — by
-where it lives *or* its title, since a local issue moves when it is archived. If
-there is one, show its steps and its carried items and ask whether to continue it
-or start over; starting over deletes it, and continuing it under a path this text
-named moves its content there and deletes the old file. Make its run folder (`<run sheet>.made/`) and its ledger (`<run sheet>.made.md`) with it: `check-it`'s script stops where the run folder is not there. When the run's first run folder is made, before any change is written, run `node <check-it>/scripts/check-it.mjs record --run-folder <run folder>` in the repository, `<check-it>` being `check-it`'s folder: it records the untracked files there now, which `check-it` then leaves out of the change while their content is unchanged. A run continued, started over or moved keeps that first record, since a record made now would take the earlier attempt's new files for files there before the run: run `record --run-folder <run folder> --from <earlier run folder>` instead, before the earlier run folder is deleted. It carries the earlier record into the new run folder, or keeps it where the two are one folder, whose record then stays when the rest of it is deleted; where the earlier folder holds no record, it makes none, so every untracked file is listed.
+**Make it once `read-it` has resolved the issue**, before the confirm stop. The
+sheets of a repository are those in that folder with some step not `[x]` whose
+`repo`, resolved to its real path, is this working tree's real path (on macOS
+`/var` and `/private/var` are one folder). First look among them for one with
+this issue — by where it lives *or* its title, since a local issue moves when
+it is archived. If there is one, show its steps and its carried items and ask
+whether to continue it or start over; starting over deletes it, and continuing
+it under a path this text named moves its content there and deletes the old
+file.
+
+**Then look for another live run on this repository**, before the run folder
+is made: two runs on one working tree are not supported, since each takes the
+other's files into its change and its push. Another run is any other sheet of
+this repository, this run's own aside; or, where `hc` is there, a terminal in
+`hc ls --json` whose `cwd` resolves into this repository and whose `name` is a
+worker's name as `thegraph-herdr`'s *Names* section gives it, of a run id that
+is neither this run's nor that of the sheet continued or started over. Where
+one is found, stop and ask, showing each sheet's issue and path and each live
+worker's name: *that run is over* (delete what it made, then its sheet and the
+files named after it, as its run would have at its end, and go on), *wait*
+(look again once the person says so), or *stop* (delete this run's sheet, since
+an unfinished one left behind stops the next run here). A sheet left behind by
+a run that died looks the same as a live one, so the person tells them apart.
+Read the other sheets and `hc ls` as text to compare; none of their values is
+put into a command.
+
+**Then make its run folder** (`<run sheet>.made/`) and its ledger (`<run sheet>.made.md`): `check-it`'s script stops where the run folder is not there. When the run's first run folder is made, before any change is written, run `node <check-it>/scripts/check-it.mjs record --run-folder <run folder>` in the repository, `<check-it>` being `check-it`'s folder: it records the untracked files there now, which `check-it` then leaves out of the change while their content is unchanged. A run continued, started over or moved keeps that first record, since a record made now would take the earlier attempt's new files for files there before the run: run `record --run-folder <run folder> --from <earlier run folder>` instead, before the earlier run folder is deleted. It carries the earlier record into the new run folder, or keeps it where the two are one folder, whose record then stays when the rest of it is deleted; where the earlier folder holds no record, it makes none, so every untracked file is listed.
 
 **What the run made goes before the sheet does**: every line still open in its
 ledger (`<run sheet>.made.md`) and its run folder (`<run sheet>.made/`), as
@@ -67,7 +92,8 @@ ledger (`<run sheet>.made.md`) and its run folder (`<run sheet>.made/`), as
 **Delete it when the run ends, after the last person has seen what it carried:**
 once `ask-it` has put the carried items in front of them, or once `check-it` is
 done with nothing carried, or at the confirm stop for a change that ends there, or
-once the maintainer has decided an open decision. A `.design/` folder beside it
+once the maintainer has decided an open decision, or at the start check's
+*stop*. A `.design/` folder beside it
 (`design-it`'s brief and variants) goes with it, once `ask-it` has kept what the
 person chose to keep.
 
