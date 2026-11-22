@@ -4,7 +4,7 @@ name: skill-scripts
 # Windows runner's PowerShell and macOS's bash.
 on:
   push:
-    paths: &paths ['check-it/scripts/**', 'check-it/reviewers/**', 'check-it/SKILL.md', 'lens/SKILL.md', 'comment-it/SKILL.md', 'grill-the-graph/scripts/**', '.github/workflows/skill-scripts.yml']
+    paths: &paths ['check-it/scripts/**', 'check-it/reviewers/**', 'check-it/SKILL.md', 'lens/SKILL.md', 'comment-it/SKILL.md', 'grill-the-graph/scripts/**', 'grill-the-graph/contributor.md', '.github/workflows/skill-scripts.yml']
   pull_request:
     paths: *paths
 

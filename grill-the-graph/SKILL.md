@@ -135,133 +135,18 @@ is exactly condition 2's failure.
 
 ### Release
 
-Written only in your own repository, and only where it holds a publishable Dart
-package — a `pubspec.yaml` with no `publish_to: none`. One line under the
-heading: `pub-ready`, or `None.`
-
-**Whether a package publishes is on disk; whether `pub-ready` is its release bar
-is not.** A package can be publishable and released some other way, or not yet
-released at all, so the line records the maintainer's choice and clears
-condition 2. [`pub-ready`](../pub-ready/SKILL.md) reads it (condition 3): it runs
-where the line names it and stops where the line says `None.` `None.` records
-that the question was put, as it does under References, so an update does not
-ask it again.
-
-Where the answer is `pub-ready`, the copies of the release bar written before it
-are sorted in the same approval. Read each place a release rule lives —
-`CLAUDE.md`, `docs/agents/release.md`, a map note on releasing, another section
-of `docs/agents/thegraph.md` — and sort every line:
-
-| The line | Goes |
-|---|---|
-| says what `pub-ready` says — the dry-run bar, who publishes, frozen CHANGELOG entries, `pub get` before `dart format` | replaced by one pointer: *Before a release, run `pub-ready`.* |
-| says more, or something only this package has — an SDK floor's reason, a `.pubignore` trap, a consumer to round-trip, a manual check | stays where it is |
-| contradicts `pub-ready` | stays, since the repo's guidance wins, and is named in the closing report |
-
-Where the answer is `None.`, no copy is touched.
+Only in your own repository holding a publishable Dart package — a
+`pubspec.yaml` with no `publish_to: none`: read [release.md](release.md), which
+holds what the line records, the question at §4 and what §5 shows and checks.
+Anywhere else, skip it.
 
 ## Contributor mode
 
-A repository whose PRs land in someone else's repository. Its own guidance and
-merged PRs decide how code and comments are written there, and nothing setup
-writes may land in it.
-[ADR-0079](../docs/adr/0079-in-a-repository-you-contribute-to-its-conventions-win.md)
-holds the reasons, including why the rule below overrides
-[ADR-0076](../docs/adr/0076-a-comment-says-what-the-code-is.md) entirely.
-
-| | Default | Contributor mode |
-|---|---|---|
-| Build file | `docs/agents/thegraph.md` | same path, listed in `.git/info/exclude` |
-| Comment rule | `CLAUDE.md`, from §3's table | `CLAUDE.local.md`, listed in `.git/info/exclude`, the text below |
-| Map | §3 makes its folder | none, and the closing report does not name `grill-map` |
-| Attribution | kept, unless the maintainer turns it off at §4 | always off: `.claude/settings.local.json` and `.git/hooks/pre-push`, below |
-
-The build file keeps its path, so `read-it` and `check-it` find it unchanged. One
-clone is assumed: untracked files, `CLAUDE.local.md` included, do not follow
-`git worktree add`.
-
-**The comment rule names no file**, because upstream's guidance can arrive
-mid-run — a style guide merged between approval and rebase is one a copied list
-misses:
-
-> Comments follow this repository, not a rule written here. Before writing one,
-> find and read its contributor and style guidance, at the root and under
-> `docs/`, and the closest merged PR touching the same file, and do what they
-> do — where the why goes included. Read them again on every run; they change.
-
-`comment-it` reads this rule as contributor mode and does not run.
-
-**Attribution.** Installed in every contributor clone, and in a repository of
-the maintainer's own where §4's answer turns it off — the same pieces, local
-either way, so nothing is imposed on anyone else working there. Three pieces,
-because no one of them sees everything that leaves. The two hooks run `scripts/no-attribution.mjs`, and
-`scripts/attribution-check.mjs` beside it is the one copy of what is looked for;
-nothing written into the clone holds a copy.
-
-The **setting** stops the trailer and the PR footer where they are generated.
-The **PreToolUse hook** checks what Claude sends — commands, including those a
-shell is handed with `-c`, and GitHub MCP writes. The **`pre-push` git hook**
-checks every push, from a script, an IDE or a person at the terminal.
-
-Merge this into `.claude/settings.local.json`, keeping any keys already there.
-Claude Code keeps that file out of every repository through the global git
-excludes, so it needs no exclude line of its own. `<run>` starts `node` with no
-shell, and `<script>` is the absolute path of
-`~/.claude/skills/grill-the-graph/scripts/no-attribution.mjs`, with the home
-directory written out and forward slashes, because a hook started with no shell
-expands no `$HOME`:
-
-```json
-"command": "node", "args": ["<script>"], "onFailure": "block"
-```
-
-```json
-{
-  "attribution": { "commit": "", "pr": "" },
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash|PowerShell",
-        "hooks": [
-          { "type": "command", "if": "Bash(git *)", <run> },
-          { "type": "command", "if": "Bash(gh *)", <run> },
-          { "type": "command", "if": "Bash(bash *)", <run> },
-          { "type": "command", "if": "PowerShell(git *)", <run> },
-          { "type": "command", "if": "PowerShell(gh *)", <run> },
-          { "type": "command", "if": "PowerShell(pwsh *)", <run> },
-          { "type": "command", "if": "PowerShell(powershell *)", <run> }
-        ]
-      },
-      { "matcher": "mcp__.*github.*", "hooks": [{ "type": "command", <run> }] }
-    ]
-  }
-}
-```
-
-`onFailure: "block"` is what makes it fail closed: a hook that cannot start,
-exits with anything but 0 or 2, prints output Claude Code cannot read, or times
-out blocks the call, where it would otherwise let the command run. It needs
-Claude Code v2.1.295 or later: read `claude --version` before writing the block,
-and on an older one say so and stop, since there a hook that cannot start lets
-every command through.
-
-Write `.git/hooks/pre-push`, executable:
-
-```sh
-#!/bin/sh
-exec node "$HOME/.claude/skills/grill-the-graph/scripts/no-attribution.mjs" --pre-push "$@"
-```
-
-Git runs it through its own `sh` on every platform. A missing `node` fails the
-`exec`, and a failed hook stops the push. **Where `core.hooksPath` is set or a
-`pre-push` of the project's own exists, write nothing there and say so in §5** —
-the project runs its own hooks, and replacing one is not setup's to do. A
-`pre-push` whose only line runs `no-attribution.mjs` is setup's, from an earlier
-run, and is rewritten.
-
-What none of the three can see: a push made with Claude Code not running and no
-git hook (`core.hooksPath` set), and an `ask` in a headless `-p` run, which
-Claude Code turns into a deny.
+In someone else's repository, read [contributor.md](contributor.md): what setup
+writes there in place of the default's pieces, and the comment rule. Attribution
+is always off there, installed as [attribution.md](attribution.md) says. In your
+own repository, read neither file unless §4 turns attribution off, and then only
+[attribution.md](attribution.md).
 
 ## Update
 
@@ -280,11 +165,12 @@ person already answered.
 - **Attribution in your own repository is not asked again.** The pieces on disk
   are the earlier answer: none installed is *keep*, any installed is *off*, and
   off means all three — the ones missing are written now.
-- **Every piece setup writes is compared with this file's current text** — the
+- **Every piece setup writes is compared with this skill's current text** — the
   comment rule against §3's allow-list and table and the destinations on disk now, the map hub,
-  the settings block hook by hook, the `pre-push` hook, the exclude lines, the
-  `CLAUDE.local.md` rule. Which `pre-push` is setup's own is *Contributor
-  mode*'s rule.
+  the exclude lines, the `CLAUDE.local.md` rule. Where attribution is off, the
+  settings and the `pre-push` hook are compared by running `install --preview`
+  ([attribution.md](attribution.md)): each piece it marks `changed` is shown as
+  its file now beside the preview, and `unchanged` needs no line.
 - **A line that only restates the user-level instructions file** is shown as a
   removal (*What this never writes*).
 - **Then the links** — *Repoint what points at the setup*.
@@ -302,8 +188,8 @@ input nor the recommendation.
 The overwrite is the maintainer's to approve. At §5, show the existing build in
 full beside the new one, and every installed piece the new run replaces, before
 writing anything. A piece setup wrote is replaced, not duplicated: the comment
-rule already in `CLAUDE.md`, the settings block, and the `pre-push` *Contributor
-mode* calls setup's own. Then *Repoint what points at the setup*.
+rule already in `CLAUDE.md`, and the settings and `pre-push` that `install`
+recognises as setup's own ([attribution.md](attribution.md)). Then *Repoint what points at the setup*.
 
 ## Repoint what points at the setup
 
@@ -359,7 +245,7 @@ is there and that `salvage` clears it when run.
 
 ### 3. The map, and the comment rule
 
-In contributor mode this step is *Contributor mode*'s table instead: no map
+In contributor mode this step is [contributor.md](contributor.md)'s table instead: no map
 folder, nothing in `CLAUDE.md`.
 
 A comment is written on every edit, most of them made outside `thegraph`, so
@@ -432,18 +318,13 @@ a list printed with *"confirm or correct"* underneath is a question nobody was
 put.
 
 **Claude attribution**, own repository only: keep it, the default, or turn it
-off, which installs *Contributor mode*'s Attribution pieces. Recommend from what
+off, which installs the pieces [attribution.md](attribution.md) holds. Recommend from what
 can be seen — a per-project memory asking for no Claude trailer, or a history
 whose commits carry none, recommends off; a history that carries them recommends
 keep. A contributor clone is never asked: there it is always off.
 
 **Release**, own repository with a publishable Dart package only: `pub-ready` or
-`None.` Recommend `pub-ready` when the package is open source — `gh repo view
---json visibility` reads `PUBLIC` and a `LICENSE` is at the root — and `None.`
-otherwise. Where `gh` cannot answer because the repo has no GitHub remote, the
-recommendation is still `None.`, and it says *no GitHub remote, so whether it is
-public is unknown* rather than *not public*. Show what `pub-ready` would replace beside the option, from the sort
-under *Release*, so the answer is given knowing what it changes.
+`None.`, recommended and shown as [release.md](release.md) says.
 
 For the reference table, propose the sources you can see evidence for — an
 upstream named in `CLAUDE.md`, a peer repo already installed, a dependency whose
@@ -458,32 +339,37 @@ accept no *"use judgement"*: a source nobody named is a source nobody reads, but
 Show the mode and what chose it — the argument, or the answer to the first
 question — and which run this is, init or init over an existing setup; then the file, the `CLAUDE.md` rule, and — where §3
 makes one — the map folder's path and hub stub. In contributor mode show instead
-the `CLAUDE.local.md` rule, the two `.git/info/exclude` lines, the settings
-block with `<script>` written out, and the `pre-push` hook or why none was
-written. In your own repository with attribution turned off, show those last two
-as well. Where *Release* is `pub-ready`, show each copy of the release bar it
-replaces, old line beside its pointer. Get approval. Write them. They are short
-enough to read whole, so there is nothing to summarise and no reason to write
-before they have been read.
+the `CLAUDE.local.md` rule and the two `.git/info/exclude` lines. In contributor
+mode, and in your own repository with attribution turned off, show as well what
+`install --preview` printed ([attribution.md](attribution.md)): the merged
+settings file and the `pre-push` hook or why none is written. Where *Release*
+is `pub-ready`, show what [release.md](release.md) says to. Get approval. Write
+them, the attribution pieces by running `install`. They are short enough to read
+whole, so there is nothing to summarise and no reason to write before they have
+been read.
 
-**Then check what landed, line by line, and report each line**, in every mode:
+**Then check what landed, line by line, and report each line**, in every mode.
+The mechanical lines are one command, run at the repository's root, `<skill>`
+being this skill's folder:
 
-- [ ] `docs/agents/thegraph.md` exists
+```sh
+node <skill>/scripts/grill-the-graph.mjs check --mode own [--map <map path>] [--attribution]
+node <skill>/scripts/grill-the-graph.mjs check --mode contributor
+```
+
+`--map` names the folder §3 made, and `--attribution` is for your own repository
+with attribution turned off. It prints a line per check, `ok` or `FAIL` with what
+failed, and exits 1 on any `FAIL`: the build exists; the map hub exists; in
+contributor mode, `CLAUDE.local.md` holds the rule as [contributor.md](contributor.md)
+words it, `.git/info/exclude` lists both files, and `git status --short` prints
+nothing; where attribution is off, the settings file is what `install` would
+leave, and `pre-push` is setup's and executable, or the reason none was written.
+Two lines are read and judged, not run:
+
 - [ ] `CLAUDE.md` (or `AGENTS.md`) holds the comment rule, its allow-list and row
       matching §3 and its destination on disk (own repository)
-- [ ] the map folder and its `README.md` hub exist, where §3 made them (own
-      repository)
-- [ ] `CLAUDE.local.md` holds the contributor rule (contributor mode)
-- [ ] `.git/info/exclude` lists both (contributor mode)
-- [ ] `.claude/settings.local.json` has `attribution` and both matcher groups,
-      every hook with `"onFailure": "block"` (contributor mode, or attribution
-      off)
-- [ ] `.git/hooks/pre-push` exists and is executable — or the reason none was
-      written (contributor mode, or attribution off)
-- [ ] `git status --short` prints nothing (contributor mode)
-- [ ] the build has a *Release* line, and each copy of the release bar reads as
-      approved — the pointer, or the line kept (own repository, a publishable
-      Dart package)
+- [ ] the *Release* lines read as [release.md](release.md) says (own repository,
+      a publishable Dart package)
 
 A line that fails is written now, not reported as done. Where a per-project
 memory asked for no Claude trailer and the pieces are now installed, name it in
@@ -521,7 +407,7 @@ the answer is a judgement no check can hold.
 ## What this never writes
 
 - **Generated scripts or agents.** Setup produces none as its own output; the
-  hook contributor mode writes only calls a script this skill ships.
+  settings and hook `install` writes only call a script this skill ships.
 - **A build stamp.** Nothing here is compiled from the catalog, so nothing here
   falls behind it.
 - **A copy of anything the repo states** — command lists, surface lists, record
