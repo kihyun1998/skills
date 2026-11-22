@@ -138,7 +138,7 @@ done
 ```
 
 It counts the body below the frontmatter, under GNU and BSD `awk` alike. On
-2026-11-22 it printed one line, `512  check-it/SKILL.md`, once #117 had brought
+2026-11-22 it printed one line, `516  check-it/SKILL.md` after #123 (512 before it), once #117 had brought
 `grill-the-graph/SKILL.md` from 533 to 419 by moving what only some runs read
 into sibling files. Two earlier ones are records. `thegraph/SKILL.md` was cut by #40
 ([ADR-0057](adr/0057-the-catalog-points-somewhere.md)) and then rebuilt as four

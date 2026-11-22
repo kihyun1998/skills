@@ -19,6 +19,9 @@ prompt is all you get.
   `{{skills}}/clean-it/RULES.md`: a ledger line when it is made, deleted before
   your report returns with its size in the report, except the run's shared
   build folder, which stays for the run.
+- **A finding whose reproduction needs a model's answers** (a change to a
+  prompt or an instruction) is reported unproven, with the runs and the model a
+  reproduction would take; whether to spend them is the person's.
 
 - The repository: `{{repo}}`
 - The issue: {{issue}}

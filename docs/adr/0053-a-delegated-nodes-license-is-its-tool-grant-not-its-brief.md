@@ -1,5 +1,12 @@
 # A delegated node's license is its tool grant, not its brief
 
+> **Amended for #123 on 2026-11-22.** This repository writes one agent again:
+> `check-it/agents/check-it-reviewer.md`, which `scripts/install-skills.sh`
+> links into `~/.claude/agents` and `check-it` starts every review with. Its
+> grant withholds `Agent`, so a review cannot start agents through that tool;
+> it keeps `Bash` and `Skill`, and what it may do with them is still held only
+> by its brief.
+
 > **Superseded by [ADR-0071](0071-thegraph-is-four-skills-in-order.md).**
 > Nothing is delegated by a build, and `DELEGATION.md` is deleted with the rest of
 > the machinery. **The rule is unchanged wherever an agent is written** — a license

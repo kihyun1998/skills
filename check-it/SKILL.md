@@ -403,9 +403,13 @@ does not fire. Anything genuinely ambiguous goes out as a question, not a verdic
 **Every review runs in a fresh agent** that never saw this session (ADR-0091,
 ADR-0095, ADR-0102), 4 to 9 and 11, and so does the decision model that picks
 them. That is the point: the hand that shaped the change is the worst judge of it. So the brief
-is all it gets: the prompt of a newly started general-purpose agent (not a fork
-of this conversation, which inherits it), started with `Agent` on its row's
-model and effort.
+is all it gets: the prompt of a newly started agent (not a fork of this
+conversation, which inherits it), started with `Agent` as `check-it-reviewer`
+on its row's model and effort. That type,
+[agents/check-it-reviewer.md](agents/check-it-reviewer.md), has no `Agent`
+tool, so no review starts agents of its own (#123). A session started before
+the type was installed may not list it yet; where the session's agent list
+lacks it, the review has not started, and is reported not run with that reason.
 
 **The prompt is what this skill's script prints, handed to `Agent` as it is**
 (ADR-0102, amended for #114). Run it in the repository, `<check-it>` being this

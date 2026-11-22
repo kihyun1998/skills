@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Sync every top-level SKILL.md directory into Claude Code and/or Codex, and link
-# docs/environment/CLAUDE.md as each one's user-level instructions file.
+# docs/environment/CLAUDE.md as each one's user-level instructions file; for Claude Code,
+# link each skill's agents/*.md into ~/.claude/agents.
 # Default destinations: ~/.claude/skills and ${CODEX_HOME:-~/.codex}/skills.
 
 set -euo pipefail
@@ -87,10 +88,8 @@ sync_skills() {
     local prefix='' summary; [ "$dry_run" -eq 1 ] && prefix='[dry-run] '; summary="${prefix}Done. $linked linked/relinked, $pruned pruned"; [ "$shadowed" -gt 0 ] && [ "$replace_copies" -eq 0 ] && summary="$summary, $shadowed SHADOWED ($differing differing from the repo)"; echo "$summary in $skills_home."
     [ "$shadowed" -eq 0 ] || [ "$replace_copies" -eq 1 ] || echo "Re-run with --replace-copies to move shadowed folders to $backup_home (never deleted)."
 }
-# The user-level instructions file (docs/environment/CLAUDE.md) is linked where each agent
-# reads its global instructions. A real file there is never overwritten: it is reported, and
-# moved aside only with --replace-copies. Git Bash makes a native file symlink only when
-# asked to, and fails rather than copying; a failed link is reported and the run goes on.
+# Git Bash makes a native file symlink only when asked to, and fails rather than copying; a
+# failed link is reported and the run goes on.
 link_file() {
     local target="$1" link="$2"
     case "$(uname -s)" in
@@ -99,10 +98,9 @@ link_file() {
     esac
     [ -L "$link" ] || { echo "  fail  $(basename "$link") - could not link it (on Windows, turn on Developer Mode); skipped" >&2; return 1; }
 }
-sync_instructions() {
-    local link="$1" backup_home="$2" source="$repo_root/docs/environment/CLAUDE.md" name stamp
+sync_file() {
+    local source="$1" link="$2" backup_home="$3" name stamp
     name="$(basename "$link")"
-    [ -f "$source" ] || return 0
     if [ -L "$link" ]; then
         [ "$(readlink "$link")" = "$source" ] && { echo "  ok    $name - already linked"; return; }
         echo "  relink $name - was -> $(readlink "$link")"; run rm "$link"; run link_file "$source" "$link" || true; return
@@ -117,11 +115,34 @@ sync_instructions() {
     fi
     echo "  link  $name -> $source"; run mkdir -p "$(dirname "$link")"; run link_file "$source" "$link" || true
 }
+sync_instructions() {
+    local source="$repo_root/docs/environment/CLAUDE.md"
+    [ -f "$source" ] || return 0
+    sync_file "$source" "$1" "$2"
+}
+sync_agents() {
+    local agents_home="$1/agents" backup_home="$1/skills-replaced" live=() link target skill agent kept
+    for target in "$repo_root"/*/agents/*.md; do
+        skill="$(dirname "$(dirname "$target")")"
+        [ -f "$target" ] && [ -f "$skill/SKILL.md" ] || continue
+        if should_install_skill "$skill" claude; then live+=("$target"); else status=$?; [ "$status" -eq 1 ] || return "$status"; fi
+    done
+    for link in "$agents_home"/*.md; do
+        [ -L "$link" ] || continue; target="$(readlink "$link")"
+        case "$target" in "$repo_root"/*) ;; *) continue ;; esac
+        kept=0; for agent in ${live[@]+"${live[@]}"}; do [ "$agent" != "$target" ] || kept=1; done
+        [ "$kept" -eq 0 ] || continue
+        echo "  prune $(basename "$link") - no longer an agent in this repo"; run rm "$link"
+    done
+    for target in ${live[@]+"${live[@]}"}; do sync_file "$target" "$agents_home/$(basename "$target")" "$backup_home"; done
+}
 for agent in "${targets[@]}"; do
     case "$agent" in claude) agent_home="$HOME/.claude" ;; codex) agent_home="${CODEX_HOME:-$HOME/.codex}" ;; esac
     echo "[$agent]"; sync_skills "$agent_home" "$agent"
     case "$agent" in
-        claude) sync_instructions "$agent_home/CLAUDE.md" "$agent_home/skills-replaced" ;;
+        claude)
+            sync_instructions "$agent_home/CLAUDE.md" "$agent_home/skills-replaced"
+            sync_agents "$agent_home" ;;
         codex)
             sync_instructions "$agent_home/AGENTS.md" "$agent_home/skills-replaced"
             # Codex reads only the first non-empty of AGENTS.override.md and AGENTS.md here.
