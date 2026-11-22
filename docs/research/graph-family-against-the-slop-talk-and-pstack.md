@@ -318,7 +318,7 @@ Recorded because each changed what was filed.
 ## L. Issues filed
 
 All under the anchor [#71](https://github.com/kihyun1998/skills/issues/71)
-(sub-issue relation), filed 2026-11-17. State as of 2026-11-21:
+(sub-issue relation), filed 2026-11-17. State as of 2026-11-22:
 
 | Issue | Subject | State |
 |---|---|---|
@@ -329,13 +329,14 @@ All under the anchor [#71](https://github.com/kihyun1998/skills/issues/71)
 | [#76](https://github.com/kihyun1998/skills/issues/76) | reviewer findings carry their reproduction; reports carry the certainty level | built in `90999bc`, `2dc9842` (closed on push); replay on the issue |
 | [#77](https://github.com/kihyun1998/skills/issues/77) | `make-it` and `check-it` use the property, fuzz and benchmark lanes a repository runs; `benchmark-checklist`'s method as a file `check-it` reads only when a change needs it | built in `00dd86b` (closed on push); replays on the issue |
 | [#78](https://github.com/kihyun1998/skills/issues/78) | whether to bring formal verification in, starting with one trial | open; built #100-#102, statechart retired (#113, #108 not planned), #107 partly decided and waiting for a committed verify skill (§P) |
-| [#79](https://github.com/kihyun1998/skills/issues/79) | how decision records are written and how much they weigh (§M) | open; `needs-grill`; **deferred** 2026-11-18 (§M) |
+| [#79](https://github.com/kihyun1998/skills/issues/79) | how decision records are written and how much they weigh (§M) | **closed** 2026-11-21; resumed and decided, done in `2144cd1`: a record is only for a decision hard to reverse, surprising and a real trade-off, short, read as grounds (§P); existing records are #121 |
 | [#80](https://github.com/kihyun1998/skills/issues/80) | `encode-it`: a skill that turns a repeated correction into a check | **closed** 2026-11-18; built as `encode-it` in `59f7a4a`, replay on justssh recorded on the issue; its direct run reads closed issues and rules, not history, after a trial on justssh (`8b39b15`, #80 comment) |
 | [#84](https://github.com/kihyun1998/skills/issues/84) | `thegraph-herdr` passes a correction received in a run to the next worker (from #73) | built in `f20b412` (closed on push); paper replay on the issue |
 | [#85](https://github.com/kihyun1998/skills/issues/85) | decide `thegraph-herdr`'s model table again, Mythos 5.2 included (filed 2026-11-18) | built in `9f9f1ae` (closed on push); the conductor asks for the model a run warrants (Q3 changed by the maintainer) |
-| [#82](https://github.com/kihyun1998/skills/issues/82) | clean up the comments target repositories carry from before #75's allow-list; sized by #75's survey (filed 2026-11-18) | open; `needs-grill`; #75 built, so unblocked |
+| [#82](https://github.com/kihyun1998/skills/issues/82) | clean up the comments target repositories carry from before #75's allow-list; sized by #75's survey (filed 2026-11-18) | open; `ready-for-human`; decided 2026-11-22, not run now: per repository, `grill-the-graph`'s *Update* first, then `comment-it` over a path (§P) |
 | [#117](https://github.com/kihyun1998/skills/issues/117) | `grill-the-graph`, 533 body lines, split as #114 split `check-it` (filed 2026-11-21) | open; `needs-grill` |
 | [#118](https://github.com/kihyun1998/skills/issues/118) | a push sends another run's local commits when two runs share a tree (filed 2026-11-21) | open; `needs-grill` |
+| [#121](https://github.com/kihyun1998/skills/issues/121) | bring the existing decision records to #79's rules, ADR-0102 first (filed 2026-11-21) | open; `needs-grill` |
 
 The order to take them is §O.2, as updated in §P.
 
@@ -386,6 +387,8 @@ inference; and pstack is not record-free — `show-me-your-work` keeps a
 one-row-per-decision TSV with an evidence pointer, local by default and committed
 only when a reviewer needs it. One answer was given before the deferral: a record
 is read as grounds, not as a rule (#79's comment holds it).
+
+**Resumed and decided, 2026-11-21** (§P, #79's decision comment).
 
 ## N. Open, and not verified
 
@@ -695,7 +698,7 @@ this repository; these are the points this session learned the hard way.
   ADR-0092; other target repositories were not checked for the same.
 - The private HTML summary (§N) is stale; nothing depends on it.
 
-## P. After the hand-off (2026-11-20 to 2026-11-21)
+## P. After the hand-off (2026-11-20 to 2026-11-22)
 
 What one more session did on this work, recorded so §O's order does not
 mislead. Each item's detail is on its issue; commits are on `main`.
@@ -732,9 +735,29 @@ mislead. Each item's detail is on its issue; commits are on `main`.
   past 500 lines; and two runs sharing one tree pushed each other's commits —
   #112's push sent #110's local commit and closed #110 before its run's
   `ask-it`.
+- **#79, decision records** (2026-11-21, `2144cd1`). A record is kept only for
+  a decision that is hard to reverse, surprising without context and the result
+  of a real trade-off (`domain-modeling`'s three conditions); any other decision
+  lives in the issue's decision comment and the commit message. A record is
+  short (what was decided, what on, what would reopen it) and read as grounds:
+  *"the record governs"* in `thegraph`, `lens` and `check-it`'s lens brief now
+  sends a fact outside a record's grounds to the maintainer. The rules are in
+  `docs/agents/domain.md`, and `CLAUDE.md`'s decision line follows. They apply
+  to records written from now on; ADR-0076, ADR-0095 and ADR-0098 got an *out
+  of date* banner, and changing other existing records is #121.
+- **#82, the old comments** (2026-11-22). Not run now. 13 of the 16 target
+  repositories still carry the old rule (*"a comment says what the code is"*),
+  under which `comment-it` flags no narration; so each repository's cleanup
+  starts with `grill-the-graph`'s *Update*, then `comment-it` over a path, a
+  script deleting what it reports as narration, the rest moved or fixed one by
+  one. `decant` stays retired. Unit and order are chosen when a run starts.
+- **#119 and #120** were filed on 2026-11-20 (UTC), not under #71: two
+  `check-it` faults, its `range` counting the maintainer's untracked files and
+  the confirm stop's decision model returning no pick.
 
-**The order now** (replacing §O.2's): `/grilling 79` (ADR-0102 alone carries
-seven amendments, each superseded line marked by hand), `/grilling 82`, then
-`/grilling 117` and `/grilling 118`; #96's measurements around 2026-11-27; #107's
-rest when a verify skill is committed. A session on a nearly spent weekly limit
-takes the grillings first, since a `thegraph` run spends several Opus reviews.
+**The order now** (replacing §O.2's): `/grilling 117`, `/grilling 118` and
+`/grilling 121`; #82 when the maintainer starts the cleanup; #96's measurements
+around 2026-11-27; #107's rest when a verify skill is committed. #120 blocks
+`check-it`'s confirm stop and may come first. A session on a nearly spent weekly
+limit takes the grillings first, since a `thegraph` run spends several Opus
+reviews.
