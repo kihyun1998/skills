@@ -122,3 +122,65 @@ test('a repository with no commit yet stops at git diff HEAD', () => {
   assert.equal(r.status, 1);
   assert.match(r.stderr, /git diff HEAD .*failed/);
 });
+
+test('a record made before the change leaves out the untracked files unchanged since, and lists the new and the edited', () => {
+  const kept = join(scratch, 'kept');
+  const folder = join(scratch, 'kept-run');
+  mkdirSync(join(kept, 'docs'), { recursive: true });
+  mkdirSync(folder);
+  writeFileSync(join(kept, 'a.c'), 'int a;\n');
+  git(kept, 'init', '-q');
+  git(kept, 'add', '.');
+  git(kept, 'commit', '-q', '-m', 'base');
+  writeFileSync(join(kept, '.DS_Store'), 'finder\n');
+  writeFileSync(join(kept, 'docs', 'notes.md'), 'mine\n');
+  const made = call(here, ['record', '--run-folder', folder], kept);
+  assert.equal(made.status, 0, made.stderr);
+  assert.match(made.stdout, /recorded 2 untracked files/);
+  assert.equal(call(here, ['record', '--run-folder', folder], kept).status, 1);
+
+  writeFileSync(join(kept, 'docs', 'notes.md'), 'mine, edited by the change\n');
+  writeFileSync(join(kept, 'b.c'), 'int b;\n');
+  const r = call(here, ['range', '--run-folder', folder], kept);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout, [
+    '- `b.c` (untracked)',
+    '- `docs/notes.md` (untracked)',
+    '',
+    `Left out: untracked before the run began and unchanged since, as ${join(folder, 'check-it.untracked.json')} records:`,
+    '- `.DS_Store`',
+    '',
+  ].join('\n'));
+  const all = call(here, ['range'], kept);
+  assert.match(all.stdout, /- `\.DS_Store` \(untracked\)/);
+});
+
+test('an untracked link is recorded by where it points, so its target outside the repository is never read', { skip: process.platform === 'win32' && 'a file symlink needs Developer Mode on Windows' }, () => {
+  const linkRepo = join(scratch, 'linked-repo');
+  const folder = join(scratch, 'linked-run');
+  const outside = join(scratch, 'outside.txt');
+  mkdirSync(linkRepo);
+  mkdirSync(folder);
+  writeFileSync(join(linkRepo, 'a.c'), 'int a;\n');
+  git(linkRepo, 'init', '-q');
+  git(linkRepo, 'add', '.');
+  git(linkRepo, 'commit', '-q', '-m', 'base');
+  writeFileSync(outside, 'before\n');
+  symlinkSync(outside, join(linkRepo, 'out'));
+  assert.equal(call(here, ['record', '--run-folder', folder], linkRepo).status, 0);
+  writeFileSync(outside, 'after\n');
+  writeFileSync(join(linkRepo, 'a.c'), 'int a = 1;\n');
+  const r = call(here, ['range', '--run-folder', folder], linkRepo);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /^- `a\.c`\n\nLeft out: .*\n- `out`\n$/);
+});
+
+test('a link already where the record goes stops record with the reason, not a stack', { skip: process.platform === 'win32' && 'a file symlink needs Developer Mode on Windows' }, () => {
+  const folder = join(scratch, 'dangling-run');
+  mkdirSync(folder);
+  symlinkSync(join(scratch, 'nowhere'), join(folder, 'check-it.untracked.json'));
+  const r = call(here, ['record', '--run-folder', folder]);
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /^check-it: the run folder already holds a record at /);
+  assert.doesNotMatch(r.stderr, /node:fs|EEXIST/);
+});

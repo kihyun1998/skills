@@ -26,7 +26,7 @@ returned as the final message. The caller deletes, fixes and carries.
 ## The scope
 
 - **A diff** — what `check-it` passes: `git diff HEAD` plus every untracked
-  file, or a commit range. Only comments and suppressions the diff adds or
+  file its run folder's record does not leave out, or a commit range. Only comments and suppressions the diff adds or
   changes are read; old ones are left for a run over a path.
 - **A path** — what a person passes to survey what is already there: a file, a
   directory, or the whole repository. Every comment in it is read.

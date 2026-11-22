@@ -10,13 +10,13 @@ A **verify skill** is defined in `GLOSSARY.md`: the project-local skill
 
 **The signal is mechanical**: the files the diff touches (`git diff HEAD
 --name-only --no-renames`, which names both paths of a move, and every
-untracked file) against the files each verify skill names as covered: the code
+untracked file the run folder's record does not leave out) against the files each verify skill names as covered: the code
 its check describes, not every file the skill mentions (its model, its scripts
 and the files it lists as not covered are not covered files). Reading which
 files a skill covers is this session's; the match is the script's, run in the
 repository with each covered file as written in the skill:
-`node <check-it>/scripts/check-it.mjs verify --covered <file> [--covered
-<file> …]`, `<check-it>` being this skill's folder. It prints each file in both, or `none`, and stops with an error on a covered
+`node <check-it>/scripts/check-it.mjs verify --run-folder <run folder> --covered
+<file> [--covered <file> …]`, `<check-it>` being this skill's folder. It prints each file in both, or `none`, and stops with an error on a covered
 path that is not a file in the tree, such as a folder or a function name, so a
 form it cannot match is never read as `none`. A file in both
 puts that skill's check on (1)'s list. Nobody is asked: it is a check, not a

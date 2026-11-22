@@ -297,7 +297,10 @@ departs from the plan or cannot proceed, write why under `## Result` and send
 
 ## The run sheet
 
-Named and placed as `thegraph` says, and the conductor is its only writer. The
+Named and placed as `thegraph` says, and the conductor is its only writer. Its
+run folder and ledger are made with it, and the untracked files recorded in the
+run folder, as `thegraph` says, before the first worker starts: every worker's
+`check-it` reads that one record. The
 children have no checkboxes, as in a `thegraph` cluster.
 
 ```markdown

@@ -93,8 +93,9 @@ the floor is added to its pick (ADR-0102, amended for #112). It runs twice:
   words. Nothing else about the reviews is asked. The pick as the person left
   it reaches this step on the run sheet or in the worker's brief.
 - **At this skill's start**, before (1), on the real diff: `git diff HEAD` plus
-  every untracked file. A review it picks that is not already chosen is added
-  without asking, and the result names it with the decision model's reason.
+  every untracked file, less those the run folder's record leaves out
+  (*Briefing the fresh agents*). A review it picks that is not already chosen
+  is added without asking, and the result names it with the decision model's reason.
   **Nothing chosen is removed**, the person's additions and a review whose
   question now answers no included. A review the person removed at the confirm
   stop is not added back; the result names it with the reason it was picked
@@ -425,11 +426,23 @@ node <check-it>/scripts/check-it.mjs prompt <review> --issue <issue> --run-folde
   folder made before the first call (a direct `/check-it` makes its own).
 
 The prompt is [reviewers/brief.md](reviewers/brief.md) filled in, the change
-named as `git diff HEAD` plus every untracked file, each file listed (`range`
-prints the list), then the review's own part (*Each review's own brief*), each
-file's title kept and the paragraph after it, for its maintainers, left out.
+named as `git diff HEAD` plus every untracked file not left out (below), each
+file listed (`range --run-folder <run folder>` prints the list), then the
+review's own part (*Each review's own brief*), each file's title kept and the paragraph after it, for its maintainers, left out.
 `lens`'s and `comment-it`'s carry their skill's folder as an absolute path,
 since a body's links do not resolve from the agent's own folder.
+
+**An untracked file that was there before the run began is not the change's**
+(#119). `node <check-it>/scripts/check-it.mjs record --run-folder <run folder>`
+writes `check-it.untracked.json` there, each untracked file with a hash of its
+content; when it runs is `thegraph`'s to say, where it makes the run folder.
+Where the run folder holds that record, `range`, `verify` and `prompt`
+leave out each untracked file it names whose content is unchanged, and list
+the files left out under the change, so none disappears unseen. A file the
+change edited is listed again. A record naming a path outside the repository,
+or made for another repository, stops the script. A direct `/check-it` makes
+its run folder after the change and records nothing, so every untracked file
+is listed.
 
 **The script stops with an error when any piece is missing**: an empty diff, a
 file that cannot be read or is empty, an option not given. A review it would

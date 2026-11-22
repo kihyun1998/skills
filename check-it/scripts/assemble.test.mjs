@@ -1,12 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { join, resolve } from 'node:path';
-import { CheckItError, REPORTS, SKILLS, fill, matchCovered, ownPart, parseArgs, reportPath, run, section, skillBody } from './assemble.mjs';
+import { join, relative, resolve } from 'node:path';
+import { CheckItError, RECORD, REPORTS, SKILLS, fill, matchCovered, ownPart, parseArgs, reportPath, run, section, skillBody } from './assemble.mjs';
 
 const REPO = resolve('/work/repo');
 const CHECK_IT = join(SKILLS, 'check-it');
 
-function fakeDeps({ files = {}, tracked = [], untracked = [], dirs = ['/work/run'], onDisk = [] } = {}) {
+function fakeDeps({ files = {}, tracked = [], untracked = [], dirs = ['/work/run'], onDisk = [], hashes = {}, links = [] } = {}) {
   const base = {
     [join(CHECK_IT, 'reviewers/brief.md')]: 'BRIEF repo={{repo}} issue={{issue}} run={{run_folder}} ledger={{ledger}} rules={{skills}}/clean-it\nchange: {{change}}',
     [join(CHECK_IT, 'reviewers/bug.md')]: 'BUG PART',
@@ -20,8 +20,12 @@ function fakeDeps({ files = {}, tracked = [], untracked = [], dirs = ['/work/run
   };
   const all = { ...base, ...files };
   const calls = [];
+  const hashed = [];
+  const written = {};
   return {
     calls,
+    hashed,
+    written,
     deps: {
       cwd: resolve('/work'),
       skills: SKILLS,
@@ -30,7 +34,16 @@ function fakeDeps({ files = {}, tracked = [], untracked = [], dirs = ['/work/run
         return all[p];
       },
       isDir: (p) => dirs.map((d) => resolve(d)).includes(p),
-      isFile: (p) => [...onDisk, ...untracked].map((f) => join(REPO, f)).includes(p),
+      isFile: (p) => p in all || [...onDisk, ...untracked].map((f) => join(REPO, f)).includes(p),
+      exists: (p) => p in all || links.includes(p) || dirs.map((d) => resolve(d)).includes(p),
+      hash: (p) => {
+        hashed.push(p);
+        return hashes[relative(REPO, p).replaceAll('\\', '/')] ?? null;
+      },
+      writeFile: (p, text) => {
+        written[p] = text;
+        all[p] = text;
+      },
       git: (dir, args) => {
         calls.push({ dir, args });
         if (args[0] === 'rev-parse') return `${REPO}\n`;
@@ -163,27 +176,27 @@ test('at the confirm stop the planned change is to be judged, not carried out, a
 });
 
 test('a report is named after the run sheet, the child before the name at a cluster confirm stop', () => {
-  const opts = { cwd: resolve('/work'), isDir: (p) => p === resolve('/work/run') };
-  assert.equal(reportPath('bug', { ...opts, sheet: 'run.114.md' }), `${resolve('/work/run.114')}.bug.md`);
-  assert.equal(reportPath('pick-confirm', { ...opts, sheet: '/s/run.md', child: '#38' }), `${resolve('/s/run')}.38.pick-confirm.md`);
-  assert.equal(reportPath('change', { ...opts, sheet: '/s/run.md', child: '0003-foo.md' }), `${resolve('/s/run')}.0003-foo.change.md`);
-  assert.equal(reportPath('pick', { ...opts, 'run-folder': 'run' }), join(resolve('/work/run'), 'check-it.pick.md'));
+  const deps = { cwd: resolve('/work'), isDir: (p) => p === resolve('/work/run') };
+  assert.equal(reportPath('bug', { sheet: 'run.114.md' }, deps), `${resolve('/work/run.114')}.bug.md`);
+  assert.equal(reportPath('pick-confirm', { sheet: '/s/run.md', child: '#38' }, deps), `${resolve('/s/run')}.38.pick-confirm.md`);
+  assert.equal(reportPath('change', { sheet: '/s/run.md', child: '0003-foo.md' }, deps), `${resolve('/s/run')}.0003-foo.change.md`);
+  assert.equal(reportPath('pick', { 'run-folder': 'run' }, deps), join(resolve('/work/run'), 'check-it.pick.md'));
 });
 
 test('a report name, a run sheet or a child that cannot be one stops the naming', () => {
-  const opts = { cwd: '/w', isDir: () => false };
-  throwsCheck(() => reportPath('bugs', { ...opts, sheet: 's.md' }), /no report named bugs/);
-  throwsCheck(() => reportPath('bug', opts), /give --sheet/);
-  throwsCheck(() => reportPath('bug', { ...opts, sheet: 's.md', 'run-folder': '/r' }), /not both/);
-  throwsCheck(() => reportPath('bug', { ...opts, 'run-folder': '/r' }), /the run folder .* is not a folder/);
-  throwsCheck(() => reportPath('bug', { ...opts, sheet: 's.txt' }), /does not end in \.md/);
-  throwsCheck(() => reportPath('bug', { ...opts, sheet: 's.md', child: '3' }), /--child applies only to/);
-  throwsCheck(() => reportPath('pick-confirm', { ...opts, sheet: 's.md', child: '../x' }), /not an issue number/);
-  throwsCheck(() => reportPath('pick-confirm', { ...opts, 'run-folder': '/r', child: '3' }), /--child needs --sheet/);
+  const deps = { cwd: '/w', isDir: () => false };
+  throwsCheck(() => reportPath('bugs', { sheet: 's.md' }, deps), /no report named bugs/);
+  throwsCheck(() => reportPath('bug', {}, deps), /give --sheet/);
+  throwsCheck(() => reportPath('bug', { sheet: 's.md', 'run-folder': '/r' }, deps), /not both/);
+  throwsCheck(() => reportPath('bug', { 'run-folder': '/r' }, deps), /the run folder .* is not a folder/);
+  throwsCheck(() => reportPath('bug', { sheet: 's.txt' }, deps), /does not end in \.md/);
+  throwsCheck(() => reportPath('bug', { sheet: 's.md', child: '3' }, deps), /--child applies only to/);
+  throwsCheck(() => reportPath('pick-confirm', { sheet: 's.md', child: '../x' }, deps), /not an issue number/);
+  throwsCheck(() => reportPath('pick-confirm', { 'run-folder': '/r', child: '3' }, deps), /--child needs --sheet/);
 });
 
 test('every report name is one the naming accepts', () => {
-  for (const name of REPORTS) assert.match(reportPath(name, { cwd: '/w', sheet: 's.md' }), new RegExp(`\\.${name}\\.md$`));
+  for (const name of REPORTS) assert.match(reportPath(name, { sheet: 's.md' }, { cwd: '/w' }), new RegExp(`\\.${name}\\.md$`));
 });
 
 test('a verify match is the diff files a skill covers, untracked included, written either way round', () => {
@@ -264,4 +277,109 @@ test('a file saved with a byte-order mark reaches the prompt without it, and a S
   const lens = run(['prompt', 'lens', '--issue', '#1', '--run-folder', '/work/run', '--ledger', '/work/run.md'], deps);
   assert.match(lens, /LENS BODY/);
   assert.doesNotMatch(lens, /\uFEFF/);
+});
+
+const H = (c) => c.repeat(64);
+const RUN = resolve('/work/run');
+const RECORDED = join(RUN, RECORD);
+const recordOf = (untracked, repo = REPO) => JSON.stringify({ repo, untracked });
+
+test('record writes the untracked files there now with their content hashes into the run folder, and only once', () => {
+  const { deps, written } = fakeDeps({ untracked: ['.DS_Store', 'docs/diagrams.zip', 'nested/'], hashes: { '.DS_Store': H('a'), 'docs/diagrams.zip': H('b') } });
+  const out = run(['record', '--run-folder', '/work/run'], deps);
+  assert.deepEqual(JSON.parse(written[RECORDED]), { repo: REPO, untracked: { '.DS_Store': H('a'), 'docs/diagrams.zip': H('b') } });
+  assert.match(out, /recorded 2 untracked files in .*check-it\.untracked\.json/);
+  assert.match(out, /`nested\/`/);
+  throwsCheck(() => run(['record', '--run-folder', '/work/run'], deps), /already holds a record/);
+  throwsCheck(() => run(['record', '--run-folder', '/work/run'], fakeDeps({ links: [RECORDED] }).deps), /already holds a record/);
+  throwsCheck(() => run(['record'], deps), /record needs --run-folder/);
+  throwsCheck(() => run(['record', '--run-folder', '/work/nope'], deps), /is not a folder/);
+});
+
+test('with a record, an untracked file there before the run and unchanged is left out, and named as left out', () => {
+  const record = recordOf({ '.DS_Store': H('a'), 'notes.md': H('b') });
+  const { deps } = fakeDeps({
+    tracked: ['src/a.js'],
+    untracked: ['.DS_Store', 'notes.md', 'src/new.js'],
+    hashes: { '.DS_Store': H('a'), 'notes.md': H('c'), 'src/new.js': H('d') },
+    files: { [RECORDED]: record },
+  });
+  assert.equal(run(['range', '--run-folder', '/work/run'], deps), [
+    '- `src/a.js`',
+    '- `notes.md` (untracked)',
+    '- `src/new.js` (untracked)',
+    '',
+    `Left out: untracked before the run began and unchanged since, as ${RECORDED} records:`,
+    '- `.DS_Store`',
+    '',
+  ].join('\n'));
+});
+
+test('without a run folder, or with one that holds no record, every untracked file is listed', () => {
+  const opts = { tracked: ['a.js'], untracked: ['.DS_Store'], hashes: { '.DS_Store': H('a') } };
+  const expected = '- `a.js`\n- `.DS_Store` (untracked)\n';
+  const { deps, hashed } = fakeDeps(opts);
+  assert.equal(run(['range'], deps), expected);
+  assert.equal(run(['range', '--run-folder', '/work/run'], deps), expected);
+  assert.deepEqual(hashed, []);
+  throwsCheck(() => run(['range', '--run-folder', '/work/nope'], deps), /is not a folder/);
+});
+
+test('only a file git lists as untracked now is hashed, never one the record alone names', () => {
+  const record = recordOf({ '.DS_Store': H('a'), 'gone.txt': H('b') });
+  const { deps, hashed } = fakeDeps({ tracked: ['a.js'], untracked: ['.DS_Store', 'new.js'], hashes: { '.DS_Store': H('a') }, files: { [RECORDED]: record } });
+  run(['range', '--run-folder', '/work/run'], deps);
+  assert.deepEqual(hashed, [join(REPO, '.DS_Store')]);
+});
+
+test('a record naming a path outside the repository, or not one check-it wrote, stops instead of being read', () => {
+  for (const [untracked, why] of [
+    [{ '../secret': H('a') }, /outside the repository/],
+    [{ '/etc/passwd': H('a') }, /outside the repository/],
+    [{ 'a/../../b': H('a') }, /outside the repository/],
+    [{ 'C:\\x': H('a') }, /outside the repository/],
+    [{ 'a.txt': 'short' }, /not a content hash/],
+  ]) {
+    const { deps, hashed } = fakeDeps({ tracked: ['a.js'], untracked: ['a.txt'], hashes: { 'a.txt': H('a') }, files: { [RECORDED]: recordOf(untracked) } });
+    throwsCheck(() => run(['range', '--run-folder', '/work/run'], deps), why);
+    assert.deepEqual(hashed, []);
+  }
+  for (const text of ['not json', '[]', '{"repo":1,"untracked":{}}', `{"repo":${JSON.stringify(REPO)},"untracked":[]}`]) {
+    throwsCheck(() => run(['range', '--run-folder', '/work/run'], fakeDeps({ tracked: ['a.js'], files: { [RECORDED]: text } }).deps), /is not a record check-it wrote/);
+  }
+});
+
+test('a record made for another repository stops instead of leaving files out', () => {
+  const { deps } = fakeDeps({ tracked: ['a.js'], untracked: ['x'], files: { [RECORDED]: recordOf({ x: H('a') }, resolve('/elsewhere')) } });
+  throwsCheck(() => run(['range', '--run-folder', '/work/run'], deps), /was made for .*elsewhere/);
+});
+
+test('a diff whose only untracked files were all left out is empty, and says how many were left out', () => {
+  const { deps } = fakeDeps({ untracked: ['.DS_Store'], hashes: { '.DS_Store': H('a') }, files: { [RECORDED]: recordOf({ '.DS_Store': H('a') }) } });
+  throwsCheck(() => run(['range', '--run-folder', '/work/run'], deps), /^the diff is empty: git diff HEAD prints nothing, and the 1 untracked file git ls-files --others --exclude-standard lists is left out as unchanged since .*check-it\.untracked\.json was made$/);
+  throwsCheck(() => prompt('bug', deps), /the diff is empty/);
+});
+
+test("a review prompt reads its run folder's record and names what it left out", () => {
+  const { deps } = fakeDeps({ tracked: ['src/a.js'], untracked: ['.DS_Store'], hashes: { '.DS_Store': H('a') }, files: { [RECORDED]: recordOf({ '.DS_Store': H('a') }) } });
+  const out = prompt('bug', deps);
+  assert.ok(out.includes([
+    'change: `git diff HEAD` in the repository, plus every untracked file not left out below, so a new file is in it. The files it touches:',
+    '',
+    '- `src/a.js`',
+    '',
+    `Left out: untracked before the run began and unchanged since, as ${RECORDED} records:`,
+    '- `.DS_Store`',
+    '',
+    'BUG PART',
+  ].join('\n')), out);
+  assert.match(prompt('pick', deps), /Left out: .*\n- `\.DS_Store`\n\nQUESTIONS/);
+});
+
+test('verify leaves out the files the record leaves out', () => {
+  const files = { [RECORDED]: recordOf({ 'src/old.c': H('a'), 'src/edited.c': H('b') }) };
+  const { deps } = fakeDeps({ tracked: ['a.c'], untracked: ['src/old.c', 'src/edited.c'], hashes: { 'src/old.c': H('a'), 'src/edited.c': H('c') }, files });
+  assert.equal(run(['verify', '--covered', 'src/old.c', '--run-folder', '/work/run'], deps), 'none\n');
+  assert.equal(run(['verify', '--covered', 'src/edited.c', '--covered', 'src/old.c', '--run-folder', '/work/run'], deps), 'src/edited.c\n');
+  assert.equal(run(['verify', '--covered', 'src/old.c'], deps), 'src/old.c\n');
 });

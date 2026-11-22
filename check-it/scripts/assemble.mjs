@@ -25,21 +25,29 @@ export const REPORTS = [...Object.keys(REVIEWS), 'verify', 'findings', 'change']
 const PER_CHILD = new Set(['pick-confirm', 'change']);
 
 const ALLOWED = {
-  range: ['repo'],
+  record: ['repo', 'run-folder'],
+  range: ['repo', 'run-folder'],
   name: ['repo', 'sheet', 'run-folder', 'child'],
-  verify: ['repo', 'covered'],
+  verify: ['repo', 'covered', 'run-folder'],
   prompt: ['repo', 'issue', 'run-folder', 'ledger', 'findings', 'change'],
 };
 
+export const RECORD = 'check-it.untracked.json';
+
 export const USAGE = `Usage: node check-it.mjs <command> [options]
 
-  range                         the files the diff touches: git diff HEAD plus every untracked file
+  record --run-folder <dir>     records the untracked files there now, with a hash of each one's
+                                content, in <dir>/${RECORD}; made once, before any change is written
+  range [--run-folder <dir>]    the files the diff touches: git diff HEAD plus every untracked file,
+                                less those the run folder's record shows unchanged since it was made
   name <report> (--sheet <run sheet> | --run-folder <dir>) [--child <issue>]
                                 where a report is saved; <report> is one of
                                 ${REPORTS.join(', ')}
-  verify --covered <file> ...   the files the diff touches that a verify skill covers, or none
+  verify --covered <file> ... [--run-folder <dir>]
+                                the files the diff touches that a verify skill covers, or none
   prompt <review> --issue <issue> --run-folder <dir> --ledger <file> [--findings <report> ...] [--change <file>]
-                                the prompt handed to Agent as it is; <review> is one of
+                                the prompt handed to Agent as it is, the change read as range reads it;
+                                <review> is one of
                                 ${Object.keys(REVIEWS).join(', ')}
 
   --repo <dir>                  the repository (default: the one the current folder is in)
@@ -76,25 +84,94 @@ export function repoRoot(opts, deps) {
 
 const zsplit = (out) => out.split('\0').filter((p) => p !== '');
 
-export function changedFiles(repo, deps) {
-  const tracked = zsplit(deps.git(repo, ['diff', 'HEAD', '--name-only', '--no-renames', '-z']));
-  const untracked = zsplit(deps.git(repo, ['ls-files', '--others', '--exclude-standard', '-z']));
-  return { tracked, untracked };
-}
-
 const shown = (path) => (/[\u0000-\u001f\u007f`]/.test(path) ? JSON.stringify(path) : `\`${path}\``);
 
-export function listing({ tracked, untracked }) {
-  if (tracked.length + untracked.length === 0) {
-    fail('the diff is empty: git diff HEAD and git ls-files --others --exclude-standard print nothing');
+const untrackedNow = (repo, deps) => zsplit(deps.git(repo, ['ls-files', '--others', '--exclude-standard', '-z']));
+
+const runFolderOf = (opts, deps) => {
+  const dir = resolve(deps.cwd, opts['run-folder']);
+  if (!deps.isDir(dir)) fail(`the run folder ${dir} is not a folder`);
+  return dir;
+};
+
+const inRepo = (path) => path !== '' && !path.includes('\0') && !isAbsolute(path) && !/^[A-Za-z]:/.test(path)
+  && !path.split(/[\\/]/).includes('..');
+
+export function readRecord(runFolder, repo, deps) {
+  const path = join(runFolder, RECORD);
+  if (!deps.isFile(path)) return undefined;
+  const bad = (why) => fail(`${path} is not a record check-it wrote: ${why}`);
+  let data;
+  try {
+    data = JSON.parse(deps.readFile(path).replace(/^\uFEFF/, ''));
+  } catch (err) {
+    bad(err.message);
   }
-  return [
-    ...tracked.map((p) => `- ${shown(p)}`),
-    ...untracked.map((p) => `- ${shown(p)} (untracked)`),
-  ].join('\n');
+  if (data === null || typeof data !== 'object' || Array.isArray(data)) bad('it is not an object');
+  if (typeof data.repo !== 'string') bad('it names no repository');
+  if (data.untracked === null || typeof data.untracked !== 'object' || Array.isArray(data.untracked)) bad('it lists no untracked files');
+  if (resolve(data.repo) !== repo) fail(`${path} was made for ${data.repo}, not ${repo}: run check-it in ${data.repo}, or give it a run folder of its own`);
+  const hashes = new Map();
+  for (const [file, hash] of Object.entries(data.untracked)) {
+    if (!inRepo(file)) fail(`${path} names ${shown(file)}, a path outside the repository, so it is not read`);
+    if (typeof hash !== 'string' || !/^[0-9a-f]{64}$/.test(hash)) fail(`${path} gives ${shown(file)} something that is not a content hash`);
+    hashes.set(file, hash);
+  }
+  return { path, hashes };
 }
 
-export function reportPath(name, opts) {
+export function changedFiles(repo, deps, runFolder) {
+  const tracked = zsplit(deps.git(repo, ['diff', 'HEAD', '--name-only', '--no-renames', '-z']));
+  const all = untrackedNow(repo, deps);
+  const record = runFolder === undefined ? undefined : readRecord(runFolder, repo, deps);
+  if (!record) return { tracked, untracked: all };
+  const untracked = [];
+  const leftOut = [];
+  for (const p of all) {
+    const unchanged = record.hashes.has(p) && deps.hash(join(repo, p)) === record.hashes.get(p);
+    (unchanged ? leftOut : untracked).push(p);
+  }
+  return { tracked, untracked, leftOut, record: record.path };
+}
+
+const changeIn = (repo, opts, deps) => changedFiles(repo, deps, opts['run-folder'] && runFolderOf(opts, deps));
+
+export function recordUntracked(repo, runFolder, deps) {
+  const path = join(runFolder, RECORD);
+  if (deps.exists(path)) fail(`the run folder already holds a record at ${path}; it is made once, when the run folder is made, before any change is written`);
+  const untracked = {};
+  const skipped = [];
+  for (const p of untrackedNow(repo, deps)) {
+    const hash = deps.hash(join(repo, p));
+    if (hash === null) skipped.push(p);
+    else untracked[p] = hash;
+  }
+  deps.writeFile(path, `${JSON.stringify({ repo, untracked }, null, 2)}\n`);
+  const count = Object.keys(untracked).length;
+  const lines = [`recorded ${count} untracked file${count === 1 ? '' : 's'} in ${path}`];
+  if (skipped.length) lines.push(`not recorded, since neither a file nor a link, so always listed: ${skipped.map(shown).join(', ')}`);
+  return `${lines.join('\n')}\n`;
+}
+
+export function listing({ tracked, untracked, leftOut = [], record }) {
+  if (tracked.length + untracked.length === 0) {
+    if (leftOut.length) {
+      const one = leftOut.length === 1;
+      fail(`the diff is empty: git diff HEAD prints nothing, and the ${leftOut.length} untracked file${one ? '' : 's'} git ls-files --others --exclude-standard lists ${one ? 'is' : 'are'} left out as unchanged since ${record} was made`);
+    }
+    fail('the diff is empty: git diff HEAD and git ls-files --others --exclude-standard print nothing');
+  }
+  const lines = [
+    ...tracked.map((p) => `- ${shown(p)}`),
+    ...untracked.map((p) => `- ${shown(p)} (untracked)`),
+  ];
+  if (leftOut.length) {
+    lines.push('', `Left out: untracked before the run began and unchanged since, as ${record} records:`, ...leftOut.map((p) => `- ${shown(p)}`));
+  }
+  return lines.join('\n');
+}
+
+export function reportPath(name, opts, deps) {
   if (!REPORTS.includes(name)) fail(`no report named ${name ?? '(none)'}; one of ${REPORTS.join(', ')}`);
   const runFolder = opts['run-folder'];
   if (opts.sheet && runFolder) fail('give --sheet or --run-folder, not both');
@@ -107,13 +184,9 @@ export function reportPath(name, opts) {
     if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(id)) fail(`--child ${opts.child} is not an issue number or issue file name`);
     child = `.${id}`;
   }
-  if (runFolder) {
-    const dir = resolve(opts.cwd, runFolder);
-    if (!opts.isDir(dir)) fail(`the run folder ${dir} is not a folder`);
-    return join(dir, `check-it.${name}.md`);
-  }
+  if (runFolder) return join(runFolderOf(opts, deps), `check-it.${name}.md`);
   if (!/\.md$/i.test(opts.sheet)) fail(`the run sheet ${opts.sheet} does not end in .md`);
-  return `${resolve(opts.cwd, opts.sheet).slice(0, -3)}${child}.${name}.md`;
+  return `${resolve(deps.cwd, opts.sheet).slice(0, -3)}${child}.${name}.md`;
 }
 
 const normal = (path, repo) => {
@@ -186,6 +259,9 @@ export function fill(template, values, what) {
   return template.replace(/\{\{(\w+)\}\}/g, (_, n) => values[n]);
 }
 
+const changeLine = (files) =>
+  `\`git diff HEAD\` in the repository, plus every untracked file${files.leftOut?.length ? ' not left out below' : ''}, so a new file is in it. The files it touches:\n\n${listing(files)}`;
+
 export function assemblePrompt(review, opts, deps) {
   const spec = REVIEWS[review];
   if (!spec) fail(`no review named ${review ?? '(none)'}; one of ${Object.keys(REVIEWS).join(', ')}`);
@@ -196,12 +272,11 @@ export function assemblePrompt(review, opts, deps) {
   if (!spec.confirm && opts.change) fail(`--change applies only to pick-confirm`);
 
   const repo = repoRoot(opts, deps);
-  const runFolder = resolve(deps.cwd, opts['run-folder']);
-  if (!deps.isDir(runFolder)) fail(`the run folder ${runFolder} is not a folder`);
+  const runFolder = runFolderOf(opts, deps);
   const checkIt = join(deps.skills, 'check-it');
   const change = spec.confirm
     ? 'not written yet. The issue and the two statements of what it is and what it will do stand in its place, at the end of this prompt. They describe work someone else will do later: you judge it and carry none of it out, and your answer is the six answers and the pick list, nothing else.'
-    : `\`git diff HEAD\` in the repository, plus every untracked file, so a new file is in it. The files it touches:\n\n${listing(changedFiles(repo, deps))}`;
+    : changeLine(changedFiles(repo, deps, runFolder));
   const skillDir = spec.skill ? join(deps.skills, spec.skill) : undefined;
   const values = {
     skills: deps.skills,
@@ -248,18 +323,24 @@ export function run(argv, deps) {
     if (args.length > n) fail(`${command} takes ${n === 0 ? 'no' : n} argument${n === 1 ? '' : 's'}, given: ${args.join(' ')}`);
   };
   switch (command) {
+    case 'record': {
+      extra(0);
+      if (!opts['run-folder']) fail('record needs --run-folder <dir>');
+      return recordUntracked(repoRoot(opts, deps), runFolderOf(opts, deps), deps);
+    }
     case 'range': {
       extra(0);
-      return `${listing(changedFiles(repoRoot(opts, deps), deps))}\n`;
+      const repo = repoRoot(opts, deps);
+      return `${listing(changeIn(repo, opts, deps))}\n`;
     }
     case 'name': {
       extra(1);
-      return `${reportPath(args[0], { ...opts, cwd: deps.cwd, isDir: deps.isDir })}\n`;
+      return `${reportPath(args[0], opts, deps)}\n`;
     }
     case 'verify': {
       extra(0);
       const repo = repoRoot(opts, deps);
-      const matched = matchCovered(changedFiles(repo, deps), opts.covered, repo, deps.isFile);
+      const matched = matchCovered(changeIn(repo, opts, deps), opts.covered, repo, deps.isFile);
       return matched.length ? `${matched.join('\n')}\n` : 'none\n';
     }
     case 'prompt': {
