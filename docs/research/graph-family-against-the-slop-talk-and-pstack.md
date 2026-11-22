@@ -751,13 +751,20 @@ mislead. Each item's detail is on its issue; commits are on `main`.
   starts with `grill-the-graph`'s *Update*, then `comment-it` over a path, a
   script deleting what it reports as narration, the rest moved or fixed one by
   one. `decant` stays retired. Unit and order are chosen when a run starts.
-- **#119 and #120** were filed on 2026-11-20 (UTC), not under #71: two
-  `check-it` faults, its `range` counting the maintainer's untracked files and
-  the confirm stop's decision model returning no pick.
+- **#119 and #120** (under #94, not #71) were fixed in one `thegraph-herdr`
+  run on 2026-11-22. #120 (`717d557`): the confirm stop's prompt now says the
+  plan is to be judged, not carried out; the failure did not reproduce in 12
+  Haiku tries, so the change shows no regression, not a proven fix (evidence on
+  #120). #119 (`6aaea36`): `check-it.mjs record` notes the untracked files
+  present when a run's run folder is made, and the change list leaves them out.
+  Three defects in `record` went to #122; a review starting agents of its own
+  with no spend bound to #123; the confirm wording sitting in the script against
+  ADR-0102 to #121.
 
-**The order now** (replacing §O.2's): `/grilling 117`, `/grilling 118` and
-`/grilling 121`; #82 when the maintainer starts the cleanup; #96's measurements
-around 2026-11-27; #107's rest when a verify skill is committed. #120 blocks
-`check-it`'s confirm stop and may come first. A session on a nearly spent weekly
-limit takes the grillings first, since a `thegraph` run spends several Opus
-reviews.
+**The order now** (replacing §O.2's): `/grilling 118`, `/grilling 117` (before
+#82, whose cleanup runs `grill-the-graph`'s *Update* in each repository) and
+`/grilling 121`; #122 in a `thegraph-herdr` run; `/grilling 123`; #96's
+measurements around 2026-11-27; #82 when the maintainer starts the cleanup;
+#107's rest when a verify skill is committed. A session on a nearly spent
+weekly limit takes the grillings first, since a `thegraph` run spends several
+Opus reviews.
