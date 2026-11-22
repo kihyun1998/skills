@@ -64,7 +64,7 @@ rewritten for each Herdr version and are the truth about the API.
 
 | Mod | What it does |
 | --- | --- |
-| [`session-restore`](session-restore/) | Saves which Claude session each terminal holds, every 10 minutes by default, keeps a history of past saves, and after a reboot or a core restart reopens them in place. It shows as a chip, a small kept window on the layout it was opened on, dragged to a corner once; pressed, the chip unfolds the Sessions panel above itself. See below. |
+| [`session-restore`](session-restore/) | Saves which Claude session each terminal holds, every 10 minutes by default and after a reboot or a core restart reopens them in place. It shows as a chip, a small kept window on the layout it was opened on, dragged to a corner once; pressed, the chip unfolds the Sessions panel above itself. See below. |
 
 ### session-restore
 
@@ -80,8 +80,8 @@ rewritten for each Herdr version and are the truth about the API.
   (the first reopens it, the second closes it).
 - **The chip's label** is green `⟲ N` with N sessions saved, amber `N to restore`
   when something can be restored, red `Save stalled` when the save stalled (failed,
-  unreadable pid files, sessions whose transcript could not be looked for, a history file
-  that cannot be read, or older
+  unreadable pid files, sessions whose transcript could not be looked for,
+  or older
   than three save intervals, which auto save off does not count), `Opening k/N` while sessions reopen, `Saving` with a turning
   ring in the dot's place while a save runs (the timed one or one the panel started), and
   `Not saved yet` before the first save. The chip keeps one width for every label, so the
@@ -118,77 +118,44 @@ rewritten for each Herdr version and are the truth about the API.
   opening, the panel reads which sessions live terminals hold: a session already
   running is not opened again but shown open at its terminal, and a worker never
   starts under a terminal that no longer holds its conductor.
-- **The panel** has three tabs: Sessions (the save's sessions, as above),
-  History and Settings. Its ⟳ button and every unfold **refresh** it: they read
+- **The panel** has two tabs: Sessions (the save's sessions, as above) and
+  Settings. Its ⟳ button and every unfold **refresh** it: they read
   which sessions live terminals hold now and show that, saving nothing, so a
   session closed since the last save shows `closed` with Open instead of
   `● open`.
 - **Under way and failed.** Every panel action that waits on disk or on `hc` shows
-  itself from the press until it ends: a row being deleted (History) or removed
+  itself from the press until it ends: a row being removed
   (Sessions ×, Clear failed) pulses with a braille spinner in place of its buttons,
   and stays in the list until the write lands; the refresh and save icons turn into a
   ring; the rows an Open is about to open spin while it checks which sessions run, the
-  footer says `Checking`, and no other Open shows until the check ends; the lists say `Loading` until the first read ends. A
+  footer says `Checking`, and no other Open shows until the check ends; the list says `Loading` until the first read ends. A
   second press on something under way does nothing, and Save now does nothing while
-  any save runs. A failure leaves a red box at the top of its tab (History,
-  Sessions or Settings) with what failed and why, until the next action pressed
+  any save runs. A failure leaves a red box at the top of its tab (Sessions or
+  Settings) with what failed and why, until the next action pressed
   there or its × (the refresh that unfolding runs does not clear it). A failed
   check before an Open shows no box: the open checks again, and a row that does
-  not open says why. A failed delete or remove leaves the save or the session in the list. A delete
-  lets go of the ticks and the unfolded save only once it is written, so a failed one keeps them; while
-  it runs, `Delete · n` and `Merge · n` (and the delete confirm) are not offered for ticked saves
-  being deleted. A failed settings write shows the settings on disk again, the number fields included, or the
+  not open says why. A failed remove leaves the session in the list. A failed settings write shows the settings on disk again, the number field included, or the
   previous ones when the file cannot be read, unless a later change was pressed meanwhile, whose own
   write then shows the file; a field being typed in keeps what was typed.
-- **Overlapping reads and saves.** The save, the history and the settings the panel shows each
-  keep the newest result. A save, a remove, a delete or a settings change is numbered when its
-  write reaches the file (the save file and the history apart), a read of a file as it starts, and a
+- **Overlapping reads and saves.** The save and the settings the panel shows each
+  keep the newest result. A save, a remove or a settings change is numbered when its
+  write reaches the file, a read of a file as it starts, and a
   settings change also at the press; a result is shown only when it is numbered after every one
-  shown for that file. So a save whose file was written before a remove or a delete
+  shown for that file. So a save whose file was written before a remove
   does not put back what that one changed, a read (the first read, the refresh's re-read of the
-  settings, the reads after either file changes) that started before such a write landed, or before
+  settings, the read after the settings file changes) that started before such a write landed, or before
   a settings change was pressed, does not overwrite it, and a write does not overwrite a read that
   started after it landed. A read that started after a settings change was pressed and before its
   write landed shows the file from before it, the changes still waiting included, until the last
   one's write lands. Of two looks at which sessions run (a refresh and an Open's check), one
   that started before the look already shown changes nothing when it ends last, and an Open whose
   check ended so plans and opens against the look shown.
-- **The history** is in `~/.config/herdr-app/data/session-restore.history.json`,
-  newest first. Each save adds `current` to it as save N unless it lists the same
-  sessions as the newest one, or none. A save's number is never given twice: the
-  file keeps `lastId`, the highest number it has given, and a new save or merge takes
-  one more than that or than the highest number present, so deleting the newest save
-  does not free its number for the next. A number that is not a whole number of 1 or
-  more (a hand edit, a damaged file) is left out of that count. A history file reset or lost starts again
-  at 1, and a copy of the mod from before `lastId`, still running until Herdr restarts,
-  can give a deleted save's number again, though never one still in the history. The History tab opens a save to its
-  sessions, each with Open or Go by what is open now, and deletes one with ×.
-  Saves are ticked one by one or all at once; the ticked ones are deleted
-  together (after a confirm) or merged. **Merge** opens a dialog of its own with
-  every session of the ticked saves once, grouped by space, all ticked to start;
-  the ones left ticked become a new save, and the merged saves stay. A session in
-  several saves takes its place (space, tab, flags) from the newest of them. A merge
-  deletes no save, so at the history limit each merge leaves the history one more
-  over, until a later save that adds to the history, or a change in the Settings
-  tab, trims it (oldest first, merged saves included; a change of the save interval
-  does it without asking). When a ticked save is no longer in the history (deleted
-  or trimmed meanwhile), Make makes nothing: the dialog names the save that went
-  and shows what is left, which a second Make merges where two or more saves are
-  left. When nothing else could be
-  made, the dialog says so and stays open, and a failed Make shows its error under
-  the list.
-  The panel reads the history and settings again whenever either file changes.
-- **A file that cannot be read.** The history file or the save file cannot be read when
-  its text does not parse, parses to something that is not a history or a save, or the
-  read gives nothing for a file that is there. A history file that cannot be read is never
-  written over: the save still writes the save file, the chip shows `Save stalled` at once
-  and the Sessions tab says why with the file's path, the History tab says the file cannot
-  be read in place of `No saves yet`, and a delete, a merge or a Settings change writes
-  nothing to it (the merge dialog says the history cannot be read). While it cannot be read,
-  the Settings tab does not let the history limit change, and says why: a lower limit would
-  ask nothing, as the number of saves it drops is unknown, and the first save after the file is
-  fixed would drop them. Fix or remove the file
-  and the next save writes the history again. A save file that cannot be read is first
+- **No history.** Only the save above is kept; there is no list of past saves. A
+  `session-restore.history.json` an earlier version left in the data folder is no longer read or
+  written, and can be deleted by hand.
+  The panel reads the settings again whenever the file changes.
+- **A save file that cannot be read** (its text does not parse, parses to something that is not a
+  save, or the read gives nothing for a file that is there) is first
   copied, byte for byte, beside it as `session-restore.broken-<hash>.json` (one copy for
   each distinct content, however many saves or retries meet it), then written as before; a
   line at the foot of the Sessions tab gives the copy's path until its × is pressed. The
@@ -196,22 +163,17 @@ rewritten for each Herdr version and are the truth about the API.
   Settings change writes over it.
 - **The settings** are in `~/.config/herdr-app/data/session-restore.settings.json`:
   `autoSave` (default `true`; `false` turns off the save at start and on the timer, while
-  the panel's button and the `session-restore.save` command still save),
-  `saveEveryMinutes` (default 10) and `historyLimit` (default 50; there is no "No limit":
-  a `null` from before reads as 50). The Settings tab writes them: a switch for auto save, and number fields
-  for the other two that take only digits and apply on Enter or on leaving the field,
-  beside their − and +, each with its range shown and kept to it (an interval 1–1440
-  minutes, a limit 1–50 saves; − or + at an end is greyed). A hand edit of the interval is not
-  held to its range; a limit over 50 in the file reads as 50, so the next save that adds to the
-  history drops the oldest saves past 50 without asking. A limit below the
-  number of saves asks before it deletes the oldest. A hand edit applies at the chip's next check.
+  the panel's button and the `session-restore.save` command still save) and
+  `saveEveryMinutes` (default 10). A `historyLimit` an earlier version left in the file is ignored, and the
+  next Settings change drops it. The Settings tab writes them: a switch for auto save, and a number
+  field for the interval that takes only digits and applies on Enter or on leaving the field,
+  beside its − and +, with its range shown and kept to it (1–1440 minutes; − or + at an end is
+  greyed). A hand edit of the interval is not held to its range, and applies at the chip's next check.
   A change in the Settings tab writes only the field it changes, onto the file as it is when the
-  write runs: a hand edit (or another Herdr window's change) of another field is kept, and the trim
-  that follows uses the limit in the file, so a change of the interval trims to a hand-edited lower
-  limit without asking. A typed number, an interval chip and the limit confirm write their value
-  over a hand edit of the same field; − and + step from the value in the file, and the auto-save
-  switch turns it the other way from the file's, so a hand edit of 30 then + gives 31. A − on the
-  limit that would drop saves from the history shown asks first, for the limit shown less one.
+  write runs: a hand edit (or another Herdr window's change) of another field is kept. A typed
+  number and an interval chip write their value over a hand edit of the same field; − and + step
+  from the value in the file, and the auto-save switch turns it the other way from the file's, so a
+  hand edit of 30 then + gives 31.
   Changes run one at a time, in the order pressed, so quick presses all land and raise no error.
 - **Unfolding by itself.** When Herdr starts, the chip's first successful save
   unfolds the panel once if there is something to restore and the panel has not

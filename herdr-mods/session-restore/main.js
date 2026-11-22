@@ -7,7 +7,6 @@ import { anyBusy, chipState, staleAfter } from "./logic.js";
 import { startSaving } from "./save.js";
 import { herdrIo, shareSummary, SHARED } from "./io.js";
 import Sessions, { SPINNER } from "./panel.js";
-import MergeDialog from "./merge.js";
 
 /** chipState()'s dot as a theme color. */
 const DOT = { green: "ansi2", amber: "ansi3", red: "ansi1", dim: "dim" };
@@ -20,9 +19,6 @@ const PRESS_SLOP = 4;
 
 export default class SessionRestore extends View {
   init(p, cx) {
-    // Opened with view "merge", this copy is the merge dialog, not the chip.
-    const given = p ?? props();
-    if (given?.view === "merge") { this.merge = new MergeDialog(); this.merge.init(given, cx); return; }
     this.open = false;
     this.down = null;
     this.savedAt = Date.now();
@@ -33,7 +29,7 @@ export default class SessionRestore extends View {
     this.saver = startSaving(herdrIo(cx), {
       every: (ms, fn) => cx.timer.every(ms, fn),
       spawn: (cx, job) => cx.spawn(async (cx) => { await job(cx); cx.notify(); }),
-      share: (summary, save, history, turns) => { this.savedAt = Date.now(); this.panel.saved(save, history, turns, summary); shareSummary(summary); },
+      share: (summary, save, turn) => { this.savedAt = Date.now(); this.panel.saved(save, turn, summary); shareSummary(summary); },
       unfold: (cx) => { this.open = true; if (cx) this.panel.refresh(cx, false); },
       saving: (on, cx) => this.panel.timedSave(on, cx),
     }, cx);
@@ -50,7 +46,6 @@ export default class SessionRestore extends View {
   }
 
   render(cx) {
-    if (this.merge) return this.merge.render(cx);
     const t = theme();
     const stale = staleAfter(this.panel.settings.saveEveryMinutes);
     const { label, dot, spin } = chipState(shared(SHARED) ?? null, this.panel.progress(), Date.now() - this.savedAt, stale, anyBusy(this.panel.activity, "save"), this.panel.settings.autoSave);

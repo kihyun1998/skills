@@ -43,10 +43,10 @@ export const isShell = (fg) => /^(pwsh|powershell|cmd|bash|zsh|fish|sh|dash|ksh|
 const MIN = 60_000;
 
 /** The settings a missing or unreadable settings file stands for. */
-export const DEFAULT_SETTINGS = { saveEveryMinutes: 10, historyLimit: 50, autoSave: true };
+export const DEFAULT_SETTINGS = { saveEveryMinutes: 10, autoSave: true };
 
 /** What the Settings tab lets each number be. */
-export const SETTING_BOUNDS = { saveEveryMinutes: { min: 1, max: 1440 }, historyLimit: { min: 1, max: 50 } };
+export const SETTING_BOUNDS = { saveEveryMinutes: { min: 1, max: 1440 } };
 
 /** The ASCII digits of what a number field was given, in order. */
 export const digitsOnly = (text) => String(text ?? "").replace(/[^0-9]/g, "");
@@ -67,7 +67,6 @@ export function parseSettings(text) {
   if (!raw || typeof raw !== "object") return { ...DEFAULT_SETTINGS };
   return {
     saveEveryMinutes: whole(raw.saveEveryMinutes) ?? DEFAULT_SETTINGS.saveEveryMinutes,
-    historyLimit: Math.min(SETTING_BOUNDS.historyLimit.max, whole(raw.historyLimit) ?? DEFAULT_SETTINGS.historyLimit),
     autoSave: raw.autoSave !== false,
   };
 }
@@ -296,12 +295,11 @@ export function settleOpen(states, id, r, now) {
 
 const plural = (list, one, many) => (list.length === 1 ? one : many);
 const ACTIONS = {
-  delete: { place: "history", failed: (ids) => plural(ids, "Save " + ids[0] + " was", "Saves " + ids.join(", ") + " were") + " not deleted" },
   remove: { place: "sessions", failed: (keys) => plural(keys, "The session is", keys.length + " sessions are") + " still in the save" },
   refresh: { place: "sessions", single: true, failed: () => "The refresh did not finish" },
   check: { single: true },
   save: { place: "sessions", single: true, failed: () => "The save did not run" },
-  load: { place: "sessions", single: true, failed: () => "Could not read the save, the history or the settings" },
+  load: { place: "sessions", single: true, failed: () => "Could not read the save or the settings" },
   settings: { place: "settings", failed: () => "The settings change did not finish" },
 };
 
@@ -411,14 +409,6 @@ export function oneAtATime() {
   };
 }
 
-/** Whether a delete of any of the ticked saves is under way. */
-export const deletingPicked = (act, picked) => picked.some((id) => busyWith(act, "delete", id));
-
-export const afterDelete = ({ picked, expanded }, ids) => ({
-  picked: picked.filter((p) => !ids.includes(p)),
-  expanded: ids.includes(expanded) ? null : expanded,
-});
-
 /** The states once rows are taken out of the panel: their results forgotten, an open's opening mark left to that open. */
 export function withoutRows(states, keys) {
   const gone = new Set(keys);
@@ -493,105 +483,6 @@ export function folderChange(paths, dir, files) {
     return (a === parent && b === folder) || (a === folder && names.some((n) => b.startsWith(n)));
   };
   return paths.some(ours) ? "reload" : "skip";
-}
-
-/**
- * The overlay spec the merge dialog opens with. Its own key and keep false: Herdr may fill an
- * overlay's key and keep from mod.json, whose key is the chip's, and a second window with that key
- * replaces the chip.
- */
-export const mergeDialog = (ids) =>
-  ({ mod: "session-restore", props: { view: "merge", ids }, kind: "dialog", key: "session-restore.merge", keep: false, width: 760, height: 640 });
-
-/**
- * The save history's text read: { version, saves, lastId }, saves newest first, empty when there is
- * none (null), and null when the text does not parse or is not a history. lastId, the highest id the
- * history has given, is as the file holds it, and missing in a history from before it or with no
- * save yet.
- */
-export function parseHistory(text) {
-  if (text === null || text === undefined) return { version: 1, saves: [] };
-  try {
-    const h = JSON.parse(text);
-    if (h && Array.isArray(h.saves) && h.saves.every((s) => s && typeof s === "object" && Array.isArray(s.entries))) return h;
-  } catch {}
-  return null;
-}
-
-const idsOf = (entries) => entries.map((e) => e.sessionId).sort().join("\n");
-const usableId = (v) => Number.isInteger(v) && v >= 1 && v < Number.MAX_SAFE_INTEGER;
-const highestId = (history) => Math.max(0, ...[history.lastId, ...history.saves.map((s) => s.id)].filter(usableId));
-const nextId = (history) => highestId(history) + 1;
-
-/** The history with only its newest limit saves; the same history with no limit. */
-export const trimHistory = (history, limit) =>
-  limit == null || history.saves.length <= limit ? history : { ...history, saves: history.saves.slice(0, limit) };
-
-/** How many saves a limit would drop. */
-export const overLimit = (history, limit) => (limit == null ? 0 : Math.max(0, history.saves.length - limit));
-
-/**
- * The history with the sessions alive now added as a new save, kept to limit. The same history when
- * there are none, or when they are the same sessions as the newest save.
- */
-export function withSnapshot(history, entries, { now, limit }) {
-  if (!entries.length) return history;
-  if (history.saves[0] && idsOf(history.saves[0].entries) === idsOf(entries)) return history;
-  const id = nextId(history);
-  return trimHistory({ ...history, lastId: id, saves: [{ id, at: now, entries }, ...history.saves] }, limit);
-}
-
-/**
- * The history without the saves with the given ids; its lastId stays the highest id it has given, so
- * no id comes back. The same history when it has none of them: nothing removed, the highest id
- * stays where it was.
- */
-export function withoutSnapshots(history, ids) {
-  if (!history.saves.some((s) => ids.includes(s.id))) return history;
-  return { ...history, lastId: highestId(history), saves: history.saves.filter((s) => !ids.includes(s.id)) };
-}
-
-/**
- * Every session of the saves once, newest save first: { entry, in }, entry its record in the newest
- * save that has it, in the ids of the saves that have it, newest first.
- */
-export function mergeSessions(saves) {
-  const rows = new Map();
-  for (const s of [...saves].sort((a, b) => b.at - a.at)) {
-    for (const e of s.entries) {
-      if (!rows.has(e.sessionId)) rows.set(e.sessionId, { entry: e, in: [] });
-      rows.get(e.sessionId).in.push(s.id);
-    }
-  }
-  return [...rows.values()];
-}
-
-/**
- * The merge's rows (mergeSessions) by space, as groupsOf() groups the panel's: { id, name, rows },
- * id the herdr.space label, name its first row's space name, in the order the spaces first show.
- */
-export function mergeGroups(rows) {
-  const groups = new Map();
-  for (const r of rows) spaceOf(groups, r.entry).rows.push(r);
-  return [...groups.values()];
-}
-
-/** The ids, in their order, of the saves the history no longer has. */
-export const goneSaves = (history, ids) => ids.filter((id) => !history.saves.some((s) => s.id === id));
-
-/**
- * The history with a new save of the sessions in keep (session ids) from the saves with the given
- * ids (mergeSessions), deleting no save, so it may go over the history limit. The same history
- * when one of the saves is gone (goneSaves), fewer than two are given, or nothing is kept.
- */
-export function mergeSnapshots(history, ids, keep, { now }) {
-  if (goneSaves(history, ids).length) return history;
-  const saves = history.saves.filter((s) => ids.includes(s.id));
-  const entries = mergeSessions(saves).filter((r) => keep.includes(r.entry.sessionId)).map((r) => r.entry);
-  if (saves.length < 2 || !entries.length) return history;
-  const from = saves.map((s) => s.id).sort((a, b) => a - b);
-  const id = nextId(history);
-  return { ...history, lastId: id, saves: [{ id, at: now, from, entries }, ...history.saves] };
 }
 
 /** A terminal title without what an agent puts before it (a status glyph, a [ ! ] mark). */

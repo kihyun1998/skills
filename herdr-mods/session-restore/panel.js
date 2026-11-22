@@ -1,12 +1,11 @@
-// Sessions: three tabs. Sessions is the Claude sessions the save holds, grouped by space, to open
-// again in place or take out of the save; History is the past saves, to look into, open from,
-// delete and merge; Settings is the save interval and the history limit. The chip (main.js)
-// draws it above itself when unfolded.
+// Sessions: two tabs. Sessions is the Claude sessions the save holds, grouped by space, to open
+// again in place or take out of the save; Settings is auto save and the save interval. The chip
+// (main.js) draws it above itself when unfolded.
 import { div, svg, image } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
-import { run, theme, shared, checking, openOverlay, watchFolder, appHome } from "herdr";
-import { anyBusy, clampWhole, digitsOnly, SETTING_BOUNDS, batchResult, begin, busyWith, cleanTitle as clean, conductorOf, DEFAULT_SETTINGS, dismiss, endOpen, errorAt, finish, IDLE, press, entriesOf, folderChange, groupProgress, afterDelete, arrive, deletingPicked, oneAtATime, stepSetting, toggleAutoSave, withLook, groupsOf, keepLive, liveOf, mergeDialog, openable, openProgress, overLimit, parseHistory, reopenable, settleOpen, staleAfter, startOpen, withMarks, withoutRows, withRunning } from "./logic.js";
-import { deleteSaves, historyPath, lookAtTerminals, readHistory, readSettings, removeEntries, settingsPath, writeSettings } from "./save.js";
+import { run, theme, shared, checking, watchFolder, appHome } from "herdr";
+import { anyBusy, clampWhole, digitsOnly, SETTING_BOUNDS, batchResult, begin, busyWith, cleanTitle as clean, conductorOf, DEFAULT_SETTINGS, dismiss, endOpen, errorAt, finish, IDLE, press, entriesOf, folderChange, groupProgress, arrive, oneAtATime, stepSetting, toggleAutoSave, withLook, groupsOf, keepLive, liveOf, openable, openProgress, reopenable, settleOpen, staleAfter, startOpen, withMarks, withoutRows, withRunning } from "./logic.js";
+import { lookAtTerminals, readSettings, removeEntries, settingsPath, writeSettings } from "./save.js";
 import { openSessions } from "./open.js";
 import { herdrIo, nextTurn as countTurn, readSave, saveAndShare, SHARED } from "./io.js";
 
@@ -48,43 +47,35 @@ export default class Sessions {
     this.tasks = 0;
     this.hovered = null;
     this.tab = "sessions";
-    this.history = parseHistory(null);
     this.settings = { ...DEFAULT_SETTINGS };
     // The last refresh: session id to address, and when it looked.
     this.running = null;
     this.lookAt = null;
-    this.expanded = null;
-    this.picked = [];
-    this.askDelete = false;
-    this.askLimit = null;
     this.copied = null;
     this.turns = {};
     this.settingsWrites = oneAtATime();
     this.lastPress = null;
     this.inputs = {
       every: this.numberInput(() => this.settings.saveEveryMinutes, SETTING_BOUNDS.saveEveryMinutes, (n, cx) => this.setEvery(n, cx)),
-      limit: this.numberInput(() => this.settings.historyLimit, SETTING_BOUNDS.historyLimit, (n, cx) => this.setLimit(n, cx)),
     };
     if (checking()) return;
-    // The save, history and settings on disk, until the chip's first save hands the panel them.
+    // The save and settings on disk, until the chip's first save hands the panel the save.
     this.activity = begin(this.activity, "load", [null]);
     const read = this.nextTurn();
     cx.spawn((cx) => this.track(cx, "load", [null], async () => {
       const io = herdrIo(cx);
-      const [save, history, settings] = await Promise.all([readSave(), readHistory(io), readSettings(io)]);
+      const [save, settings] = await Promise.all([readSave(), readSettings(io)]);
       if (this.take("save", read)) this.save = save;
-      if (this.take("history", read)) this.history = history;
       if (this.take("settings", read)) this.useSettings(settings);
     }));
     cx.spawn(async (cx) => {
-      const dir = appHome().replace(/[\\/]+$/, "") + "/data", files = [historyPath(appHome()), settingsPath(appHome())];
+      const dir = appHome().replace(/[\\/]+$/, "") + "/data", files = [settingsPath(appHome())];
       for (;;) {
         let change = "reload";
         try { change = folderChange(await watchFolder(dir), dir, files); } catch { await cx.sleep(10000); }
         if (change === "skip") continue;
         if (change === "released") await cx.sleep(1000);
         const io = herdrIo(cx);
-        try { await this.read("history", () => readHistory(io), (history) => { this.history = history; }); } catch {}
         try { await this.read("settings", () => readSettings(io), (settings) => this.useSettings(settings)); } catch {}
         cx.notify();
       }
@@ -113,10 +104,9 @@ export default class Sessions {
    * opened marks it shows gone are dropped (keepLive). A copy the save made of a save file that could
    * not be read is kept to show (copied) until it is closed.
    */
-  saved(save, history, turns, summary = null) {
+  saved(save, turn, summary = null) {
     if (summary?.saveCopied) this.copied = summary.saveCopied;
-    if (history && this.take("history", turns?.history)) this.history = history;
-    if (!save || !this.take("save", turns?.save)) return;
+    if (!save || !this.take("save", turn)) return;
     this.save = save;
     this.state = keepLive(this.state, liveOf(save), save.savedAt);
   }
@@ -173,12 +163,7 @@ export default class Sessions {
     else this.end(cx, "save", ["timer"]);
   }
 
-  /** Which sessions are open: the last refresh when it is newer than the save, else the save. */
-  liveNow() {
-    return this.lookAt != null && this.lookAt > (this.save?.savedAt ?? 0) ? this.running : liveOf(this.save);
-  }
-
-  /** The save's entries, live as liveNow() has them. */
+  /** The save's entries, live as the last refresh has them when it is newer than the save, else as the save has them. */
   entries() {
     const all = entriesOf(this.save);
     return this.lookAt != null && this.lookAt > (this.save?.savedAt ?? 0) ? withRunning(all, this.running) : all;
@@ -196,8 +181,8 @@ export default class Sessions {
 
   runSave(cx, targets) {
     return this.track(cx, "save", targets, async () => {
-      const { save, history, turns, summary } = await saveAndShare(cx);
-      this.saved(save, history, turns, summary);
+      const { save, turn, summary } = await saveAndShare(cx);
+      this.saved(save, turn, summary);
     });
   }
 
@@ -205,24 +190,6 @@ export default class Sessions {
     const tag = name + "-" + ++this.tasks;
     this.markBusy(cx, "save", [tag]);
     await this.runSave(cx, [tag]);
-  }
-
-  // A history change on disk, then the history shown.
-  changeHistory(cx, action, targets, change, done = () => {}) {
-    const go = this.start(cx, action, targets);
-    if (!go.length) return;
-    cx.spawn((cx) => this.track(cx, action, go, async () => {
-      const { history, turn } = await change(herdrIo(cx), go);
-      if (this.take("history", turn)) this.history = history;
-      done(go);
-    }));
-  }
-
-  deleteHistory(cx, ids) {
-    if (ids.some((id) => this.picked.includes(id))) this.askDelete = false;
-    this.changeHistory(cx, "delete", ids, (io, go) => deleteSaves(io, go), (go) => {
-      ({ picked: this.picked, expanded: this.expanded } = afterDelete({ picked: this.picked, expanded: this.expanded }, go));
-    });
   }
 
   /**
@@ -269,26 +236,6 @@ export default class Sessions {
     this.setSettings(() => ({ saveEveryMinutes: clampWhole(n, min, max) }), cx);
   }
 
-  // A lower limit that would drop saves asks first.
-  setLimit(n, cx) {
-    if (this.history.broken) return;
-    const { min, max } = SETTING_BOUNDS.historyLimit;
-    const limit = clampWhole(n, min, max);
-    if (overLimit(this.history, limit) > 0) { this.askLimit = limit; cx.notify(); return; }
-    this.setSettings(() => ({ historyLimit: limit }), cx);
-  }
-
-  /**
-   * − or + on the history limit: a step from the limit in the file as the write reads it, except a −
-   * that would drop saves from the history shown, which asks first for the limit shown less one.
-   */
-  stepLimit(sign, cx) {
-    if (this.history.broken) return;
-    const shown = this.settings.historyLimit;
-    if (sign < 0 && overLimit(this.history, shown - 1) > 0) return this.setLimit(shown - 1, cx);
-    this.setSettings(stepSetting("historyLimit", sign), cx);
-  }
-
   /**
    * A settings change pressed in the panel: the fields change(settings) gives, shown at once from the
    * settings shown, then written onto the file as it is read then, one press at a time in press
@@ -300,15 +247,15 @@ export default class Sessions {
     this.lastPress = pressed;
     this.take("settings", pressed);
     this.useSettings({ ...this.settings, ...change(this.settings) }, { force: true });
-    this.askLimit = null;
-    this.changeHistory(cx, "settings", [++this.tasks], (io) => this.settingsWrites(() => this.writePress(io, change, pressed, prev)));
+    const go = this.start(cx, "settings", [++this.tasks]);
+    if (!go.length) return;
+    cx.spawn((cx) => this.track(cx, "settings", go, () => this.settingsWrites(() => this.writePress(herdrIo(cx), change, pressed, prev))));
   }
 
   async writePress(io, change, pressed, prev) {
     try {
-      const { settings, history, settingsTurn, historyTurn } = await writeSettings(io, change);
-      if (pressed === this.lastPress && this.take("settings", settingsTurn)) this.useSettings(settings);
-      return { history, turn: historyTurn };
+      const { settings, turn } = await writeSettings(io, change);
+      if (pressed === this.lastPress && this.take("settings", turn)) this.useSettings(settings);
     } catch (err) {
       if (pressed === this.lastPress) await this.read("settings", () => readSettings(io).catch(() => prev), (back) => this.useSettings(back, { force: true }));
       throw err;
@@ -317,14 +264,14 @@ export default class Sessions {
 
   // Reads which sessions run, drops the opened marks that shows gone, then marks and opens. A press
   // while that read runs does nothing.
-  open(entries, cx, allOf = () => this.entries()) {
+  open(entries, cx) {
     const go = this.start(cx, "check", entries.map((e) => e.key));
     if (!go.length) return;
     cx.spawn(async (cx) => {
       const io = herdrIo(cx);
       const look = await this.track(cx, "check", go, () => lookAtTerminals(io));
       if (look) this.useLook(look);
-      const all = withMarks(allOf(), this.state), id = ++this.opens;
+      const all = withMarks(this.entries(), this.state), id = ++this.opens;
       ({ states: this.state, batch: this.batch } = startOpen(this.state, this.batch, entries, all, id));
       cx.notify();
       await openSessions(io, entries, all, (r) => {
@@ -385,31 +332,31 @@ export default class Sessions {
     return div().size(7).mx(3).flex_none().rounded(4).bg(e.status === "working" ? t.ansi3 : t.dim);
   }
 
-  // A session row. In a history save (from set) there is no ×, and Open opens against that save's list.
-  row(t, e, depth, all, from = null) {
+  // A session row.
+  row(t, e, depth, all) {
     const worker = depth > 0;
     const s = this.state.get(e.key);
     const title = clean(e.title) || e.name || e.address;
     const tab = e.tabNamed ? e.tabName : e.tabName ? "tab " + e.tabName : null;
     const was = e.live ? "open" : "closed" + (e.status ? " · was " + e.status : "");
     const tag = model(e);
-    const hovered = this.hovered === (from ? "h" + from + "-" : "") + e.key;
+    const hovered = this.hovered === e.key;
     const checkingOpen = anyBusy(this.activity, "check");
     const actions = () => {
       if (e.live || s?.at === "opened") {
         const address = s?.address ?? e.address;
         return [this.button(t, "go-" + e.key, "Go", () => run("agent.focus", { terminal: address }), true)];
       }
-      const id = (from ? "h" + from + "-" : "") + e.key;
-      const remove = from ? [] : [this.button(t, "rm-" + id, "×", (cx) => this.remove([e.key], cx))];
-      const open = (cx) => (from ? this.open([e], cx, () => all) : this.open([e], cx));
+      const id = e.key;
+      const remove = [this.button(t, "rm-" + id, "×", (cx) => this.remove([e.key], cx))];
+      const open = (cx) => this.open([e], cx);
       if (checkingOpen && openable(e, all)) return remove;
       if (worker && openable(e, all) && conductorOf(e, all)?.live) return [this.button(t, "open-" + id, "Open", open, true), ...remove];
       if (worker && openable(e, all)) return [div().px(6).text_size(11).text_color(t.dim).child("with its conductor"), ...remove];
       if (!openable(e, all)) return [div().px(6).text_size(11).text_color(t.dim).child("conductor not in the list"), ...remove];
       return [this.button(t, "open-" + id, "Open", open, true), ...remove];
     };
-    const rowId = (from ? "h" + from + "-" : "") + e.key;
+    const rowId = e.key;
     const doing = busyWith(this.activity, "remove", e.key) ? "Removing" : busyWith(this.activity, "check", e.key) ? "Checking" : null;
     return h_flex().id("row-" + rowId).h(worker ? 38 : 44).pl(14 + depth * 26).pr(8).mx(6).gap(9).flex_none().items_center().rounded(7)
       .hover((st) => st.bg(t.hover))
@@ -452,8 +399,6 @@ export default class Sessions {
     const why = stalled
       ? summary?.error
         ? "The save failed: " + summary.error + ". The last good save is kept."
-        : summary?.historyBroken
-          ? "The history file cannot be read: " + historyPath(appHome()) + ". The save goes on; nothing is written to the history until the file is fixed or removed."
         : summary?.unreadable
           ? "Could not read " + summary.unreadable + " session id(s). A Claude Code update may have changed its session files. The last good save is kept."
           : summary?.unchecked
@@ -519,84 +464,6 @@ export default class Sessions {
       .when(Boolean(copiedNote), (el) => el.child(copiedNote));
   }
 
-  box(t, id, on, action) {
-    return div().id(id).size(14).flex_none().rounded(3).border_1().border_color(on ? t.accent : t.input)
-      .bg(on ? t.accent : t.background).text_color(t.background).text_size(10).flex().items_center().justify_center()
-      .cursor_pointer().on_click((_e, cx) => { cx.stop_propagation(); action(cx); cx.notify(); })
-      .child(on ? "✓" : "");
-  }
-
-  // The History tab: past saves, newest first; one opens to its sessions, ticked ones delete or merge together.
-  historyTab(t) {
-    const saves = this.history.saves, now = Date.now(), live = this.liveNow();
-    const what = (sv, i) => {
-      if (sv.from) return "merged " + sv.from.join(" + ");
-      const prev = saves[i + 1];
-      if (!prev) return null;
-      const a = new Set(prev.entries.map((e) => e.sessionId)), b = new Set(sv.entries.map((e) => e.sessionId));
-      return "+" + [...b].filter((k) => !a.has(k)).length + " −" + [...a].filter((k) => !b.has(k)).length;
-    };
-    const rows = saves.flatMap((sv, i) => {
-      const open = this.expanded === sv.id, deleting = busyWith(this.activity, "delete", sv.id);
-      const head = h_flex().id("save-" + sv.id).h(42).px(10).mx(6).gap(8).flex_none().items_center().rounded(7).cursor_pointer()
-        .when(open, (el) => el.bg(t.hover)).hover((s) => s.bg(t.hover))
-        .on_click((_e, cx) => { this.expanded = open ? null : sv.id; cx.notify(); })
-        .child(this.box(t, "pick-" + sv.id, this.picked.includes(sv.id), () => {
-          this.picked = this.picked.includes(sv.id) ? this.picked.filter((p) => p !== sv.id) : [...this.picked, sv.id];
-          this.askDelete = false;
-        }))
-        .child(v_flex().flex_1().min_w(0)
-          .child(div().text_size(12.8).child("save " + sv.id + (i === 0 ? " · latest" : "")))
-          .child(div().truncate().text_size(11).text_color(t.dim)
-            .child([ago(now - sv.at), sv.entries.length + (sv.entries.length === 1 ? " session" : " sessions"), what(sv, i)].filter(Boolean).join(" · "))))
-        .when(deleting, (el) => el.loop("opacity", PULSE))
-        .children(deleting ? [this.spinner(t, "Deleting save " + sv.id)] : [
-          div().text_color(t.dim).child(open ? "▾" : "▸"),
-          this.button(t, "del-" + sv.id, "×", (cx) => this.deleteHistory(cx, [sv.id])),
-        ]);
-      if (!open) return [head];
-      const all = withRunning(sv.entries.map((e) => ({ ...e, key: e.key ?? e.sessionId })), live);
-      const marked = withMarks(all, this.state);
-      return [head, ...groupsOf(marked, this.state).flatMap((g) => g.rows.map((r) => div().pl(14).child(this.row(t, r.entry, r.depth, marked, sv.id))))];
-    });
-    const empty = this.history.broken
-      ? div().p(16).text_size(12).text_color(t.ansi1)
-        .child("The history file cannot be read: " + historyPath(appHome()) + ". Saves go on into the save file, and nothing is written to the history until the file is fixed or removed.")
-      : div().p(16).text_size(12).text_color(t.dim)
-        .child("No saves yet. A save is kept here each time the list of open sessions changes.");
-    const picked = this.picked.filter((id) => saves.some((s) => s.id === id)), n = picked.length;
-    const allOn = n > 0 && n === saves.length, deleting = deletingPicked(this.activity, picked);
-    const selectAll = h_flex().id("pick-all").gap(8).items_center().cursor_pointer()
-      .on_click((_e, cx) => { this.picked = allOn ? [] : saves.map((s) => s.id); this.askDelete = false; cx.notify(); })
-      .child(div().size(14).flex_none().rounded(3).border_1().border_color(n ? t.accent : t.input).bg(n ? t.accent : t.background)
-        .text_color(t.background).text_size(10).flex().items_center().justify_center().child(allOn ? "✓" : n ? "–" : ""))
-      .child(div().text_size(11.5).text_color(t.muted).child(n ? n + " selected" : "Select all"));
-    const foot = this.askDelete && n && !deleting
-      ? h_flex().p(10).gap(8).flex_none().items_center().border_t(1).border_color(t.border)
-        .child(div().flex_1().text_size(12).child("Delete " + n + (n === 1 ? " save?" : " saves?")))
-        .child(this.button(t, "delete-yes", "Delete", (cx) => {
-          this.askDelete = false;
-          this.deleteHistory(cx, picked);
-        }, true))
-        .child(this.button(t, "delete-no", "Cancel", () => { this.askDelete = false; }))
-      : h_flex().p(10).gap(6).flex_none().items_center().border_t(1).border_color(t.border)
-        .child(selectAll)
-        .child(div().flex_1())
-        .when(n > 0, (el) => el.child(this.button(t, "pick-clear", "Clear", () => { this.picked = []; })))
-        .when(n > 0 && !deleting, (el) => el.child(this.button(t, "delete-picked", "Delete · " + n, () => { this.askDelete = true; })))
-        .when(n > 1 && !deleting, (el) => el.child(this.button(t, "merge", "Merge · " + n, () => this.openMerge(picked), true)));
-    const banner = this.banner(t, "history");
-    return v_flex().size_full().min_h(0)
-      .when(Boolean(banner), (el) => el.child(banner))
-      .child(!saves.length && anyBusy(this.activity, "load") ? div().flex_1().child(this.loading(t)) : saves.length ? v_flex().id("history-list").flex_1().min_h(0).pt(6).pb(8).overflow_y_scrollbar().children(rows) : div().flex_1().child(empty))
-      .when(saves.length > 0, (el) => el.child(foot));
-  }
-
-  // The merge opens in a dialog of its own (merge.js).
-  openMerge(ids) {
-    openOverlay(mergeDialog(ids));
-  }
-
   stepper(t, id, input, value, step, { min, max }) {
     const stepButton = (sign, label, end) => value === end
       ? div().w(24).h(24).flex().items_center().justify_center().text_size(12).text_color(t.dim).opacity(0.4).child(label)
@@ -622,12 +489,11 @@ export default class Sessions {
         .on_click((_e, cx) => set(n, cx)).child(label(n))));
   }
 
-  // The Settings tab: the save interval in minutes and how many saves the history keeps.
+  // The Settings tab: auto save and the save interval in minutes.
   settingsTab(t) {
-    const s = this.settings, count = this.history.saves.length, locked = Boolean(this.history.broken);
+    const s = this.settings;
     const every = (n, cx) => this.setEvery(n, cx);
-    const stepEvery = (sign, cx) => this.setSettings(stepSetting("saveEveryMinutes", sign), cx), stepLimit = (sign, cx) => this.stepLimit(sign, cx);
-    const ask = this.askLimit;
+    const stepEvery = (sign, cx) => this.setSettings(stepSetting("saveEveryMinutes", sign), cx);
     const section = (title) => div().text_size(12.5).font_semibold().child(title);
     const banner = this.banner(t, "settings");
     return v_flex().size_full().min_h(0)
@@ -645,27 +511,8 @@ export default class Sessions {
           .child(div().text_size(11.5).text_color(t.dim).child(SETTING_BOUNDS.saveEveryMinutes.min + "–" + SETTING_BOUNDS.saveEveryMinutes.max)))
         .child(this.chips(t, "every-p", [5, 10, 15, 30, 60], s.saveEveryMinutes, (n) => n + "m", every)))
       .child(div().text_size(11.5).text_color(t.dim).child(s.autoSave
-        ? "A save goes into History only when the list of open sessions changed. Refresh never saves."
+        ? "Refresh never saves."
         : "Off: nothing saves by itself, at start or on a timer. Save now still saves."))
-      .child(div().h(1).mt(4).mb(4).bg(t.border))
-      .child(section("History"))
-      .when(locked, (el) => el.child(h_flex().gap(10).items_center()
-        .child(div().text_size(12.5).text_color(t.muted).child("Keep"))
-        .child(div().text_size(12.5).text_color(t.dim).child(s.historyLimit + " saves"))))
-      .when(locked, (el) => el.child(div().id("limit-locked").text_size(11.5).text_color(t.ansi1)
-        .child("The history file cannot be read, so the limit cannot change until it is fixed or removed: " + historyPath(appHome()))))
-      .when(!locked, (el) => el.child(h_flex().gap(10).items_center()
-        .child(div().text_size(12.5).text_color(t.muted).child("Keep"))
-        .child(this.stepper(t, "limit", this.inputs.limit, s.historyLimit, stepLimit, SETTING_BOUNDS.historyLimit))
-        .child(div().text_size(12).text_color(t.muted).child("saves"))
-        .child(div().text_size(11.5).text_color(t.dim).child(SETTING_BOUNDS.historyLimit.min + "–" + SETTING_BOUNDS.historyLimit.max))))
-      .when(!locked, (el) => el.child(div().text_size(11.5).text_color(t.dim).child(count + (count === 1 ? " save" : " saves") + " now")))
-      .when(ask != null && !locked, (el) => el.child(v_flex().mt(4).p(10).gap(8).rounded(7).border_1().border_color(t.ansi3)
-        .child(div().text_size(12.5).child("Keep only the newest " + ask + " saves?"))
-        .child(div().text_size(11.5).text_color(t.muted).child(overLimit(this.history, ask) + " older saves will be deleted."))
-        .child(h_flex().gap(6)
-          .child(this.button(t, "limit-yes", "Keep the newest " + ask, (cx) => this.setSettings(() => ({ historyLimit: ask }), cx), true))
-          .child(this.button(t, "limit-no", "Cancel", () => { this.askLimit = null; })))))
       .child(div().mt(6).text_size(11).text_color(t.dim).child("Stored in ~/.config/herdr-app/data/session-restore.settings.json")));
   }
 
@@ -679,12 +526,12 @@ export default class Sessions {
       .when(Boolean(doing), (el) => el.role("progress_indicator").accessibility_label(doing))
       .child(doing ? svg(SPINNER).size(14).spin(900) : svg(file).size(14));
     const bar = h_flex().px(6).pt(6).flex_none().items_center().border_b(1).border_color(t.border)
-      .child(tab("sessions", "Sessions")).child(tab("history", "History · " + this.history.saves.length)).child(tab("settings", "Settings"))
+      .child(tab("sessions", "Sessions")).child(tab("settings", "Settings"))
       .child(div().flex_1())
       .child(icon("refresh", "Refresh: show which sessions are open now (saves nothing)", (cx) => this.refresh(cx), "mods/session-restore/refresh.svg",
         anyBusy(this.activity, "refresh") && "Refreshing"))
       .child(icon("save-now", "Save now", (cx) => this.saveNow(cx), "mods/session-restore/save.svg", anyBusy(this.activity, "save") && "Saving"));
-    const body = this.tab === "history" ? this.historyTab(t) : this.tab === "settings" ? this.settingsTab(t) : this.sessionsTab(t);
+    const body = this.tab === "settings" ? this.settingsTab(t) : this.sessionsTab(t);
     return v_flex().id("sessions").size_full().min_h(0).rounded(10).overflow_hidden().bg(t.background).border_1().border_color(t.border)
       .text_color(t.foreground).text_size(13)
       .child(bar)

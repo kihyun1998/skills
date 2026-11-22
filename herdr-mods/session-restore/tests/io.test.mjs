@@ -1,7 +1,7 @@
 // save.js and open.js against a fake hc and file system: run with node --test 'herdr-mods/session-restore/tests/*.test.mjs'
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { lookAtTerminals, runningSessions, saveOnce, savePath, removeEntries, startSaving, CHECK_EVERY_MS, settingsPath, historyPath, readSettings, writeSettings, readHistory, deleteSaves, mergeSaves, saveAndSummarize } from "../save.js";
+import { lookAtTerminals, runningSessions, saveOnce, savePath, removeEntries, startSaving, CHECK_EVERY_MS, settingsPath, readSettings, writeSettings, saveAndSummarize } from "../save.js";
 import { openSessions } from "../open.js";
 import { folderChange, parseSettings, settleOpen, withMarks } from "../logic.js";
 
@@ -271,57 +271,38 @@ function counted(m) {
 const lastAt = (at, kind, path) => at.filter((a) => a[0] === kind && a[1] === path).at(-1)[2];
 const firstAt = (at, kind, path) => at.find((a) => a[0] === kind && a[1] === path)[2];
 
-test("each save hands share the numbers taken as its save file and its history file were written", async () => {
+test("each save hands share the number taken as its save file was written", async () => {
   const m = machine({ terminals: [claudeTerm("t4", 100)], files: { [pidPath(100)]: pidText("s1"), [transcript("D--repo", "s1")]: "{}\n" } });
   const at = counted(m);
   const shared = [], tasks = [];
   startSaving(m.io, {
     every: () => {},
     spawn: (_cx, job) => tasks.push(job()),
-    share: (_summary, _save, _history, turns) => shared.push(turns),
+    share: (_summary, _save, turn) => shared.push(turn),
     unfold: () => {},
   });
   while (tasks.length) await tasks.shift();
-  const save = firstAt(at, "write", savePath(APP)), history = firstAt(at, "write", historyPath(APP));
-  assert.deepEqual(shared, [{ save: save + 1, history: history + 1 }]);
-  assert.ok(save + 1 <= history);
+  assert.deepEqual(shared, [firstAt(at, "write", savePath(APP)) + 1]);
 });
 
-test("a failed save hands share the numbers taken before it read the files back", async () => {
+test("a failed save hands share the number taken before it read the save file back", async () => {
   const m = machine();
   const at = counted(m);
   m.io.hc = async () => ({ code: 1, stdout: "", stderr: "core not running" });
-  const { turns, summary } = await saveAndSummarize(m.io, parseSettings(null));
+  const { turn, summary } = await saveAndSummarize(m.io, parseSettings(null));
   assert.ok(summary.error);
-  assert.deepEqual(turns, { save: lastAt(at, "read", savePath(APP)), history: lastAt(at, "read", historyPath(APP)) });
+  assert.equal(turn, lastAt(at, "read", savePath(APP)));
 });
 
-test("removeEntries, deleteSaves and writeSettings return the number taken once their write landed", async () => {
+test("removeEntries and writeSettings return the number taken once their write landed", async () => {
   const prev = { version: 1, current: [], restore: [{ key: "a", sessionId: "a" }] };
-  const hist = { version: 1, saves: [3, 2, 1].map((id) => ({ id, at: id, entries: [] })) };
-  const m = machine({ files: { [savePath(APP)]: JSON.stringify(prev), [historyPath(APP)]: JSON.stringify(hist) } });
+  const m = machine({ files: { [savePath(APP)]: JSON.stringify(prev) } });
   const at = counted(m);
   const removed = await removeEntries(m.io, ["a"]);
   assert.deepEqual(removed.save.restore, []);
   assert.deepEqual(removed.turn, lastAt(at, "write", savePath(APP)) + 1);
-  const deleted = await deleteSaves(m.io, [2]);
-  assert.deepEqual(deleted.history.saves.map((s) => s.id), [3, 1]);
-  assert.deepEqual(deleted.turn, lastAt(at, "write", historyPath(APP)) + 1);
-  const trimmed = await writeSettings(m.io, () => ({ historyLimit: 1 }));
-  assert.deepEqual(trimmed.history.saves.map((s) => s.id), [3]);
-  assert.deepEqual(trimmed.settingsTurn, lastAt(at, "write", settingsPath(APP)) + 1);
-  assert.deepEqual(trimmed.historyTurn, lastAt(at, "write", historyPath(APP)) + 1);
-  assert.ok(trimmed.settingsTurn < trimmed.historyTurn);
-  const kept = await writeSettings(m.io, () => ({ saveEveryMinutes: 6 }));
-  assert.deepEqual(kept.historyTurn, lastAt(at, "read", historyPath(APP)));
-});
-
-test("deleteSaves that changes nothing returns the number taken before it read the history", async () => {
-  const m = machine({ files: { [historyPath(APP)]: JSON.stringify({ version: 1, saves: [{ id: 1, at: 1, entries: [] }] }) } });
-  const at = counted(m);
-  const { turn } = await deleteSaves(m.io, [9]);
-  assert.deepEqual(turn, lastAt(at, "read", historyPath(APP)));
-  assert.equal(at.filter((a) => a[0] === "write").length, 0);
+  const set = await writeSettings(m.io, () => ({ saveEveryMinutes: 6 }));
+  assert.equal(set.turn, lastAt(at, "write", settingsPath(APP)) + 1);
 });
 
 test("the chip runs one save at a time: a tick while one runs does nothing", async () => {
@@ -627,142 +608,53 @@ test("runningSessions maps each session a live Claude terminal's pid file holds 
 });
 
 
-// ---- history and settings on disk (#83) ----
+// ---- settings on disk (#83) ----
 
 const oneClaude = (id = "s1", pid = 100, address = "t4") => ({ terminals: [claudeTerm(address, pid)], files: { [pidPath(pid)]: pidText(id), [transcript("D--repo", id)]: "{}\n" } });
 
-test("saveOnce adds the sessions alive now to the history, and nothing when the list did not change", async () => {
-  const m = machine(oneClaude());
-  await saveOnce(m.io);
-  await saveOnce(m.io);
-  const h = JSON.parse(m.files[historyPath(APP)]);
-  assert.deepEqual(h.saves.map((s) => [s.id, s.entries.map((e) => e.sessionId)]), [[1, ["s1"]]]);
-  m.files[pidPath(100)] = pidText("s2");
-  m.files[transcript("D--repo", "s2")] = "{}\n";
-  await saveOnce(m.io);
-  assert.deepEqual(JSON.parse(m.files[historyPath(APP)]).saves.map((s) => s.id), [2, 1]);
-});
-
-test("saveOnce keeps the history to the limit in the settings file", async () => {
-  const m = machine(oneClaude());
-  m.files[settingsPath(APP)] = JSON.stringify({ historyLimit: 1 });
-  await saveOnce(m.io);
-  m.files[pidPath(100)] = pidText("s2");
-  m.files[transcript("D--repo", "s2")] = "{}\n";
-  await saveOnce(m.io);
-  assert.deepEqual(JSON.parse(m.files[historyPath(APP)]).saves.map((s) => s.id), [2]);
-});
-
-test("readSettings gives the defaults with no file, and writeSettings writes the file and trims the history to a lower limit", async () => {
-  const saves = [3, 2, 1].map((id) => ({ id, at: id, entries: [{ sessionId: "s" + id }] }));
-  const m = machine({ files: { [historyPath(APP)]: JSON.stringify({ version: 1, saves }) } });
-  assert.deepEqual(await readSettings(m.io), { saveEveryMinutes: 10, historyLimit: 50, autoSave: true });
-  await writeSettings(m.io, () => ({ saveEveryMinutes: 5, historyLimit: 2 }));
-  assert.deepEqual(JSON.parse(m.files[settingsPath(APP)]), { saveEveryMinutes: 5, historyLimit: 2, autoSave: true });
-  assert.deepEqual((await readHistory(m.io)).saves.map((s) => s.id), [3, 2]);
+test("readSettings gives the defaults with no file, and writeSettings writes the file", async () => {
+  const m = machine();
+  assert.deepEqual(await readSettings(m.io), { saveEveryMinutes: 10, autoSave: true });
+  await writeSettings(m.io, () => ({ saveEveryMinutes: 5 }));
+  assert.deepEqual(JSON.parse(m.files[settingsPath(APP)]), { saveEveryMinutes: 5, autoSave: true });
 });
 
 test("writeSettings writes only the fields its change gives, onto the settings file as it reads it then, and returns what it wrote", async () => {
-  const saves = [3, 2, 1].map((id) => ({ id, at: id, entries: [] }));
-  const m = machine({ files: { [historyPath(APP)]: JSON.stringify({ version: 1, saves }), [settingsPath(APP)]: JSON.stringify({ saveEveryMinutes: 30, historyLimit: 50, autoSave: false }) } });
-  const { settings, history } = await writeSettings(m.io, () => ({ historyLimit: 2 }));
-  const written = { saveEveryMinutes: 30, historyLimit: 2, autoSave: false };
+  const m = machine({ files: { [settingsPath(APP)]: JSON.stringify({ saveEveryMinutes: 30, autoSave: false }) } });
+  const { settings } = await writeSettings(m.io, () => ({ saveEveryMinutes: 2 }));
+  const written = { saveEveryMinutes: 2, autoSave: false };
   assert.deepEqual(JSON.parse(m.files[settingsPath(APP)]), written);
   assert.deepEqual(settings, written);
-  assert.deepEqual(history.saves.map((s) => s.id), [3, 2]);
 });
 
-test("writeSettings trims the history to the limit it wrote, a hand edit's included, when its change gives another field", async () => {
-  const saves = [3, 2, 1].map((id) => ({ id, at: id, entries: [] }));
-  const m = machine({ files: { [historyPath(APP)]: JSON.stringify({ version: 1, saves }), [settingsPath(APP)]: JSON.stringify({ historyLimit: 2 }) } });
-  const { settings, history } = await writeSettings(m.io, () => ({ saveEveryMinutes: 5 }));
-  assert.deepEqual(settings, { saveEveryMinutes: 5, historyLimit: 2, autoSave: true });
-  assert.deepEqual(history.saves.map((s) => s.id), [3, 2]);
+test("writeSettings drops a historyLimit a settings file from before kept", async () => {
+  const m = machine({ files: { [settingsPath(APP)]: JSON.stringify({ saveEveryMinutes: 30, historyLimit: 7, autoSave: true }) } });
+  await writeSettings(m.io, () => ({ saveEveryMinutes: 31 }));
+  assert.deepEqual(JSON.parse(m.files[settingsPath(APP)]), { saveEveryMinutes: 31, autoSave: true });
 });
 
 test("writeSettings applies a change to the settings as it reads them, a hand edit's included", async () => {
-  const m = machine({ files: { [settingsPath(APP)]: JSON.stringify({ saveEveryMinutes: 30, historyLimit: 50, autoSave: true }) } });
+  const m = machine({ files: { [settingsPath(APP)]: JSON.stringify({ saveEveryMinutes: 30, autoSave: true }) } });
   const seen = [];
   const { settings } = await writeSettings(m.io, (s) => { seen.push(s); return { saveEveryMinutes: s.saveEveryMinutes + 1, autoSave: !s.autoSave }; });
-  assert.deepEqual(seen, [{ saveEveryMinutes: 30, historyLimit: 50, autoSave: true }]);
-  assert.deepEqual(settings, { saveEveryMinutes: 31, historyLimit: 50, autoSave: false });
+  assert.deepEqual(seen, [{ saveEveryMinutes: 30, autoSave: true }]);
+  assert.deepEqual(settings, { saveEveryMinutes: 31, autoSave: false });
   assert.deepEqual(JSON.parse(m.files[settingsPath(APP)]), settings);
 });
 
 test("writeSettings over a file changed while it wrote writes its fields onto the change, keeping the change's other fields", async () => {
   const path = settingsPath(APP);
-  const m = machine({ files: { [path]: JSON.stringify({ saveEveryMinutes: 10, historyLimit: 50 }) } });
+  const m = machine({ files: { [path]: JSON.stringify({ saveEveryMinutes: 10 }) } });
   const write = m.io.write;
   let edited = false;
   m.io.write = async (p, text, expected) => {
-    if (p === path && !edited) { edited = true; m.files[path] = JSON.stringify({ saveEveryMinutes: 30, historyLimit: 7 }); }
+    if (p === path && !edited) { edited = true; m.files[path] = JSON.stringify({ saveEveryMinutes: 30, autoSave: false }); }
     return write(p, text, expected);
   };
-  const { settings } = await writeSettings(m.io, () => ({ historyLimit: 40 }));
+  const { settings } = await writeSettings(m.io, () => ({ saveEveryMinutes: 40 }));
   assert.equal(edited, true);
-  assert.deepEqual(JSON.parse(m.files[path]), { saveEveryMinutes: 30, historyLimit: 40, autoSave: true });
-  assert.deepEqual(settings, { saveEveryMinutes: 30, historyLimit: 40, autoSave: true });
-});
-
-test("deleteSaves and mergeSaves change the history file", async () => {
-  const saves = [
-    { id: 2, at: 20, entries: [{ sessionId: "b", title: "new" }] },
-    { id: 1, at: 10, entries: [{ sessionId: "a" }, { sessionId: "b", title: "old" }] },
-  ];
-  const m = machine({ files: { [historyPath(APP)]: JSON.stringify({ version: 1, saves }) } });
-  const { history: merged, made } = await mergeSaves(m.io, [1, 2], ["a", "b"]);
-  assert.deepEqual(merged.saves[0].entries.map((e) => [e.sessionId, e.title ?? null]), [["b", "new"], ["a", null]]);
-  assert.equal(made, merged.saves[0]);
-  await deleteSaves(m.io, [2, 1]);
-  assert.deepEqual((await readHistory(m.io)).saves.map((s) => s.id), [3]);
-});
-
-test("the history file keeps the highest id given, so a save after deleting the newest takes a new one", async () => {
-  const saves = [{ id: 2, at: 20, entries: [{ sessionId: "b" }] }, { id: 1, at: 10, entries: [{ sessionId: "a" }] }];
-  const one = oneClaude("s9");
-  const m = machine({ ...one, files: { ...one.files, [historyPath(APP)]: JSON.stringify({ version: 1, saves }) } });
-  await deleteSaves(m.io, [2]);
-  assert.equal(JSON.parse(m.files[historyPath(APP)]).lastId, 2);
-  await saveOnce(m.io);
-  const h = await readHistory(m.io);
-  assert.deepEqual(h.saves.map((s) => s.id), [3, 1]);
-  assert.equal(h.lastId, 3);
-});
-
-test("mergeSaves makes nothing and names the gone save when one source save is gone and one is left", async () => {
-  const saves = [{ id: 2, at: 20, entries: [{ sessionId: "b" }] }];
-  const m = machine({ files: { [historyPath(APP)]: JSON.stringify({ version: 1, saves }) } });
-  const before = m.files[historyPath(APP)];
-  const { history, made, gone } = await mergeSaves(m.io, [1, 2], ["a", "b"]);
-  assert.equal(made, null);
-  assert.deepEqual(gone, [1]);
-  assert.deepEqual(history.saves.map((s) => s.id), [2]);
-  assert.equal(m.files[historyPath(APP)], before);
-});
-
-test("mergeSaves makes nothing and names the gone save when one source save is gone and two are left", async () => {
-  const saves = [4, 3, 2].map((id) => ({ id, at: id * 10, entries: [{ sessionId: "s" + id }] }));
-  const m = machine({ files: { [historyPath(APP)]: JSON.stringify({ version: 1, saves }) } });
-  const before = m.files[historyPath(APP)];
-  const { history, made, gone } = await mergeSaves(m.io, [1, 2, 3], ["s1", "s2", "s3"]);
-  assert.equal(made, null);
-  assert.deepEqual(gone, [1]);
-  assert.deepEqual(history.saves.map((s) => s.id), [4, 3, 2]);
-  assert.equal(m.files[historyPath(APP)], before);
-});
-
-test("mergeSaves at the history limit deletes no save, each merge one more over, and the next save trims the oldest", async () => {
-  const saves = [4, 3, 2, 1].map((id) => ({ id, at: id * 10, entries: [{ sessionId: "s" + id }] }));
-  const one = oneClaude("s9");
-  const m = machine({ ...one, files: { ...one.files, [historyPath(APP)]: JSON.stringify({ version: 1, saves }), [settingsPath(APP)]: JSON.stringify({ historyLimit: 4 }) } });
-  const { made, gone } = await mergeSaves(m.io, [1, 2, 3], ["s1", "s2", "s3"]);
-  assert.equal(made.id, 5);
-  assert.deepEqual(gone, []);
-  assert.deepEqual((await readHistory(m.io)).saves.map((s) => s.id), [5, 4, 3, 2, 1]);
-  await mergeSaves(m.io, [3, 4], ["s3", "s4"]);
-  assert.deepEqual((await readHistory(m.io)).saves.map((s) => s.id), [6, 5, 4, 3, 2, 1]);
-  await saveOnce(m.io);
-  assert.deepEqual((await readHistory(m.io)).saves.map((s) => s.id), [7, 6, 5, 4]);
+  assert.deepEqual(JSON.parse(m.files[path]), { saveEveryMinutes: 40, autoSave: false });
+  assert.deepEqual(settings, { saveEveryMinutes: 40, autoSave: false });
 });
 
 test("with auto save off the chip saves nothing at start or on its timer, and the save command still saves", async () => {
@@ -796,101 +688,6 @@ test("auto save turned back on in the settings file saves at the next check", as
   assert.equal(saveCount(m), 1);
 });
 
-test("deleteSaves of an id the history no longer has writes nothing", async () => {
-  const m = machine();
-  const text = JSON.stringify({ version: 1, lastId: 3, saves: [{ id: 3, at: 3, entries: [] }, { id: 1, at: 1, entries: [] }] });
-  m.files[historyPath(APP)] = text;
-  let writes = 0;
-  const write = m.io.write;
-  m.io.write = (...a) => { writes++; return write(...a); };
-  await deleteSaves(m.io, [2]);
-  assert.equal(writes, 0);
-  assert.equal(m.files[historyPath(APP)], text);
-});
-
-test("deleteSaves on an empty or missing history writes nothing", async () => {
-  const m = machine();
-  let writes = 0;
-  const write = m.io.write;
-  m.io.write = (...a) => { writes++; return write(...a); };
-  await deleteSaves(m.io, [3]);
-  m.files[historyPath(APP)] = JSON.stringify({ version: 1, saves: [] });
-  await deleteSaves(m.io, [3]);
-  assert.equal(writes, 0);
-});
-
-const BROKEN_HISTORIES = [
-  ["text that does not parse", (m) => { m.files[historyPath(APP)] = "{\"version\":1,\"saves\":["; }],
-  ["JSON that is not a history", (m) => { m.files[historyPath(APP)] = '{"saves":{}}'; }],
-  ["a file whose read gives null", (m) => { m.files[historyPath(APP)] = "\u0000binary"; m.nullRead.add(historyPath(APP)); }],
-];
-const brokenMachine = (extra, breakIt) => {
-  const nullRead = new Set();
-  const m = machine({ ...extra, nullRead });
-  m.nullRead = nullRead;
-  breakIt(m);
-  return m;
-};
-const countWrites = (m) => {
-  const paths = [], write = m.io.write;
-  m.io.write = (p, ...a) => { paths.push(p); return write(p, ...a); };
-  return paths;
-};
-
-for (const [what, breakIt] of BROKEN_HISTORIES) {
-  test("readHistory gives a broken history for " + what + ", and an empty one, not broken, for no file", async () => {
-    const m = brokenMachine({}, breakIt);
-    const h = await readHistory(m.io);
-    assert.equal(h.broken, true);
-    assert.deepEqual(h.saves, []);
-    const none = await readHistory(machine().io);
-    assert.deepEqual(none, { version: 1, saves: [] });
-  });
-
-  test("saveOnce over a history with " + what + " writes the save file and leaves the history file as it was", async () => {
-    const m = brokenMachine(oneClaude(), breakIt);
-    const before = m.files[historyPath(APP)];
-    const writes = countWrites(m);
-    const { save, history } = await saveOnce(m.io);
-    assert.deepEqual(save.current.map((e) => e.sessionId), ["s1"]);
-    assert.deepEqual(JSON.parse(m.files[savePath(APP)]).current.map((e) => e.sessionId), ["s1"]);
-    assert.equal(m.files[historyPath(APP)], before);
-    assert.deepEqual(writes, [savePath(APP)]);
-    assert.equal(history.broken, true);
-  });
-
-  test("saveAndSummarize over a history with " + what + " resolves with the save, stalled, and says the history cannot be read", async () => {
-    const m = brokenMachine(oneClaude(), breakIt);
-    const { save, history, summary } = await saveAndSummarize(m.io);
-    assert.deepEqual(save.current.map((e) => e.sessionId), ["s1"]);
-    assert.equal(history.broken, true);
-    assert.equal(summary.error, null);
-    assert.equal(summary.historyBroken, true);
-    assert.equal(summary.stalled, true);
-  });
-
-  test("deleteSaves, mergeSaves and writeSettings over a history with " + what + " write nothing to it", async () => {
-    const m = brokenMachine({}, breakIt);
-    const before = m.files[historyPath(APP)];
-    const writes = countWrites(m);
-    const deleted = await deleteSaves(m.io, [1]);
-    const merged = await mergeSaves(m.io, [1, 2], ["s1"]);
-    const set = await writeSettings(m.io, () => ({ historyLimit: 1 }));
-    assert.equal(m.files[historyPath(APP)], before);
-    assert.deepEqual(writes, [settingsPath(APP)]);
-    assert.equal(deleted.history.broken, true);
-    assert.deepEqual([merged.history.broken, merged.made, merged.gone], [true, null, []]);
-    assert.equal(set.history.broken, true);
-  });
-}
-
-test("saveAndSummarize over a good history does not say it cannot be read", async () => {
-  const m = machine(oneClaude());
-  const { summary } = await saveAndSummarize(m.io);
-  assert.equal(summary.historyBroken, false);
-  assert.equal(summary.stalled, false);
-});
-
 const brokenCopies = (m) => Object.keys(m.files).filter((p) => p.startsWith(APP + "/data/session-restore.broken-")).sort();
 
 for (const [what, text] of [["text that does not parse", '{"version":1,"current":['], ["JSON that is not a save", '{"current":{},"restore":[]}']]) {
@@ -902,7 +699,7 @@ for (const [what, text] of [["text that does not parse", '{"version":1,"current"
     assert.equal(m.files[copied], text);
     assert.deepEqual(JSON.parse(m.files[savePath(APP)]).current.map((e) => e.sessionId), ["s1"]);
     assert.deepEqual(save.current.map((e) => e.sessionId), ["s1"]);
-    assert.equal(folderChange([copied], APP + "/data", [historyPath(APP), settingsPath(APP)]), "skip");
+    assert.equal(folderChange([copied], APP + "/data", [settingsPath(APP)]), "skip");
   });
 }
 
@@ -961,14 +758,12 @@ test("a save over a good or missing save file copies nothing", async () => {
   assert.deepEqual([first.summary.saveCopied, second.summary.saveCopied, brokenCopies(m)], [null, null, []]);
 });
 
-test("with exists rejecting, a missing save file and history are written, as no file", async () => {
+test("with exists rejecting, a missing save file is written, as no file", async () => {
   const m = machine(oneClaude());
   m.io.exists = async () => { throw new Error("outside every granted read root"); };
   const { summary } = await saveAndSummarize(m.io);
   assert.equal(summary.error, null);
-  assert.equal(summary.historyBroken, false);
   assert.deepEqual(JSON.parse(m.files[savePath(APP)]).current.map((e) => e.sessionId), ["s1"]);
-  assert.deepEqual(JSON.parse(m.files[historyPath(APP)]).saves.map((s) => s.id), [1]);
 });
 
 test("a save that fails after copying the save file still says where the copy is", async () => {
@@ -980,16 +775,6 @@ test("a save that fails after copying the save file still says where the copy is
   assert.match(summary.error, /down/);
   assert.equal(m.files[summary.saveCopied], "{");
   assert.equal(m.files[savePath(APP)], "{");
-});
-
-test("a save whose history write fails after the save file was copied and written still says where the copy is", async () => {
-  const m = machine(oneClaude());
-  m.files[savePath(APP)] = "{";
-  const write = m.io.write;
-  m.io.write = async (p, ...a) => { if (p === historyPath(APP)) throw new Error("stale"); return write(p, ...a); };
-  const { summary } = await saveAndSummarize(m.io);
-  assert.equal(summary.error, "stale");
-  assert.equal(m.files[summary.saveCopied], "{");
 });
 
 test("a save that copied on its first try and found the file whole on its retry still says where the copy is", async () => {

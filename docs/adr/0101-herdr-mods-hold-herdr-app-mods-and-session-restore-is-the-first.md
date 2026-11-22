@@ -2,6 +2,11 @@
 
 **Status:** accepted.
 
+> **Amended 2026-11-23: the history is gone.** `session-restore` keeps only the save:
+> no History tab, no merge, no history limit, no history file. The calls below about the
+> history (issues #83, #103, #104, #109, #111 and #110's limit) are history; the amendment
+> at the end says why.
+
 > **Amended 2026-11-17 (issue #65): the clones are gone.** `session-restore` no longer
 > ships copies of Herdr's `tabs` mod and `main` layout. It is a chip, a kept Herdr
 > window on the person's own layout, that runs the save and unfolds the Sessions panel
@@ -1033,3 +1038,39 @@ one retry, gave disk 11 and screen 12 on two quick `+`.
   limit read at its start; a doubly failed press shows the settings from its press; the doc
   comment on `setSettings`; the landing decision has no repository test.
 
+## Amendment (2026-11-23): the history is gone
+
+### The maintainer's call
+
+Asked whether a save in History could be put into the Sessions list, and told it could not
+(nothing writes the history into `restore`; a history row could only be opened one at a time),
+the maintainer said the history seemed to have little point and, from three options (remove it
+whole, keep it and add a move into Sessions, leave it), chose to remove it whole.
+
+What was shown: the restore list already covers the case the mod exists for, reopening after a
+reboot or a core restart; History added only a per-row Open on older saves; and the history was where most of the defects after #83 lived (#103, #104's
+follow-up, #109, #111, and #115, still open).
+
+### Derived
+
+- The panel has two tabs, Sessions and Settings. `merge.js` is deleted, and the chip no longer
+  opens as the merge dialog.
+- The settings are `autoSave` and `saveEveryMinutes`. A `historyLimit` an earlier version
+  wrote is ignored when read and dropped at the next Settings change.
+- `saveOnce` writes only the save file. `saveAndSummarize` no longer reports
+  `historyBroken`, and a save hands `share` one turn, the save file's.
+- `updateFile` loses its refuse branch, which only the history used.
+- A `session-restore.history.json` left in the data folder is neither read nor written, and not
+  deleted by the mod: it is the person's data.
+
+### Measured
+
+- `node --test` on both test files: 75 and 60 tests pass after the history tests were removed
+  and the activity and settings tests moved off the `delete` action and `historyLimit`.
+- `herdr-app check herdr-mods/session-restore` passed.
+
+### Not covered
+
+- The live window: the chip was not reopened in Herdr on this code.
+- What would reopen it: wanting a set of sessions back from before the last run, which the
+  restore list does not keep.

@@ -1,11 +1,10 @@
 // Pure logic of session-restore: run with node --test 'herdr-mods/session-restore/tests/*.test.mjs'
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import {
   keptFlags, nextSave, coreIdentity, planOpen, placement, resumeArgv, shellLine, isClaude, isShell, summarize, linkParents, openable, groupsOf, chipState, openProgress, groupProgress, batchResult, startOpen, endOpen, reopenable, withMarks, settleOpen, withoutRows, keepLive, liveOf, STALE_MS,
-  DEFAULT_SETTINGS, parseSettings, staleAfter, parseHistory, withSnapshot, overLimit, trimHistory, withoutSnapshots, mergeSessions, mergeSnapshots, goneSaves, mergeGroups, folderChange, mergeDialog, withRunning, cleanTitle, digitsOnly, clampWhole, SETTING_BOUNDS,
-  IDLE, begin, press, finish, free, busyWith, anyBusy, errorAt, dismiss, afterDelete, withLook, arrive, deletingPicked, oneAtATime, stepSetting, toggleAutoSave,
+  DEFAULT_SETTINGS, parseSettings, staleAfter, folderChange, withRunning, cleanTitle, digitsOnly, clampWhole, SETTING_BOUNDS,
+  IDLE, begin, press, finish, free, busyWith, anyBusy, errorAt, dismiss, withLook, arrive, oneAtATime, stepSetting, toggleAutoSave,
 } from "../logic.js";
 
 const WORKER_ARGV = ["C:\\Users\\User\\.local\\bin\\claude.EXE", "--model", "opus", "--effort", "high", "--dangerously-skip-permissions",
@@ -403,20 +402,20 @@ test("liveOf maps each session a save lists live to its address", () => {
 });
 
 
-// ---- settings, history, merge, refresh (#83) ----
+// ---- settings and refresh (#83) ----
 
-test("parseSettings fills what is missing or wrong with the defaults: every 10 minutes, 50 saves kept", () => {
-  assert.deepEqual(DEFAULT_SETTINGS, { saveEveryMinutes: 10, historyLimit: 50, autoSave: true });
+test("parseSettings fills what is missing or wrong with the defaults: auto save on, every 10 minutes", () => {
+  assert.deepEqual(DEFAULT_SETTINGS, { saveEveryMinutes: 10, autoSave: true });
   assert.deepEqual(parseSettings(null), DEFAULT_SETTINGS);
   assert.deepEqual(parseSettings("not json"), DEFAULT_SETTINGS);
-  assert.deepEqual(parseSettings('{"saveEveryMinutes": 3}'), { saveEveryMinutes: 3, historyLimit: 50, autoSave: true });
-  assert.deepEqual(parseSettings('{"saveEveryMinutes": 0, "historyLimit": -2}'), DEFAULT_SETTINGS);
-  assert.deepEqual(parseSettings('{"saveEveryMinutes": 2.6, "historyLimit": 7.2}'), { saveEveryMinutes: 3, historyLimit: 7, autoSave: true });
+  assert.deepEqual(parseSettings('{"saveEveryMinutes": 3}'), { saveEveryMinutes: 3, autoSave: true });
+  assert.deepEqual(parseSettings('{"saveEveryMinutes": 0}'), DEFAULT_SETTINGS);
+  assert.deepEqual(parseSettings('{"saveEveryMinutes": 2.6}'), { saveEveryMinutes: 3, autoSave: true });
   assert.deepEqual(parseSettings('{"saveEveryMinutes": "5"}'), DEFAULT_SETTINGS);
 });
 
-test("parseSettings reads a null historyLimit, the old No limit, as the default limit", () => {
-  assert.deepEqual(parseSettings('{"historyLimit": null}'), { saveEveryMinutes: 10, historyLimit: 50, autoSave: true });
+test("parseSettings drops a historyLimit a settings file from before kept", () => {
+  assert.deepEqual(parseSettings('{"saveEveryMinutes": 5, "historyLimit": 7}'), { saveEveryMinutes: 5, autoSave: true });
 });
 
 test("staleAfter is three save intervals", () => {
@@ -433,191 +432,25 @@ test("summarize and chipState read stalled against the stale time they are given
   assert.equal(chipState(ok, null, 31 * 60_000, staleAfter(10)).dot, "red");
 });
 
-const snap = (id, at, ids, over = {}) => ({ id, at, entries: ids.map((s) => live(s)), ...over });
-
-test("parseHistory reads a history back, an empty one when there is none, and null when it does not parse or is not a history", () => {
-  assert.deepEqual(parseHistory(null), { version: 1, saves: [] });
-  assert.equal(parseHistory("{"), null);
-  assert.equal(parseHistory('{"version":1,"saves":"x"}'), null);
-  assert.equal(parseHistory('{"saves":{}}'), null);
-  assert.equal(parseHistory("null"), null);
-  assert.equal(parseHistory('{"version":1,"saves":[1,"x"]}'), null);
-  assert.equal(parseHistory('{"version":1,"saves":[{"id":1,"at":1}]}'), null);
-  assert.equal(parseHistory('{"version":1,"saves":[null]}'), null);
-  const h = { version: 1, saves: [snap(1, 5, ["a"])] };
-  assert.deepEqual(parseHistory(JSON.stringify(h)), h);
-});
-
-test("withSnapshot adds the sessions as a new save, newest first, numbered after the highest", () => {
-  const h = { version: 1, saves: [snap(4, 10, ["a"]), snap(2, 5, ["b"])] };
-  const next = withSnapshot(h, [live("a"), live("c")], { now: 20, limit: 50 });
-  assert.deepEqual(next.saves.map((s) => [s.id, s.at, s.entries.map((e) => e.sessionId)]), [[5, 20, ["a", "c"]], [4, 10, ["a"]], [2, 5, ["b"]]]);
-});
-
-test("withSnapshot makes no new save when the session list matches the newest one, whatever else changed", () => {
-  const h = { version: 1, saves: [snap(1, 10, ["a", "b"])] };
-  // Same sessions in another order, with another title: no new save.
-  const same = withSnapshot(h, [live("b", { title: "renamed" }), live("a")], { now: 20, limit: 50 });
-  assert.equal(same, h);
-});
-
-test("withSnapshot makes no save of an empty list", () => {
-  const h = { version: 1, saves: [snap(1, 10, ["a"])] };
-  assert.equal(withSnapshot(h, [], { now: 20, limit: 50 }), h);
-  assert.deepEqual(withSnapshot({ version: 1, saves: [] }, [], { now: 20, limit: 50 }).saves, []);
-});
-
-test("withSnapshot keeps the newest limit saves, and all of them with no limit", () => {
-  const h = { version: 1, saves: [snap(3, 30, ["c"]), snap(2, 20, ["b"]), snap(1, 10, ["a"])] };
-  assert.deepEqual(withSnapshot(h, [live("d")], { now: 40, limit: 2 }).saves.map((s) => s.id), [4, 3]);
-  assert.deepEqual(withSnapshot(h, [live("d")], { now: 40, limit: null }).saves.map((s) => s.id), [4, 3, 2, 1]);
-});
-
-test("overLimit counts the saves a limit would drop, and trimHistory drops the oldest", () => {
-  const h = { version: 1, saves: [snap(3, 30, ["c"]), snap(2, 20, ["b"]), snap(1, 10, ["a"])] };
-  assert.equal(overLimit(h, 1), 2);
-  assert.equal(overLimit(h, 3), 0);
-  assert.equal(overLimit(h, null), 0);
-  assert.deepEqual(trimHistory(h, 1).saves.map((s) => s.id), [3]);
-  assert.equal(trimHistory(h, null), h);
-});
-
-test("withoutSnapshots deletes the saves with the given ids", () => {
-  const h = { version: 1, saves: [snap(3, 30, ["c"]), snap(2, 20, ["b"]), snap(1, 10, ["a"])] };
-  assert.deepEqual(withoutSnapshots(h, [3]).saves.map((s) => s.id), [2, 1]);
-  assert.deepEqual(withoutSnapshots(h, [3, 1]).saves.map((s) => s.id), [2]);
-});
-
-test("a save after the newest save is deleted takes a new id, not the deleted one", () => {
-  const h = { version: 1, saves: [snap(4, 40, ["d"]), snap(3, 30, ["c"]), snap(1, 10, ["a"])] };
-  const made = withSnapshot(withoutSnapshots(h, [4]), [live("x")], { now: 50, limit: 50 });
-  assert.deepEqual(made.saves.map((s) => s.id), [5, 3, 1]);
-  assert.equal(made.lastId, 5);
-});
-
-test("a history file with no lastId keeps the deleted ids from coming back", () => {
-  const h = { version: 1, saves: [snap(4, 40, ["d"]), snap(3, 30, ["c"])] };
-  const gone = withoutSnapshots(h, [4, 3]);
-  assert.deepEqual(gone.saves, []);
-  assert.equal(gone.lastId, 4);
-  assert.deepEqual(withSnapshot(gone, [live("x")], { now: 50, limit: 50 }).saves.map((s) => s.id), [5]);
-});
-
-test("lastId below the ids present, or not a whole number, gives way to the highest id present", () => {
-  for (const lastId of [2, "9", 7.5, null, 1e300, -3]) {
-    const h = { version: 1, lastId, saves: [snap(4, 40, ["d"])] };
-    assert.deepEqual(withSnapshot(h, [live("x")], { now: 50, limit: 50 }).saves.map((s) => s.id), [5, 4]);
-  }
-});
-
-test("a lastId at the end of the safe numbers gives no id twice", () => {
-  let h = { version: 1, lastId: Number.MAX_SAFE_INTEGER, saves: [snap(4, 40, ["d"])] };
-  h = withSnapshot(h, [live("x")], { now: 50, limit: 50 });
-  h = withSnapshot(h, [live("y")], { now: 60, limit: 50 });
-  const ids = h.saves.map((s) => s.id);
-  assert.equal(new Set(ids).size, ids.length);
-  assert.ok(ids.every(Number.isSafeInteger));
-});
-
-test("a save with no id keeps lastId at a delete, and the next save still takes a whole id", () => {
-  const h = { version: 1, lastId: 10, saves: [snap(3, 30, ["c"]), { at: 5, entries: [live("a")] }] };
-  const gone = withoutSnapshots(h, [3]);
-  assert.equal(gone.lastId, 10);
-  assert.equal(withSnapshot(gone, [live("x")], { now: 50, limit: 50 }).saves[0].id, 11);
-});
-
-test("a merge after the newest save is deleted takes a new id, and a dialog on the deleted save makes nothing", () => {
-  const h = { version: 1, saves: [snap(4, 40, ["d"]), snap(3, 30, ["c"]), snap(1, 10, ["a"])] };
-  const after = withSnapshot(withoutSnapshots(h, [4]), [live("x")], { now: 50, limit: 50 });
-  assert.equal(mergeSnapshots(after, [4, 1], ["x", "a", "d"], { now: 60 }), after);
-  const merged = mergeSnapshots(withoutSnapshots(h, [4]), [3, 1], ["c", "a"], { now: 60 });
-  assert.equal(merged.saves[0].id, 5);
-  assert.equal(merged.lastId, 5);
-});
-
-test("mergeSessions lists every session of the saves once, with the newest save's record and the saves it is in", () => {
-  const older = snap(1, 10, ["a", "b"]);
-  older.entries[1] = live("b", { tabName: "2" });
-  const newer = snap(2, 20, ["b", "c"]);
-  newer.entries[0] = live("b", { tabName: "3" });
-  const rows = mergeSessions([older, newer]);
-  assert.deepEqual(rows.map((r) => [r.entry.sessionId, r.in]), [["b", [2, 1]], ["c", [2]], ["a", [1]]]);
-  assert.equal(rows[0].entry.tabName, "3");
-});
-
-test("mergeSnapshots makes a new save of the kept sessions from several saves, and the saves stay", () => {
-  const h = { version: 1, saves: [snap(3, 30, ["c"]), snap(2, 20, ["b", "c"]), snap(1, 10, ["a"])] };
-  const next = mergeSnapshots(h, [1, 3, 2], ["a", "c"], { now: 40 });
-  assert.deepEqual(next.saves.map((s) => s.id), [4, 3, 2, 1]);
-  assert.deepEqual(next.saves[0].from, [1, 2, 3]);
-  assert.equal(next.saves[0].at, 40);
-  assert.deepEqual(next.saves[0].entries.map((e) => e.sessionId), ["c", "a"]);
-});
-
-test("mergeSnapshots makes nothing when nothing is kept, a save is gone, or fewer than two are given", () => {
-  const h = { version: 1, saves: [snap(2, 20, ["b"]), snap(1, 10, ["a"])] };
-  assert.equal(mergeSnapshots(h, [1, 2], [], { now: 30 }), h);
-  assert.equal(mergeSnapshots(h, [1, 9], ["a"], { now: 30 }), h);
-  assert.equal(mergeSnapshots(h, [1], ["a"], { now: 30 }), h);
-});
-
-test("mergeSnapshots deletes no save, whichever saves it is made from", () => {
-  const h = { version: 1, saves: [snap(4, 40, ["d"]), snap(3, 30, ["c"]), snap(2, 20, ["b"]), snap(1, 10, ["a"])] };
-  assert.deepEqual(mergeSnapshots(h, [1, 2], ["a", "b"], { now: 50 }).saves.map((s) => s.id), [5, 4, 3, 2, 1]);
-  assert.deepEqual(mergeSnapshots(h, [1, 2, 3], ["a", "b", "c"], { now: 50 }).saves.map((s) => s.id), [5, 4, 3, 2, 1]);
-  assert.deepEqual(mergeSnapshots(h, [3, 4], ["c", "d"], { now: 50 }).saves.map((s) => s.id), [5, 4, 3, 2, 1]);
-});
-
-test("mergeSnapshots makes nothing when one of its saves is gone, even with two of them left", () => {
-  const h = { version: 1, saves: [snap(4, 40, ["d"]), snap(3, 30, ["c"]), snap(2, 20, ["b"])] };
-  assert.equal(mergeSnapshots(h, [1, 2, 3], ["a", "b", "c"], { now: 50 }), h);
-  assert.deepEqual(goneSaves(h, [1, 2, 3]), [1]);
-  assert.deepEqual(goneSaves(h, [3, 1, 9, 2]), [1, 9]);
-  assert.deepEqual(goneSaves(h, [2, 4]), []);
-});
-
-test("mergeGroups groups the merge's rows by space id, so two spaces with one name stay apart", () => {
-  const rows = [
-    { entry: live("a", { labels: { "herdr.space": "sp1" }, spaceName: "work" }), in: [1] },
-    { entry: live("b", { labels: { "herdr.space": "sp2" }, spaceName: "work" }), in: [1] },
-    { entry: live("c", { labels: { "herdr.space": "sp1" }, spaceName: "work" }), in: [1] },
-    { entry: live("d", { labels: {}, spaceName: "" }), in: [1] },
-  ];
-  const groups = mergeGroups(rows);
-  assert.deepEqual(groups.map((g) => [g.id, g.name, g.rows.map((r) => r.entry.sessionId)]),
-    [["sp1", "work", ["a", "c"]], ["sp2", "work", ["b"]], ["", "", ["d"]]]);
-});
-
 test("folderChange reads an empty batch as a released watch, and reloads only for the given files or the folder itself", () => {
   const dir = "C:/Users/U/.config/herdr-app/data";
-  const files = [dir + "/session-restore.history.json", dir + "/session-restore.settings.json"];
+  const files = [dir + "/session-restore.settings.json"];
   assert.equal(folderChange([], dir, files), "released");
   assert.equal(folderChange([dir + "/agents/a.json", dir + "/agents/b.json"], dir, files), "skip");
-  assert.equal(folderChange([dir + "/session-restore.json", dir + "/session-restore/x.json", dir + "/agents/session-restore.history.json"], dir, files), "skip");
-  assert.equal(folderChange([dir + "/agents/a.json", "C:\\Users\\U\\.config\\herdr-app\\data\\session-restore.history.json"], dir, files), "reload");
+  assert.equal(folderChange([dir + "/session-restore.json", dir + "/session-restore/x.json", dir + "/agents/session-restore.settings.json"], dir, files), "skip");
+  assert.equal(folderChange([dir + "/agents/a.json", "C:\\Users\\U\\.config\\herdr-app\\data\\session-restore.settings.json"], dir, files), "reload");
   assert.equal(folderChange([dir + "/Session-Restore.settings.json"], dir + "/", files), "reload");
   assert.equal(folderChange(["C:\\Users\\U\\.config\\herdr-app\\data\\"], dir, files), "reload");
 });
 
 test("folderChange reads a path by its place under the folder, not by the form Herdr writes it in", () => {
   const dir = "C:/Users/U/.config/herdr-app/data";
-  const files = [dir + "/session-restore.history.json", dir + "/session-restore.settings.json"];
-  assert.equal(folderChange(["\\\\?\\C:\\Users\\U\\.config\\herdr-app\\data\\session-restore.history.json"], dir, files), "reload");
+  const files = [dir + "/session-restore.settings.json"];
+  assert.equal(folderChange(["\\\\?\\C:\\Users\\U\\.config\\herdr-app\\data\\session-restore.settings.json"], dir, files), "reload");
   assert.equal(folderChange(["D:/real/herdr-app/data/session-restore.settings.json"], dir, files), "reload");
   assert.equal(folderChange(["D:/real/herdr-app/data"], dir, files), "reload");
-  assert.equal(folderChange([dir + "/session-restore.history.json.tmp"], dir, files), "reload");
+  assert.equal(folderChange([dir + "/session-restore.settings.json.tmp"], dir, files), "reload");
   assert.equal(folderChange(["D:/real/herdr-app/data/agents/x.json"], dir, files), "skip");
-});
-
-test("mergeDialog opens the merge as a dialog of its own, never under the chip's overlay key", () => {
-  const chip = JSON.parse(readFileSync(new URL("../mod.json", import.meta.url), "utf8")).overlay;
-  const spec = mergeDialog([3, 1]);
-  assert.equal(spec.mod, "session-restore");
-  assert.equal(spec.kind, "dialog");
-  assert.deepEqual(spec.props, { view: "merge", ids: [3, 1] });
-  assert.equal(typeof spec.key, "string");
-  assert.notEqual(spec.key, chip.key);
-  assert.equal(spec.keep, false);
 });
 
 test("cleanTitle drops what an agent puts before its title", () => {
@@ -644,22 +477,22 @@ test("chipState says a save is running under an open and a stalled save, over wh
 });
 
 test("activity: a target under way is busy until it ends, whether it succeeded or failed", () => {
-  const a = begin(IDLE, "delete", [11, 9]);
-  assert.equal(busyWith(a, "delete", 11), true);
-  assert.equal(busyWith(a, "delete", 9), true);
-  assert.equal(busyWith(a, "delete", 10), false);
-  assert.equal(busyWith(a, "remove", 11), false);
-  assert.equal(busyWith(finish(a, "delete", [11, 9]), "delete", 11), false);
-  assert.equal(busyWith(finish(a, "delete", [11, 9], "EBUSY"), "delete", 9), false);
-  assert.equal(busyWith(finish(a, "delete", [11]), "delete", 9), true);
-  assert.equal(busyWith(IDLE, "delete", 11), false);
+  const a = begin(IDLE, "remove", [11, 9]);
+  assert.equal(busyWith(a, "remove", 11), true);
+  assert.equal(busyWith(a, "remove", 9), true);
+  assert.equal(busyWith(a, "remove", 10), false);
+  assert.equal(busyWith(a, "settings", 11), false);
+  assert.equal(busyWith(finish(a, "remove", [11, 9]), "remove", 11), false);
+  assert.equal(busyWith(finish(a, "remove", [11, 9], "EBUSY"), "remove", 9), false);
+  assert.equal(busyWith(finish(a, "remove", [11]), "remove", 9), true);
+  assert.equal(busyWith(IDLE, "remove", 11), false);
 });
 
 test("activity: a press on a busy target is ignored, and a press on several leaves only the free ones", () => {
-  const a = begin(IDLE, "delete", [11]);
-  assert.deepEqual(free(a, "delete", [11]), []);
-  assert.deepEqual(free(a, "delete", [10, 11, 12]), [10, 12]);
-  assert.deepEqual(free(a, "remove", [11]), [11]);
+  const a = begin(IDLE, "remove", [11]);
+  assert.deepEqual(free(a, "remove", [11]), []);
+  assert.deepEqual(free(a, "remove", [10, 11, 12]), [10, 12]);
+  assert.deepEqual(free(a, "settings", [11]), [11]);
   assert.deepEqual(free(IDLE, "remove", ["k1", "k2"]), ["k1", "k2"]);
 });
 
@@ -677,14 +510,13 @@ test("activity: save, refresh and the open check run one at a time, a save start
 });
 
 test("activity: a failure keeps an error where its action lives, until the next action there or a close", () => {
-  const failed = finish(begin(IDLE, "delete", [11]), "delete", [11], "EBUSY: resource busy");
-  assert.equal(errorAt(failed, "history"), "Save 11 was not deleted: EBUSY: resource busy");
-  assert.equal(errorAt(failed, "sessions"), null);
-  assert.equal(errorAt(finish(begin(IDLE, "delete", [9, 10]), "delete", [9, 10], "x"), "history"), "Saves 9, 10 were not deleted: x");
-  assert.equal(errorAt(press(failed, "delete", [10]).act, "history"), null);
-  assert.equal(errorAt(press(failed, "refresh", [null]).act, "history"), "Save 11 was not deleted: EBUSY: resource busy");
-  assert.equal(errorAt(dismiss(failed, "history"), "history"), null);
-  assert.equal(errorAt(finish(begin(IDLE, "delete", [11]), "delete", [11]), "history"), null);
+  const failed = finish(begin(IDLE, "remove", ["k1"]), "remove", ["k1"], "EBUSY: resource busy");
+  assert.equal(errorAt(failed, "sessions"), "The session is still in the save: EBUSY: resource busy");
+  assert.equal(errorAt(failed, "settings"), null);
+  assert.equal(errorAt(press(failed, "remove", ["k2"]).act, "sessions"), null);
+  assert.equal(errorAt(press(failed, "settings", [1]).act, "sessions"), "The session is still in the save: EBUSY: resource busy");
+  assert.equal(errorAt(dismiss(failed, "sessions"), "sessions"), null);
+  assert.equal(errorAt(finish(begin(IDLE, "remove", ["k1"]), "remove", ["k1"]), "sessions"), null);
 });
 
 test("activity: each action's failure reads in its own tab", () => {
@@ -694,19 +526,19 @@ test("activity: each action's failure reads in its own tab", () => {
   assert.equal(errorAt(fail("refresh", [null]), "sessions"), "The refresh did not finish: boom");
   assert.equal(errorAt(fail("save", [null]), "sessions"), "The save did not run: boom");
   assert.equal(errorAt(fail("settings", [1]), "settings"), "The settings change did not finish: boom");
-  assert.equal(errorAt(fail("load", [null]), "sessions"), "Could not read the save, the history or the settings: boom");
+  assert.equal(errorAt(fail("load", [null]), "sessions"), "Could not read the save or the settings: boom");
 });
 
 test("activity: a press starts its free targets and clears its tab's error; an ignored press changes nothing", () => {
-  const p = press(IDLE, "delete", [10, 11]);
-  assert.deepEqual(p.go, [10, 11]);
-  assert.equal(busyWith(p.act, "delete", 10), true);
-  const again = press(p.act, "delete", [11]);
+  const p = press(IDLE, "remove", ["k10", "k11"]);
+  assert.deepEqual(p.go, ["k10", "k11"]);
+  assert.equal(busyWith(p.act, "remove", "k10"), true);
+  const again = press(p.act, "remove", ["k11"]);
   assert.deepEqual(again.go, []);
   assert.equal(again.act, p.act);
-  const failedBusy = finish(press(begin(IDLE, "delete", [11]), "delete", [10]).act, "delete", [10], "x");
-  assert.equal(press(failedBusy, "delete", [11]).act, failedBusy);
-  assert.equal(errorAt(press(failedBusy, "delete", [11]).act, "history"), "Save 10 was not deleted: x");
+  const failedBusy = finish(press(begin(IDLE, "remove", ["k11"]), "remove", ["k10"]).act, "remove", ["k10"], "x");
+  assert.equal(press(failedBusy, "remove", ["k11"]).act, failedBusy);
+  assert.equal(errorAt(press(failedBusy, "remove", ["k11"]).act, "sessions"), "The session is still in the save: x");
 });
 
 test("activity: a save an action starts after it does not clear that action's error", () => {
@@ -781,21 +613,8 @@ test("clampWhole keeps a whole number inside the bounds, and reads text that is 
   assert.equal(clampWhole("x", 1, 50), null);
 });
 
-test("the settings' bounds: an interval of 1 to 1440 minutes, a history of 1 to 50 saves", () => {
-  assert.deepEqual(SETTING_BOUNDS, { saveEveryMinutes: { min: 1, max: 1440 }, historyLimit: { min: 1, max: 50 } });
-});
-
-test("a settings file holding a history limit over the Settings tab's maximum reads as the maximum", () => {
-  assert.equal(parseSettings(JSON.stringify({ historyLimit: 80 })).historyLimit, 50);
-  assert.equal(parseSettings(JSON.stringify({ historyLimit: 50 })).historyLimit, 50);
-  assert.equal(parseSettings(JSON.stringify({ historyLimit: 7 })).historyLimit, 7);
-  assert.equal(parseSettings(JSON.stringify({ historyLimit: null })).historyLimit, 50);
-});
-
-test("afterDelete drops the deleted saves from the ticks and folds the unfolded one, leaving the rest", () => {
-  assert.deepEqual(afterDelete({ picked: [3, 2, 1], expanded: 2 }, [2, 1]), { picked: [3], expanded: null });
-  assert.deepEqual(afterDelete({ picked: [3, 2], expanded: 3 }, [2]), { picked: [3], expanded: 3 });
-  assert.deepEqual(afterDelete({ picked: [], expanded: null }, [5]), { picked: [], expanded: null });
+test("the settings' bounds: an interval of 1 to 1440 minutes", () => {
+  assert.deepEqual(SETTING_BOUNDS, { saveEveryMinutes: { min: 1, max: 1440 } });
 });
 
 test("withLook applies a look at least as new as the one shown, and drops an older one whole", () => {
@@ -831,24 +650,22 @@ test("arrive takes a result, written or read, only when it is numbered after eve
 });
 
 test("stepSetting moves a number setting by one from the settings it is given, kept within its bounds", () => {
-  assert.deepEqual(stepSetting("saveEveryMinutes", 1)({ saveEveryMinutes: 30, historyLimit: 50, autoSave: true }), { saveEveryMinutes: 31 });
-  assert.deepEqual(stepSetting("historyLimit", -1)({ saveEveryMinutes: 30, historyLimit: 7, autoSave: true }), { historyLimit: 6 });
-  assert.deepEqual(stepSetting("historyLimit", 1)({ historyLimit: 50 }), { historyLimit: 50 });
+  assert.deepEqual(stepSetting("saveEveryMinutes", 1)({ saveEveryMinutes: 30, autoSave: true }), { saveEveryMinutes: 31 });
   assert.deepEqual(stepSetting("saveEveryMinutes", -1)({ saveEveryMinutes: 1 }), { saveEveryMinutes: 1 });
   assert.deepEqual(stepSetting("saveEveryMinutes", 1)({ saveEveryMinutes: 5000 }), { saveEveryMinutes: 1440 });
 });
 
 test("toggleAutoSave turns auto save the other way from the settings it is given", () => {
-  assert.deepEqual(toggleAutoSave({ saveEveryMinutes: 10, historyLimit: 50, autoSave: true }), { autoSave: false });
+  assert.deepEqual(toggleAutoSave({ saveEveryMinutes: 10, autoSave: true }), { autoSave: false });
   assert.deepEqual(toggleAutoSave({ autoSave: false }), { autoSave: true });
 });
 
 test("arrive keeps each field's turns apart", () => {
   const removed = arrive({}, "save", 8).turns;
   assert.equal(arrive(removed, "save", 7).take, false);
-  const history = arrive(removed, "history", 7);
-  assert.equal(history.take, true);
-  assert.deepEqual(history.turns, { save: 8, history: 7 });
+  const settings = arrive(removed, "settings", 7);
+  assert.equal(settings.take, true);
+  assert.deepEqual(settings.turns, { save: 8, settings: 7 });
 });
 
 test("oneAtATime starts each job once the one before it has ended, a failed one included, in the order given", async () => {
@@ -865,13 +682,4 @@ test("oneAtATime starts each job once the one before it has ended, a failed one 
   await assert.rejects(second, /no/);
   assert.equal(await third, 3);
   assert.deepEqual(log, ["start 1", "end 1", "start 2", "start 3"]);
-});
-
-test("deletingPicked is true while a delete of any ticked save runs, and only then", () => {
-  const act = begin(IDLE, "delete", [3]);
-  assert.equal(deletingPicked(act, [3, 2]), true);
-  assert.equal(deletingPicked(act, [2, 1]), false);
-  assert.equal(deletingPicked(IDLE, [3, 2]), false);
-  assert.equal(deletingPicked(begin(IDLE, "settings", [3]), [3]), false);
-  assert.equal(deletingPicked(act, []), false);
 });
