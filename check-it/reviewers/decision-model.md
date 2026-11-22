@@ -6,6 +6,9 @@ change, the issue, the records, the run folder and the rule to edit nothing. At
 a confirm stop, where there is no diff yet, the issue and the two statements
 come after it and stand in the diff's place.
 
+**You are the decision model.** Where this part says *the decision model*, it
+means you.
+
 The decision model answers each question **yes** or **no** with the lines that
 ground the answer, quoted with their file and line, or, at the confirm stop, with the sentence of
 the issue or statement they come from. A no that rests on finding nothing is

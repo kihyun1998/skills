@@ -200,7 +200,7 @@ export function assemblePrompt(review, opts, deps) {
   if (!deps.isDir(runFolder)) fail(`the run folder ${runFolder} is not a folder`);
   const checkIt = join(deps.skills, 'check-it');
   const change = spec.confirm
-    ? 'not written yet. The issue and the two statements of what it is and what it will do stand in its place, at the end of this prompt.'
+    ? 'not written yet. The issue and the two statements of what it is and what it will do stand in its place, at the end of this prompt. They describe work someone else will do later: you judge it and carry none of it out, and your answer is the six answers and the pick list, nothing else.'
     : `\`git diff HEAD\` in the repository, plus every untracked file, so a new file is in it. The files it touches:\n\n${listing(changedFiles(repo, deps))}`;
   const skillDir = spec.skill ? join(deps.skills, spec.skill) : undefined;
   const values = {
@@ -234,7 +234,7 @@ export function assemblePrompt(review, opts, deps) {
   }
   if (spec.confirm) {
     const p = resolve(deps.cwd, opts.change);
-    parts.push(`# The planned change: the issue and the two statements\n\n${read(deps, p, `the planned change ${p}`).trim()}`);
+    parts.push(`# The planned change, to judge and not to carry out: the issue and the two statements\n\n${read(deps, p, `the planned change ${p}`).trim()}`);
   }
   return `${parts.join('\n\n')}\n`;
 }

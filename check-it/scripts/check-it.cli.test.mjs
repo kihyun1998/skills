@@ -74,6 +74,14 @@ for (const [name, entry] of [['directly', here], ['through a link', linked]]) {
     assert.doesNotMatch(r.stdout, /^name: lens$/m);
   });
 
+  test(`the decision model's prompt names its role, at the start and at the confirm stop, when run ${name}`, () => {
+    for (const [review, extra] of [['pick', []], ['pick-confirm', ['--change', join(scratch, 'run.change.md')]]]) {
+      const r = call(entry, ['prompt', review, ...brief, ...extra]);
+      assert.equal(r.status, 0, r.stderr);
+      assert.match(r.stdout, /^\*\*You are the decision model\.\*\*/m, review);
+    }
+  });
+
   test(`verify matches a covered file the diff touches, and stops on one not in the tree, when run ${name}`, () => {
     const r = call(entry, ['verify', '--covered', 'src/new file.c', '--covered', 'src/moved.c']);
     assert.equal(r.status, 0, r.stderr);

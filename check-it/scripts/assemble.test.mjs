@@ -148,9 +148,17 @@ test('the decision model at the start reads the diff; at the confirm stop the pl
   assert.match(prompt('pick', deps), /- `a\.js`\n\nQUESTIONS\n$/);
   calls.length = 0;
   const confirm = prompt('pick-confirm', deps, ['--change', 'c.md']);
-  assert.match(confirm, /change: not written yet\. .*\n\nQUESTIONS\n\n# The planned change: the issue and the two statements\n\nISSUE AND STATEMENTS\n$/);
+  assert.match(confirm, /change: not written yet\. .*\n\nQUESTIONS\n\n# The planned change, to judge and not to carry out: the issue and the two statements\n\nISSUE AND STATEMENTS\n$/);
   assert.ok(!calls.some((c) => c.args[0] === 'diff'), 'the confirm stop reads no diff');
   throwsCheck(() => prompt('pick-confirm', deps), /needs --change/);
+});
+
+test('at the confirm stop the planned change is to be judged, not carried out, and the answer is the six answers and the pick list only', () => {
+  const { deps } = fakeDeps({ tracked: ['a.js'], files: { [resolve('/work/c.md')]: 'ISSUE AND STATEMENTS' } });
+  const change = prompt('pick-confirm', deps, ['--change', 'c.md']).split('\n').find((l) => l.startsWith('change: '));
+  assert.match(change, /you judge it and carry none of it out/);
+  assert.match(change, /your answer is the six answers and the pick list, nothing else/);
+  assert.doesNotMatch(prompt('pick', deps), /carry none of it out|to judge and not to carry out/);
   throwsCheck(() => prompt('pick', deps, ['--change', 'c.md']), /--change applies only to pick-confirm/);
 });
 
