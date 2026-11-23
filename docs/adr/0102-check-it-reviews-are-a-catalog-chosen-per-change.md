@@ -1,8 +1,8 @@
 # ADR-0102 — `check-it`'s reviews are a catalog of its own fresh agents, picked per change by a decision model
 
 **Status:** accepted. Implements #91; amended for #86, #95, #97, #102, #105,
-#112, #114 and #140, and folded for #125 on 2026-11-23 into this one current
-record.
+#112 and #114, folded for #125 on 2026-11-23 into this one current record, and
+amended since for #140.
 The amendment history is in git:
 `git log -p -- docs/adr/0102-check-it-reviews-are-a-catalog-chosen-per-change.md`
 shows the record before the fold.
@@ -61,8 +61,8 @@ was decided, on what, and what would reopen it.
   each prompt, names each report, lists the diff's range and matches the verify
   coverage, stopping with an error where a piece is missing; CI runs its tests
   on macOS and Windows. **The instructions an agent reads are in markdown; the
-  script makes paths, order, labels and the change's listing line
-  (`changeLine`)**, which depends on the diff's file list and in markdown would
+  script makes paths, order, labels, headings, fixed values and the change's
+  listing line (`changeLine`)**, which depends on the diff's file list and in markdown would
   need a conditional in the template (#140). The confirm stop's paragraph for
   the decision model is a section of `check-it/reviewers/decision-model.md`
   (#125).
