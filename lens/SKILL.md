@@ -29,8 +29,8 @@ and runs `git init` in the copy where the probe needs git: a linked worktree's
 it writes there, and so does a worktree. That copy, and anything the pass
 builds, installs or starts, goes in its own folder in the run folder the brief
 names (where it names none, the run folder those rules fall back to), gets a ledger line when it is made, and is deleted
-before the report returns, its size in the report (the run's shared build
-folder aside), as
+before the report returns, its size in the report (the repository's shared
+build folder aside, which is kept), as
 [`clean-it`'s rules](../clean-it/RULES.md) say. The fork still has editing tools (a
 `disallowed-tools` key does not reach it, measured), so these sentences are what
 keep the pass read-only. The caller saves the report and re-opens every

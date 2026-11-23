@@ -105,8 +105,8 @@ A copy, a build, an install, tool state or a process that a test run, a
 mutation or a probe makes outside the working tree goes in the run folder, gets
 a line in the run's ledger when it is made, and is deleted with its size
 written, as [`clean-it`'s rules](../clean-it/RULES.md) say: at the end of the
-step, except the run's one build folder for the repository, which a Rust build
-outside the tree uses and which goes at the run's end.
+step, except the repository's one build folder, which a Rust build outside the
+tree uses and which is kept across runs.
 
 ## What a comment carries
 

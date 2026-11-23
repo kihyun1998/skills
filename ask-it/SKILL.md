@@ -201,12 +201,18 @@ the day a consumer changes.
 ## Before the push
 
 **A push sends every local commit ahead of the remote, not only this run's.**
-A commit this step makes (a rule recorded, a small follow-up) goes on the run
+A commit this step makes (a rule recorded, a small follow-up) names the files it
+commits, as `thegraph`'s *A run alongside another* says, and goes on the run
 sheet's `commits` line when it lands, as `thegraph`'s run sheet says. Before
 the push is put to the person, run `git fetch <remote>` and list what it would
-send, `git log --format='%h %s' <remote>/<branch>..HEAD`, `<remote>` and
-`<branch>` being where the push goes (`origin` and `main` in most runs); where
-`<branch>` is not on the remote yet, list against the branch it started from.
+send, `git log --format='%h %s' <remote>/<branch>..<branch>` in the main tree,
+`<remote>` and `<branch>` being where the push goes (`origin` and `main` in
+most runs); where `<branch>` is not on the remote yet, list against the branch
+it started from. **A run that worked in a worktree pushes from the merged
+branch**: each of its commits is merged into the main tree's branch first, as
+`thegraph`'s *A run alongside another* says, and the hashes on its sheet are the
+merged ones. A commit still only on its `tg-<run id>` branch is not in the list
+and does not go out: say so with its hash, and the issue it closes stays open.
 Hold each hash against the run's commits on its sheet, the `commits` line and
 the hashes on its `## Children` lines, two short hashes matching where one
 starts with the other.

@@ -1,7 +1,7 @@
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -227,4 +227,36 @@ test('record --from the run folder through a link to it keeps the record', { ski
   const r = call(here, ['record', '--run-folder', folder, '--from', alias], sameRepo);
   assert.equal(r.status, 0, r.stderr);
   assert.equal(r.stdout, `kept the record ${join(folder, 'check-it.untracked.json')}\n`);
+});
+
+test('two run folders side by side in one tree: the claiming run reads its files, the other leaves them out, and the claim is rewritten whole', () => {
+  const shared = join(scratch, 'shared');
+  const runs = join(scratch, 'runs');
+  const first = join(runs, 'first.made');
+  const newcomer = join(runs, 'newcomer.made');
+  mkdirSync(shared);
+  mkdirSync(first, { recursive: true });
+  mkdirSync(newcomer);
+  writeFileSync(join(shared, 'a.c'), 'int a;\n');
+  git(shared, 'init', '-q');
+  git(shared, 'add', '.');
+  git(shared, 'commit', '-q', '-m', 'base');
+  writeFileSync(join(shared, 'a.c'), 'int a = 1;\n');
+  for (const path of ['b.c', 'c.c']) {
+    const c = call(here, ['claim', '--run-folder', newcomer, path], shared);
+    assert.equal(c.status, 0, c.stderr);
+  }
+  writeFileSync(join(shared, 'b.c'), 'int b;\n');
+  assert.deepEqual(readdirSync(newcomer), ['check-it.claimed.json']);
+  const claim = join(newcomer, 'check-it.claimed.json');
+  assert.deepEqual(JSON.parse(readFileSync(claim, 'utf8')).files, ['b.c', 'c.c']);
+  const mine = call(here, ['range', '--run-folder', newcomer], shared);
+  assert.equal(mine.status, 0, mine.stderr);
+  assert.match(mine.stdout, /^- `b\.c` \(untracked\)\n\nLeft out: changed in the tree, but not claimed by this run.*\n- `a\.c`\n$/);
+  const theirs = call(here, ['range', '--run-folder', first], shared);
+  assert.equal(theirs.status, 0, theirs.stderr);
+  assert.equal(theirs.stdout, `- \`a.c\`\n\nLeft out: claimed by another run in the same tree, in ${claim}:\n- \`b.c\`\n`);
+  const refused = call(here, ['claim', '--run-folder', newcomer, 'a.c'], shared);
+  assert.equal(refused.status, 1);
+  assert.match(refused.stderr, /`a\.c` is already changed in the tree, and this run has not claimed it/);
 });

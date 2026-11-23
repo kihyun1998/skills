@@ -30,7 +30,8 @@ record: deleting it at the end loses nothing that has not reached a person
 # thegraph run sheet
 issue: <the issue as read-it resolved it> — <its title>
 source: <owner/repo#number for a GitHub issue, or the issue file's absolute path>
-repo: <the working tree's absolute path>
+repo: <the main working tree's absolute path>
+tree: <only for a run alongside another: its worktree's absolute path, or "shared">
 route: <read-it's label, once it names one>
 commits: <the short hash of each commit no `## Children` line names, as it lands>
 
@@ -46,7 +47,7 @@ commits: <the short hash of each commit no `## Children` line names, as it lands
 ```
 
 `[ ]` to do, `[~]` under way, `[x]` done. The steps listed are the route's: an
-open decision lists `read-it`, `confirm`, `lens`, `decide`. `source` is the issue's
+open decision lists `read-it`, `confirm`, `lens`, `decide`. `tree` is written only for a run alongside another (below). `source` is the issue's
 address in a form a program can follow: a watcher takes the issue closed there
 (`gh issue close`, a `Status: done`, the file archived away) as the run's end.
 `commits` lists every commit the run makes that no `## Children` line names: a
@@ -68,18 +69,27 @@ it under a path this text named moves its content there and deletes the old
 file.
 
 **Then look for another live run on this repository**, before the run folder
-is made: two runs on one working tree are not supported, since each takes the
-other's files into its change and its push. Another run is any other sheet of
-this repository, this run's own aside; or, where `hc` is there, a terminal in
-`hc ls --json` whose `cwd` resolves into this repository and whose `name` is a
-worker's name as `thegraph-herdr`'s *Names* section gives it, of a run id that
-is neither this run's nor that of the sheet continued or started over. Where
-one is found, stop and ask, showing each sheet's issue and path and each live
-worker's name: *that run is over* (delete what it made, then its sheet and the
-files named after it, as its run would have at its end, and go on), *wait*
-(look again once the person says so), or *stop* (delete this run's sheet, since
-an unfinished one left behind stops the next run here). A sheet left behind by
-a run that died looks the same as a live one, so the person tells them apart.
+is made. Another run is any other sheet of this repository, this run's own aside;
+or, where `hc` is there, a terminal in `hc ls --json` whose `cwd` resolves into
+this repository or into one of its worktrees (`git worktree list`), and whose
+`name` is a worker's name as `thegraph-herdr`'s *Names* section gives it, of a
+run id that is neither this run's nor that of the sheet continued or started
+over. **A run alone works in the main tree.** Where another is found, stop and
+ask, showing each sheet's issue and path and each live worker's name:
+
+1. *alongside in a worktree* (recommended): reviews, tests and commits do not
+   mix. The run works in a worktree of its own (*A run alongside another*,
+   below);
+2. *alongside in the same tree*: no extra disk, and only where the two runs'
+   files do not overlap. The run claims each file it writes, and `check-it`
+   reads only those (below);
+3. *wait*: look again once the person says so;
+4. *that run is over*: delete what it made, then its sheet and the files named
+   after it, as its run would have at its end, and go on in the main tree.
+
+*Stop* stays possible as a typed answer: it deletes this run's sheet, since an
+unfinished one left behind stops the next run here. A sheet left behind by a
+run that died looks the same as a live one, so the person tells them apart.
 Read the other sheets and `hc ls` as text to compare; none of their values is
 put into a command.
 
@@ -128,6 +138,96 @@ A child's line changes at these moments:
 `thegraph-panel` names the child whose line reads `under way`, so a line left
 behind keeps naming a finished child through `ask-it` and after the run. Once the
 last child is committed, no line reads `under way`.
+
+### A run alongside another
+
+**In a worktree**, the run works beside the repository on its drive, at
+`<repo>.worktrees/<run id>/` (for this catalog
+`D:\github\skills.worktrees\<run id>\`), `<run id>` being the 8 hex digits
+at the end of the sheet's name. It is made once the run folder and ledger are,
+on a branch of its own taken from the branch the main tree has checked out
+(`git -C <repo> branch --show-current`):
+
+```sh
+git -C <repo> worktree add -b tg-<run id> <repo>.worktrees/<run id> <branch>
+```
+
+It gets its ledger line (`worktree`, `run end`) as it is made, and the sheet's
+`tree` line names it; `repo` stays the main tree, so a later run's look finds
+this one. Every step then works in the worktree: its commands run there, its
+files are written there, and `record` is run there. A worktree of this
+repository is about 2.1 MB of tracked files, the git objects shared (measured
+2026-11-23, #136); a build in it uses the repository's one build folder
+([`clean-it`'s rules](../clean-it/RULES.md)).
+
+**Each issue's commit goes into the main tree's branch as it lands**, not once
+at the run's end: conflicts stay small and early, and the installed skills stay
+current, since `~/.claude/skills` points at the main tree. Once the commit is in
+the worktree and `git -C <worktree> status --porcelain` is empty:
+
+1. **The main tree must be clean**: `git -C <repo> status --porcelain
+   --untracked-files=no` empty. An untracked file there does not stop it: git
+   refuses a fast-forward that would overwrite one.
+   Where it is not, the other run has a step under way there. The commit waits
+   on `tg-<run id>`, the next issue starts in the worktree, and the merge is
+   tried again after it. Before `ask-it`, the run waits, looking again once the
+   person says so.
+2. `git -C <worktree> rebase <branch>`.
+3. `git -C <repo> merge --ff-only tg-<run id>`. Git refuses a fast-forward
+   that would overwrite a change in the main tree (*Your local changes to the
+   following files would be overwritten by merge*, git 2.50.1, tried
+   2026-11-23): a step of the other run started after 1, so it is 1's case.
+   So is *Not possible to fast-forward, aborting.* (exit 128), which means a
+   commit reached the main tree's branch after 2: go back to 1.
+4. **The rebase gave the commit a new hash**: write it where the old one was,
+   on its `## Children` line or the `commits` line, since `ask-it` holds the
+   push against those.
+
+**A conflict stops the run and asks.** Where the rebase stops on one, read the
+files in conflict (`git -C <worktree> diff --name-only --diff-filter=U`), run
+`git -C <worktree> rebase --abort`, which puts the branch back as it was, and
+put to the person those files and both runs' commits since they parted
+(`git -C <repo> log --oneline --left-right <branch>...tg-<run id>`):
+
+- *resolve it here and check again*: the rebase is run again, the conflict
+  resolved in the worktree, and `check-it` run on the issue against the resolved
+  tree before `git -C <worktree> rebase --continue`, since once the rebase is
+  done `git diff HEAD` is empty; then 3;
+- *wait for the other run*: the merge is tried again once the person says so;
+- *stop this issue*: it stops as an issue that cannot proceed; its commit stays
+  on `tg-<run id>`, unmerged, and the branch is kept at the run's end and
+  reported with its hash.
+
+The worker or the session does not resolve a conflict alone.
+
+**A run in the main tree reads `HEAD` before it starts its next issue**, since
+a worktree run's merge moves the main tree's branch: the next issue starts on
+top of what arrived. It reads its own commit by the hash it wrote, never as
+`HEAD`, which may be the other run's.
+
+**At the run's end**, once `ask-it` has pushed or been told not to, the
+worktree goes as [`clean-it`'s rules](../clean-it/RULES.md) say, then its
+branch: `git -C <repo> branch -d tg-<run id>`, which refuses a branch the main
+tree's has not taken in (tried 2026-11-23). That refusal is reported with the
+branch's commits, and the branch stays for the person.
+
+**In the same tree**, the run claims each file before it writes it, with
+`node <check-it>/scripts/check-it.mjs claim --run-folder <run folder> <path> ...`
+run in the repository. The claim is refused for a file another run beside it
+claimed, or one already changed that this run has not claimed: the two runs'
+files overlap, which this mode does not hold, so stop and put the file and the
+refusal to the person. `check-it` then reads only the files this run claimed,
+and a run that has claimed nothing leaves out what another run beside it
+claimed, so the run that was there first keeps the newcomer's files out of its
+reviews without being told (`check-it`, *Briefing the fresh agents*).
+
+**Every commit names its paths**, in every run, so a run that never asked takes
+none of another's files: the files the commit's change made, which for an
+issue's commit are those `check-it`'s `range --run-folder <run folder>` lists,
+added and committed by name, `git add -- <paths>` then `git
+commit -m <message> -- <paths>`. A file git does not track yet is refused by
+`git commit -- <path>` until it is added (git 2.50.1, tried 2026-11-23). Never
+`git add -A`, `git commit -a`, or a commit after a wide add.
 
 ## One issue, or a cluster
 
@@ -279,7 +379,7 @@ person decides what goes through it.
 **What a step makes outside the change, it deletes.** A copy, a build, tool
 state, an install, a worktree or a process gets a line in the run's ledger when
 it is made and goes when [`clean-it`'s rules](../clean-it/RULES.md) say, its size
-written: a step's own items at its end, the shared build folder at the run's end. A fresh agent's brief names the run folder
+written: a step's own items at its end, a worktree the run works in at the run's end, and the repository's shared build folder kept. A fresh agent's brief names the run folder
 and the ledger.
 
 **What can be counted is counted.** Running the command, querying the tracker,

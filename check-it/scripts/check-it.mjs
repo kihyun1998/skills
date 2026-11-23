@@ -2,7 +2,7 @@
 // It runs main() unconditionally: it is reached through the ~/.claude/skills
 // link, where argv[1] and import.meta.url name different paths.
 
-import { closeSync, lstatSync, openSync, readFileSync, readSync, readlinkSync, realpathSync, statSync, writeFileSync } from 'node:fs';
+import { closeSync, lstatSync, openSync, readFileSync, readSync, readdirSync, readlinkSync, realpathSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { CheckItError, SKILLS, run } from './assemble.mjs';
@@ -44,6 +44,18 @@ const realDeps = {
   },
   hash,
   writeFile: (path, text) => writeFileSync(path, text, { flag: 'wx' }),
+  saveFile: (path, text) => {
+    const next = `${path}.${process.pid}.tmp`;
+    writeFileSync(next, text);
+    renameSync(next, path);
+  },
+  listDir: (path) => {
+    try {
+      return readdirSync(path);
+    } catch {
+      return [];
+    }
+  },
   git: (dir, args) => {
     try {
       return execFileSync('git', args, {

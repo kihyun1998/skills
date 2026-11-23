@@ -34,7 +34,7 @@ path finds it, deletes it, and names the processes that belong to it:
 
 - in a `thegraph` run, `<run sheet>.made/` beside the run sheet;
 - in a `thegraph-herdr` run, the conductor's, which each worker's brief names,
-  so the workers share one build folder;
+  so every worker's items are under one path;
 - otherwise `made/` in the session's scratchpad where the harness gives one, or
   else a folder `made-<yyyymmdd-hhmm>-<8 random hex>` in the OS temp folder. The
   scratchpad's other files are not the run folder's.
@@ -78,7 +78,7 @@ look for.
 before it reports: a review copy goes before the review's report is saved, a
 probe before its number is written down.
 
-**At the run's end** go the shared build folders and the run folder itself,
+**At the run's end** go a worktree the run worked in and the run folder itself,
 after every line still open has been deleted or marked `kept`. The closing
 report names the total freed and each kept item with its path. Then the ledger
 goes, with the run sheet in a `thegraph` run and with the run folder otherwise;
@@ -91,12 +91,18 @@ session closed before that leaves its ledger for `clean-it`.
 
 ### Builds
 
-**One build folder per repository, shared within a run**, under the run folder:
-`<run folder>/build/<repository name>/`. Every copy and worktree of that
-repository in the run builds into it, so a review copy does not build the
-dependencies again. A process that cannot be told this in words, such as a
-build a script starts, gets it through its environment, and the step that starts
-it writes the ledger lines for what it is pointed at.
+**One build folder per repository, shared across runs**, beside the repository
+on its drive: `<repository>.build/` (for this catalog `D:\github\skills.build\`).
+Every run, copy and worktree of that repository builds into it, so a review
+copy does not build the dependencies again, and two runs building at once wait
+on the toolchain's lock instead of making a second copy (#136). Two Cargo builds
+pointed at one folder were seen to wait: the second printed *Blocking waiting
+for file lock on build directory* and built once the first was done (Cargo
+1.96.0, tried 2026-11-23). **It is kept**: no run deletes it and no ledger
+lists it, `clean-it` reports its size, and deleting it is the person's. A
+process that cannot be told this in words, such as a build a script starts,
+gets it through its environment, and the step that starts it writes the ledger
+line for anything else it points the process at.
 
 - **Rust**: set `CARGO_TARGET_DIR` to it (Cargo also reads `--target-dir` and
   `build.target-dir`; read from `cargo help build`, Cargo 1.96.0).
@@ -129,7 +135,11 @@ with Java 17, and run on 2026-11-20:
 
 ### Worktrees
 
-A worktree goes under the step's folder. Remove it with `git worktree remove
+A worktree a step makes goes under the step's folder. A run's own worktree,
+where it runs alongside another run on its repository, goes beside the
+repository on its drive, at `<repository>.worktrees/<run id>/`, and is removed
+at the run's end, then its branch, as `thegraph` says (*A run alongside
+another*); `<repository>.worktrees/` goes with its last worktree. Remove it with `git worktree remove
 <path>`, then `git worktree prune`. `remove` refuses a worktree with untracked
 files or changes (git 2.50.1's manual); that refusal is read before anything
 else: what is in it is either this step's, and goes, or not, and is reported.

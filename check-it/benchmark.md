@@ -13,7 +13,7 @@ benchmark checklist, read raw at
 - Read the benchmark's code: what it times, counts and ignores.
 - A baseline build, or a copy of the code before the change, goes in the run
   folder and follows [`clean-it`'s rules](../clean-it/RULES.md); a Rust baseline uses the
-  run's build folder for the repository.
+  repository's shared build folder.
 - Check the machine is quiet (load average, core count). If it is not and cannot
   be stopped, alternate the sides so both see the same noise, and say so.
 

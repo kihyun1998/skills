@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { join, relative, resolve } from 'node:path';
-import { CheckItError, RECORD, REPORTS, SKILLS, fill, matchCovered, ownPart, parseArgs, reportPath, run, section, skillBody } from './assemble.mjs';
+import { basename, dirname, join, relative, resolve } from 'node:path';
+import { CLAIMS, CheckItError, RECORD, REPORTS, SKILLS, fill, matchCovered, ownPart, parseArgs, reportPath, run, section, skillBody } from './assemble.mjs';
 
 const REPO = resolve('/work/repo');
 const CHECK_IT = join(SKILLS, 'check-it');
@@ -42,9 +42,15 @@ function fakeDeps({ files = {}, tracked = [], untracked = [], dirs = ['/work/run
         return hashes[relative(REPO, p).replaceAll('\\', '/')] ?? null;
       },
       writeFile: (p, text) => {
+        if (p in all) throw new Error(`EEXIST: ${p}`);
         written[p] = text;
         all[p] = text;
       },
+      saveFile: (p, text) => {
+        written[p] = text;
+        all[p] = text;
+      },
+      listDir: (p) => dirs.map((d) => resolve(d)).filter((d) => dirname(d) === p).map((d) => basename(d)),
       git: (dir, args) => {
         calls.push({ dir, args });
         if (args[0] === 'rev-parse') return `${REPO}\n`;
@@ -460,4 +466,120 @@ test('record --from the run folder by another path to it keeps the record it has
   const { deps, written } = fakeDeps({ dirs: ['/work/run', '/work/alias'], aliases: { [alias]: '/work/run' }, files: { [RECORDED]: recordOf({ x: H('a') }) } });
   assert.equal(run(['record', '--run-folder', '/work/run', '--from', '/work/alias'], deps), `kept the record ${RECORDED}\n`);
   assert.deepEqual(written, {});
+});
+
+const CLAIMED = join(RUN, CLAIMS);
+const OTHER = resolve('/work/other.made');
+const OTHER_CLAIMED = join(OTHER, CLAIMS);
+const claimOf = (files, repo = REPO) => JSON.stringify({ repo, files });
+
+test('claim writes the paths this run takes in the same tree as another run, from the repository\'s root, once each', () => {
+  const { deps, written } = fakeDeps({ onDisk: ['src/b.c'] });
+  const out = run(['claim', '--run-folder', '/work/run', 'src/b.c', join(REPO, 'src', 'a.c'), './src/b.c'], deps);
+  assert.deepEqual(JSON.parse(written[CLAIMED]), { repo: REPO, files: ['src/a.c', 'src/b.c'] });
+  assert.equal(out, `claimed 2 files in ${CLAIMED}: \`src/a.c\`, \`src/b.c\`\n`);
+  run(['claim', '--run-folder', '/work/run', 'src/c.c'], deps);
+  assert.deepEqual(JSON.parse(written[CLAIMED]).files, ['src/a.c', 'src/b.c', 'src/c.c']);
+});
+
+test('claim stops on a path another run beside this one has claimed, and writes nothing', () => {
+  const { deps, written } = fakeDeps({ dirs: ['/work/run', '/work/other.made'], files: { [OTHER_CLAIMED]: claimOf(['src/a.c']) } });
+  throwsCheck(() => run(['claim', '--run-folder', '/work/run', 'src/new.c', 'src/a.c'], deps), /`src\/a\.c` is claimed by another run in the same tree, in .*other\.made.check-it\.claimed\.json/);
+  assert.deepEqual(written, {});
+});
+
+test('claim stops on a path already changed in the tree that this run has not claimed, and writes nothing', () => {
+  for (const opts of [{ tracked: ['src/a.c'] }, { untracked: ['src/a.c'] }]) {
+    const { deps, written } = fakeDeps(opts);
+    throwsCheck(() => run(['claim', '--run-folder', '/work/run', 'src/a.c'], deps), /`src\/a\.c` is already changed in the tree, and this run has not claimed it/);
+    assert.deepEqual(written, {});
+  }
+  const { deps, written } = fakeDeps({ tracked: ['src/a.c'], files: { [CLAIMED]: claimOf(['src/a.c']) } });
+  run(['claim', '--run-folder', '/work/run', 'src/a.c'], deps);
+  assert.deepEqual(JSON.parse(written[CLAIMED]).files, ['src/a.c']);
+});
+
+test('claim needs a path inside the repository and a run folder', () => {
+  const { deps } = fakeDeps();
+  throwsCheck(() => run(['claim', '--run-folder', '/work/run'], deps), /claim needs each path/);
+  throwsCheck(() => run(['claim', 'a.c'], deps), /claim needs --run-folder/);
+  throwsCheck(() => run(['claim', '--run-folder', '/work/run', '../x.c'], deps), /outside the repository/);
+  throwsCheck(() => run(['claim', '--run-folder', '/work/run', resolve('/elsewhere/x.c')], deps), /outside the repository/);
+});
+
+test('with a claim of its own, the change is the claimed files only, and the rest is listed as left out', () => {
+  const { deps } = fakeDeps({ tracked: ['mine.c', 'theirs.c'], untracked: ['new.c', 'theirs-new.c'], onDisk: ['theirs.c'], files: { [CLAIMED]: claimOf(['mine.c', 'new.c', 'committed.c']) } });
+  assert.equal(run(['range', '--run-folder', '/work/run'], deps), [
+    '- `mine.c`',
+    '- `new.c` (untracked)',
+    '',
+    `Left out: changed in the tree, but not claimed by this run, which works in the same tree as another run and claims its files in ${CLAIMED}:`,
+    '- `theirs.c`',
+    '- `theirs-new.c`',
+    '',
+  ].join('\n'));
+  assert.match(prompt('bug', deps), /plus every untracked file not left out below.*\n\n- `mine\.c`\n- `new\.c` \(untracked\)\n\nLeft out: changed in the tree, but not claimed/s);
+  assert.equal(run(['verify', '--covered', 'theirs.c', '--covered', 'mine.c', '--run-folder', '/work/run'], deps), 'mine.c\n');
+});
+
+test('without a claim of its own, the files another run beside it claimed for this repository are left out', () => {
+  const { deps } = fakeDeps({
+    dirs: ['/work/run', '/work/other.made', '/work/third.made'],
+    tracked: ['mine.c', 'theirs.c'],
+    untracked: ['theirs-new.c'],
+    files: { [OTHER_CLAIMED]: claimOf(['theirs.c', 'theirs-new.c']), [join(resolve('/work/third.made'), CLAIMS)]: claimOf(['mine.c'], resolve('/elsewhere')) },
+  });
+  assert.equal(run(['range', '--run-folder', '/work/run'], deps), [
+    '- `mine.c`',
+    '',
+    `Left out: claimed by another run in the same tree, in ${OTHER_CLAIMED}:`,
+    '- `theirs.c`',
+    '- `theirs-new.c`',
+    '',
+  ].join('\n'));
+});
+
+test('a diff whose every file is left out as another run\'s or not this run\'s is empty, and says which', () => {
+  const { deps } = fakeDeps({ tracked: ['theirs.c'], files: { [CLAIMED]: claimOf(['mine.c']) } });
+  throwsCheck(() => run(['range', '--run-folder', '/work/run'], deps), /^the diff is empty: every changed file is left out, as not claimed by this run, which works in the same tree as another run$/);
+  const theirs = fakeDeps({ dirs: ['/work/run', '/work/other.made'], tracked: ['theirs.c'], files: { [OTHER_CLAIMED]: claimOf(['theirs.c']) } });
+  throwsCheck(() => run(['range', '--run-folder', '/work/run'], theirs.deps), /^the diff is empty: every changed file is left out, as claimed by another run in the same tree$/);
+});
+
+test('a claim check-it would not read stops the range and the claim', () => {
+  for (const [text, why] of [
+    [claimOf(['../x']), /outside the repository/],
+    [claimOf(['x'], resolve('/elsewhere')), /was made for .*elsewhere/],
+    ['not json', /is not a claim check-it wrote/],
+    [JSON.stringify({ repo: REPO }), /lists no files/],
+  ]) {
+    const { deps } = fakeDeps({ tracked: ['x'], files: { [CLAIMED]: text } });
+    throwsCheck(() => run(['range', '--run-folder', '/work/run'], deps), why);
+    throwsCheck(() => run(['claim', '--run-folder', '/work/run', 'y'], deps), why);
+  }
+});
+
+test('claim refuses a path that differs only in case from a changed one, since the file system may take them for one file', () => {
+  const { deps, written } = fakeDeps({ tracked: ['src/a.c'] });
+  throwsCheck(() => run(['claim', '--run-folder', '/work/run', 'SRC/A.C'], deps), /`SRC\/A\.C` differs only in case from `src\/a\.c`, which is changed in the tree/);
+  assert.deepEqual(written, {});
+});
+
+test('claim refuses a folder, since a claim matches files by their whole path', () => {
+  const { deps, written } = fakeDeps({ dirs: ['/work/run', '/work/repo/newdir'] });
+  throwsCheck(() => run(['claim', '--run-folder', '/work/run', 'newdir'], deps), /`newdir` is a folder: claim each file in it/);
+  assert.deepEqual(written, {});
+});
+
+test('a claim in another run folder that does not parse, or is for another repository, is passed over, not stopped on', () => {
+  for (const text of ['{"repo": "', claimOf(['../x'], resolve('/elsewhere')), claimOf(['../x'])]) {
+    const { deps } = fakeDeps({ dirs: ['/work/run', '/work/other.made'], tracked: ['a.c'], files: { [OTHER_CLAIMED]: text } });
+    assert.equal(run(['range', '--run-folder', '/work/run'], deps), '- `a.c`\n');
+  }
+});
+
+test('only run folders named *.made beside this one are read for claims', () => {
+  const plain = resolve('/work/plain');
+  const { deps } = fakeDeps({ dirs: ['/work/run', '/work/plain'], tracked: ['a.c'], files: { [join(plain, CLAIMS)]: claimOf(['a.c']) } });
+  assert.equal(run(['range', '--run-folder', '/work/run'], deps), '- `a.c`\n');
 });

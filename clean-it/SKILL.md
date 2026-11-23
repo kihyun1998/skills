@@ -27,13 +27,13 @@ Each group is measured with `du -sh` on the paths it names, in parallel.
   `deleted`: its path, what it is, who made it and when (the file's date). A
   `kept` line is listed apart and never offered.
 - **Run folders**: `<OS temp>/thegraph/*.made/`, `<OS temp>/made-*/` and
-  `<OS temp>/claude/*/*/scratchpad/made/`, each read through its ledger, and
-  `<run folder>/build/*`, the shared build folders, among them.
+  `<OS temp>/claude/*/*/scratchpad/made/`, each read through its ledger.
 - **Folders with an owner marker**: `<OS temp>/*/.made`, the marker's line read
   for who made it.
 - **Stale worktrees**, in every repository a ledger names and in the working
   directory's: `git worktree list --porcelain`, each entry marked `prunable`, or
-  whose path is in the OS temp folder or a ledger line. Its `git status --short`
+  whose path is in the OS temp folder, under `<repository>.worktrees/` beside
+  it, or in a ledger line. Its `git status --short`
   is read too, since `remove` refuses one with changes.
 - **Processes**, listed, from the ledgers' open process lines whose pid is still
   alive with the same command line.
@@ -49,6 +49,8 @@ leaves its sheet too, so a marked run is asked about one by one, never skipped.
 
 - `target/` in each repository a ledger names, in the working directory's, and
   one level down from the working directory's parent (`<parent>/*/target`).
+- The shared build folders, kept across runs: `<repository>.build/` beside each
+  repository a ledger names and the working directory's, and `<parent>/*.build`.
 - Caches: `~/.cargo/registry` and `~/.cargo/git`, the pub cache
   (`%LOCALAPPDATA%\Pub\Cache` on Windows, `~/.pub-cache` elsewhere, or
   `PUB_CACHE`), `~/.gradle/caches` (or `GRADLE_USER_HOME`).
@@ -67,7 +69,7 @@ One table per group, largest first: path, size, what it is, who made it and when
 and for a worktree whether it has changes. Under it, the total each group could
 free and the drive's free space (`df -h` on it). The sizes-only groups carry a
 line saying what would free them and that this skill does not (`cargo clean` in
-that repository, `flutter pub cache clean`, `wsl --manage <distro> --set-sparse
+that repository, deleting a shared build folder, `flutter pub cache clean`, `wsl --manage <distro> --set-sparse
 true`), each a call for the person.
 
 ## 3. Confirm

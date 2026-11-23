@@ -1,5 +1,10 @@
 # ADR-0103 — What a step makes, it deletes; `clean-it` holds the rules and finds what was missed
 
+> **Amended for #136.** The one build folder per repository is beside the
+> repository on its drive, shared across runs and kept, with `clean-it`
+> reporting its size, where this record shares it within a run and deletes it
+> at the run's end. The record of that call is #136's decision comment.
+
 **Status:** accepted. No issue of its own: the maintainer's grilling of
 2026-11-20, in a `/thegraph-herdr` conductor session. Extends
 [ADR-0080](0080-a-run-keeps-a-run-sheet-while-it-lasts.md) and amends

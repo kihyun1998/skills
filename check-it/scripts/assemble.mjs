@@ -1,4 +1,4 @@
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export class CheckItError extends Error {}
@@ -26,6 +26,7 @@ const PER_CHILD = new Set(['pick-confirm', 'change']);
 
 const ALLOWED = {
   record: ['repo', 'run-folder', 'from'],
+  claim: ['repo', 'run-folder'],
   range: ['repo', 'run-folder'],
   name: ['repo', 'sheet', 'run-folder', 'child'],
   verify: ['repo', 'covered', 'run-folder'],
@@ -33,6 +34,7 @@ const ALLOWED = {
 };
 
 export const RECORD = 'check-it.untracked.json';
+export const CLAIMS = 'check-it.claimed.json';
 
 export const USAGE = `Usage: node check-it.mjs <command> [options]
 
@@ -42,8 +44,15 @@ export const USAGE = `Usage: node check-it.mjs <command> [options]
                                 is made, before any change is written. With --from, a run started over
                                 or moved keeps the earlier run folder's record instead: it is carried
                                 into <dir>, and where the earlier folder holds none, none is made
+  claim --run-folder <dir> <path> ...
+                                takes each path as this run's, in <dir>/${CLAIMS}, where the run works
+                                in the same tree as another run; it stops on a path a run folder named
+                                *.made beside <dir> claims, or one already changed that this run has not
+                                claimed, or a folder
   range [--run-folder <dir>]    the files the diff touches: git diff HEAD plus every untracked file,
-                                less those the run folder's record shows unchanged since it was made
+                                less those the run folder's record shows unchanged since it was made;
+                                where <dir> holds a claim, only the files it claims, and otherwise less
+                                the files a claim in a run folder named *.made beside <dir> names
   name <report> (--sheet <run sheet> | --run-folder <dir>) [--child <issue>]
                                 where a report is saved; <report> is one of
                                 ${REPORTS.join(', ')}
@@ -100,10 +109,8 @@ const runFolderOf = (opts, deps) => {
 
 const inRepo = (path) => path !== '' && !path.includes('\0') && !path.startsWith('/') && !path.split('/').includes('..');
 
-export function readRecord(runFolder, repo, deps) {
-  const path = join(runFolder, RECORD);
-  if (!deps.isFile(path)) return undefined;
-  const bad = (why) => fail(`${path} is not a record check-it wrote: ${why}`);
+const readJson = (path, kind, deps) => {
+  const bad = (why) => fail(`${path} is not a ${kind} check-it wrote: ${why}`);
   let data;
   try {
     data = JSON.parse(deps.readFile(path).replace(/^\uFEFF/, ''));
@@ -112,29 +119,132 @@ export function readRecord(runFolder, repo, deps) {
   }
   if (data === null || typeof data !== 'object' || Array.isArray(data)) bad('it is not an object');
   if (typeof data.repo !== 'string') bad('it names no repository');
+  return { data, bad };
+};
+
+const madeFor = (path, made, repo) => {
+  if (resolve(made) !== repo) fail(`${path} was made for ${made}, not ${repo}: run check-it in ${made}, or give it a run folder of its own`);
+};
+
+const outside = (path, file) => fail(`${path} names ${shown(file)}, a path outside the repository, so it is not read`);
+
+export function readRecord(runFolder, repo, deps) {
+  const path = join(runFolder, RECORD);
+  if (!deps.isFile(path)) return undefined;
+  const { data, bad } = readJson(path, 'record', deps);
   if (data.untracked === null || typeof data.untracked !== 'object' || Array.isArray(data.untracked)) bad('it lists no untracked files');
-  if (resolve(data.repo) !== repo) fail(`${path} was made for ${data.repo}, not ${repo}: run check-it in ${data.repo}, or give it a run folder of its own`);
+  madeFor(path, data.repo, repo);
   const hashes = new Map();
   for (const [file, hash] of Object.entries(data.untracked)) {
-    if (!inRepo(file)) fail(`${path} names ${shown(file)}, a path outside the repository, so it is not read`);
+    if (!inRepo(file)) outside(path, file);
     if (typeof hash !== 'string' || !/^[0-9a-f]{64}$/.test(hash)) fail(`${path} gives ${shown(file)} something that is not a content hash`);
     hashes.set(file, hash);
   }
   return { path, hashes };
 }
 
-export function changedFiles(repo, deps, runFolder) {
-  const tracked = zsplit(deps.git(repo, ['diff', 'HEAD', '--name-only', '--no-renames', '-z']));
-  const all = untrackedNow(repo, deps);
-  const record = runFolder === undefined ? undefined : readRecord(runFolder, repo, deps);
-  if (!record) return { tracked, untracked: all };
+export function readClaim(dir, deps) {
+  const path = join(dir, CLAIMS);
+  if (!deps.isFile(path)) return undefined;
+  const { data, bad } = readJson(path, 'claim', deps);
+  if (!Array.isArray(data.files) || data.files.some((f) => typeof f !== 'string')) bad('it lists no files');
+  for (const file of data.files) if (!inRepo(file)) outside(path, file);
+  return { path, repo: resolve(data.repo), files: new Set(data.files) };
+}
+
+const ownClaim = (runFolder, repo, deps) => {
+  const claim = readClaim(runFolder, deps);
+  if (claim) madeFor(claim.path, claim.repo, repo);
+  return claim;
+};
+
+const othersClaims = (runFolder, repo, deps) => {
+  const parent = dirname(runFolder);
+  const own = basename(runFolder);
+  const claims = [];
+  for (const name of deps.listDir(parent)) {
+    if (name === own || !name.endsWith('.made')) continue;
+    try {
+      const claim = readClaim(join(parent, name), deps);
+      if (claim && claim.repo === repo) claims.push(claim);
+    } catch (err) {
+      if (!(err instanceof CheckItError)) throw err;
+    }
+  }
+  return claims;
+};
+
+const notRecorded = (all, record, repo, deps) => {
+  if (!record) return { untracked: all, leftOut: [] };
   const untracked = [];
   const leftOut = [];
   for (const p of all) {
     const unchanged = record.hashes.has(p) && deps.hash(join(repo, p)) === record.hashes.get(p);
     (unchanged ? leftOut : untracked).push(p);
   }
-  return { tracked, untracked, leftOut, record: record.path };
+  return { untracked, leftOut };
+};
+
+const scopeToClaim = (tracked, untracked, claim) => {
+  const notClaimed = [...tracked, ...untracked].filter((p) => !claim.files.has(p));
+  return {
+    tracked: tracked.filter((p) => claim.files.has(p)),
+    untracked: untracked.filter((p) => claim.files.has(p)),
+    ...(notClaimed.length && { notClaimed: { claim: claim.path, files: notClaimed } }),
+  };
+};
+
+const leaveOutTheirs = (tracked, untracked, claims) => {
+  const changed = [...tracked, ...untracked];
+  const theirs = claims
+    .map((c) => ({ claim: c.path, files: changed.filter((p) => c.files.has(p)) }))
+    .filter((t) => t.files.length);
+  const taken = new Set(theirs.flatMap((t) => t.files));
+  return {
+    tracked: tracked.filter((p) => !taken.has(p)),
+    untracked: untracked.filter((p) => !taken.has(p)),
+    ...(theirs.length && { theirs }),
+  };
+};
+
+export function changedFiles(repo, deps, runFolder) {
+  const tracked = zsplit(deps.git(repo, ['diff', 'HEAD', '--name-only', '--no-renames', '-z']));
+  const all = untrackedNow(repo, deps);
+  if (runFolder === undefined) return { tracked, untracked: all };
+  const record = readRecord(runFolder, repo, deps);
+  const { untracked, leftOut } = notRecorded(all, record, repo, deps);
+  const claim = ownClaim(runFolder, repo, deps);
+  const scoped = claim ? scopeToClaim(tracked, untracked, claim) : leaveOutTheirs(tracked, untracked, othersClaims(runFolder, repo, deps));
+  return { ...scoped, ...(record && { leftOut, record: record.path }) };
+}
+
+export function claimFiles(repo, runFolder, paths, deps) {
+  if (!paths.length) fail('claim needs each path it takes, from the repository\'s root');
+  const wanted = paths.map((p) => {
+    const n = normal(resolve(repo, p), repo);
+    if (!inRepo(n) || isAbsolute(n)) fail(`${shown(p)} is a path outside the repository ${repo}`);
+    if (deps.isDir(join(repo, n))) fail(`${shown(n)} is a folder: claim each file in it, since a claim matches a file by its whole path`);
+    return n;
+  });
+  const claim = ownClaim(runFolder, repo, deps);
+  const mine = claim?.files ?? new Set();
+  const others = othersClaims(runFolder, repo, deps);
+  const { tracked, untracked } = changedFiles(repo, deps, undefined);
+  const changed = new Set([...tracked, ...untracked]);
+  const byCase = new Map([...changed].map((p) => [p.toLowerCase(), p]));
+  for (const p of wanted) {
+    if (mine.has(p)) continue;
+    const other = others.find((o) => o.files.has(p));
+    if (other) fail(`${shown(p)} is claimed by another run in the same tree, in ${other.path}: the two runs' files overlap, so going on is the person's call`);
+    if (changed.has(p)) fail(`${shown(p)} is already changed in the tree, and this run has not claimed it: another run's change, or this run's written before it was claimed; going on is the person's call`);
+    const twin = byCase.get(p.toLowerCase());
+    if (twin !== undefined) fail(`${shown(p)} differs only in case from ${shown(twin)}, which is changed in the tree: claim it as git names it`);
+  }
+  const files = [...new Set([...mine, ...wanted])].sort();
+  const path = join(runFolder, CLAIMS);
+  deps.saveFile(path, `${JSON.stringify({ repo, files }, null, 2)}\n`);
+  const added = [...new Set(wanted)].sort();
+  return `claimed ${added.length} file${added.length === 1 ? '' : 's'} in ${path}: ${added.map(shown).join(', ')}\n`;
 }
 
 const changeIn = (repo, opts, deps) => changedFiles(repo, deps, opts['run-folder'] && runFolderOf(opts, deps));
@@ -179,8 +289,12 @@ export function recordUntracked(repo, runFolder, deps) {
   return `${lines.join('\n')}\n`;
 }
 
-export function listing({ tracked, untracked, leftOut = [], record }) {
+const leftOutAny = ({ leftOut = [], notClaimed, theirs = [] }) => leftOut.length > 0 || notClaimed !== undefined || theirs.length > 0;
+
+export function listing({ tracked, untracked, leftOut = [], record, notClaimed, theirs = [] }) {
   if (tracked.length + untracked.length === 0) {
+    if (notClaimed) fail('the diff is empty: every changed file is left out, as not claimed by this run, which works in the same tree as another run');
+    if (theirs.length) fail('the diff is empty: every changed file is left out, as claimed by another run in the same tree');
     if (leftOut.length) {
       const one = leftOut.length === 1;
       fail(`the diff is empty: git diff HEAD prints nothing, and the ${untrackedFiles(leftOut.length)} git ls-files --others --exclude-standard lists ${one ? 'is' : 'are'} left out as unchanged since ${record} was made`);
@@ -193,6 +307,12 @@ export function listing({ tracked, untracked, leftOut = [], record }) {
   ];
   if (leftOut.length) {
     lines.push('', `Left out: untracked before the run began and unchanged since, as ${record} records:`, ...leftOut.map((p) => `- ${shown(p)}`));
+  }
+  if (notClaimed) {
+    lines.push('', `Left out: changed in the tree, but not claimed by this run, which works in the same tree as another run and claims its files in ${notClaimed.claim}:`, ...notClaimed.files.map((p) => `- ${shown(p)}`));
+  }
+  for (const t of theirs) {
+    lines.push('', `Left out: claimed by another run in the same tree, in ${t.claim}:`, ...t.files.map((p) => `- ${shown(p)}`));
   }
   return lines.join('\n');
 }
@@ -286,7 +406,7 @@ export function fill(template, values, what) {
 }
 
 const changeLine = (files) =>
-  `\`git diff HEAD\` in the repository, plus every untracked file${files.leftOut?.length ? ' not left out below' : ''}, so a new file is in it. The files it touches:\n\n${listing(files)}`;
+  `\`git diff HEAD\` in the repository, plus every untracked file${leftOutAny(files) ? ' not left out below' : ''}, so a new file is in it. The files it touches:\n\n${listing(files)}`;
 
 export function assemblePrompt(review, opts, deps) {
   const spec = REVIEWS[review];
@@ -355,6 +475,11 @@ export function run(argv, deps) {
       const repo = repoRoot(opts, deps);
       const runFolder = runFolderOf(opts, deps);
       return opts.from === undefined ? recordUntracked(repo, runFolder, deps) : carryRecord(repo, runFolder, opts.from, deps);
+    }
+    case 'claim': {
+      if (!opts['run-folder']) fail('claim needs --run-folder <dir>');
+      const repo = repoRoot(opts, deps);
+      return claimFiles(repo, runFolderOf(opts, deps), args, deps);
     }
     case 'range': {
       extra(0);

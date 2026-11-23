@@ -159,11 +159,18 @@ changed included.
 ### 4. The worker loop
 
 One worker at a time, in the order step 2 confirmed, each starting from the
-commit the last one left, on one working tree.
+commit the last one left, on the run's tree: the main tree, or the run's
+worktree where it runs alongside another run (`thegraph`'s *A run alongside
+another*).
 
 For each issue:
 
-1. **Check the tree.** `git status --porcelain` must be empty. Where it is not,
+1. **Check the tree.** `git status --porcelain` must be empty in the run's
+   tree, apart from the files `check-it`'s `range --run-folder <run folder>`
+   lists as left out because a run alongside in the same tree claimed them, or
+   because this run claims its own and did not claim them. In the main tree, read `HEAD` too: where it
+   has moved past this run's last commit, a run alongside merged, and the line
+   that starts the next worker names the commits that arrived. Where it is not empty,
    put the files to the person, each with its diff summary: set them aside with
    `git stash push -u -m "tg-<run id>"`, hand them to this worker as named in its
    brief, or stop the run. Nothing is discarded without the person.
@@ -172,7 +179,7 @@ For each issue:
 3. **Start it** with no label, which runs it without a pane, with the flag of the
    permission mode step 2 confirmed:
    ```sh
-   hc run --bg --json --name tg-<run id>-<slug> --cwd <repo> claude --model <alias> --effort <level> <flag> --settings <stop hook path> "Read <brief path> and do what it says."
+   hc run --bg --json --name tg-<run id>-<slug> --cwd <the run's tree> claude --model <alias> --effort <level> <flag> --settings <stop hook path> "Read <brief path> and do what it says."
    ```
    Tell the person the worker's address from the reply, which `terminal.peek`
    opens.
@@ -194,7 +201,7 @@ For each issue:
 
    | Arrives | Do |
    |---|---|
-   | `done <report path>` | Read the report. Read the commit with `git log -1 --stat` and the tree with `git status --porcelain`. Where there is no new commit, its hash differs from the report's, the tree is not clean, or the commit touches files ② left alone other than those a fix the person picked at `check-it`'s question touched, each listed in the report's `## Result` with its finding's number in the gathered report, `hc send` the worker what differs and end the turn. Once they agree, copy its carried items under `## Carried` and the reviews its `check-it` added under `## Answers`, update `## Children`, then `hc kill` and `hc rm` the worker |
+   | `done <report path>` | Read the report. Read the commit it names with `git log -1 --stat <hash>`, check it is on the run's branch with `git merge-base --is-ancestor <hash> HEAD`, and read the tree with `git status --porcelain`, in the run's tree, `HEAD` being read by hash since a run alongside may have moved it. Where the report names no commit, that commit is not on the branch or is one an earlier worker made, the tree is not clean as in 1, or the commit touches files ② left alone other than those a fix the person picked at `check-it`'s question touched, each listed in the report's `## Result` with its finding's number in the gathered report, `hc send` the worker what differs and end the turn. Once they agree, copy its carried items under `## Carried` and the reviews its `check-it` added under `## Answers`, update `## Children`, then `hc kill` and `hc rm` the worker. In a worktree run, merge the commit into the main tree's branch as `thegraph`'s *A run alongside another* says, which also says what happens while the main tree is not clean, and write the new hash on the child's line; a conflict stops the run there and goes to the person with that section's three options |
    | `question <report path>` | Put the report's question to the person with the question tool, options included. Write it and the answer under `## Answers`, then `hc send` the worker the answer and end the turn. Where it is `check-it`'s one question on its gathered report (`check-it`, *One report, one question*), put its three options as they came, with the report's path and the pre-ticked findings, and send back what the person chose, or that they gave no answer, which fixes nothing and stops the worker uncommitted, reporting `stuck` |
    | `stuck <report path>` | The issue departed from the plan or cannot proceed. Stop and put it to the person: their answer resumes the cluster, or ends it with `ask-it` over the children done. Write it under `## Answers`. Where the answer lets this worker go on, `hc send` it the answer and end the turn; otherwise `hc kill` and `hc rm` it, and check the tree as in 1, before anything else starts. Where the model fell short, including the same failure surviving three fixes, offer these options, the first that applies recommended: a way for the worker to check its own work, where it has none; a new worker one effort level up on the same model, as far as `high`; a second worker on the same model and effort; where Sonnet 5.5 fell short at `high`, a new worker on Opus 5.5 at `medium`; after two Opus 5.5 `high` workers fell short on the issue, a new worker on Fable 5.2 at `medium`. Where a worker was refused, or fell back to another model, on a cyber classifier, offer the same brief on Mythos 5.2 (`--model claude-mythos-5-2`, `high`). A new worker's brief carries what this one tried and why it fell short |
    | `turn ended`, with no report from that worker since its last one | `hc read` it. A question in plain text is handled as `question`, from its screen. Anything else: `hc send` it that a turn ending is not a report, and that it reports with the brief's `hc send` lines. A turn ending that follows a report already handled is no news |
@@ -247,7 +254,8 @@ states the `conductor` line and which proposed worker models the person changed.
 You are the worker for one issue of a /thegraph-herdr run.
 
 Conductor terminal: <$HC_TERMINAL_ID>
-Repo: <absolute path>
+Repo: <the run's tree, as an absolute path: the main tree, or the run's worktree>
+Same tree as another run: <"no", or "yes: before writing a file, claim it with node <check-it>/scripts/check-it.mjs claim --run-folder <run folder> <path>; a refused claim is a question for the person">
 Issue: <address> — <title>
 Route: <prose or code>
 What this issue is, as confirmed: <①>
@@ -268,7 +276,9 @@ Read these sections of thegraph and hold them for this work: The signals that do
 not wait for their turn, What holds everywhere, Habits.
 
 Call make-it, then check-it. The reading is confirmed: read-it and its stop are
-done. Commit locally when check-it passes. The message closes the issue: for a
+done. Commit locally when check-it passes, naming the files check-it's range
+lists (`git add -- <paths>`, then `git commit -m <message> -- <paths>`), never
+`git add -A` or `git commit -a`. The message closes the issue: for a
 GitHub issue a `Closes #<number>` line; for an issue file, its `Status:` line
 changed in the same commit. The push, and everything written to a tracker,
 belong to the conductor.
@@ -299,8 +309,9 @@ departs from the plan or cannot proceed, write why under `## Result` and send
 
 Named and placed as `thegraph` says, and the conductor is its only writer.
 Before its run folder is made, the conductor looks for another live run on this
-repository and stops on one, as `thegraph` says. Its run folder and ledger are
-then made, and the untracked files recorded in the run folder, as `thegraph`
+repository and asks on one, as `thegraph` says. Its run folder and ledger are
+then made, and for a run alongside in a worktree the worktree, whose path goes on
+the sheet's `tree` line and in every brief's `Repo`, and the untracked files recorded in the run folder, as `thegraph`
 says, before the first worker starts: every worker's
 `check-it` reads that one record. A run continued or started over keeps its
 first record, carried with `record --from` as `thegraph` says. The
@@ -311,7 +322,8 @@ its line and a commit `ask-it` makes on the `commits` line, as `thegraph` says.
 # thegraph-herdr run sheet
 issue: <the issue as read-it resolved it> — <its title>
 source: <owner/repo#number, or the issue file's absolute path>
-repo: <the working tree's absolute path>
+repo: <the main working tree's absolute path>
+tree: <only for a run alongside another: its worktree's absolute path, or "shared">
 route: <read-it's label>
 conductor: <this session's model and effort>
 commits: <the short hash of each commit no `## Children` line names, as it lands>
@@ -338,7 +350,8 @@ commits: <the short hash of each commit no `## Children` line names, as it lands
 its children, answers and carried items and ask whether to continue or start over.
 Either way, first find this run's live workers with `hc ls`, by the name prefix
 `tg-<run id>-`: show them to the person, then `hc kill` and `hc rm` each. Then,
-after the look for another live run, check the tree as in step 4.1. To continue, read `git log` and resume at the first
+after the look for another live run, check the tree as in step 4.1, in the
+worktree the sheet's `tree` line names where it names one. To continue, read `git log` and resume at the first
 child without a commit, its brief carrying what the earlier attempt left in its
 report.
 
@@ -350,7 +363,8 @@ a worker outlives this session there, which is why a continued run looks for liv
 workers first.
 
 **Delete what the run made, then the sheet and every file named after it**:
-every line still open in the run's ledger, and the run folder, as
+every line still open in the run's ledger, a worktree's branch as `thegraph`'s
+*A run alongside another* says, and the run folder, as
 [`clean-it`'s rules](../clean-it/RULES.md) say, with the total freed in the closing report,
 after the last `ask-it` has put
 the carried items in front of the person, or at the confirm stop for a change that
