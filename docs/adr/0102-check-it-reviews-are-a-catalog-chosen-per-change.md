@@ -1,7 +1,8 @@
 # ADR-0102 — `check-it`'s reviews are a catalog of its own fresh agents, picked per change by a decision model
 
 **Status:** accepted. Implements #91; amended for #86, #95, #97, #102, #105,
-#112 and #114, and folded for #125 on 2026-11-23 into this one current record.
+#112, #114 and #140, and folded for #125 on 2026-11-23 into this one current
+record.
 The amendment history is in git:
 `git log -p -- docs/adr/0102-check-it-reviews-are-a-catalog-chosen-per-change.md`
 shows the record before the fold.
@@ -59,9 +60,12 @@ was decided, on what, and what would reopen it.
   file under `check-it/reviewers/`, and `check-it/scripts/check-it.mjs` prints
   each prompt, names each report, lists the diff's range and matches the verify
   coverage, stopping with an error where a piece is missing; CI runs its tests
-  on macOS and Windows. **Every sentence an agent reads is in markdown, and the
-  script holds paths, order and labels**: the confirm stop's paragraph for the
-  decision model is a section of `check-it/reviewers/decision-model.md` (#125).
+  on macOS and Windows. **The instructions an agent reads are in markdown; the
+  script makes paths, order, labels and the change's listing line
+  (`changeLine`)**, which depends on the diff's file list and in markdown would
+  need a conditional in the template (#140). The confirm stop's paragraph for
+  the decision model is a section of `check-it/reviewers/decision-model.md`
+  (#125).
 - **Each review's cost goes in the result** (2026-11-20): its time and tokens,
   from its `Agent` call, one line per review and per call of the decision model.
 
@@ -131,5 +135,6 @@ The runs, times, tokens and costs behind each are in
   ground for leaving the security reviewer off the floor.
 - #96's measurements showing a review missing what the bundled reviews caught,
   or a pick costing more than the reviews it saves.
-- A bundled review gaining a report-only mode that reads uncommitted and
-  untracked files, which removes the ground for replacing it.
+- A bundled review gaining what removes the ground for replacing it:
+  `/simplify` or `/security-review` a report-only mode that reads uncommitted
+  and untracked files, or `/review` a way to leave out its rules and cleanups.

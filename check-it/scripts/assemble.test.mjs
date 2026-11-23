@@ -117,9 +117,9 @@ test("lens's prompt leaves out its second-reader step, which a review cannot run
   const lens = prompt('lens', fakeDeps({ tracked: ['a.js'] }).deps);
   assert.match(lens, /1\. \*\*First step\.\*\* kept\n\nLENS BODY/);
   assert.doesNotMatch(lens, /by stance|dropped/);
-  assert.match(lens, /without the steps a review cannot run \(A second reader\)/);
+  assert.match(lens, /without the step a review cannot run \(A second reader\)/);
   const comments = prompt('comments', fakeDeps({ tracked: ['a.js'] }).deps);
-  assert.doesNotMatch(comments, /without the steps/);
+  assert.doesNotMatch(comments, /without the step/);
 });
 
 test("a lens body without the second-reader step stops the prompt, so a renamed step is not read as gone", () => {

@@ -14,7 +14,7 @@ export const REVIEWS = {
   'spec-rules': { file: 'reviewers/spec-rules.md' },
   bug: { file: 'reviewers/bug.md' },
   security: { file: 'reviewers/security.md' },
-  lens: { skill: 'lens', file: 'reviewers/lens.md', drop: ['A second reader'] },
+  lens: { skill: 'lens', file: 'reviewers/lens.md', drop: 'A second reader' },
   comments: { skill: 'comment-it', file: 'reviewers/comment-it.md' },
   proving: { file: 'reviewers/proving.md', findings: true },
   pick: { file: 'reviewers/decision-model.md', confirm: false },
@@ -459,8 +459,9 @@ export function assemblePrompt(review, opts, deps) {
   const parts = [part('reviewers/brief.md')];
   if (spec.skill) {
     const path = join(skillDir, 'SKILL.md');
-    const body = (spec.drop ?? []).reduce((b, title) => dropStep(b, title, path), piece(skillBody(read(deps, path, path), path), `the body of ${path}`));
-    parts.push(`# Your method: the body of ${path}, below its frontmatter${spec.drop ? `, without the steps a review cannot run (${spec.drop.join(', ')})` : ''}\n\n${body}`);
+    const full = piece(skillBody(read(deps, path, path), path), `the body of ${path}`);
+    const body = spec.drop ? dropStep(full, spec.drop, path) : full;
+    parts.push(`# Your method: the body of ${path}, below its frontmatter${spec.drop ? `, without the step a review cannot run (${spec.drop})` : ''}\n\n${body}`);
   }
   parts.push(part(spec.file));
   if (spec.findings) {

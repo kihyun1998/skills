@@ -360,9 +360,12 @@ the call when it fails or times out, so a missing or broken script refuses
 rather than lets through. It reads the command's text, so it catches `claude`
 named in the command itself, and not one started from a script file, another
 interpreter, a variable, an encoded command or a renamed copy. **Where the session's agent list lacks the type**
-(Codex, or a session started before the install), the review is started as the
-default agent with the same prompt, held by the brief alone, and the result
-names each review started that way. **A session started before the definition
+(Codex, or a session started before the install), no review starts until the
+person is asked, through the question tool where there is one: *open the session
+again* (recommended, since the default agent holds `Agent` and `Skill` and only
+its brief stops it using them, ADR-0053), or *run on the default agent this
+once*, which starts each review as the default agent with the same prompt. The
+result names each review run that way. **A session started before the definition
 changed** still starts the type, on the grant it had then. So each review's
 report opens by saying whether `Agent` or `Skill` is in its tool list, and the
 result names each review that had one as run on an older definition or the
