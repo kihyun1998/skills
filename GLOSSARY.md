@@ -167,7 +167,12 @@ carried for a person until `ask-it` puts it in front of them. It names the issue
 it belongs to, so a later run on the same issue can find one left behind and ask
 whether to pick it up — twice over: as **issue**, the issue and its title as a
 person reads them, and as **source**, the issue's address in a form a program can
-follow (the tracker's number, or the issue file's path). **It lives only as long as the run**, outside any
+follow (the tracker's number, or the issue file's path). Before its run folder is
+made, the run reads the repository's other sheets for another live run and asks
+on one (the start check). Its **commits** line lists, as they land, the commits the
+run makes that no `## Children` line names, which `ask-it` holds the push
+against together with those lines, so a run that commits keeps its sheet until
+the push question. **It lives only as long as the run**, outside any
 repository; deleting it at the end loses nothing that has not already reached a
 person. Not a record — the records stay where they were: decision records, the
 tracker, the commit. Its readers besides the run: `thegraph-panel`, which works

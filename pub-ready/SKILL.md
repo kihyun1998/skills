@@ -90,8 +90,17 @@ and archive size. Then the commands, in order, for the maintainer to run:
 
 ```sh
 dart pub publish          # flutter pub publish for a Flutter package
-git tag v<version> && git push origin v<version>
+git tag v<version> <release commit> && git push origin v<version>
 ```
+
+**The tag push sends every commit the tag reaches that `origin` does not
+have**, not only the release commit. Before handing over, run `git fetch
+origin` and list them, `git log --format='%h %s' <release commit> --not
+--remotes=origin`, show each with its hash and subject, and ask, as
+`ask-it`'s *Before the push* does: *push them with the tag*, or *tag without
+pushing*, which leaves `git push` out of the commands. The tag names the
+release commit by its hash, never `HEAD`, so a commit made after the list is
+not sent unseen.
 
 Use the tag shape the repo's existing tags use. Where any check failed and was
 not fixed, say which, and write no command.

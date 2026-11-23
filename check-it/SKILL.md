@@ -443,7 +443,13 @@ content; when it runs is `thegraph`'s to say, where it makes the run folder.
 Where the run folder holds that record, `range`, `verify` and `prompt`
 leave out each untracked file it names whose content is unchanged, and list
 the files left out under the change, so none disappears unseen. A file the
-change edited is listed again. A record naming a path outside the repository,
+change edited is listed again. A run started over or moved carries the earlier
+attempt's record into its new run folder with `record --run-folder <run folder>
+--from <earlier run folder>` instead (`thegraph` says when): where the earlier
+folder holds no record, the record made lists no file, so every untracked file
+is listed and a later `record` there stops; where that folder is not there,
+the script stops. An untracked file `record` cannot read is not recorded, so
+it is always listed. A record naming a path outside the repository,
 or made for another repository, stops the script. A direct `/check-it` makes
 its run folder after the change and records nothing, so every untracked file
 is listed.

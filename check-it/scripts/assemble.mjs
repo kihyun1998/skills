@@ -43,7 +43,8 @@ export const USAGE = `Usage: node check-it.mjs <command> [options]
                                 content, in <dir>/${RECORD}; made once, when a run's first run folder
                                 is made, before any change is written. With --from, a run started over
                                 or moved keeps the earlier run folder's record instead: it is carried
-                                into <dir>, and where the earlier folder holds none, none is made
+                                into <dir>; where the earlier folder holds none, the record made lists
+                                no file, and where that folder is not there, record stops
   claim --run-folder <dir> <path> ...
                                 takes each path as this run's, in <dir>/${CLAIMS}, where the run works
                                 in the same tree as another run; it stops on a path a run folder named
@@ -255,36 +256,39 @@ const recordAt = (runFolder, deps) => {
   return path;
 };
 
-const recordText = (repo, untracked) => `${JSON.stringify({ repo, untracked }, null, 2)}\n`;
+const recordText = (repo, entries) => `${JSON.stringify({ repo, untracked: Object.fromEntries(entries) }, null, 2)}\n`;
 
 const untrackedFiles = (n) => `${n} untracked file${n === 1 ? '' : 's'}`;
 
-const noRecord = (path) => `no record made, since there is no record at ${path}: every untracked file is listed\n`;
-
 export function carryRecord(repo, runFolder, from, deps) {
   const earlier = resolve(deps.cwd, from);
-  if (deps.realPath(earlier) === deps.realPath(runFolder)) {
+  if (!deps.isDir(earlier)) fail(`the earlier run folder ${earlier} is not a folder: give the run folder the earlier attempt used, since the step after this one deletes it`);
+  const same = deps.realPath(earlier) === deps.realPath(runFolder);
+  if (same) {
     const kept = readRecord(runFolder, repo, deps);
-    return kept ? `kept the record ${kept.path}\n` : noRecord(join(runFolder, RECORD));
+    if (kept) return `kept the record ${kept.path}\n`;
   }
   const path = recordAt(runFolder, deps);
-  const record = readRecord(earlier, repo, deps);
-  if (!record) return noRecord(join(earlier, RECORD));
-  deps.writeFile(path, recordText(repo, Object.fromEntries(record.hashes)));
+  const record = same ? undefined : readRecord(earlier, repo, deps);
+  if (!record) {
+    deps.writeFile(path, recordText(repo, []));
+    return `recorded no untracked file, since there is no record at ${join(same ? runFolder : earlier, RECORD)}: every untracked file is listed\n`;
+  }
+  deps.writeFile(path, recordText(repo, record.hashes));
   return `carried the record of ${untrackedFiles(record.hashes.size)} from ${record.path} into ${path}\n`;
 }
 
 export function recordUntracked(repo, runFolder, deps) {
   const path = recordAt(runFolder, deps);
-  const untracked = {};
+  const untracked = new Map();
   const skipped = [];
   for (const p of untrackedNow(repo, deps)) {
     const hash = deps.hash(join(repo, p));
     if (hash === null) skipped.push(p);
-    else untracked[p] = hash;
+    else untracked.set(p, hash);
   }
   deps.writeFile(path, recordText(repo, untracked));
-  const lines = [`recorded ${untrackedFiles(Object.keys(untracked).length)} in ${path}`];
+  const lines = [`recorded ${untrackedFiles(untracked.size)} in ${path}`];
   if (skipped.length) lines.push(`not recorded, since it could not be read as a file or a link, so always listed: ${skipped.map(shown).join(', ')}`);
   return `${lines.join('\n')}\n`;
 }

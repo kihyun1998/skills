@@ -313,8 +313,8 @@ repository and asks on one, as `thegraph` says. Its run folder and ledger are
 then made, and for a run alongside in a worktree the worktree, whose path goes on
 the sheet's `tree` line and in every brief's `Repo`, and the untracked files recorded in the run folder, as `thegraph`
 says, before the first worker starts: every worker's
-`check-it` reads that one record. A run continued or started over keeps its
-first record, carried with `record --from` as `thegraph` says. The
+`check-it` reads that one record. What a run continued in place, started over
+or moved does with the earlier run folder and its record is `thegraph`'s. The
 children have no checkboxes, as in a `thegraph` cluster. A child's commit is on
 its line and a commit `ask-it` makes on the `commits` line, as `thegraph` says.
 

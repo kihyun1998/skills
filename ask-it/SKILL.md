@@ -217,6 +217,10 @@ Hold each hash against the run's commits on its sheet, the `commits` line and
 the hashes on its `## Children` lines, two short hashes matching where one
 starts with the other.
 
+**A run that made a commit comes here even when `check-it` carried nothing**:
+its sheet is kept for this question (`thegraph`'s run sheet), and the push is
+the only thing put.
+
 **The push is the person's either way**, and the list decides only what the
 question offers. Where every commit listed is the run's, the question is the
 push of those commits. Where any one is not, show those commits, each with its

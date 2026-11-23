@@ -64,9 +64,10 @@ sheets of a repository are those in that folder with some step not `[x]` whose
 `/var` and `/private/var` are one folder). First look among them for one with
 this issue — by where it lives *or* its title, since a local issue moves when
 it is archived. If there is one, show its steps and its carried items and ask
-whether to continue it or start over; starting over deletes it, and continuing
-it under a path this text named moves its content there and deletes the old
-file.
+whether to continue it or start over. Starting over ends that run and deletes
+its sheet; continuing it under a path this text named **moves** it, its content
+going there and the old file deleted. What each does with the earlier run
+folder is under the run folder, below.
 
 **Then look for another live run on this repository**, before the run folder
 is made. Another run is any other sheet of this repository, this run's own aside;
@@ -84,16 +85,26 @@ ask, showing each sheet's issue and path and each live worker's name:
    files do not overlap. The run claims each file it writes, and `check-it`
    reads only those (below);
 3. *wait*: look again once the person says so;
-4. *that run is over*: delete what it made, then its sheet and the files named
-   after it, as its run would have at its end, and go on in the main tree.
+4. *that run is over*: end its live workers shown (`hc kill`, then `hc rm`),
+   since one left running keeps writing to this tree. Then show what it made,
+   each line still open in its ledger and its run folder, with sizes, and
+   delete them group by group on the person's yes, as `clean-it` confirms and
+   as [`clean-it`'s rules](../clean-it/RULES.md) delete. Then delete its sheet
+   and the other files named after it, as its run would have at its end,
+   except what the person declined: a declined group stays, and so does the
+   run folder where the group lies inside it, and the ledger while a line the
+   person declined is open in it, all for `clean-it`. Then go on in the main
+   tree.
 
 *Stop* stays possible as a typed answer: it deletes this run's sheet, since an
 unfinished one left behind stops the next run here. A sheet left behind by a
 run that died looks the same as a live one, so the person tells them apart.
 Read the other sheets and `hc ls` as text to compare; none of their values is
-put into a command.
+put into a command, except under *that run is over*: a worker's name goes to
+`hc` as `hc ls` gave it, and a path from the other run's ledger is deleted
+only once shown.
 
-**Then make its run folder** (`<run sheet>.made/`) and its ledger (`<run sheet>.made.md`): `check-it`'s script stops where the run folder is not there. When the run's first run folder is made, before any change is written, run `node <check-it>/scripts/check-it.mjs record --run-folder <run folder>` in the repository, `<check-it>` being `check-it`'s folder: it records the untracked files there now, which `check-it` then leaves out of the change while their content is unchanged. A run continued, started over or moved keeps that first record, since a record made now would take the earlier attempt's new files for files there before the run: run `record --run-folder <run folder> --from <earlier run folder>` instead, before the earlier run folder is deleted. It carries the earlier record into the new run folder, or keeps it where the two are one folder, whose record then stays when the rest of it is deleted; where the earlier folder holds no record, it makes none, so every untracked file is listed.
+**Then make its run folder** (`<run sheet>.made/`) and its ledger (`<run sheet>.made.md`): `check-it`'s script stops where the run folder is not there. When the run's first run folder is made, before any change is written, run `node <check-it>/scripts/check-it.mjs record --run-folder <run folder>` in the repository, `<check-it>` being `check-it`'s folder: it records the untracked files there now, which `check-it` then leaves out of the change while their content is unchanged. A run continued in place keeps its run folder whole, its record included, and records nothing. A run started over or moved keeps the earlier attempt's first record, since a record made now would take that attempt's new files for files there before the run: where the earlier sheet has its run folder beside it (`<earlier sheet>.made/`, the path made from that sheet's path, never typed), run `record --run-folder <run folder> --from <earlier run folder>` instead, and once it exits 0 delete the earlier run folder whole, as [`clean-it`'s rules](../clean-it/RULES.md) say a run folder goes at its run's end. What `--from` carries, and where it stops, is `check-it`'s to say. An earlier attempt with no run folder beside its sheet ended before writing any change, so there is nothing to carry: the run records as a new one does, continued in place or not.
 
 **What the run made goes before the sheet does**: every line still open in its
 ledger (`<run sheet>.made.md`) and its run folder (`<run sheet>.made/`), as
@@ -101,9 +112,11 @@ ledger (`<run sheet>.made.md`) and its run folder (`<run sheet>.made/`), as
 
 **Delete it when the run ends, after the last person has seen what it carried:**
 once `ask-it` has put the carried items in front of them, or once `check-it` is
-done with nothing carried, or at the confirm stop for a change that ends there, or
+done with nothing carried for a run that commits nothing, or at the confirm stop for a change that ends there, or
 once the maintainer has decided an open decision, or at the start check's
-*stop*. A `.design/` folder beside it
+*stop*. A run that commits, which it does after `check-it`, keeps its sheet for
+`ask-it`'s push question even with nothing carried, since that question reads
+its `commits` line. A `.design/` folder beside it
 (`design-it`'s brief and variants) goes with it, once `ask-it` has kept what the
 person chose to keep.
 

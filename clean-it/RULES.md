@@ -84,7 +84,10 @@ report names the total freed and each kept item with its path. Then the ledger
 goes, with the run sheet in a `thegraph` run and with the run folder otherwise;
 a ledger found later is a run that did not end.
 
-**The run's end** is where `thegraph` and `thegraph-herdr` end a run. Outside
+**The run's end** is where `thegraph` and `thegraph-herdr` end a run. A run
+started over or moved ends its earlier attempt: that attempt's record is carried
+first, as `thegraph`'s run sheet section says, then its run folder goes whole.
+`thegraph`'s *that run is over* ends another run, by these rules. Outside
 them it is the session's end, which nothing marks, so it is read as the moment
 the agent hands the finished task back to the person, in its final report. A
 session closed before that leaves its ledger for `clean-it`.

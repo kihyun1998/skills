@@ -419,24 +419,34 @@ test('record --from carries the earlier run folder\'s record into the new one, s
   throwsCheck(() => run(['record', '--run-folder', '/work/run', '--from', '/work/earlier'], deps), /already holds a record/);
 });
 
-test('record --from makes no record where the earlier run folder had none, so every untracked file is listed', () => {
-  for (const dirs of [['/work/run', '/work/earlier'], ['/work/run']]) {
-    const { deps, written, hashed } = fakeDeps({ dirs, tracked: ['a.c'], untracked: ['feature.c'], hashes: { 'feature.c': H('b') } });
-    const out = run(['record', '--run-folder', '/work/run', '--from', '/work/earlier'], deps);
-    assert.deepEqual(written, {});
-    assert.deepEqual(hashed, []);
-    assert.equal(out, `no record made, since there is no record at ${EARLIER_RECORD}: every untracked file is listed\n`);
-    assert.equal(run(['range', '--run-folder', '/work/run'], deps), '- `a.c`\n- `feature.c` (untracked)\n');
-  }
+test('record --from records no file where the earlier run folder had no record, so every untracked file is listed and a later record stops', () => {
+  const { deps, written, hashed } = fakeDeps({ dirs: ['/work/run', '/work/earlier'], tracked: ['a.c'], untracked: ['feature.c'], hashes: { 'feature.c': H('b') } });
+  const out = run(['record', '--run-folder', '/work/run', '--from', '/work/earlier'], deps);
+  assert.deepEqual(Object.keys(written), [RECORDED]);
+  assert.deepEqual(JSON.parse(written[RECORDED]), { repo: REPO, untracked: {} });
+  assert.deepEqual(hashed, []);
+  assert.equal(out, `recorded no untracked file, since there is no record at ${EARLIER_RECORD}: every untracked file is listed\n`);
+  assert.equal(run(['range', '--run-folder', '/work/run'], deps), '- `a.c`\n- `feature.c` (untracked)\n');
+  throwsCheck(() => run(['record', '--run-folder', '/work/run'], deps), /already holds a record/);
+  assert.deepEqual(hashed, []);
+  assert.equal(run(['range', '--run-folder', '/work/run'], deps), '- `a.c`\n- `feature.c` (untracked)\n');
 });
 
-test('record --from the run folder itself keeps the record it has, or makes none where it has none', () => {
+test('record --from an earlier run folder that is not there stops before anything is written, since the step after it deletes that folder', () => {
+  const { deps, written, hashed } = fakeDeps({ tracked: ['a.c'], untracked: ['feature.c'], hashes: { 'feature.c': H('b') } });
+  throwsCheck(() => run(['record', '--run-folder', '/work/run', '--from', '/work/earlier'], deps), new RegExp(`^the earlier run folder ${EARLIER.replaceAll('\\', '\\\\')} is not a folder`));
+  assert.deepEqual(written, {});
+  assert.deepEqual(hashed, []);
+});
+
+test('record --from the run folder itself keeps the record it has, or records no file where it has none', () => {
   const kept = fakeDeps({ files: { [RECORDED]: recordOf({ x: H('a') }) } });
   assert.equal(run(['record', '--run-folder', '/work/run', '--from', '/work/run'], kept.deps), `kept the record ${RECORDED}\n`);
   assert.deepEqual(kept.written, {});
-  const none = fakeDeps();
-  assert.equal(run(['record', '--run-folder', '/work/run', '--from', '/work/run'], none.deps), `no record made, since there is no record at ${RECORDED}: every untracked file is listed\n`);
-  assert.deepEqual(none.written, {});
+  const none = fakeDeps({ untracked: ['feature.c'], hashes: { 'feature.c': H('b') } });
+  assert.equal(run(['record', '--run-folder', '/work/run', '--from', '/work/run'], none.deps), `recorded no untracked file, since there is no record at ${RECORDED}: every untracked file is listed\n`);
+  assert.deepEqual(JSON.parse(none.written[RECORDED]), { repo: REPO, untracked: {} });
+  throwsCheck(() => run(['record', '--run-folder', '/work/run'], none.deps), /already holds a record/);
 });
 
 test('record --from stops on an earlier record check-it would not read, or a new run folder that already holds one', () => {
@@ -459,6 +469,13 @@ test('record says a path it could not hash is not recorded, so always listed', (
   const out = run(['record', '--run-folder', '/work/run'], deps);
   assert.deepEqual(JSON.parse(written[RECORDED]).untracked, { 'a.c': H('a') });
   assert.match(out, /not recorded, since it could not be read as a file or a link, so always listed: `locked\.bin`/);
+});
+
+test('record records an untracked file named __proto__ like any other', () => {
+  const { deps, written } = fakeDeps({ tracked: ['a.c'], untracked: ['__proto__', 'b.c'], hashes: { ['__proto__']: H('a'), 'b.c': H('b') } });
+  assert.equal(run(['record', '--run-folder', '/work/run'], deps), `recorded 2 untracked files in ${RECORDED}\n`);
+  assert.deepEqual(Object.keys(JSON.parse(written[RECORDED]).untracked).sort(), ['__proto__', 'b.c']);
+  assert.equal(run(['range', '--run-folder', '/work/run'], deps), `- \`a.c\`\n\nLeft out: untracked before the run began and unchanged since, as ${RECORDED} records:\n- \`__proto__\`\n- \`b.c\`\n`);
 });
 
 test('record --from the run folder by another path to it keeps the record it has', () => {
