@@ -17,8 +17,8 @@ prompt is all you get.
   gitdir (#93).
 - **What you copy, build, install or start follows the cleanup rules** in
   `{{skills}}/clean-it/RULES.md`: a ledger line when it is made, deleted before
-  your report returns with its size in the report, except the repository's
-  shared build folder, which is kept.
+  your report returns with its size in the report. A build goes inside your
+  copy and goes with it.
 - **Start no model run**: no `Agent`, no `Skill`, and no `claude` in a
   shell. A finding whose reproduction needs a model's answers (a change to a
   prompt or an instruction) is reported unproven, with how many runs, on which

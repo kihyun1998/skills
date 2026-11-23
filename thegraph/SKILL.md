@@ -65,7 +65,8 @@ sheets of a repository are those in that folder with some step not `[x]` whose
 this issue — by where it lives *or* its title, since a local issue moves when
 it is archived. If there is one, show its steps and its carried items and ask
 whether to continue it or start over. Starting over ends that run and deletes
-its sheet; continuing it under a path this text named **moves** it, its content
+its sheet, once this run has read the sheet's `tree` line and done with its
+run folder what the run folder paragraph below says; continuing it under a path this text named **moves** it, its content
 going there and the old file deleted. What each does with the earlier run
 folder is under the run folder, below.
 
@@ -82,7 +83,7 @@ ask, showing each sheet's issue and path and each live worker's name:
    mix. The run works in a worktree of its own (*A run alongside another*,
    below);
 2. *alongside in the same tree*: no extra disk, and only where the two runs'
-   files do not overlap. The run claims each file it writes, and `check-it`
+   files do not overlap. Each run claims each file it writes, and `check-it`
    reads only those (below);
 3. *wait*: look again once the person says so;
 4. *that run is over*: end its live workers shown (`hc kill`, then `hc rm`),
@@ -104,7 +105,9 @@ put into a command, except under *that run is over*: a worker's name goes to
 `hc` as `hc ls` gave it, and a path from the other run's ledger is deleted
 only once shown.
 
-**Then make its run folder** (`<run sheet>.made/`) and its ledger (`<run sheet>.made.md`): `check-it`'s script stops where the run folder is not there. When the run's first run folder is made, before any change is written, run `node <check-it>/scripts/check-it.mjs record --run-folder <run folder>` in the repository, `<check-it>` being `check-it`'s folder: it records the untracked files there now, which `check-it` then leaves out of the change while their content is unchanged. A run continued in place keeps its run folder whole, its record included, and records nothing. A run started over or moved keeps the earlier attempt's first record, since a record made now would take that attempt's new files for files there before the run: where the earlier sheet has its run folder beside it (`<earlier sheet>.made/`, the path made from that sheet's path, never typed), run `record --run-folder <run folder> --from <earlier run folder>` instead, and once it exits 0 delete the earlier run folder whole, as [`clean-it`'s rules](../clean-it/RULES.md) say a run folder goes at its run's end. What `--from` carries, and where it stops, is `check-it`'s to say. An earlier attempt with no run folder beside its sheet ended before writing any change, so there is nothing to carry: the run records as a new one does, continued in place or not.
+**Then make its run folder** (`<run sheet>.made/`) and its ledger (`<run sheet>.made.md`): `check-it`'s script stops where the run folder is not there. When the run's first run folder is made, before any change is written, run `node <check-it>/scripts/check-it.mjs record --run-folder <run folder>` in the repository, `<check-it>` being `check-it`'s folder: it records the untracked files there now, which `check-it` then leaves out of the change while their content is unchanged. A run continued in place keeps its run folder whole, its record included, and records nothing. A run started over or moved keeps the earlier attempt's first record, since a record made now would take that attempt's new files for files there before the run: where the earlier sheet has its run folder beside it (`<earlier sheet>.made/`, the path made from that sheet's path, never typed), run `record --run-folder <run folder> --from <earlier run folder>` instead, and once it exits 0 and the takeover in the next paragraph is done, delete the earlier run folder whole, as [`clean-it`'s rules](../clean-it/RULES.md) say a run folder goes at its run's end. What `--from` carries, its claim included, and where it stops, is `check-it`'s to say. An earlier attempt with no run folder beside its sheet ended before writing any change, so there is nothing to carry: the run records as a new one does, continued in place or not.
+
+**A run started over or moved takes over the earlier attempt's worktree and branch**, where the earlier sheet's `tree` line names a worktree, instead of ending them: they hold that attempt's commits, which no merge may have taken in yet. Before the earlier run folder goes, this run's `tree` line names that worktree, and the worktree's ledger line moves from the earlier ledger to this run's, cut there and written here, not marked deleted. Its branch keeps its name, `tg-<earlier run id>`, and every command below that names `tg-<run id>` or the worktree's path uses the run id in that path. Where that attempt recorded its worktree in `<earlier run folder>/wt/` (below), carry that record into `<run folder>/wt/` the same way, `record --from`, the folder made first. Where `hc` is there, that attempt's live workers are ended (`hc ls`, by the name prefix `tg-<earlier run id>-`, then `hc kill` and `hc rm`), since one left running keeps writing to the tree this run takes over.
 
 **What the run made goes before the sheet does**: every line still open in its
 ledger (`<run sheet>.made.md`) and its run folder (`<run sheet>.made/`), as
@@ -170,11 +173,18 @@ It gets its ledger line (`worktree`, `run end`) as it is made, and the sheet's
 this one. Every step then works in the worktree: its commands run there, its
 files are written there, and `record` is run there. A worktree of this
 repository is about 2.1 MB of tracked files, the git objects shared (measured
-2026-11-23, #136); a build in it uses the repository's one build folder
-([`clean-it`'s rules](../clean-it/RULES.md)).
+2026-11-23, #136); a build in it goes inside it and is deleted with it
+([`clean-it`'s rules](../clean-it/RULES.md), *Builds*).
 
-**Each issue's commit goes into the main tree's branch as it lands**, not once
-at the run's end: conflicts stay small and early, and the installed skills stay
+**A run that moves into a worktree after its run folder was made** already
+holds the main tree's record there, which `record` does not make twice. It
+records the worktree's untracked files in `<run folder>/wt/` instead
+(`record --run-folder <run folder>/wt`, run in the worktree, the folder made
+first), and from then on gives `check-it` that folder as its run folder: in
+`thegraph-herdr`, the brief's run folder. It goes with the run folder.
+
+**Each issue's commit goes into the main tree's branch as it lands**, and so
+does each commit `ask-it` makes, not once at the run's end: conflicts stay small and early, and the installed skills stay
 current, since `~/.claude/skills` points at the main tree. Once the commit is in
 the worktree and `git -C <worktree> status --porcelain` is empty:
 
@@ -204,9 +214,22 @@ put to the person those files and both runs' commits since they parted
   tree before `git -C <worktree> rebase --continue`, since once the rebase is
   done `git diff HEAD` is empty; then 3;
 - *wait for the other run*: the merge is tried again once the person says so;
-- *stop this issue*: it stops as an issue that cannot proceed; its commit stays
-  on `tg-<run id>`, unmerged, and the branch is kept at the run's end and
-  reported with its hash.
+- *stop this issue*: it stops as an issue that cannot proceed. Its commit
+  `<hash>` moves to a branch of its own and out of the run's, so the next
+  issue's merge does not carry it: `git -C <worktree> branch tg-<run id>-<issue>
+  <hash>`, then `git -C <worktree> rebase --onto <hash>~1 <hash>`, which takes
+  that one commit out of `tg-<run id>` and keeps any after it (git 2.50.1,
+  tried 2026-11-24). `<issue>` is the issue's slug as `thegraph-herdr`'s
+  *Names* makes it, so a file name cannot carry shell syntax into the command;
+  where a branch of that name is there already, from an earlier stop of the
+  same issue, `-2` is added, or the next number free. That branch is kept at
+  the run's end and reported with its hash, and the child's line reads
+  `stopped: conflict, on <that branch> <short hash>`. Each commit after it
+  gets a new hash from that rebase: write it where the old one was, as in 3.
+  Where that rebase stops on a conflict, since a later commit builds on the
+  stopped one, `git -C <worktree> rebase --abort` puts `tg-<run id>` back with
+  the stopped commit still on it, and the run stops and puts to the person the
+  files in conflict and the commits after the stopped one.
 
 The worker or the session does not resolve a conflict alone.
 
@@ -219,17 +242,25 @@ top of what arrived. It reads its own commit by the hash it wrote, never as
 worktree goes as [`clean-it`'s rules](../clean-it/RULES.md) say, then its
 branch: `git -C <repo> branch -d tg-<run id>`, which refuses a branch the main
 tree's has not taken in (tried 2026-11-23). That refusal is reported with the
-branch's commits, and the branch stays for the person.
+branch's commits, and the branch stays for the person. A stopped issue's
+`tg-<run id>-<issue>` is not deleted: it is reported with its hash.
 
-**In the same tree**, the run claims each file before it writes it, with
+**In the same tree**, each run claims each file before it writes it, with
 `node <check-it>/scripts/check-it.mjs claim --run-folder <run folder> <path> ...`
-run in the repository. The claim is refused for a file another run beside it
-claimed, or one already changed that this run has not claimed: the two runs'
-files overlap, which this mode does not hold, so stop and put the file and the
-refusal to the person. `check-it` then reads only the files this run claimed,
-and a run that has claimed nothing leaves out what another run beside it
-claimed, so the run that was there first keeps the newcomer's files out of its
-reviews without being told (`check-it`, *Briefing the fresh agents*).
+run in the repository, and **from its start**: a run in the main tree claims
+whether or not another is there, since the run that was there first cannot
+know when one starts beside it. A changed file the run did not claim stays in
+its own change; only a file another run's claim names is left out of it. That
+leaves a gap: `claim` takes a changed file no other run folder claims, so a
+newcomer may claim a file the first run changed without claiming it, such as
+a lockfile a build rewrote, and that file then leaves the first run's change.
+Once a commit
+lands, the run releases the paths that commit named, `release --run-folder
+<run folder> <path> ...`, so the run beside it can take a file this run is done
+with. A refused claim means the two runs' files overlap, which this mode does
+not hold: stop and put the file and the refusal to the person. What `claim`
+and `release` refuse, and what `check-it` then reads, is `check-it`'s
+(*Briefing the fresh agents*).
 
 **Every commit names its paths**, in every run, so a run that never asked takes
 none of another's files: the files the commit's change made, which for an
@@ -237,7 +268,8 @@ issue's commit are those `check-it`'s `range --run-folder <run folder>` lists,
 added and committed by name, `git add -- <paths>` then `git
 commit -m <message> -- <paths>`. A file git does not track yet is refused by
 `git commit -- <path>` until it is added (git 2.50.1, tried 2026-11-23). Never
-`git add -A`, `git commit -a`, or a commit after a wide add.
+`git add -A`, `git commit -a`, or a commit after a wide add. In the main tree,
+those paths are then released (*In the same tree*, above).
 
 ## One issue, or a cluster
 
@@ -389,7 +421,7 @@ person decides what goes through it.
 **What a step makes outside the change, it deletes.** A copy, a build, tool
 state, an install, a worktree or a process gets a line in the run's ledger when
 it is made and goes when [`clean-it`'s rules](../clean-it/RULES.md) say, its size
-written: a step's own items at its end, a worktree the run works in at the run's end, and the repository's shared build folder kept. A fresh agent's brief names the run folder
+written: a step's own items at its end, a worktree the run works in at the run's end, and a build with the tree it is in. A fresh agent's brief names the run folder
 and the ledger.
 
 **What can be counted is counted.** Running the command, querying the tracker,

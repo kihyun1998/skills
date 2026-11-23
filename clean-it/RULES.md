@@ -85,8 +85,11 @@ goes, with the run sheet in a `thegraph` run and with the run folder otherwise;
 a ledger found later is a run that did not end.
 
 **The run's end** is where `thegraph` and `thegraph-herdr` end a run. A run
-started over or moved ends its earlier attempt: that attempt's record is carried
-first, as `thegraph`'s run sheet section says, then its run folder goes whole.
+started over or moved ends its earlier attempt, apart from its worktree and
+branch, which the new run takes over with the worktree's ledger line, moved to
+the new ledger and not marked deleted. That attempt's record and claim are
+carried first and its live workers ended, as `thegraph`'s run sheet section
+says, then its run folder goes whole.
 `thegraph`'s *that run is over* ends another run, by these rules. Outside
 them it is the session's end, which nothing marks, so it is read as the moment
 the agent hands the finished task back to the person, in its final report. A
@@ -94,26 +97,28 @@ session closed before that leaves its ledger for `clean-it`.
 
 ### Builds
 
-**One build folder per repository, shared across runs**, beside the repository
-on its drive: `<repository>.build/` (for this catalog `D:\github\skills.build\`).
-Every run, copy and worktree of that repository builds into it, so a review
-copy does not build the dependencies again, and two runs building at once wait
-on the toolchain's lock instead of making a second copy (#136). Two Cargo builds
-pointed at one folder were seen to wait: the second printed *Blocking waiting
-for file lock on build directory* and built once the first was done (Cargo
-1.96.0, tried 2026-11-23). **It is kept**: no run deletes it and no ledger
-lists it, `clean-it` reports its size, and deleting it is the person's. A
-process that cannot be told this in words, such as a build a script starts,
-gets it through its environment, and the step that starts it writes the ledger
-line for anything else it points the process at.
+**A build goes inside the tree it builds, and is deleted with that tree**
+(#142). Each tree then has one build folder of its own, so one tree is never
+served another's binaries: two reviewers building different trees into one
+shared folder overwrote one test executable's name, and one of them ran a
+binary built before the change (reported on #142 by a worker, not reproduced).
 
-- **Rust**: set `CARGO_TARGET_DIR` to it (Cargo also reads `--target-dir` and
-  `build.target-dir`; read from `cargo help build`, Cargo 1.96.0).
-- **Other toolchains**, where they have a setting for the build or cache folder,
-  use it the same way.
-- **Where the toolchain has none**, keep one copy of the repository per run and
-  build in it again, rather than a new copy per probe. Flutter has no flag that
-  moves `build/` (checked in `flutter build apk --help`, Flutter 3.41.9).
+- **The main tree** builds into its own output (`target/`, `build/`,
+  `.dart_tool/`), which is the repository's, not an item, and no run deletes.
+- **A run's worktree** builds inside the worktree; the build goes when the
+  worktree is removed at the run's end (*Worktrees*, below).
+- **A copy a step makes**, a reviewer's or the proving agent's included, builds
+  inside the copy, and the build goes with the copy at the step's end.
+
+No `CARGO_TARGET_DIR`, `--target-dir` or `build.target-dir` (read from
+`cargo help build`, Cargo 1.96.0), and no other toolchain's setting for its
+build folder, points a build at a folder another tree builds into. A
+build a step starts runs with such a variable unset where the environment
+sets one: set to an empty string, `CARGO_TARGET_DIR` stops Cargo 1.96.0 with
+*the target directory is set to an empty string* (exit 101, tried 2026-11-24). The costs accepted on #142: several copies
+building at once peak at about 2–3 GB, from 300–600 MB per copy; each copy
+builds in full, minutes for Rust; and a crashed run's builds stay until
+`clean-it` finds its ledger lines.
 
 ### Tool state
 

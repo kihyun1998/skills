@@ -405,7 +405,9 @@ leave out each untracked file it names whose content is unchanged, and list
 the files left out under the change, so none disappears unseen. A file the
 change edited is listed again. A run started over or moved carries the earlier
 attempt's record into its new run folder with `record --run-folder <run folder>
---from <earlier run folder>` instead (`thegraph` says when): where the earlier
+--from <earlier run folder>` instead (`thegraph` says when), and the earlier
+folder's claim with it where it holds one (below); a claim already in the new
+folder, or one `range` would stop on, stops it before anything is written. Where the earlier
 folder holds no record, the record made lists no file, so every untracked file
 is listed and a later `record` there stops; where that folder is not there,
 the script stops. An untracked file `record` cannot read is not recorded, so
@@ -417,13 +419,15 @@ is listed.
 **A run in the same tree as another reads only its own files** (#136).
 `node <check-it>/scripts/check-it.mjs claim --run-folder <run folder> <path> ...`
 writes `check-it.claimed.json` there, the paths this run takes; when a run
-claims them is `thegraph`'s to say (*A run alongside another*). It refuses a
-path a claim in another run folder beside this one names, one already changed
-in the tree that this run has not claimed or that differs from such a path only
-in case, and a folder. Where the run folder holds a claim, `range`, `verify`
-and `prompt` read only the changed files it names; where it holds none, they
-leave out the changed files a claim in another run folder beside it names for
-this repository. Only folders named `*.made` are read for that, as `thegraph`'s
+claims and releases them is `thegraph`'s to say (*A run alongside another*). It refuses a
+path a claim in another run folder beside this one names, one that differs only
+in case from a path changed in the tree, and a folder; a path already changed
+that no other run folder claims is taken. `release --run-folder <run folder> <path> ...` takes
+paths out of that claim once their commit has landed, so another run can claim
+them; it refuses a path still changed in the tree, one the claim does not name,
+and a run folder that holds no claim. `range`, `verify` and `prompt` leave
+out the changed files a claim in another run folder beside this one names for
+this repository; a changed file this run did not claim stays in its change. Only folders named `*.made` are read for that, as `thegraph`'s
 run folders are, and a claim there that does not parse is passed over. Either way the files left out are
 listed under the change. A claim naming a path outside the repository, or its
 own made for another repository, stops the script.

@@ -167,8 +167,7 @@ For each issue:
 
 1. **Check the tree.** `git status --porcelain` must be empty in the run's
    tree, apart from the files `check-it`'s `range --run-folder <run folder>`
-   lists as left out because a run alongside in the same tree claimed them, or
-   because this run claims its own and did not claim them. In the main tree, read `HEAD` too: where it
+   lists as left out because a run alongside in the same tree claimed them. In the main tree, read `HEAD` too: where it
    has moved past this run's last commit, a run alongside merged, and the line
    that starts the next worker names the commits that arrived. Where it is not empty,
    put the files to the person, each with its diff summary: set them aside with
@@ -255,7 +254,7 @@ You are the worker for one issue of a /thegraph-herdr run.
 
 Conductor terminal: <$HC_TERMINAL_ID>
 Repo: <the run's tree, as an absolute path: the main tree, or the run's worktree>
-Same tree as another run: <"no", or "yes: before writing a file, claim it with node <check-it>/scripts/check-it.mjs claim --run-folder <run folder> <path>; a refused claim is a question for the person">
+Claims: <"no: the run works in its own worktree", or, in the main tree, "yes: before writing a file, claim it with node <check-it>/scripts/check-it.mjs claim --run-folder <run folder> <path>, and once your commit lands release its paths with release --run-folder <run folder> <path> ...; a refused claim is a question for the person">
 Issue: <address> — <title>
 Route: <prose or code>
 What this issue is, as confirmed: <①>
@@ -269,7 +268,7 @@ Review models changed at the confirm stop: <each row of check-it's model table t
 Report file: <its report file>
 This run's run sheet: <its per-issue run sheet path>. It does not exist; the skills
 you call keep their files beside it.
-Run folder and ledger: <the conductor's run sheet>.made/ and <the conductor's run sheet>.made.md, shared by every worker of this run (clean-it/RULES.md).
+Run folder and ledger: <the conductor's run sheet>.made/ and <the conductor's run sheet>.made.md, shared by every worker of this run (clean-it/RULES.md)<; where the run moved into a worktree after its run folder was made: "check-it's run folder is <the conductor's run sheet>.made/wt/, which holds the worktree's record (thegraph, A run alongside another)">.
 thegraph: <absolute path of thegraph's SKILL.md, as the conductor read it>
 
 Read these sections of thegraph and hold them for this work: The signals that do
@@ -314,7 +313,8 @@ then made, and for a run alongside in a worktree the worktree, whose path goes o
 the sheet's `tree` line and in every brief's `Repo`, and the untracked files recorded in the run folder, as `thegraph`
 says, before the first worker starts: every worker's
 `check-it` reads that one record. What a run continued in place, started over
-or moved does with the earlier run folder and its record is `thegraph`'s. The
+or moved does with the earlier run folder, its record and claim, and its worktree
+and branch is `thegraph`'s. The
 children have no checkboxes, as in a `thegraph` cluster. A child's commit is on
 its line and a commit `ask-it` makes on the `commits` line, as `thegraph` says.
 

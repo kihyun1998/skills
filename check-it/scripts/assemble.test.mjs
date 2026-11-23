@@ -529,11 +529,11 @@ test('claim stops on a path another run beside this one has claimed, and writes 
   assert.deepEqual(written, {});
 });
 
-test('claim stops on a path already changed in the tree that this run has not claimed, and writes nothing', () => {
+test('claim takes a path already changed in the tree that no other run folder claims, so a run can claim what it wrote before', () => {
   for (const opts of [{ tracked: ['src/a.c'] }, { untracked: ['src/a.c'] }]) {
     const { deps, written } = fakeDeps(opts);
-    throwsCheck(() => run(['claim', '--run-folder', '/work/run', 'src/a.c'], deps), /`src\/a\.c` is already changed in the tree, and this run has not claimed it/);
-    assert.deepEqual(written, {});
+    assert.equal(run(['claim', '--run-folder', '/work/run', 'src/a.c'], deps), `claimed 1 file in ${CLAIMED}: \`src/a.c\`\n`);
+    assert.deepEqual(JSON.parse(written[CLAIMED]).files, ['src/a.c']);
   }
   const { deps, written } = fakeDeps({ tracked: ['src/a.c'], files: { [CLAIMED]: claimOf(['src/a.c']) } });
   run(['claim', '--run-folder', '/work/run', 'src/a.c'], deps);
@@ -548,19 +548,11 @@ test('claim needs a path inside the repository and a run folder', () => {
   throwsCheck(() => run(['claim', '--run-folder', '/work/run', resolve('/elsewhere/x.c')], deps), /outside the repository/);
 });
 
-test('with a claim of its own, the change is the claimed files only, and the rest is listed as left out', () => {
-  const { deps } = fakeDeps({ tracked: ['mine.c', 'theirs.c'], untracked: ['new.c', 'theirs-new.c'], onDisk: ['theirs.c'], files: { [CLAIMED]: claimOf(['mine.c', 'new.c', 'committed.c']) } });
-  assert.equal(run(['range', '--run-folder', '/work/run'], deps), [
-    '- `mine.c`',
-    '- `new.c` (untracked)',
-    '',
-    `Left out: changed in the tree, but not claimed by this run, which works in the same tree as another run and claims its files in ${CLAIMED}:`,
-    '- `theirs.c`',
-    '- `theirs-new.c`',
-    '',
-  ].join('\n'));
-  assert.match(prompt('bug', deps), /plus every untracked file not left out below.*\n\n- `mine\.c`\n- `new\.c` \(untracked\)\n\nLeft out: changed in the tree, but not claimed/s);
-  assert.equal(run(['verify', '--covered', 'theirs.c', '--covered', 'mine.c', '--run-folder', '/work/run'], deps), 'mine.c\n');
+test('a claim of its own does not narrow the change: a changed file this run did not claim stays in it', () => {
+  const { deps } = fakeDeps({ tracked: ['mine.c', 'generated.lock'], untracked: ['new.c'], onDisk: ['generated.lock'], files: { [CLAIMED]: claimOf(['mine.c', 'new.c', 'committed.c']) } });
+  assert.equal(run(['range', '--run-folder', '/work/run'], deps), '- `mine.c`\n- `generated.lock`\n- `new.c` (untracked)\n');
+  assert.match(prompt('bug', deps), /plus every untracked file, so a new file is in it\. The files it touches:\n\n- `mine\.c`\n- `generated\.lock`\n- `new\.c` \(untracked\)\n/);
+  assert.equal(run(['verify', '--covered', 'generated.lock', '--covered', 'mine.c', '--run-folder', '/work/run'], deps), 'mine.c\ngenerated.lock\n');
 });
 
 test('without a claim of its own, the files another run beside it claimed for this repository are left out', () => {
@@ -580,9 +572,7 @@ test('without a claim of its own, the files another run beside it claimed for th
   ].join('\n'));
 });
 
-test('a diff whose every file is left out as another run\'s or not this run\'s is empty, and says which', () => {
-  const { deps } = fakeDeps({ tracked: ['theirs.c'], files: { [CLAIMED]: claimOf(['mine.c']) } });
-  throwsCheck(() => run(['range', '--run-folder', '/work/run'], deps), /^the diff is empty: every changed file is left out, as not claimed by this run, which works in the same tree as another run$/);
+test('a diff whose every file is left out as another run\'s is empty, and says so', () => {
   const theirs = fakeDeps({ dirs: ['/work/run', '/work/other.made'], tracked: ['theirs.c'], files: { [OTHER_CLAIMED]: claimOf(['theirs.c']) } });
   throwsCheck(() => run(['range', '--run-folder', '/work/run'], theirs.deps), /^the diff is empty: every changed file is left out, as claimed by another run in the same tree$/);
 });
@@ -623,4 +613,62 @@ test('only run folders named *.made beside this one are read for claims', () => 
   const plain = resolve('/work/plain');
   const { deps } = fakeDeps({ dirs: ['/work/run', '/work/plain'], tracked: ['a.c'], files: { [join(plain, CLAIMS)]: claimOf(['a.c']) } });
   assert.equal(run(['range', '--run-folder', '/work/run'], deps), '- `a.c`\n');
+});
+
+
+test('release takes committed paths out of this run\'s claim, so another run beside it can claim them', () => {
+  const { deps, written } = fakeDeps({ dirs: ['/work/run', '/work/other.made'], tracked: ['b.c'], files: { [CLAIMED]: claimOf(['a.c', 'b.c', 'c.c']) } });
+  const out = run(['release', '--run-folder', '/work/run', 'a.c', join(REPO, 'c.c'), './a.c'], deps);
+  assert.equal(out, `released 2 files from ${CLAIMED}: \`a.c\`, \`c.c\`\n`);
+  assert.deepEqual(JSON.parse(written[CLAIMED]), { repo: REPO, files: ['b.c'] });
+  run(['claim', '--run-folder', '/work/other.made', 'a.c'], deps);
+  assert.deepEqual(JSON.parse(written[OTHER_CLAIMED]).files, ['a.c']);
+});
+
+test('release refuses a path still changed in the tree, one this run has not claimed, and a run folder with no claim, and writes nothing', () => {
+  for (const [opts, path, why] of [
+    [{ tracked: ['a.c'] }, 'a.c', /`a\.c` is still changed in the tree: release a path once its commit has landed/],
+    [{ untracked: ['a.c'] }, 'a.c', /`a\.c` is still changed in the tree/],
+    [{}, 'z.c', /`z\.c` is not claimed by this run/],
+  ]) {
+    const { deps, written } = fakeDeps({ ...opts, files: { [CLAIMED]: claimOf(['a.c']) } });
+    throwsCheck(() => run(['release', '--run-folder', '/work/run', path], deps), why);
+    assert.deepEqual(written, {});
+  }
+  const none = fakeDeps();
+  throwsCheck(() => run(['release', '--run-folder', '/work/run', 'a.c'], none.deps), /holds no claim/);
+  throwsCheck(() => run(['release', '--run-folder', '/work/run'], none.deps), /release needs each path/);
+  throwsCheck(() => run(['release', 'a.c'], none.deps), /release needs --run-folder/);
+  assert.deepEqual(none.written, {});
+});
+
+test('record --from carries the earlier run folder\'s claim with its record, so a run started over or moved keeps its files', () => {
+  const earlierClaim = join(EARLIER, CLAIMS);
+  const { deps, written } = fakeDeps({ dirs: ['/work/run', '/work/earlier'], tracked: ['a.c', 'theirs.c'], files: { [earlierClaim]: claimOf(['a.c']) } });
+  const out = run(['record', '--run-folder', '/work/run', '--from', '/work/earlier'], deps);
+  assert.deepEqual(JSON.parse(written[CLAIMED]), { repo: REPO, files: ['a.c'] });
+  assert.match(out, new RegExp(`\\ncarried the claim of 1 file from ${earlierClaim.replaceAll('\\', '\\\\')} into ${CLAIMED.replaceAll('\\', '\\\\')}\\n$`));
+  assert.equal(run(['range', '--run-folder', '/work/run'], deps), '- `a.c`\n- `theirs.c`\n');
+});
+
+test('record --from stops on an earlier claim check-it would not read, or a new run folder that already holds a claim, and writes nothing', () => {
+  const earlierClaim = join(EARLIER, CLAIMS);
+  for (const [files, why] of [
+    [{ [earlierClaim]: claimOf(['../x']) }, /outside the repository/],
+    [{ [earlierClaim]: claimOf(['x'], resolve('/elsewhere')) }, /was made for .*elsewhere/],
+    [{ [earlierClaim]: claimOf(['x']), [CLAIMED]: claimOf(['y']) }, /already holds a claim/],
+  ]) {
+    const { deps, written } = fakeDeps({ dirs: ['/work/run', '/work/earlier'], files });
+    throwsCheck(() => run(['record', '--run-folder', '/work/run', '--from', '/work/earlier'], deps), why);
+    assert.deepEqual(written, {});
+  }
+});
+
+test('record --from the run folder itself leaves its claim as it is, with a record or without one', () => {
+  const kept = fakeDeps({ files: { [RECORDED]: recordOf({}), [CLAIMED]: claimOf(['a.c']) } });
+  assert.equal(run(['record', '--run-folder', '/work/run', '--from', '/work/run'], kept.deps), `kept the record ${RECORDED}\n`);
+  assert.deepEqual(kept.written, {});
+  const none = fakeDeps({ files: { [CLAIMED]: claimOf(['a.c']) } });
+  assert.equal(run(['record', '--run-folder', '/work/run', '--from', '/work/run'], none.deps), `recorded no untracked file, since there is no record at ${RECORDED}: every untracked file is listed\n`);
+  assert.deepEqual(Object.keys(none.written), [RECORDED]);
 });

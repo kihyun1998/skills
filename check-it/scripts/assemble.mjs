@@ -29,6 +29,7 @@ const PER_CHILD = new Set(['pick-confirm', 'change']);
 const ALLOWED = {
   record: ['repo', 'run-folder', 'from'],
   claim: ['repo', 'run-folder'],
+  release: ['repo', 'run-folder'],
   range: ['repo', 'run-folder'],
   name: ['repo', 'sheet', 'run-folder', 'child'],
   verify: ['repo', 'covered', 'run-folder'],
@@ -45,17 +46,21 @@ export const USAGE = `Usage: node check-it.mjs <command> [options]
                                 content, in <dir>/${RECORD}; made once, when a run's first run folder
                                 is made, before any change is written. With --from, a run started over
                                 or moved keeps the earlier run folder's record instead: it is carried
-                                into <dir>; where the earlier folder holds none, the record made lists
-                                no file, and where that folder is not there, record stops
+                                into <dir>, with the earlier folder's claim where it holds one; where
+                                the earlier folder holds no record, the record made lists no file, and
+                                where that folder is not there, record stops
   claim --run-folder <dir> <path> ...
                                 takes each path as this run's, in <dir>/${CLAIMS}, where the run works
                                 in the same tree as another run; it stops on a path a run folder named
-                                *.made beside <dir> claims, or one already changed that this run has not
-                                claimed, or a folder
+                                *.made beside <dir> claims, one that differs only in case from a changed
+                                one, or a folder
+  release --run-folder <dir> <path> ...
+                                takes each path out of the claim in <dir> once its commit has landed;
+                                it stops on a path still changed in the tree or not claimed there
   range [--run-folder <dir>]    the files the diff touches: git diff HEAD plus every untracked file,
-                                less those the run folder's record shows unchanged since it was made;
-                                where <dir> holds a claim, only the files it claims, and otherwise less
-                                the files a claim in a run folder named *.made beside <dir> names
+                                less those the run folder's record shows unchanged since it was made,
+                                and less the files a claim in a run folder named *.made beside <dir>
+                                names
   name <report> (--sheet <run sheet> | --run-folder <dir>) [--child <issue>]
                                 where a report is saved; <report> is one of
                                 ${REPORTS.join(', ')}
@@ -188,15 +193,6 @@ const notRecorded = (all, record, repo, deps) => {
   return { untracked, leftOut };
 };
 
-const scopeToClaim = (tracked, untracked, claim) => {
-  const notClaimed = [...tracked, ...untracked].filter((p) => !claim.files.has(p));
-  return {
-    tracked: tracked.filter((p) => claim.files.has(p)),
-    untracked: untracked.filter((p) => claim.files.has(p)),
-    ...(notClaimed.length && { notClaimed: { claim: claim.path, files: notClaimed } }),
-  };
-};
-
 const leaveOutTheirs = (tracked, untracked, claims) => {
   const changed = [...tracked, ...untracked];
   const theirs = claims
@@ -216,38 +212,64 @@ export function changedFiles(repo, deps, runFolder) {
   if (runFolder === undefined) return { tracked, untracked: all };
   const record = readRecord(runFolder, repo, deps);
   const { untracked, leftOut } = notRecorded(all, record, repo, deps);
-  const claim = ownClaim(runFolder, repo, deps);
-  const scoped = claim ? scopeToClaim(tracked, untracked, claim) : leaveOutTheirs(tracked, untracked, othersClaims(runFolder, repo, deps));
+  ownClaim(runFolder, repo, deps);
+  const scoped = leaveOutTheirs(tracked, untracked, othersClaims(runFolder, repo, deps));
   return { ...scoped, ...(record && { leftOut, record: record.path }) };
 }
+
+const repoPath = (repo, p) => {
+  const n = normal(resolve(repo, p), repo);
+  if (!inRepo(n) || isAbsolute(n)) fail(`${shown(p)} is a path outside the repository ${repo}`);
+  return n;
+};
+
+const changedNow = (repo, deps) => {
+  const { tracked, untracked } = changedFiles(repo, deps, undefined);
+  return new Set([...tracked, ...untracked]);
+};
+
+const fileCount = (n) => `${n} file${n === 1 ? '' : 's'}`;
 
 export function claimFiles(repo, runFolder, paths, deps) {
   if (!paths.length) fail('claim needs each path it takes, from the repository\'s root');
   const wanted = paths.map((p) => {
-    const n = normal(resolve(repo, p), repo);
-    if (!inRepo(n) || isAbsolute(n)) fail(`${shown(p)} is a path outside the repository ${repo}`);
+    const n = repoPath(repo, p);
     if (deps.isDir(join(repo, n))) fail(`${shown(n)} is a folder: claim each file in it, since a claim matches a file by its whole path`);
     return n;
   });
   const claim = ownClaim(runFolder, repo, deps);
   const mine = claim?.files ?? new Set();
   const others = othersClaims(runFolder, repo, deps);
-  const { tracked, untracked } = changedFiles(repo, deps, undefined);
-  const changed = new Set([...tracked, ...untracked]);
+  const changed = changedNow(repo, deps);
   const byCase = new Map([...changed].map((p) => [p.toLowerCase(), p]));
   for (const p of wanted) {
     if (mine.has(p)) continue;
     const other = others.find((o) => o.files.has(p));
     if (other) fail(`${shown(p)} is claimed by another run in the same tree, in ${other.path}: the two runs' files overlap, so going on is the person's call`);
-    if (changed.has(p)) fail(`${shown(p)} is already changed in the tree, and this run has not claimed it: another run's change, or this run's written before it was claimed; going on is the person's call`);
     const twin = byCase.get(p.toLowerCase());
-    if (twin !== undefined) fail(`${shown(p)} differs only in case from ${shown(twin)}, which is changed in the tree: claim it as git names it`);
+    if (twin !== undefined && twin !== p) fail(`${shown(p)} differs only in case from ${shown(twin)}, which is changed in the tree: claim it as git names it`);
   }
   const files = [...new Set([...mine, ...wanted])].sort();
   const path = join(runFolder, CLAIMS);
-  deps.saveFile(path, `${JSON.stringify({ repo, files }, null, 2)}\n`);
+  deps.saveFile(path, claimText(repo, files));
   const added = [...new Set(wanted)].sort();
-  return `claimed ${added.length} file${added.length === 1 ? '' : 's'} in ${path}: ${added.map(shown).join(', ')}\n`;
+  return `claimed ${fileCount(added.length)} in ${path}: ${added.map(shown).join(', ')}\n`;
+}
+
+export function releaseFiles(repo, runFolder, paths, deps) {
+  if (!paths.length) fail('release needs each path its commit took, from the repository\'s root');
+  const claim = ownClaim(runFolder, repo, deps);
+  if (!claim) fail(`the run folder ${runFolder} holds no claim, so there is nothing to release`);
+  const changed = changedNow(repo, deps);
+  const gone = new Set(paths.map((p) => {
+    const n = repoPath(repo, p);
+    if (!claim.files.has(n)) fail(`${shown(n)} is not claimed by this run, in ${claim.path}`);
+    if (changed.has(n)) fail(`${shown(n)} is still changed in the tree: release a path once its commit has landed`);
+    return n;
+  }));
+  deps.saveFile(claim.path, claimText(repo, [...claim.files].filter((f) => !gone.has(f)).sort()));
+  const released = [...gone].sort();
+  return `released ${fileCount(released.length)} from ${claim.path}: ${released.map(shown).join(', ')}\n`;
 }
 
 const changeIn = (repo, opts, deps) => changedFiles(repo, deps, opts['run-folder'] && runFolderOf(opts, deps));
@@ -257,6 +279,8 @@ const recordAt = (runFolder, deps) => {
   if (deps.exists(path)) fail(`the run folder already holds a record at ${path}; it is made once, when the run's first run folder is made, before any change is written`);
   return path;
 };
+
+const claimText = (repo, files) => `${JSON.stringify({ repo, files }, null, 2)}\n`;
 
 const recordText = (repo, entries) => `${JSON.stringify({ repo, untracked: Object.fromEntries(entries) }, null, 2)}\n`;
 
@@ -271,13 +295,20 @@ export function carryRecord(repo, runFolder, from, deps) {
     if (kept) return `kept the record ${kept.path}\n`;
   }
   const path = recordAt(runFolder, deps);
-  const record = same ? undefined : readRecord(earlier, repo, deps);
-  if (!record) {
-    deps.writeFile(path, recordText(repo, []));
-    return `recorded no untracked file, since there is no record at ${join(same ? runFolder : earlier, RECORD)}: every untracked file is listed\n`;
+  const source = same ? undefined : earlier;
+  const record = source && readRecord(source, repo, deps);
+  const claim = source && ownClaim(source, repo, deps);
+  const claimed = join(runFolder, CLAIMS);
+  if (claim && deps.exists(claimed)) fail(`the run folder already holds a claim at ${claimed}, so the earlier run folder's claim is not carried over it`);
+  deps.writeFile(path, recordText(repo, record ? record.hashes : []));
+  const lines = [record
+    ? `carried the record of ${untrackedFiles(record.hashes.size)} from ${record.path} into ${path}`
+    : `recorded no untracked file, since there is no record at ${join(source ?? runFolder, RECORD)}: every untracked file is listed`];
+  if (claim) {
+    deps.writeFile(claimed, claimText(repo, [...claim.files].sort()));
+    lines.push(`carried the claim of ${fileCount(claim.files.size)} from ${claim.path} into ${claimed}`);
   }
-  deps.writeFile(path, recordText(repo, record.hashes));
-  return `carried the record of ${untrackedFiles(record.hashes.size)} from ${record.path} into ${path}\n`;
+  return `${lines.join('\n')}\n`;
 }
 
 export function recordUntracked(repo, runFolder, deps) {
@@ -295,11 +326,10 @@ export function recordUntracked(repo, runFolder, deps) {
   return `${lines.join('\n')}\n`;
 }
 
-const leftOutAny = ({ leftOut = [], notClaimed, theirs = [] }) => leftOut.length > 0 || notClaimed !== undefined || theirs.length > 0;
+const leftOutAny = ({ leftOut = [], theirs = [] }) => leftOut.length > 0 || theirs.length > 0;
 
-export function listing({ tracked, untracked, leftOut = [], record, notClaimed, theirs = [] }) {
+export function listing({ tracked, untracked, leftOut = [], record, theirs = [] }) {
   if (tracked.length + untracked.length === 0) {
-    if (notClaimed) fail('the diff is empty: every changed file is left out, as not claimed by this run, which works in the same tree as another run');
     if (theirs.length) fail('the diff is empty: every changed file is left out, as claimed by another run in the same tree');
     if (leftOut.length) {
       const one = leftOut.length === 1;
@@ -313,9 +343,6 @@ export function listing({ tracked, untracked, leftOut = [], record, notClaimed, 
   ];
   if (leftOut.length) {
     lines.push('', `Left out: untracked before the run began and unchanged since, as ${record} records:`, ...leftOut.map((p) => `- ${shown(p)}`));
-  }
-  if (notClaimed) {
-    lines.push('', `Left out: changed in the tree, but not claimed by this run, which works in the same tree as another run and claims its files in ${notClaimed.claim}:`, ...notClaimed.files.map((p) => `- ${shown(p)}`));
   }
   for (const t of theirs) {
     lines.push('', `Left out: claimed by another run in the same tree, in ${t.claim}:`, ...t.files.map((p) => `- ${shown(p)}`));
@@ -496,10 +523,11 @@ export function run(argv, deps) {
       const runFolder = runFolderOf(opts, deps);
       return opts.from === undefined ? recordUntracked(repo, runFolder, deps) : carryRecord(repo, runFolder, opts.from, deps);
     }
-    case 'claim': {
-      if (!opts['run-folder']) fail('claim needs --run-folder <dir>');
+    case 'claim':
+    case 'release': {
+      if (!opts['run-folder']) fail(`${command} needs --run-folder <dir>`);
       const repo = repoRoot(opts, deps);
-      return claimFiles(repo, runFolderOf(opts, deps), args, deps);
+      return (command === 'claim' ? claimFiles : releaseFiles)(repo, runFolderOf(opts, deps), args, deps);
     }
     case 'range': {
       extra(0);

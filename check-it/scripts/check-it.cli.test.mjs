@@ -243,7 +243,7 @@ test('record --from the run folder through a link to it keeps the record', { ski
   assert.equal(r.stdout, `kept the record ${join(folder, 'check-it.untracked.json')}\n`);
 });
 
-test('two run folders side by side in one tree: the claiming run reads its files, the other leaves them out, and the claim is rewritten whole', () => {
+test('two run folders side by side in one tree: each leaves out what the other claimed, keeps what it changed unclaimed, and the claim is rewritten whole', () => {
   const shared = join(scratch, 'shared');
   const runs = join(scratch, 'runs');
   const first = join(runs, 'first.made');
@@ -256,21 +256,54 @@ test('two run folders side by side in one tree: the claiming run reads its files
   git(shared, 'add', '.');
   git(shared, 'commit', '-q', '-m', 'base');
   writeFileSync(join(shared, 'a.c'), 'int a = 1;\n');
+  const late = call(here, ['claim', '--run-folder', first, 'a.c'], shared);
+  assert.equal(late.status, 0, late.stderr);
   for (const path of ['b.c', 'c.c']) {
     const c = call(here, ['claim', '--run-folder', newcomer, path], shared);
     assert.equal(c.status, 0, c.stderr);
   }
   writeFileSync(join(shared, 'b.c'), 'int b;\n');
+  writeFileSync(join(shared, 'gen.lock'), 'generated\n');
   assert.deepEqual(readdirSync(newcomer), ['check-it.claimed.json']);
   const claim = join(newcomer, 'check-it.claimed.json');
+  const firstClaim = join(first, 'check-it.claimed.json');
   assert.deepEqual(JSON.parse(readFileSync(claim, 'utf8')).files, ['b.c', 'c.c']);
   const mine = call(here, ['range', '--run-folder', newcomer], shared);
   assert.equal(mine.status, 0, mine.stderr);
-  assert.match(mine.stdout, /^- `b\.c` \(untracked\)\n\nLeft out: changed in the tree, but not claimed by this run.*\n- `a\.c`\n$/);
+  assert.equal(mine.stdout, `- \`b.c\` (untracked)\n- \`gen.lock\` (untracked)\n\nLeft out: claimed by another run in the same tree, in ${firstClaim}:\n- \`a.c\`\n`);
   const theirs = call(here, ['range', '--run-folder', first], shared);
   assert.equal(theirs.status, 0, theirs.stderr);
-  assert.equal(theirs.stdout, `- \`a.c\`\n\nLeft out: claimed by another run in the same tree, in ${claim}:\n- \`b.c\`\n`);
+  assert.equal(theirs.stdout, `- \`a.c\`\n- \`gen.lock\` (untracked)\n\nLeft out: claimed by another run in the same tree, in ${claim}:\n- \`b.c\`\n`);
   const refused = call(here, ['claim', '--run-folder', newcomer, 'a.c'], shared);
   assert.equal(refused.status, 1);
-  assert.match(refused.stderr, /`a\.c` is already changed in the tree, and this run has not claimed it/);
+  assert.match(refused.stderr, /`a\.c` is claimed by another run in the same tree/);
+});
+
+test('a file committed and released can be claimed by the run beside it, and one not committed cannot be released', () => {
+  const tree = join(scratch, 'release-tree');
+  const runs = join(scratch, 'release-runs');
+  const first = join(runs, 'first.made');
+  const second = join(runs, 'second.made');
+  mkdirSync(tree);
+  mkdirSync(first, { recursive: true });
+  mkdirSync(second);
+  writeFileSync(join(tree, 'a.c'), 'int a;\n');
+  git(tree, 'init', '-q');
+  git(tree, 'add', '.');
+  git(tree, 'commit', '-q', '-m', 'base');
+  assert.equal(call(here, ['claim', '--run-folder', first, 'a.c', 'b.c'], tree).status, 0);
+  writeFileSync(join(tree, 'a.c'), 'int a = 1;\n');
+  writeFileSync(join(tree, 'b.c'), 'int b;\n');
+  const early = call(here, ['release', '--run-folder', first, 'a.c'], tree);
+  assert.equal(early.status, 1);
+  assert.match(early.stderr, /`a\.c` is still changed in the tree/);
+  git(tree, 'commit', '-q', '-m', 'a', '--', 'a.c');
+  const refused = call(here, ['claim', '--run-folder', second, 'a.c'], tree);
+  assert.equal(refused.status, 1);
+  assert.match(refused.stderr, /`a\.c` is claimed by another run in the same tree/);
+  const released = call(here, ['release', '--run-folder', first, 'a.c'], tree);
+  assert.equal(released.status, 0, released.stderr);
+  assert.deepEqual(JSON.parse(readFileSync(join(first, 'check-it.claimed.json'), 'utf8')).files, ['b.c']);
+  const taken = call(here, ['claim', '--run-folder', second, 'a.c'], tree);
+  assert.equal(taken.status, 0, taken.stderr);
 });

@@ -49,8 +49,9 @@ leaves its sheet too, so a marked run is asked about one by one, never skipped.
 
 - `target/` in each repository a ledger names, in the working directory's, and
   one level down from the working directory's parent (`<parent>/*/target`).
-- The shared build folders, kept across runs: `<repository>.build/` beside each
-  repository a ledger names and the working directory's, and `<parent>/*.build`.
+- Shared build folders left from before #142, which no run uses or deletes now:
+  `<repository>.build/` beside each repository a ledger names and the working
+  directory's, and `<parent>/*.build`.
 - Caches: `~/.cargo/registry` and `~/.cargo/git`, the pub cache
   (`%LOCALAPPDATA%\Pub\Cache` on Windows, `~/.pub-cache` elsewhere, or
   `PUB_CACHE`), `~/.gradle/caches` (or `GRADLE_USER_HOME`).
@@ -69,7 +70,7 @@ One table per group, largest first: path, size, what it is, who made it and when
 and for a worktree whether it has changes. Under it, the total each group could
 free and the drive's free space (`df -h` on it). The sizes-only groups carry a
 line saying what would free them and that this skill does not (`cargo clean` in
-that repository, deleting a shared build folder, `flutter pub cache clean`, `wsl --manage <distro> --set-sparse
+that repository, deleting a leftover shared build folder, `flutter pub cache clean`, `wsl --manage <distro> --set-sparse
 true`), each a call for the person.
 
 ## 3. Confirm

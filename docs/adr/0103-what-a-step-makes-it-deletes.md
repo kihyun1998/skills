@@ -1,11 +1,15 @@
 # ADR-0103 — What a step makes, it deletes; `clean-it` holds the rules and finds what was missed
 
-> **Amended for #136.** The one build folder per repository is beside the
-> repository on its drive, shared across runs and kept, with `clean-it`
-> reporting its size, where this record shares it within a run and deletes it
-> at the run's end. The record of that call is #136's decision comment.
+> **Amended 2026-11-23 for #136, and that amendment reversed 2026-11-23 by
+> #142: there is no shared build folder.** #136 moved the one build folder per
+> repository beside the repository, shared across runs and kept; #142 removed
+> it. A build goes inside the tree it builds (the main tree, a run's worktree,
+> a review or proving copy) and is deleted with that tree, as
+> `clean-it/RULES.md`'s *Builds* says, so where this record shares one build
+> folder per repository within a run, that part no longer holds. The records of
+> those calls are #136's and #142's decision comments.
 
-**Status:** accepted. No issue of its own: the maintainer's grilling of
+**Status:** accepted, amended 2026-11-23 (the banner above). No issue of its own: the maintainer's grilling of
 2026-11-20, in a `/thegraph-herdr` conductor session. Extends
 [ADR-0080](0080-a-run-keeps-a-run-sheet-while-it-lasts.md) and amends
 [ADR-0091](0091-lens-runs-in-a-fresh-agent.md) and
