@@ -17,6 +17,10 @@ function scratch() {
   return home;
 }
 
+function installCodex(home) {
+  return spawnSync('bash', [script, '--codex'], { encoding: 'utf8', env: { ...process.env, HOME: home, CODEX_HOME: join(home, '.codex') } });
+}
+
 function install(home, args = []) {
   const r = spawnSync('bash', [script, '--claude', ...args], { encoding: 'utf8', env: { ...process.env, HOME: home } });
   assert.equal(r.status, 0, r.stdout + r.stderr);
@@ -72,7 +76,7 @@ test('a real file where the link belongs is reported and left alone', (t) => {
 test('--codex makes no agents folder', (t) => {
   const home = mkdtempSync(join(tmpdir(), 'install-skills-'));
   t.after(() => rmSync(home, { recursive: true, force: true }));
-  const r = spawnSync('bash', [script, '--codex'], { encoding: 'utf8', env: { ...process.env, HOME: home, CODEX_HOME: join(home, '.codex') } });
+  const r = installCodex(home);
   assert.equal(r.status, 0, r.stdout + r.stderr);
   assert.ok(!existsSync(join(home, '.codex', 'agents')));
   assert.ok(!existsSync(join(home, '.claude', 'agents')));
@@ -106,7 +110,7 @@ test('links each ki-skills/<name> into ~/.claude/skills, and a second run neithe
 test('links each ki-skills/<name> into the Codex skills folder', (t) => {
   const home = mkdtempSync(join(tmpdir(), 'install-skills-'));
   t.after(() => rmSync(home, { recursive: true, force: true }));
-  const r = spawnSync('bash', [script, '--codex'], { encoding: 'utf8', env: { ...process.env, HOME: home, CODEX_HOME: join(home, '.codex') } });
+  const r = installCodex(home);
   assert.equal(r.status, 0, r.stdout + r.stderr);
   assertKiLinked(join(home, '.codex', 'skills'));
 });

@@ -73,3 +73,5 @@ Left as upstream, on purpose:
   type labels, not skill names.
 - `/triage` in `ki-triage/AGENT-BRIEF.md`: an example of a good brief about an
   imagined command, not a call to the skill.
+- No `requires:` key, though `ki-tdd`, `ki-triage`, `ki-grill-with-docs` and others
+  invoke one another: upstream has none, and the copies change only names.

@@ -18,8 +18,10 @@ The maintainer's, in issue #133's grilling and at its confirm stop (2026-11-23):
   changes what an upstream name loads, and this catalog's own skills keep calling the
   upstream names (`make-it` calls `tdd`, `design-it` calls `prototype`).
 - **A folder of its own kind.** `ki-skills/` rather than fourteen more top-level folders,
-  as `herdr-mods/` is its own kind (ADR-0101): the copies have an upstream and a licence
-  the rest of the catalog does not.
+  as `herdr-mods/` is its own kind (ADR-0101): they are fourteen copies of one upstream
+  at one commit, renamed under a prefix and installed beside the very skills they copy,
+  which no top-level skill is. The two vendored formal-verification skills also keep an
+  `UPSTREAM.md` and a `LICENSE`, but keep their upstream names and replace nothing.
 - **Only the names among the fourteen are renamed.** Other upstream names the copies use
   (`wayfinder`, `improve-codebase-architecture`) stay and are declared in
   `docs/agents/skill-dependencies.md`.

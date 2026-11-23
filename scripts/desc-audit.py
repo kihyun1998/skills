@@ -79,7 +79,7 @@ ANGLE = re.compile(r"<[a-zA-Z/][^>]*>")
 def descriptions() -> dict[str, str]:
     """Every live skill's description. Retired skills are not installed."""
     out: dict[str, str] = {}
-    for d in sorted(REPO.iterdir()):
+    for d in sorted([*REPO.iterdir(), *(REPO / "ki-skills").iterdir()]):
         f = d / "SKILL.md"
         if not d.is_dir() or not f.is_file():
             continue

@@ -120,14 +120,9 @@ anything.
 ## ki-skills
 
 `ki-skills/` holds this repo's own copies of fourteen skills from
-[mattpocock/skills](https://github.com/mattpocock/skills), each named `ki-<name>`:
-`ki-tdd`, `ki-pr`, `ki-to-spec`, `ki-grilling`, `ki-domain-modeling`,
-`ki-prototype`, `ki-research`, `ki-writing-for-agents`, `ki-code-review`,
-`ki-triage`, `ki-grill-with-docs`, `ki-to-tickets`, `ki-codebase-design` and
-`ki-setup` (upstream's `setup-matt-pocock-skills`). They are copied at one
-upstream commit and differ only where a copy names one of the fourteen, so the
-set calls itself; [`ki-skills/UPSTREAM.md`](ki-skills/UPSTREAM.md) holds the
-commit, every changed file and how to read upstream's changes since. They install
+[mattpocock/skills](https://github.com/mattpocock/skills), each named `ki-<name>`.
+[`ki-skills/UPSTREAM.md`](ki-skills/UPSTREAM.md) lists them, the commit they were
+copied at, every change since and how to read upstream's changes. They install
 beside the upstream skills installed by hand, which keep their own names
 ([ADR-0104](docs/adr/0104-ki-skills-are-own-copies-beside-the-upstream-skills.md)).
 `./scripts/install-skills.sh` links each one into `~/.claude/skills` and the
