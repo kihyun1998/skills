@@ -25,7 +25,7 @@ nothing is usually an anchor that looks right.
 | A vitest mutation runner in a downstream repository, written before `redden` existed | It refuses zero-and-many matches as its **first** refusal, recorded as coming *"from a real failure"*: an anchor that was a superstring of the real one *"silently edits nothing while `toContain` still passes, and the sweep reads green"* |
 | This repository's `scripts/check-restructure-spec.py` | **Three false greens in one pass** — a probe missed a hard line wrap (fixed by `flatten()`); a lowercase `never average` searched a file saying `Never average`; `\1`/`\2` written into a replacement string became literal control bytes `\x01`/`\x02` (fixed with a replacement function) |
 
-Two triggers clears the bar in [`promote`](../../promote/SKILL.md), so this is a
+Two triggers clears the bar in [`promote`](../../retired/promote/SKILL.md), so this is a
 rule in the Workflow and the Rules, not a note on one bar.
 
 ## What it is not

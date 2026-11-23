@@ -22,7 +22,7 @@ policy tells a comment not to take, so the measurements move here and the skill
 keeps the rule plus a pointer.
 
 Nothing below is an instruction. The instructions are in
-[`decant/SKILL.md`](../../decant/SKILL.md), once.
+[`decant/SKILL.md`](../../retired/decant/SKILL.md), once.
 
 ## Why one bin
 

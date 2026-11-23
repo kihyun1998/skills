@@ -5,7 +5,7 @@
 
 `checkup` asked whether a repo's written agent artifacts were still true and still
 current, in three tiers. It is retired to [`retired/`](../../retired/checkup/), and
-its mechanical tier is promoted to [`scripts/map/`](../../scripts/map/).
+its mechanical tier is promoted to [`scripts/map/`](../../retired/check_map/).
 
 The decision rests on measurement, not on taste.
 

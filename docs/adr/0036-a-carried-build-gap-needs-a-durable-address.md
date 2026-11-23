@@ -61,7 +61,7 @@ build, which reads run state first.
 Not a new state slot and not a new node. `build_gaps` already names `batch` and
 the next `/grill-the-graph` as its consumers; this says what `batch` owes back.
 
-Not a rule by [`promote`](../../promote/SKILL.md)'s bar either — **one** trigger,
+Not a rule by [`promote`](../../retired/promote/SKILL.md)'s bar either — **one** trigger,
 one ambiguity, in one paragraph. It is a clause where the ambiguity was, the same
 shape as [ADR-0034](0034-bindings-are-spent-at-the-first-build.md).
 

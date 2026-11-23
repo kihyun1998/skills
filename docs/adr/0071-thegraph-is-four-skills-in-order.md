@@ -10,7 +10,7 @@
 > `docket` → [`ask-it`](../../ask-it/). **Nothing this record decided changed** —
 > the four steps, what each absorbs and what each calls are all as written below.
 > The old names are kept in the body because they are what was decided, and the
-> links in the table below no longer resolve for that reason.
+> links in the table below point at the renamed skills.
 
 **Status:** accepted.
 
@@ -51,10 +51,10 @@ Four skills, in order, with one guaranteed stop before any of them:
 
 | | Absorbs | Calls |
 |---|---|---|
-| [`sounding`](../../sounding/) | `classify`, `spine`, `map`, `reference`, `enumerate` | `spine`, `firsthand` |
-| [`hew`](../../hew/) | `implement` | `tdd`, `redden` |
-| [`plumb`](../../plumb/) | `proof`, `verify`, `gate`, `sweep` | `bare`, `lens`, `sweep`, `assay`, `silt`, `security-review` |
-| [`docket`](../../docket/) | `search`, `batch`, `downstream` | `envelope`, `byartifact` |
+| [`sounding`](../../read-it/) | `classify`, `spine`, `map`, `reference`, `enumerate` | `spine`, `firsthand` |
+| [`hew`](../../make-it/) | `implement` | `tdd`, `redden` |
+| [`plumb`](../../check-it/) | `proof`, `verify`, `gate`, `sweep` | `bare`, `lens`, `sweep`, `assay`, `silt`, `security-review` |
+| [`docket`](../../ask-it/) | `search`, `batch`, `downstream` | `envelope`, `byartifact` |
 
 `stop` and `decide` are not steps. They, and `boundary`, `redden` and
 `firsthand`, are **signals you cannot schedule** — the urge to patch around
@@ -63,8 +63,8 @@ sequence — and they live in a table `thegraph` holds and `hew` repeats where t
 actually fire.
 
 **Two skills were written because nothing covered what they do.**
-[`assay`](../../assay/) is this repo's own two-axis diff review, modelled on
-`code-review` rather than calling it, and [`silt`](../../silt/) reads a change for
+[`assay`](../../retired/assay/) is this repo's own two-axis diff review, modelled on
+`code-review` rather than calling it, and [`silt`](../../retired/silt/) reads a change for
 what will make it slow and refuses to call anything a defect without a number.
 
 ## What each merge made sayable

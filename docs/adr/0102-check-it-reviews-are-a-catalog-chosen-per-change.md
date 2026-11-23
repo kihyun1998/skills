@@ -1099,7 +1099,9 @@ is that note's own rule, applied at build.
   check from (1). A covered file the diff deletes still matches.
 - **The CI job** (`.github/workflows/skill-scripts.yml`) runs on a push or pull
   request touching the scripts, the files the prompts read, or itself, with
-  read-only contents and no credentials kept by the checkout.
+  read-only contents and no credentials kept by the checkout. Since #124 it also
+  runs the tests of `scripts/check-links.mjs`; the link check itself runs in
+  `.github/workflows/links.yml`, on any markdown change.
 
 **Measured on the change**, 2026-11-20: `check-it`'s body is 497 lines with the
 frontmatter excluded, from 673 at `7edfcd8`; `node --test

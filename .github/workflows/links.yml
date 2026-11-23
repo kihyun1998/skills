@@ -1,0 +1,22 @@
+name: links
+
+on:
+  push:
+    paths: &paths ['**/*.md', 'scripts/check-links.mjs', '.github/workflows/links.yml']
+  pull_request:
+    paths: *paths
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: node scripts/check-links.mjs

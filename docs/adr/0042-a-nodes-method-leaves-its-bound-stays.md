@@ -143,16 +143,16 @@ was routing this correctly before the split list admitted it.
 
 | Node | Method left to | Bound that stayed |
 |---|---|---|
-| `implement` (part) | [`redden`](../../redden/) | TDD RED→GREEN per layer; the self-loop's bound |
+| `implement` (part) | [`redden`](../../retired/redden/) | TDD RED→GREEN per layer; the self-loop's bound |
 | `verify` | [`lens`](../../lens/) | the table above |
-| `boundary` | [`boundary`](../../boundary/) | the seams; `CLAUDE.md` as second input; the `stop` edge |
-| `spine` | [`spine`](../../spine/) | writes `spine`, `triggers` |
+| `boundary` | [`boundary`](../../retired/boundary/) | the seams; `CLAUDE.md` as second input; the `stop` edge |
+| `spine` | [`spine`](../../retired/spine/) | writes `spine`, `triggers` |
 | `reference` + `enumerate` | [`firsthand`](../../firsthand/) | `sources`; `hidden_state`; one instance per build-named class |
 | `sweep` | [`sweep`](../../sweep/) | reads `split`, `spine`; the build names the surfaces |
-| `gate` | [`bare`](../../bare/) | writes `gates`; the build names the commands; the back-edge bound |
-| `search` | [`byartifact`](../../byartifact/) | writes `candidates`; the build names areas already carrying a record |
-| `batch` | [`envelope`](../../envelope/) | reads `candidates`, `agreed_direction` |
-| `promote` | [`promote`](../../promote/) | reads `triggers`, `spine`; exists only where the build names a record format |
+| `gate` | [`bare`](../../retired/bare/) | writes `gates`; the build names the commands; the back-edge bound |
+| `search` | [`byartifact`](../../retired/byartifact/) | writes `candidates`; the build names areas already carrying a record |
+| `batch` | [`envelope`](../../retired/envelope/) | reads `candidates`, `agreed_direction` |
+| `promote` | [`promote`](../../retired/promote/) | reads `triggers`, `spine`; exists only where the build names a record format |
 
 ## Three naming and shape calls
 

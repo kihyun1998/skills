@@ -7,6 +7,14 @@
 > as *And the comparison is unflattering* says `obra/superpowers` and `caveman`
 > do.
 
+> **Amended for #124 on 2026-11-23.** One check parses documents again:
+> `scripts/check-links.mjs`, run by `.github/workflows/links.yml` on every
+> markdown change, fails when a relative link in markdown outside `retired/`
+> names a file or folder git does not know. A link and the path it names are two
+> copies of one fact, the class this record removed. The maintainer chose the
+> check on a fact this record did not have: each retirement so far broke links,
+> 21 of them in 10 decision records when it was measured (#121's Q6, #124).
+
 **Status:** accepted.
 
 `scripts/check-skills.py` (1,149 lines) and `scripts/hooks/pre-commit` (78) are

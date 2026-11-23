@@ -84,7 +84,7 @@ The skills stay readable in the repo for the same reason: someone reading a
   `theflow` 1,536 (capped from 3,611, the single largest entry),
   `grill-the-flow` 1,174, `unexported-archives` 1,130, `to-external-issue` 802,
   `weekly-digest` 783. Measured against a listing roughly 3× its budget, this is
-  real but not the fix; see [the restructure spec](../thegraph-restructure.md)
+  real but not the fix; see the restructure spec (`thegraph-restructure.md`)
   for what is.
 - **Any of them can come back** by moving the folder out again. Retirement here
   is reversible in one command, which is the appropriate weight for a call

@@ -49,7 +49,7 @@ honest: **more deliberation never substitutes for the proof surface.**
 
 ## The inventory could not answer the question it exists for
 
-Inventory 2 of [the restructure spec](../thegraph-restructure.md) mapped all 28
+Inventory 2 of the restructure spec (`thegraph-restructure.md`) mapped all 28
 paperthin reflexes to a destination and had **no status column**. Asked *"is it
 all reflected yet?"* the table could only say where things belong — which reads,
 at a glance, as though they are there.

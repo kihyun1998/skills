@@ -8,7 +8,7 @@
 reverted the same day. Its number is vacated; see [the index](README.md). It was
 the fourth call of one audit, and the other three stand — so this is one decision
 with a wrong fourth attempt, not two decisions. The audit itself is
-[`../thegraph-state-model.md`](../thegraph-state-model.md), a working spec and not
+`../thegraph-state-model.md`, a working spec and not
 a record; what is decided lives here.*
 
 ## The gap

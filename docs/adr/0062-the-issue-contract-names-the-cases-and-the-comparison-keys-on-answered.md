@@ -84,7 +84,7 @@ fires here. The value's readers are the contract's existing readers.
 The State route was also measured for cost. Four edits are gate-mandatory — the
 State-table row, `classify`'s **Writes**, `implement`'s **Reads**, and the
 Inventory 4 slot list — and it would move the hand-written *"declares 19 slots"*
-count in [`../thegraph-state-model.md`](../thegraph-state-model.md), on the one
+count in `../thegraph-state-model.md`, on the one
 surface whose own rule is that an ungraded claim is a defect. The contract slot
 moves none of it.
 
