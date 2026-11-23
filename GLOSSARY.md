@@ -493,7 +493,7 @@ _Avoid_: mod alone where a Claude Code mod (`mods/`) could be meant
 **Chip** (session-restore):
 The small kept Herdr window `session-restore` shows on the layout it was opened on,
 where the person drags it to a corner once. It shows how long ago the save was made as a dot and a label, and unfolds the
-Sessions panel above itself when pressed (ADR-0101). Not the run's chip on
+Sessions panel above itself when pressed ([herdr-mods/README.md](herdr-mods/README.md)). Not the run's chip on
 `path-band`'s line.
 _Avoid_: badge, button (it is a window of its own), widget
 
@@ -501,7 +501,7 @@ _Avoid_: badge, button (it is a window of its own), widget
 The one file `session-restore` writes, `session-restore.json`: the Claude sessions
 live terminals held when Save was last pressed, replacing what it held before. Nothing
 writes it by itself, so after a reboot it still holds what was open at the last Save.
-_Avoid_: restore list (gone with ADR-0101's 2026-11-23 amendment), history, backup
+_Avoid_: restore list (gone on 2026-11-23, [docs/research/session-restore.md](docs/research/session-restore.md)), history, backup
 
 **Working location** (path-band):
 Where the agent is working now, as `path-band` shows it: the worktree's name
