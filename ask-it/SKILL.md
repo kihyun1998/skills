@@ -206,8 +206,7 @@ commits, as `thegraph`'s *A run alongside another* says, and goes on the run
 sheet's `commits` line when it lands, as `thegraph`'s run sheet says. That
 section also says how it claims and releases its files in the main tree, and
 that in a worktree run it is made in the worktree and merged by the same steps
-as an issue's commit: the rebase, the fast-forward, and the new hash written on
-the `commits` line. Before
+as an issue's commit, the new hash going on the `commits` line. Before
 the push is put to the person, run `git fetch <remote>` and list what it would
 send, `git log --format='%h %s' <remote>/<branch>..<branch>` in the main tree,
 `<remote>` and `<branch>` being where the push goes (`origin` and `main` in

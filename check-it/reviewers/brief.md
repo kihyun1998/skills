@@ -12,8 +12,9 @@ prompt is all you get.
   to another terminal or a process you did not start. Such a command is read
   and reported as traced.
 - **A probe that can only run inside the tree runs in a copy** made in your own
-  folder in the run folder, without its `.git`, with `git init` where it needs
-  git: a worktree, or a copy that keeps `.git`, writes into the repository's
+  folder in the run folder from the files git lists (`git ls-files -co
+  --exclude-standard`: tracked and untracked, not ignored), so the tree's build
+  output and its `.git` stay behind, with `git init` where it needs git: a worktree, or a copy that keeps `.git`, writes into the repository's
   gitdir (#93).
 - **What you copy, build, install or start follows the cleanup rules** in
   `{{skills}}/clean-it/RULES.md`: a ledger line when it is made, deleted before
@@ -25,7 +26,8 @@ prompt is all you get.
   model, and their estimated cost in tokens; whether to spend them is the
   person's, at `check-it`'s question.
 - **A review's report opens with one line saying whether `Agent` or `Skill`
-  is in its tool list.** One there means the review was started on an older
+  is in its tool list**, under Code Mode what `tools.list()` returns, not the
+  declarations its REPL describes. One there means the review was started on an older
   definition of `check-it-reviewer` or as the default agent; the decision model
   leaves this line out of its answer.
 

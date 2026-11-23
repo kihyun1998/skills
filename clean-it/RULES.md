@@ -86,10 +86,9 @@ a ledger found later is a run that did not end.
 
 **The run's end** is where `thegraph` and `thegraph-herdr` end a run. A run
 started over or moved ends its earlier attempt, apart from its worktree and
-branch, which the new run takes over with the worktree's ledger line, moved to
-the new ledger and not marked deleted. That attempt's record and claim are
-carried first and its live workers ended, as `thegraph`'s run sheet section
-says, then its run folder goes whole.
+branch, which the new run takes over; how, with that attempt's record, claim,
+worktree ledger line and live workers, is `thegraph`'s run sheet section. Then
+its run folder goes whole.
 `thegraph`'s *that run is over* ends another run, by these rules. Outside
 them it is the session's end, which nothing marks, so it is read as the moment
 the agent hands the finished task back to the person, in its final report. A
