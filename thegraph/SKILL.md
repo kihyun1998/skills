@@ -178,21 +178,18 @@ at the run's end: conflicts stay small and early, and the installed skills stay
 current, since `~/.claude/skills` points at the main tree. Once the commit is in
 the worktree and `git -C <worktree> status --porcelain` is empty:
 
-1. **The main tree must be clean**: `git -C <repo> status --porcelain
-   --untracked-files=no` empty. An untracked file there does not stop it: git
-   refuses a fast-forward that would overwrite one.
-   Where it is not, the other run has a step under way there. The commit waits
-   on `tg-<run id>`, the next issue starts in the worktree, and the merge is
-   tried again after it. Before `ask-it`, the run waits, looking again once the
-   person says so.
-2. `git -C <worktree> rebase <branch>`.
-3. `git -C <repo> merge --ff-only tg-<run id>`. Git refuses a fast-forward
-   that would overwrite a change in the main tree (*Your local changes to the
-   following files would be overwritten by merge*, git 2.50.1, tried
-   2026-11-23): a step of the other run started after 1, so it is 1's case.
-   So is *Not possible to fast-forward, aborting.* (exit 128), which means a
-   commit reached the main tree's branch after 2: go back to 1.
-4. **The rebase gave the commit a new hash**: write it where the old one was,
+1. `git -C <worktree> rebase <branch>`.
+2. `git -C <repo> merge --ff-only tg-<run id>`, tried whatever the main tree
+   holds: git itself refuses a fast-forward that would overwrite a change there
+   (*Your local changes to the following files would be overwritten by merge*,
+   git 2.50.1, tried 2026-11-23), and takes it where the other run's
+   uncommitted files are not ones the commit touches. Where it refuses, the
+   other run has a step under way on those files: the commit waits on
+   `tg-<run id>`, the next issue starts in the worktree, and the merge is tried
+   again after it; before `ask-it`, the run waits, trying again once the person
+   says so. *Not possible to fast-forward, aborting.* (exit 128) means a commit
+   reached the main tree's branch after 1: go back to 1.
+3. **The rebase gave the commit a new hash**: write it where the old one was,
    on its `## Children` line or the `commits` line, since `ask-it` holds the
    push against those.
 
