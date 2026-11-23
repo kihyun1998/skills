@@ -60,6 +60,8 @@ nothing checks them ([ADR-0066](docs/adr/0066-there-are-no-gates.md)).
   external. That holds in every live skill's markdown **and in `scripts/`**: an
   error message naming a skill is an instruction, not a record. A retired
   skill's markdown is frozen and installed nowhere, so a name in it is a record.
+  So is a name in a vendored skill's credit for where its text came from
+  (`ki-skills/ki-pr` crediting `show-me`).
 
 The gap between them is deliberate: a **boundary reference** names a skill to say
 that something is *its* job, not this one's. It resolves, and it is not declared
