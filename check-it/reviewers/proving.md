@@ -23,8 +23,7 @@ comes back as one of three:
 
 **Each finding's line also gives the time spent on it**, from the first probe
 to the verdict. No cap applies yet. The times are recorded so a cap can be set
-from them, or left unset (ADR-0102, *The review strength, and what each review
-cost*).
+from them, or left unset (ADR-0102, *Left open*).
 
 Each finding also says **whether this change introduced it**, measured as
 *Whose is it* says where a run can show it, and read from the diff where only

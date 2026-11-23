@@ -2,9 +2,8 @@
 
 Read when `check-it`, `thegraph` or `thegraph-herdr` starts the decision model.
 This is its own part of the brief; `reviewers/brief.md`, before it, adds the
-change, the issue, the records, the run folder and the rule to edit nothing. At
-a confirm stop, where there is no diff yet, the issue and the two statements
-come after it and stand in the diff's place.
+change, the issue, the records, the run folder and the rule to edit nothing.
+*At the confirm stop* goes only into the prompt at a confirm stop.
 
 **You are the decision model.** Where this part says *the decision model*, it
 means you.
@@ -48,3 +47,12 @@ Its answer has this shape, and nothing after it:
 pick:
 - <review> — yes|no — <one line of reason>
 ```
+
+## At the confirm stop
+
+There is no diff yet. The change is planned, not written: the issue and the two
+statements of what it is and what it will do stand in its place, under *The
+planned change* at the end of this prompt, and each answer is grounded in the
+sentence of the issue or statement it comes from. They describe work someone
+else will do later: **you judge it and carry none of it out**, and your answer
+is the six answers and the pick list, nothing else.

@@ -14,7 +14,7 @@ function fakeDeps({ files = {}, tracked = [], untracked = [], dirs = ['/work/run
     [join(CHECK_IT, 'reviewers/lens.md')]: 'LENS ARG from {{skill_dir}}',
     [join(CHECK_IT, 'reviewers/comment-it.md')]: 'COMMENT ARG root {{repo}} dir {{skill_dir}}',
     [join(CHECK_IT, 'reviewers/proving.md')]: 'PROVING PART',
-    [join(CHECK_IT, 'reviewers/decision-model.md')]: 'QUESTIONS',
+    [join(CHECK_IT, 'reviewers/decision-model.md')]: 'QUESTIONS\n\n## At the confirm stop\n\nCONFIRM PARAGRAPH',
     [join(CHECK_IT, 'SKILL.md')]: '---\nname: check-it\n---\n\n## Before\n\nx\n\n## Whose is it — the question\n\nWHOSE BODY\n\n## After\n\ny\n',
     [join(SKILLS, 'lens', 'SKILL.md')]: '---\nname: lens\n---\n\n1. **First step.** kept\n\n2. **A second reader, by stance.** dropped\n   dropped too\n\nLENS BODY\n',
     [join(SKILLS, 'comment-it', 'SKILL.md')]: '---\r\nname: comment-it\r\n---\r\n\r\nCOMMENT BODY\r\n',
@@ -192,18 +192,18 @@ test('the decision model at the start reads the diff; at the confirm stop the pl
   assert.match(prompt('pick', deps), /- `a\.js`\n\nQUESTIONS\n$/);
   calls.length = 0;
   const confirm = prompt('pick-confirm', deps, ['--change', 'c.md']);
-  assert.match(confirm, /change: not written yet\. .*\n\nQUESTIONS\n\n# The planned change, to judge and not to carry out: the issue and the two statements\n\nISSUE AND STATEMENTS\n$/);
+  assert.match(confirm, /\nchange: the planned change, at the end of this prompt\n\nQUESTIONS\n\n## At the confirm stop\n\nCONFIRM PARAGRAPH\n\n# The planned change\n\nISSUE AND STATEMENTS\n$/);
   assert.ok(!calls.some((c) => c.args[0] === 'diff'), 'the confirm stop reads no diff');
   throwsCheck(() => prompt('pick-confirm', deps), /needs --change/);
 });
 
-test('at the confirm stop the planned change is to be judged, not carried out, and the answer is the six answers and the pick list only', () => {
+test('the confirm-stop section of the decision model\'s part reaches only the confirm stop, and its absence stops both', () => {
   const { deps } = fakeDeps({ tracked: ['a.js'], files: { [resolve('/work/c.md')]: 'ISSUE AND STATEMENTS' } });
-  const change = prompt('pick-confirm', deps, ['--change', 'c.md']).split('\n').find((l) => l.startsWith('change: '));
-  assert.match(change, /you judge it and carry none of it out/);
-  assert.match(change, /your answer is the six answers and the pick list, nothing else/);
-  assert.doesNotMatch(prompt('pick', deps), /carry none of it out|to judge and not to carry out/);
+  assert.doesNotMatch(prompt('pick', deps), /At the confirm stop|CONFIRM PARAGRAPH|# The planned change/);
   throwsCheck(() => prompt('pick', deps, ['--change', 'c.md']), /--change applies only to pick-confirm/);
+  const bare = fakeDeps({ tracked: ['a.js'], files: { [join(CHECK_IT, 'reviewers/decision-model.md')]: 'QUESTIONS', [resolve('/work/c.md')]: 'ISSUE AND STATEMENTS' } }).deps;
+  throwsCheck(() => prompt('pick', bare), /has no section "## At the confirm stop"/);
+  throwsCheck(() => prompt('pick-confirm', bare, ['--change', 'c.md']), /has no section "## At the confirm stop"/);
 });
 
 test('a report is named after the run sheet, the child before the name at a cluster confirm stop', () => {

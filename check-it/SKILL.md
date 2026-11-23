@@ -108,7 +108,8 @@ the floor is added to its pick (ADR-0102, amended for #112). It runs twice:
 
 **Its questions, the reviews' descriptions and its answer's shape are
 [reviewers/decision-model.md](reviewers/decision-model.md)**, which the script
-puts in its prompt: six questions, each answered yes or no with the lines that
+puts in its prompt (its *At the confirm stop* section in `pick-confirm`'s
+only). It holds six questions, each answered yes or no with the lines that
 ground it, or the search that found nothing, **yes where it cannot tell**, then
 a `pick:` list with one line of reason for each review, picked or not.
 

@@ -5,7 +5,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathS
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { REVIEWS } from './assemble.mjs';
+import { REVIEWS, section } from './assemble.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const scratch = realpathSync(mkdtempSync(join(tmpdir(), 'check-it-cli-')));
@@ -80,6 +80,20 @@ for (const [name, entry] of [['directly', here], ['through a link', linked]]) {
       assert.equal(r.status, 0, r.stderr);
       assert.match(r.stdout, /^\*\*You are the decision model\.\*\*/m, review);
     }
+  });
+
+  test(`the confirm stop's wording comes from decision-model.md, and the script holds none of it, when run ${name}`, () => {
+    const path = join(here, '..', 'reviewers', 'decision-model.md');
+    const confirmPart = section(readFileSync(path, 'utf8').replaceAll('\r\n', '\n'), 'At the confirm stop', path).trim();
+    assert.match(confirmPart, /carry none of it out/);
+    assert.match(confirmPart, /six answers and the pick list, nothing else/);
+    const confirm = call(entry, ['prompt', 'pick-confirm', ...brief, '--change', join(scratch, 'run.change.md')]);
+    assert.equal(confirm.status, 0, confirm.stderr);
+    assert.ok(confirm.stdout.includes(`${confirmPart}\n\n# The planned change\n\nTHE ISSUE AND TWO STATEMENTS\n`));
+    const start = call(entry, ['prompt', 'pick', ...brief]);
+    assert.equal(start.status, 0, start.stderr);
+    assert.doesNotMatch(start.stdout, /At the confirm stop|carry none of it out|# The planned change/);
+    assert.doesNotMatch(readFileSync(join(here, 'assemble.mjs'), 'utf8'), /carry none of it out|six answers|not written yet/);
   });
 
   test(`verify matches a covered file the diff touches, and stops on one not in the tree, when run ${name}`, () => {

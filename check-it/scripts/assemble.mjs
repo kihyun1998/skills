@@ -17,9 +17,11 @@ export const REVIEWS = {
   lens: { skill: 'lens', file: 'reviewers/lens.md', drop: ['A second reader'] },
   comments: { skill: 'comment-it', file: 'reviewers/comment-it.md' },
   proving: { file: 'reviewers/proving.md', findings: true },
-  pick: { file: 'reviewers/decision-model.md' },
+  pick: { file: 'reviewers/decision-model.md', confirm: false },
   'pick-confirm': { file: 'reviewers/decision-model.md', confirm: true },
 };
+
+const CONFIRM_SECTION = 'At the confirm stop';
 
 export const REPORTS = [...Object.keys(REVIEWS), 'verify', 'findings', 'change'];
 const PER_CHILD = new Set(['pick-confirm', 'change']);
@@ -433,9 +435,7 @@ export function assemblePrompt(review, opts, deps) {
   const repo = repoRoot(opts, deps);
   const runFolder = runFolderOf(opts, deps);
   const checkIt = join(deps.skills, 'check-it');
-  const change = spec.confirm
-    ? 'not written yet. The issue and the two statements of what it is and what it will do stand in its place, at the end of this prompt. They describe work someone else will do later: you judge it and carry none of it out, and your answer is the six answers and the pick list, nothing else.'
-    : changeLine(changedFiles(repo, deps, runFolder));
+  const change = spec.confirm ? 'the planned change, at the end of this prompt' : changeLine(changedFiles(repo, deps, runFolder));
   const skillDir = spec.skill ? join(deps.skills, spec.skill) : undefined;
   const values = {
     skills: deps.skills,
@@ -448,7 +448,12 @@ export function assemblePrompt(review, opts, deps) {
   };
   const part = (rel) => {
     const path = join(checkIt, rel);
-    return fill(piece(ownPart(read(deps, path, path).trim()).trim(), path), values, path);
+    let text = ownPart(read(deps, path, path).trim());
+    if (rel === spec.file && spec.confirm !== undefined) {
+      const confirmPart = section(text, CONFIRM_SECTION, path);
+      if (!spec.confirm) text = text.replace(confirmPart, '');
+    }
+    return fill(piece(text.trim(), path), values, path);
   };
 
   const parts = [part('reviewers/brief.md')];
@@ -469,7 +474,7 @@ export function assemblePrompt(review, opts, deps) {
   }
   if (spec.confirm) {
     const p = resolve(deps.cwd, opts.change);
-    parts.push(`# The planned change, to judge and not to carry out: the issue and the two statements\n\n${read(deps, p, `the planned change ${p}`).trim()}`);
+    parts.push(`# The planned change\n\n${read(deps, p, `the planned change ${p}`).trim()}`);
   }
   return `${parts.join('\n\n')}\n`;
 }
