@@ -14,7 +14,7 @@ export const REVIEWS = {
   'spec-rules': { file: 'reviewers/spec-rules.md' },
   bug: { file: 'reviewers/bug.md' },
   security: { file: 'reviewers/security.md' },
-  lens: { skill: 'lens', file: 'reviewers/lens.md' },
+  lens: { skill: 'lens', file: 'reviewers/lens.md', drop: ['A second reader'] },
   comments: { skill: 'comment-it', file: 'reviewers/comment-it.md' },
   proving: { file: 'reviewers/proving.md', findings: true },
   pick: { file: 'reviewers/decision-model.md' },
@@ -363,6 +363,15 @@ export function skillBody(text, path) {
   return text.slice(m[0].length);
 }
 
+export function dropStep(text, title, path) {
+  const lines = text.split('\n');
+  const start = lines.findIndex((l) => /^\d+\. \*\*/.test(l) && l.replace(/^\d+\. \*\*/, '').startsWith(title));
+  if (start < 0) fail(`${path} has no step "${title}", which a review cannot run and this script leaves out`);
+  let end = start + 1;
+  while (end < lines.length && (lines[end].trim() === '' || /^\s/.test(lines[end]))) end++;
+  return [...lines.slice(0, start), ...lines.slice(end)].join('\n');
+}
+
 export function section(text, heading, path) {
   const lines = text.split(/\r?\n/);
   const start = lines.findIndex((l) => l.startsWith(`## ${heading}`));
@@ -445,7 +454,8 @@ export function assemblePrompt(review, opts, deps) {
   const parts = [part('reviewers/brief.md')];
   if (spec.skill) {
     const path = join(skillDir, 'SKILL.md');
-    parts.push(`# Your method: the body of ${path}, below its frontmatter\n\n${piece(skillBody(read(deps, path, path), path), `the body of ${path}`)}`);
+    const body = (spec.drop ?? []).reduce((b, title) => dropStep(b, title, path), piece(skillBody(read(deps, path, path), path), `the body of ${path}`));
+    parts.push(`# Your method: the body of ${path}, below its frontmatter${spec.drop ? `, without the steps a review cannot run (${spec.drop.join(', ')})` : ''}\n\n${body}`);
   }
   parts.push(part(spec.file));
   if (spec.findings) {

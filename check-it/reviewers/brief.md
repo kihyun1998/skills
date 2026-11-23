@@ -19,9 +19,15 @@ prompt is all you get.
   `{{skills}}/clean-it/RULES.md`: a ledger line when it is made, deleted before
   your report returns with its size in the report, except the repository's
   shared build folder, which is kept.
-- **A finding whose reproduction needs a model's answers** (a change to a
-  prompt or an instruction) is reported unproven, with the runs and the model a
-  reproduction would take; whether to spend them is the person's.
+- **Start no model run**: no `Agent`, no `Skill`, and no `claude` in a
+  shell. A finding whose reproduction needs a model's answers (a change to a
+  prompt or an instruction) is reported unproven, with how many runs, on which
+  model, and their estimated cost in tokens; whether to spend them is the
+  person's, at `check-it`'s question.
+- **A review's report opens with one line saying whether `Agent` or `Skill`
+  is in its tool list.** One there means the review was started on an older
+  definition of `check-it-reviewer` or as the default agent; the decision model
+  leaves this line out of its answer.
 
 - The repository: `{{repo}}`
 - The issue: {{issue}}

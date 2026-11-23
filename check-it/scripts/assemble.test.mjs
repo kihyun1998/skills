@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { basename, dirname, join, relative, resolve } from 'node:path';
-import { CLAIMS, CheckItError, RECORD, REPORTS, SKILLS, fill, matchCovered, ownPart, parseArgs, reportPath, run, section, skillBody } from './assemble.mjs';
+import { CLAIMS, CheckItError, RECORD, REPORTS, SKILLS, fill, matchCovered, ownPart, dropStep, parseArgs, reportPath, run, section, skillBody } from './assemble.mjs';
+import { readFileSync } from 'node:fs';
 
 const REPO = resolve('/work/repo');
 const CHECK_IT = join(SKILLS, 'check-it');
@@ -15,7 +16,7 @@ function fakeDeps({ files = {}, tracked = [], untracked = [], dirs = ['/work/run
     [join(CHECK_IT, 'reviewers/proving.md')]: 'PROVING PART',
     [join(CHECK_IT, 'reviewers/decision-model.md')]: 'QUESTIONS',
     [join(CHECK_IT, 'SKILL.md')]: '---\nname: check-it\n---\n\n## Before\n\nx\n\n## Whose is it — the question\n\nWHOSE BODY\n\n## After\n\ny\n',
-    [join(SKILLS, 'lens', 'SKILL.md')]: '---\nname: lens\n---\n\nLENS BODY\n',
+    [join(SKILLS, 'lens', 'SKILL.md')]: '---\nname: lens\n---\n\n1. **First step.** kept\n\n2. **A second reader, by stance.** dropped\n   dropped too\n\nLENS BODY\n',
     [join(SKILLS, 'comment-it', 'SKILL.md')]: '---\r\nname: comment-it\r\n---\r\n\r\nCOMMENT BODY\r\n',
   };
   const all = { ...base, ...files };
@@ -110,6 +111,29 @@ test('lens and comment-it carry their skill body below the frontmatter, their fo
   assert.ok(comments.includes(`COMMENT ARG root ${REPO} dir ${join(SKILLS, 'comment-it')}`));
   assert.ok(comments.includes('COMMENT BODY'));
   assert.doesNotMatch(comments, /name: comment-it/);
+});
+
+test("lens's prompt leaves out its second-reader step, which a review cannot run, and keeps the steps around it", () => {
+  const lens = prompt('lens', fakeDeps({ tracked: ['a.js'] }).deps);
+  assert.match(lens, /1\. \*\*First step\.\*\* kept\n\nLENS BODY/);
+  assert.doesNotMatch(lens, /by stance|dropped/);
+  assert.match(lens, /without the steps a review cannot run \(A second reader\)/);
+  const comments = prompt('comments', fakeDeps({ tracked: ['a.js'] }).deps);
+  assert.doesNotMatch(comments, /without the steps/);
+});
+
+test("a lens body without the second-reader step stops the prompt, so a renamed step is not read as gone", () => {
+  const lensSkill = join(SKILLS, 'lens', 'SKILL.md');
+  throwsCheck(() => prompt('lens', fakeDeps({ tracked: ['a'], files: { [lensSkill]: '---\nname: lens\n---\n\nLENS BODY\n' } }).deps), /has no step "A second reader"/);
+});
+
+test("the real lens SKILL.md has the second-reader step, and dropping it keeps the grade table after it", () => {
+  const path = join(SKILLS, 'lens', 'SKILL.md');
+  const body = skillBody(readFileSync(path, 'utf8').replaceAll('\r\n', '\n'), path);
+  assert.match(body, /A second reader/);
+  const dropped = dropStep(body, 'A second reader', path);
+  assert.doesNotMatch(dropped, /A second reader|refute/);
+  assert.match(dropped, /8\. \*\*Collapse to the root[\s\S]*\n\n## The grade table/);
 });
 
 test('an empty skill body or review file stops the prompt', () => {
@@ -276,7 +300,7 @@ test('a file saved with a byte-order mark reaches the prompt without it, and a S
     tracked: ['a.js'],
     files: {
       [join(CHECK_IT, 'reviewers/bug.md')]: '\uFEFFBUG PART',
-      [join(SKILLS, 'lens', 'SKILL.md')]: '\uFEFF---\nname: lens\n---\n\nLENS BODY\n',
+      [join(SKILLS, 'lens', 'SKILL.md')]: '\uFEFF' + '---\nname: lens\n---\n\n1. **First step.** kept\n\n2. **A second reader, by stance.** dropped\n   dropped too\n\nLENS BODY\n',
     },
   });
   const bug = run(['prompt', 'bug', '--issue', '#1', '--run-folder', '/work/run', '--ledger', '/work/run.md'], deps);

@@ -4,7 +4,7 @@ name: skill-scripts
 # Windows runner's PowerShell and macOS's bash.
 on:
   push:
-    paths: &paths ['check-it/scripts/**', 'check-it/reviewers/**', 'check-it/SKILL.md', 'lens/SKILL.md', 'comment-it/SKILL.md', 'grill-the-graph/scripts/**', 'grill-the-graph/contributor.md', 'scripts/check-links.mjs', 'scripts/check-links.test.mjs', '.github/workflows/skill-scripts.yml']
+    paths: &paths ['check-it/scripts/**', 'check-it/agents/**', 'check-it/reviewers/**', 'check-it/SKILL.md', 'lens/SKILL.md', 'comment-it/SKILL.md', 'grill-the-graph/scripts/**', 'grill-the-graph/contributor.md', 'scripts/*.mjs', 'scripts/*.sh', '.github/workflows/skill-scripts.yml']
   pull_request:
     paths: *paths
 
@@ -25,4 +25,4 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-      - run: node --test "check-it/scripts/*.test.mjs" "grill-the-graph/scripts/*.test.mjs" "scripts/check-links.test.mjs"
+      - run: node --test "check-it/scripts/*.test.mjs" "grill-the-graph/scripts/*.test.mjs" "scripts/*.test.mjs"

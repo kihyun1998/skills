@@ -1,10 +1,18 @@
 # A delegated node's license is its tool grant, not its brief
 
+> **Amended for #131 on 2026-11-23.** The grant withholds `Skill` too, and a
+> `PreToolUse` hook in the definition refuses a `Bash` or `PowerShell`
+> command that names `claude` (`check-it/scripts/no-model-run.mjs`), so a
+> review cannot start a model run through those tools in the common way. The hook
+> reads the command's text: `claude` started from a script file, another
+> interpreter, a variable or an encoded command gets past it, and what a review
+> does with `Bash` beyond that is still held only by its brief.
+
 > **Amended for #123 on 2026-11-22.** This repository writes one agent again:
 > `check-it/agents/check-it-reviewer.md`, which `scripts/install-skills.sh`
 > links into `~/.claude/agents` and `check-it` starts every review with. Its
 > grant withholds `Agent`, so a review cannot start agents through that tool;
-> it keeps `Bash` and `Skill`, and what it may do with them is still held only
+> it kept `Bash` and `Skill`, and what it might do with them was held only
 > by its brief.
 
 > **Superseded by [ADR-0071](0071-thegraph-is-four-skills-in-order.md).**

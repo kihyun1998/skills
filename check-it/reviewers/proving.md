@@ -17,8 +17,9 @@ comes back as one of three:
 - **passed**: reproduced, with that evidence;
 - **dropped**: shown not to hold, or to need no action, with why;
 - **unproven**: no run here can show it, because it needs a live screen,
-  another machine or a person to drive it. It says what would show it, and it
-  goes to a person. It is never passed and never dropped.
+  another machine, a person to drive it, or model runs, which no review starts.
+  It says what would show it, and it goes to a person. It is never passed and
+  never dropped.
 
 **Each finding's line also gives the time spent on it**, from the first probe
 to the verdict. No cap applies yet. The times are recorded so a cap can be set

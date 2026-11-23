@@ -1,8 +1,8 @@
 # What `lens` is given (8)
 
 Read when `check-it` runs `lens`. `lens`'s SKILL.md body, below its
-frontmatter, comes before this file in the prompt; this is that skill's
-argument.
+frontmatter and without its *A second reader* step, which a review cannot run,
+comes before this file in the prompt; this is that skill's argument.
 
 **Do not call `Skill`.** The method is the body above, in this prompt. Its
 links, such as `../clean-it/RULES.md`, resolve from `{{skill_dir}}`, the

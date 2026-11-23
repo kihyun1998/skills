@@ -255,7 +255,12 @@ how that was measured.
   dropped finding picked is reopened and fixed.
 
 The question names the report's path and lists group 1's numbers, each with its
-one-line finding, so the person can answer from the question. In a
+one-line finding, so the person can answer from the question. **An unproven
+finding only model runs can show is listed there too**, with what would show it:
+*N runs on model X, estimated cost* in tokens, as the review gave it. Picked by
+number, this session, the run's own, makes those runs, never a review, and fixes
+the finding where they show it; the result gives the runs, what they showed and
+what they cost. In a
 `thegraph-herdr` worker it goes through the conductor (the brief's
 `## Question` and its `hc send` line); anywhere else, in a `thegraph` session or
 a direct `/check-it`, it is asked directly with the question tool. A report
@@ -405,11 +410,22 @@ ADR-0095, ADR-0102), 4 to 9 and 11, and so does the decision model that picks
 them. That is the point: the hand that shaped the change is the worst judge of it. So the brief
 is all it gets: the prompt of a newly started agent (not a fork of this
 conversation, which inherits it), started with `Agent` as `check-it-reviewer`
-on its row's model and effort. That type,
-[agents/check-it-reviewer.md](agents/check-it-reviewer.md), has no `Agent`
-tool, so no review starts agents of its own (#123). A session started before
-the type was installed may not list it yet; where the session's agent list
-lacks it, the review has not started, and is reported not run with that reason.
+on its row's model and effort. **No review starts a model run** (#123, #131).
+That type, [agents/check-it-reviewer.md](agents/check-it-reviewer.md), has no
+`Agent` and no `Skill` tool, and a `PreToolUse` hook on its `Bash` and
+`PowerShell` refuses a command that runs `claude`
+([scripts/no-model-run.mjs](scripts/no-model-run.mjs)); the hook is set to block
+the call when it fails or times out, so a missing or broken script refuses
+rather than lets through. It reads the command's text, so it catches `claude`
+named in the command itself, and not one started from a script file, another
+interpreter, a variable, an encoded command or a renamed copy. **Where the session's agent list lacks the type**
+(Codex, or a session started before the install), the review is started as the
+default agent with the same prompt, held by the brief alone, and the result
+names each review started that way. **A session started before the definition
+changed** still starts the type, on the grant it had then. So each review's
+report opens by saying whether `Agent` or `Skill` is in its tool list, and the
+result names each review that had one as run on an older definition or the
+default agent.
 
 **The prompt is what this skill's script prints, handed to `Agent` as it is**
 (ADR-0102, amended for #114). Run it in the repository, `<check-it>` being this
