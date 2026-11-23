@@ -535,12 +535,15 @@ Its agent reads each result from the checker's own output itself (#100, #113).
 _Avoid_: verification skill (ambiguous with the two skills that write and maintain one)
 
 **Vendored skill**:
-A skill folder copied from another catalog without changes, with an
-`UPSTREAM.md` that records the source repository, the commit it was copied
-at, and every change made since. `create-formal-verification-skill` and
-`maintain-formal-verification-skill` are vendored from pstack at `e1cc031`
-(#78); `statechart`, vendored with them, is retired (#113). Folder paths stay
-upstream's, so the copy can be compared with later upstream commits.
+A skill folder copied from another catalog, with an `UPSTREAM.md` that records
+the source repository, the commit it was copied at, and every change made
+since. `create-formal-verification-skill` and `maintain-formal-verification-skill`
+are vendored from pstack at `e1cc031` (#78) and keep upstream's folder paths;
+`statechart`, vendored with them, is retired (#113). The fourteen folders in
+`ki-skills/` are vendored from mattpocock/skills at `abeeaf9` and renamed
+`ki-<name>`, so they sit beside the upstream skills they copy (#133, ADR-0104);
+their `UPSTREAM.md` maps each folder to its upstream path, so either kind can be
+compared with later upstream commits.
 _Avoid_: fork (the folder is a pinned copy with recorded changes, not a
 diverging line of development)
 
