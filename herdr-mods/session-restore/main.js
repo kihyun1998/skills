@@ -1,11 +1,9 @@
-// session-restore: the chip, a kept Herdr window that runs the save and shows its state. Pressed,
+// session-restore: the chip, a kept Herdr window that shows how long ago the save was made. Pressed,
 // it unfolds the Sessions panel (panel.js) above itself; pressed again, it folds it.
 import { View, div, svg } from "gpui-kit";
 import { h_flex, v_flex, Popup } from "gpui-base";
-import { theme, props, shared, closeOverlay, nextCommand, checking } from "herdr";
-import { anyBusy, chipState, staleAfter } from "./logic.js";
-import { startSaving } from "./save.js";
-import { herdrIo, shareSummary, SHARED } from "./io.js";
+import { theme, props, closeOverlay, nextCommand, checking } from "herdr";
+import { chipState } from "./logic.js";
 import Sessions, { SPINNER } from "./panel.js";
 
 /** chipState()'s dot as a theme color. */
@@ -21,25 +19,17 @@ export default class SessionRestore extends View {
   init(p, cx) {
     this.open = false;
     this.down = null;
-    this.savedAt = Date.now();
     this.overlay = (p ?? props())?.overlay ?? null;
     this.panel = new Sessions();
     this.panel.init(p, cx);
     if (checking()) return;
-    this.saver = startSaving(herdrIo(cx), {
-      every: (ms, fn) => cx.timer.every(ms, fn),
-      spawn: (cx, job) => cx.spawn(async (cx) => { await job(cx); cx.notify(); }),
-      share: (summary, save, turn) => { this.savedAt = Date.now(); this.panel.saved(save, turn, summary); shareSummary(summary); },
-      unfold: (cx) => { this.open = true; if (cx) this.panel.refresh(cx, false); },
-      saving: (on, cx) => this.panel.timedSave(on, cx),
-    }, cx);
     // "close" closes the chip for good (its kept entry goes with it); "save" saves now.
     cx.spawn(async (cx) => {
       for (;;) {
         const command = await nextCommand();
         if (command === "close") {
           if (this.overlay) closeOverlay(this.overlay);
-        } else this.saver.command(command, cx);
+        } else if (command === "save") this.panel.saveNow(cx);
         cx.notify();
       }
     });
@@ -47,8 +37,7 @@ export default class SessionRestore extends View {
 
   render(cx) {
     const t = theme();
-    const stale = staleAfter(this.panel.settings.saveEveryMinutes);
-    const { label, dot, spin } = chipState(shared(SHARED) ?? null, this.panel.progress(), Date.now() - this.savedAt, stale, anyBusy(this.panel.activity, "save"), this.panel.settings.autoSave);
+    const { label, dot, spin } = chipState(this.panel.summary(), { opening: this.panel.progress(), saving: this.panel.saving() });
     // A press that does not move toggles the panel; one that moves is Herdr dragging the window.
     const chip = h_flex().id("chip").w(CHIP_W).h(28).px(11).gap(7).flex_none().items_center().rounded_full()
       .bg(t.surface).border_1().border_color(t.border).shadow_md()
@@ -59,8 +48,8 @@ export default class SessionRestore extends View {
         this.down = null;
         if (!d || Math.hypot(e.position.x - d.x, e.position.y - d.y) > PRESS_SLOP) return;
         this.open = !this.open;
-        // Unfolding refreshes: the panel shows which sessions are open now, saving nothing.
-        if (this.open && !checking()) this.panel.refresh(cx, false);
+        // Unfolding looks at the terminals to show which saved sessions are open now; it writes nothing.
+        if (this.open && !checking()) this.panel.look(cx);
         cx.notify();
       })
       .child(spin

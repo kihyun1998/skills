@@ -161,7 +161,7 @@ Writing one, and the checks: [`herdr-mods/README.md`](herdr-mods/README.md).
 
 | Mod | What it does |
 | --- | --- |
-| [`session-restore`](herdr-mods/session-restore/) | After a reboot or a core restart, reopens the Claude sessions each terminal held, in place: conductors before their workers, each resumed with its flags and never its task prompt. A chip, a small kept window on the person's own layout, saves the live sessions every minute and unfolds a Sessions panel that lists them by space ([ADR-0101](docs/adr/0101-herdr-mods-hold-herdr-app-mods-and-session-restore-is-the-first.md)). |
+| [`session-restore`](herdr-mods/session-restore/) | After a reboot or a core restart, reopens the Claude sessions each terminal held, in place: conductors before their workers, each resumed with its flags and never its task prompt. A chip, a small kept window on the person's own layout, saves the live sessions when Save is pressed and unfolds a Sessions panel that lists them by space ([ADR-0101](docs/adr/0101-herdr-mods-hold-herdr-app-mods-and-session-restore-is-the-first.md)). |
 
 ## Repo layout
 

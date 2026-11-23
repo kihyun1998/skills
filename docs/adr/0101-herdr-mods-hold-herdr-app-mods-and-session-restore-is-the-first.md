@@ -1074,3 +1074,70 @@ follow-up, #109, #111, and #115, still open).
 - The live window: the chip was not reopened in Herdr on this code.
 - What would reopen it: wanting a set of sessions back from before the last run, which the
   restore list does not keep.
+
+## Amendment (2026-11-23): one file, written only by Save; no auto save, no restore list
+
+### The maintainer's calls
+
+Shown that the save file held two lists, `current` (the sessions alive at the last save) and
+`restore` (the previous run's `current`, carried from file to file until a row was opened or
+removed), and that the panel's refresh read the terminals without writing while a save wrote
+without being seen, the maintainer said one file means no second copy: the file is what `hc ls`
+showed at the last save, written over whole. Shown that a save run by itself after a reboot would
+write the near-empty list over the sessions to reopen, the maintainer chose:
+
+- **Only Save writes the file.** No save at start, on a timer, or after an Open or a ×. The
+  Settings tab and its file (`autoSave`, `saveEveryMinutes`) go with the timer.
+- **No refresh button; the unfold looks.** The ⟳ button is removed. First the refresh on unfold went
+  too, leaving the rows a yellow or grey dot for the status at the save; asked what the dots meant
+  and shown they were stale, the maintainer said whether a session is open matters more, read when
+  the panel unfolds, with a loading indicator while it reads. The look writes nothing; an Open
+  still reads which sessions run before it opens (as since #69).
+- **The chip shows how long ago the save was made**, not how many it holds: asked why the count,
+  and told it mostly stood in for the age, the maintainer kept the age only.
+- **No unfolding by itself after a reboot**, so the file carries no core holder.
+- **A failed open is logged** to `data/session-restore.open-failures.log` (asked earlier the same
+  day, when its reason lived only in a tooltip).
+
+### Derived
+
+- The save is `{ version: 2, savedAt, sessions }`. `nextSave(observed, { now })` takes nothing from
+  the file before; `observe` no longer falls back to the previous save's space and tab names.
+- `parseSave` reads a version-1 file (`current` and `restore`) as its `current`, so the save a
+  person had before this change still opens until the next Save writes over it.
+- Gone from `logic.js`: the settings (`DEFAULT_SETTINGS`, `SETTING_BOUNDS`, `parseSettings`,
+  `stepSetting`, `toggleAutoSave`, `digitsOnly`, `clampWhole`, `oneAtATime`, `folderChange`), the
+  stale time (`staleAfter`, `STALE_MS`), `coreIdentity`, and the look's ordering of overlapping
+  looks (`liveOf`, `keepLive`, `withLook`). The look on unfold runs one at a time (the `look`
+  action), shows rows through `withRunning`, and drops the opened marks older than it (`afterLook`). From `save.js`: `startSaving`, `markShown`, `lookAtTerminals`,
+  the settings file. From `io.js`: the shared summary. `refresh.svg` is deleted.
+- The refresh, check and settings actions leave the panel's activity, and `look` joins it; `press`
+  loses its `clear` option. A failed look shows its red box like any other action.
+- `openSessions` adds one JSON line per failed row (`at`, `sessionId`, `title`, `address`,
+  `reason`) before it returns, and keeps the newest 1000 lines. The runtime's `fs/promises` has no
+  append, so it reads and writes through `writeTextFile`'s expected, once more on a rejected write.
+  A log that cannot be written leaves the results as they are.
+- A blocked worker's reason reads "its conductor is not in the save".
+- This supersedes the restore-list rule in "The calls" above, the #65 amendment's unfold on a new
+  holder, the 2026-11-20 amendment's auto save and settings, and the "Not covered" line of the
+  history amendment that said the restore list does not keep sessions from before the last run
+  (it did, until now).
+
+### Accepted with it
+
+- A Save pressed after a reboot and before the sessions are reopened writes over them.
+- The rows show the terminals as they were at the unfold; a session closed while the panel is open
+  still reads `● open` until the next unfold.
+
+### Measured
+
+- `node --test` on both test files: 99 tests pass (53 and 46). The tests for the removed parts
+  were deleted; new ones cover `nextSave` keeping nothing, `parseSave` on a version-1 file, a save
+  over a version-1 file, a failed save leaving the file, `summarize`, `ago`, `chipState`'s order,
+  `reopenable`, `withRunning`, `afterLook`, the `look` action and the open log.
+- `herdr-app check herdr-mods/session-restore` passed.
+
+### Not covered
+
+- The live window: the chip was not reopened in Herdr on this code, and no Save, Open or × was
+  pressed in it. The panel and chip wiring has no test in the repository, as before.

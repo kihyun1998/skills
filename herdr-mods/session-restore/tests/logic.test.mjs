@@ -2,9 +2,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  keptFlags, nextSave, coreIdentity, planOpen, placement, resumeArgv, shellLine, isClaude, isShell, summarize, linkParents, openable, groupsOf, chipState, openProgress, groupProgress, batchResult, startOpen, endOpen, reopenable, withMarks, settleOpen, withoutRows, keepLive, liveOf, STALE_MS,
-  DEFAULT_SETTINGS, parseSettings, staleAfter, folderChange, withRunning, cleanTitle, digitsOnly, clampWhole, SETTING_BOUNDS,
-  IDLE, begin, press, finish, free, busyWith, anyBusy, errorAt, dismiss, withLook, arrive, oneAtATime, stepSetting, toggleAutoSave,
+  keptFlags, nextSave, planOpen, placement, resumeArgv, shellLine, isClaude, isShell, summarize, linkParents, openable, groupsOf, chipState, openProgress, groupProgress, batchResult, startOpen, endOpen, reopenable, withMarks, settleOpen, withoutRows,
+  cleanTitle, ago, entriesOf, withRunning, afterLook,
+  IDLE, begin, press, finish, free, busyWith, anyBusy, errorAt, dismiss, arrive,
 } from "../logic.js";
 
 const WORKER_ARGV = ["C:\\Users\\User\\.local\\bin\\claude.EXE", "--model", "opus", "--effort", "high", "--dangerously-skip-permissions",
@@ -46,51 +46,9 @@ const entry = (over) => ({ key: over.sessionId, address: "t1", parent: null, sta
 
 const live = (sessionId, over = {}) => entry({ sessionId, address: "t-" + sessionId, ...over });
 
-test("nextSave replaces current with the sessions alive now, so one that ended leaves it", () => {
-  const prev = { core: "h1", current: [live("a"), live("b")], restore: [] };
-  const next = nextSave(prev, [live("b"), live("c")], { core: "h1", now: 5 });
-  assert.deepEqual(next.current.map(e => e.sessionId), ["b", "c"]);
-  // On the same holder nothing goes to restore: a session that ended (exit or crash) is not offered.
-  assert.deepEqual(next.restore, []);
-  assert.equal(next.savedAt, 5);
-});
-
-test("nextSave on a new core holder sets the previous run's last save aside as the restore list", () => {
-  const prev = { core: "h1", current: [live("a"), live("b")], restore: [] };
-  const next = nextSave(prev, [], { core: "h2", now: 5 });
-  assert.deepEqual(next.restore.map(e => e.sessionId), ["a", "b"]);
-  assert.deepEqual(next.current, []);
-  assert.equal(next.core, "h2");
-});
-
-test("nextSave keeps the restore list across saves until an entry is open again", () => {
-  const prev = { core: "h2", current: [], restore: [live("a"), live("b")] };
-  const same = nextSave(prev, [], { core: "h2", now: 6 });
-  assert.deepEqual(same.restore.map(e => e.sessionId), ["a", "b"]);
-  const opened = nextSave(prev, [live("a", { address: "t9" })], { core: "h2", now: 7 });
-  assert.deepEqual(opened.restore.map(e => e.sessionId), ["b"]);
-  assert.deepEqual(opened.current.map(e => [e.sessionId, e.address]), [["a", "t9"]]);
-});
-
-test("nextSave on another new holder keeps what was still waiting, behind the newer save", () => {
-  const prev = { core: "h2", current: [live("c")], restore: [live("a"), live("c")] };
-  const next = nextSave(prev, [], { core: "h3", now: 8 });
-  assert.deepEqual(next.restore.map(e => e.sessionId), ["c", "a"]);
-});
-
-test("nextSave starts with no restore list when there was no save", () => {
-  assert.deepEqual(nextSave(null, [live("a")], { core: "h1", now: 1 }).restore, []);
-});
-
 test("linkParents marks a worker only when its parent terminal is a saved Claude", () => {
   const out = linkParents([live("c", { address: "t4" }), live("w", { address: "t5", parent: "t4" }), live("x", { address: "t6", parent: "t3n" })]);
   assert.deepEqual(out.map(e => [e.sessionId, e.parentSession]), [["c", null], ["w", "c"], ["x", null]]);
-});
-
-test("coreIdentity is the current holder's instance", () => {
-  const status = { holder: { current: true, instance: "b573", pid: 22380 }, pid: 22312 };
-  assert.equal(coreIdentity(status), "b573");
-  assert.equal(coreIdentity({ pid: 22312, uptime_ms: 5000 }, 10_000), "core-22312-5000");
 });
 
 const family = () => [
@@ -152,7 +110,7 @@ test("a worker whose conductor cannot be opened cannot be opened either", () => 
 test("groupsOf draws every link of a chain, each under the one that started it", () => {
   const groups = groupsOf(chain());
   assert.deepEqual(groups.flatMap(g => g.rows.map(r => [r.entry.sessionId, r.depth])), [["C", 0], ["W1", 1], ["W2", 2]]);
-  assert.equal(summarize({ restore: chain(), current: [] }, { now: 0 }).restorable, 3);
+  assert.equal(groups[0].restorable, 3);
 });
 
 const SPACES = [{ id: "sp1", name: "skills", named: false, tabs: [{ id: "tb1", name: "1", named: false }] }];
@@ -210,41 +168,6 @@ test("isClaude and isShell read a terminal's foreground program", () => {
   assert.equal(isClaude({ name: "node", argv: ["node", "claude.js"] }), false);
   assert.equal(isShell({ name: "pwsh.exe" }), true);
   assert.equal(isShell({ name: "claude.EXE" }), false);
-});
-
-test("summarize counts what can be restored and changes its sig only when that does", () => {
-  const save = { savedAt: 1000, current: [entry({ sessionId: "a" })], restore: [entry({ sessionId: "b", status: "working" }), entry({ sessionId: "c" }),
-    entry({ sessionId: "w", parentSession: "gone" })] };
-  const s = summarize(save, { now: 2000, failed: false });
-  // The orphan worker is not counted: it cannot be opened.
-  assert.deepEqual({ ...s, sig: undefined }, { restorable: 2, working: 1, saved: 1, stalled: false, sig: undefined });
-  const again = summarize({ ...save, savedAt: 1500 }, { now: 2500, failed: false });
-  assert.equal(again.sig, s.sig);
-  assert.equal(summarize(save, { now: 1000 + 4 * 60_000, failed: false, staleMs: staleAfter(1) }).stalled, true);
-  assert.equal(summarize(save, { now: 2000, failed: true }).stalled, true);
-});
-
-test("chipState: green with the count saved, amber with what can be restored, red when stalled, none before a save", () => {
-  const s = (over) => ({ restorable: 0, working: 0, saved: 0, stalled: false, sig: "", ...over });
-  assert.deepEqual(chipState(s({ saved: 18 })), { label: "⟲ 18", dot: "green" });
-  assert.deepEqual(chipState(s({ saved: 2, restorable: 5 })), { label: "5 to restore", dot: "amber" });
-  assert.deepEqual(chipState(s({ saved: 2, restorable: 5, stalled: true })), { label: "Save stalled", dot: "red" });
-  assert.deepEqual(chipState(s({ stalled: true })), { label: "Save stalled", dot: "red" });
-  assert.deepEqual(chipState(null), { label: "Not saved yet", dot: "dim" });
-});
-
-test("chipState shows the open under way over every other state, and not once it has nothing left", () => {
-  const stalled = { restorable: 5, working: 0, saved: 0, stalled: true, sig: "" };
-  assert.deepEqual(chipState(stalled, { opened: 2, total: 5 }), { label: "Opening 2/5", dot: "green" });
-  assert.deepEqual(chipState(null, { opened: 0, total: 1 }), { label: "Opening 0/1", dot: "green" });
-  assert.deepEqual(chipState(stalled, { opened: 0, total: 0 }), { label: "Save stalled", dot: "red" });
-});
-
-test("chipState turns red when no save has ended for longer than a stalled save may age", () => {
-  const ok = { restorable: 3, working: 0, saved: 4, stalled: false, sig: "" };
-  assert.deepEqual(chipState(ok, null, STALE_MS, STALE_MS), { label: "3 to restore", dot: "amber" });
-  assert.deepEqual(chipState(ok, null, STALE_MS + 1, STALE_MS), { label: "Save stalled", dot: "red" });
-  assert.deepEqual(chipState(null, null, STALE_MS + 1, STALE_MS), { label: "Save stalled", dot: "red" });
 });
 
 test("openProgress counts only the batch being opened, not rows an earlier open left behind", () => {
@@ -381,77 +304,8 @@ test("settleOpen stamps an opened mark with when it landed", () => {
   assert.deepEqual(states.get("a"), { at: "opened", address: "t9", since: 5 });
 });
 
-test("keepLive drops an opened mark a later look does not show held at its address, and keeps the rest", () => {
-  const states = new Map([
-    ["gone", { at: "opened", address: "t1", since: 10 }],
-    ["moved", { at: "opened", address: "t2", since: 10 }],
-    ["here", { at: "opened", address: "t3", since: 10 }],
-    ["fresh", { at: "opened", address: "t4", since: 30 }],
-    ["opening", { at: "opening", open: 1 }],
-    ["failed", { at: "failed", reason: "x", address: "t6" }],
-    ["unstamped", { at: "opened", address: "t7" }],
-  ]);
-  const save = { savedAt: 20, current: [{ sessionId: "moved", address: "t9" }, { sessionId: "here", address: "t3" }], restore: [] };
-  assert.deepEqual([...keepLive(states, liveOf(save), save.savedAt).keys()], ["here", "fresh", "opening", "failed"]);
-  assert.equal(keepLive(states, new Map(), undefined), states);
-});
 
-test("liveOf maps each session a save lists live to its address", () => {
-  assert.deepEqual([...liveOf({ current: [{ sessionId: "a", address: "t1" }], restore: [{ sessionId: "b", address: "t2" }] })], [["a", "t1"]]);
-  assert.deepEqual([...liveOf(null)], []);
-});
-
-
-// ---- settings and refresh (#83) ----
-
-test("parseSettings fills what is missing or wrong with the defaults: auto save on, every 10 minutes", () => {
-  assert.deepEqual(DEFAULT_SETTINGS, { saveEveryMinutes: 10, autoSave: true });
-  assert.deepEqual(parseSettings(null), DEFAULT_SETTINGS);
-  assert.deepEqual(parseSettings("not json"), DEFAULT_SETTINGS);
-  assert.deepEqual(parseSettings('{"saveEveryMinutes": 3}'), { saveEveryMinutes: 3, autoSave: true });
-  assert.deepEqual(parseSettings('{"saveEveryMinutes": 0}'), DEFAULT_SETTINGS);
-  assert.deepEqual(parseSettings('{"saveEveryMinutes": 2.6}'), { saveEveryMinutes: 3, autoSave: true });
-  assert.deepEqual(parseSettings('{"saveEveryMinutes": "5"}'), DEFAULT_SETTINGS);
-});
-
-test("parseSettings drops a historyLimit a settings file from before kept", () => {
-  assert.deepEqual(parseSettings('{"saveEveryMinutes": 5, "historyLimit": 7}'), { saveEveryMinutes: 5, autoSave: true });
-});
-
-test("staleAfter is three save intervals", () => {
-  assert.equal(staleAfter(10), 30 * 60_000);
-  assert.equal(staleAfter(1), 3 * 60_000);
-});
-
-test("summarize and chipState read stalled against the stale time they are given", () => {
-  const save = { savedAt: 0, current: [entry({ sessionId: "a" })], restore: [] };
-  assert.equal(summarize(save, { now: 29 * 60_000, failed: false, staleMs: staleAfter(10) }).stalled, false);
-  assert.equal(summarize(save, { now: 31 * 60_000, failed: false, staleMs: staleAfter(10) }).stalled, true);
-  const ok = { restorable: 0, working: 0, saved: 1, stalled: false, sig: "" };
-  assert.equal(chipState(ok, null, 29 * 60_000, staleAfter(10)).dot, "green");
-  assert.equal(chipState(ok, null, 31 * 60_000, staleAfter(10)).dot, "red");
-});
-
-test("folderChange reads an empty batch as a released watch, and reloads only for the given files or the folder itself", () => {
-  const dir = "C:/Users/U/.config/herdr-app/data";
-  const files = [dir + "/session-restore.settings.json"];
-  assert.equal(folderChange([], dir, files), "released");
-  assert.equal(folderChange([dir + "/agents/a.json", dir + "/agents/b.json"], dir, files), "skip");
-  assert.equal(folderChange([dir + "/session-restore.json", dir + "/session-restore/x.json", dir + "/agents/session-restore.settings.json"], dir, files), "skip");
-  assert.equal(folderChange([dir + "/agents/a.json", "C:\\Users\\U\\.config\\herdr-app\\data\\session-restore.settings.json"], dir, files), "reload");
-  assert.equal(folderChange([dir + "/Session-Restore.settings.json"], dir + "/", files), "reload");
-  assert.equal(folderChange(["C:\\Users\\U\\.config\\herdr-app\\data\\"], dir, files), "reload");
-});
-
-test("folderChange reads a path by its place under the folder, not by the form Herdr writes it in", () => {
-  const dir = "C:/Users/U/.config/herdr-app/data";
-  const files = [dir + "/session-restore.settings.json"];
-  assert.equal(folderChange(["\\\\?\\C:\\Users\\U\\.config\\herdr-app\\data\\session-restore.settings.json"], dir, files), "reload");
-  assert.equal(folderChange(["D:/real/herdr-app/data/session-restore.settings.json"], dir, files), "reload");
-  assert.equal(folderChange(["D:/real/herdr-app/data"], dir, files), "reload");
-  assert.equal(folderChange([dir + "/session-restore.settings.json.tmp"], dir, files), "reload");
-  assert.equal(folderChange(["D:/real/herdr-app/data/agents/x.json"], dir, files), "skip");
-});
+// ---- the panel's activity ----
 
 test("cleanTitle drops what an agent puts before its title", () => {
   assert.equal(cleanTitle("✳ fix login"), "fix login");
@@ -459,29 +313,12 @@ test("cleanTitle drops what an agent puts before its title", () => {
   assert.equal(cleanTitle(null), "");
 });
 
-test("withRunning marks each entry live by what the terminals hold now, at the address that holds it", () => {
-  const entries = [live("a", { live: true, address: "t1" }), live("b", { live: false, address: "t2" }), live("c", { live: true, address: "t3" })];
-  const out = withRunning(entries, new Map([["b", "t9"], ["c", "t3"]]));
-  assert.deepEqual(out.map((e) => [e.sessionId, e.live, e.address]), [["a", false, "t1"], ["b", true, "t9"], ["c", true, "t3"]]);
-});
-
-test("chipState says a save is running under an open and a stalled save, over what can be restored and the count saved", () => {
-  const s = (over) => ({ restorable: 0, working: 0, saved: 0, stalled: false, sig: "", ...over });
-  assert.deepEqual(chipState(s({ saved: 18 }), null, 0, STALE_MS, true), { label: "Saving", dot: "green", spin: true });
-  assert.deepEqual(chipState(s({ saved: 2, restorable: 5 }), null, 0, STALE_MS, true), { label: "Saving", dot: "amber", spin: true });
-  assert.deepEqual(chipState(null, null, 0, STALE_MS, true), { label: "Saving", dot: "dim", spin: true });
-  assert.deepEqual(chipState(s({ stalled: true }), null, 0, STALE_MS, true), { label: "Save stalled", dot: "red" });
-  assert.deepEqual(chipState(s({ saved: 2 }), null, STALE_MS + 1, STALE_MS, true), { label: "Save stalled", dot: "red" });
-  assert.deepEqual(chipState(s({ stalled: true }), { opened: 1, total: 3 }, 0, STALE_MS, true), { label: "Opening 1/3", dot: "green" });
-  assert.deepEqual(chipState(s({ saved: 18 }), null, 0, STALE_MS, false), { label: "⟲ 18", dot: "green" });
-});
-
 test("activity: a target under way is busy until it ends, whether it succeeded or failed", () => {
   const a = begin(IDLE, "remove", [11, 9]);
   assert.equal(busyWith(a, "remove", 11), true);
   assert.equal(busyWith(a, "remove", 9), true);
   assert.equal(busyWith(a, "remove", 10), false);
-  assert.equal(busyWith(a, "settings", 11), false);
+  assert.equal(busyWith(a, "save", 11), false);
   assert.equal(busyWith(finish(a, "remove", [11, 9]), "remove", 11), false);
   assert.equal(busyWith(finish(a, "remove", [11, 9], "EBUSY"), "remove", 9), false);
   assert.equal(busyWith(finish(a, "remove", [11]), "remove", 9), true);
@@ -492,29 +329,23 @@ test("activity: a press on a busy target is ignored, and a press on several leav
   const a = begin(IDLE, "remove", [11]);
   assert.deepEqual(free(a, "remove", [11]), []);
   assert.deepEqual(free(a, "remove", [10, 11, 12]), [10, 12]);
-  assert.deepEqual(free(a, "settings", [11]), [11]);
+  assert.deepEqual(free(a, "save", [11]), [11]);
   assert.deepEqual(free(IDLE, "remove", ["k1", "k2"]), ["k1", "k2"]);
 });
 
-test("activity: save, refresh and the open check run one at a time, a save started by any action counting", () => {
-  const afterRemove = begin(IDLE, "save", ["remove-1"]);
-  assert.deepEqual(free(afterRemove, "save", [null]), []);
+test("activity: a save runs one at a time", () => {
+  const saving = begin(IDLE, "save", [null]);
+  assert.deepEqual(free(saving, "save", [null]), []);
   assert.deepEqual(free(IDLE, "save", [null]), [null]);
-  assert.deepEqual(free(begin(IDLE, "refresh", [null]), "refresh", [null]), []);
-  assert.deepEqual(free(begin(IDLE, "check", ["a", "b"]), "check", ["c"]), []);
-  assert.deepEqual(free(begin(IDLE, "check", ["a"]), "refresh", [null]), [null]);
-  assert.equal(anyBusy(afterRemove, "save"), true);
-  assert.equal(anyBusy(afterRemove, "remove"), false);
-  assert.equal(anyBusy(finish(afterRemove, "save", ["remove-1"]), "save"), false);
-  assert.equal(anyBusy(IDLE, "check"), false);
+  assert.equal(anyBusy(saving, "save"), true);
+  assert.equal(anyBusy(saving, "remove"), false);
+  assert.equal(anyBusy(finish(saving, "save", [null]), "save"), false);
 });
 
 test("activity: a failure keeps an error where its action lives, until the next action there or a close", () => {
   const failed = finish(begin(IDLE, "remove", ["k1"]), "remove", ["k1"], "EBUSY: resource busy");
   assert.equal(errorAt(failed, "sessions"), "The session is still in the save: EBUSY: resource busy");
-  assert.equal(errorAt(failed, "settings"), null);
   assert.equal(errorAt(press(failed, "remove", ["k2"]).act, "sessions"), null);
-  assert.equal(errorAt(press(failed, "settings", [1]).act, "sessions"), "The session is still in the save: EBUSY: resource busy");
   assert.equal(errorAt(dismiss(failed, "sessions"), "sessions"), null);
   assert.equal(errorAt(finish(begin(IDLE, "remove", ["k1"]), "remove", ["k1"]), "sessions"), null);
 });
@@ -523,10 +354,8 @@ test("activity: each action's failure reads in its own tab", () => {
   const fail = (action, targets) => finish(begin(IDLE, action, targets), action, targets, "boom");
   assert.equal(errorAt(fail("remove", ["k1"]), "sessions"), "The session is still in the save: boom");
   assert.equal(errorAt(fail("remove", ["k1", "k2"]), "sessions"), "2 sessions are still in the save: boom");
-  assert.equal(errorAt(fail("refresh", [null]), "sessions"), "The refresh did not finish: boom");
   assert.equal(errorAt(fail("save", [null]), "sessions"), "The save did not run: boom");
-  assert.equal(errorAt(fail("settings", [1]), "settings"), "The settings change did not finish: boom");
-  assert.equal(errorAt(fail("load", [null]), "sessions"), "Could not read the save or the settings: boom");
+  assert.equal(errorAt(fail("load", [null]), "sessions"), "Could not read the save: boom");
 });
 
 test("activity: a press starts its free targets and clears its tab's error; an ignored press changes nothing", () => {
@@ -551,90 +380,6 @@ test("activity: a save an action starts after it does not clear that action's er
   assert.equal(errorAt(both, "sessions"), "The session is still in the save: boom. The save did not run: EACCES");
 });
 
-test("activity: an Open's check keeps no error and clears none, as the rows say why when nothing opens", () => {
-  const failed = finish(press(IDLE, "remove", ["k1"]).act, "remove", ["k1"], "boom");
-  const checking = press(failed, "check", ["k2"]);
-  assert.deepEqual(checking.go, ["k2"]);
-  assert.equal(errorAt(checking.act, "sessions"), "The session is still in the save: boom");
-  const ended = finish(checking.act, "check", ["k2"], "core gone");
-  assert.equal(busyWith(ended, "check", "k2"), false);
-  assert.equal(errorAt(ended, "sessions"), "The session is still in the save: boom");
-  assert.equal(errorAt(finish(press(IDLE, "check", ["k2"]).act, "check", ["k2"], "core gone"), "sessions"), null);
-});
-
-test("activity: a press that does not clear (the refresh unfolding runs) keeps the error and is still ignored while busy", () => {
-  const failed = finish(press(IDLE, "remove", ["k1"]).act, "remove", ["k1"], "boom");
-  const unfold = press(failed, "refresh", [null], { clear: false });
-  assert.deepEqual(unfold.go, [null]);
-  assert.equal(busyWith(unfold.act, "refresh"), true);
-  assert.equal(errorAt(unfold.act, "sessions"), "The session is still in the save: boom");
-  assert.deepEqual(press(unfold.act, "refresh", [null], { clear: false }).go, []);
-  assert.equal(errorAt(press(failed, "refresh", [null]).act, "sessions"), null);
-});
-
-test("parseSettings reads autoSave: on unless the file says false", () => {
-  assert.equal(DEFAULT_SETTINGS.autoSave, true);
-  assert.equal(parseSettings('{"autoSave": false}').autoSave, false);
-  assert.equal(parseSettings('{"autoSave": true}').autoSave, true);
-  assert.equal(parseSettings('{"autoSave": "no"}').autoSave, true);
-  assert.equal(parseSettings('{"autoSave": false, "saveEveryMinutes": 4}').saveEveryMinutes, 4);
-});
-
-test("chipState with auto save off says so in grey, never turns red for age, and keeps an open, a failed save, a save running and what can be restored above it", () => {
-  const s = (o) => ({ restorable: 0, working: 0, saved: 0, stalled: false, sig: "", ...o });
-  const off = (summary, opening = null, since = 0, saving = false) => chipState(summary, opening, since, STALE_MS, saving, false);
-  assert.deepEqual(off(s({ saved: 18 })), { label: "Auto save off", dot: "dim" });
-  assert.deepEqual(off(null), { label: "Auto save off", dot: "dim" });
-  assert.deepEqual(off(s({ saved: 18 }), null, STALE_MS * 100), { label: "Auto save off", dot: "dim" });
-  assert.deepEqual(off(null, null, STALE_MS * 100), { label: "Auto save off", dot: "dim" });
-  assert.deepEqual(off(s({ saved: 2, restorable: 3 })), { label: "3 to restore", dot: "amber" });
-  assert.deepEqual(off(s({ stalled: true })), { label: "Save stalled", dot: "red" });
-  assert.deepEqual(off(s({ saved: 18 }), null, 0, true), { label: "Saving", dot: "green", spin: true });
-  assert.deepEqual(off(s({ saved: 18 }), { opened: 1, total: 2 }), { label: "Opening 1/2", dot: "green" });
-  assert.deepEqual(chipState(s({ saved: 18 }), null, STALE_MS + 1, STALE_MS, false, true), { label: "Save stalled", dot: "red" });
-});
-
-test("digitsOnly keeps the digits a number field was given and drops everything else", () => {
-  assert.equal(digitsOnly("12"), "12");
-  assert.equal(digitsOnly("1a2b"), "12");
-  assert.equal(digitsOnly("-5"), "5");
-  assert.equal(digitsOnly("3.7"), "37");
-  assert.equal(digitsOnly(" 4 "), "4");
-  assert.equal(digitsOnly("abc"), "");
-  assert.equal(digitsOnly("１２"), "");
-});
-
-test("clampWhole keeps a whole number inside the bounds, and reads text that is no number as null", () => {
-  assert.equal(clampWhole("0", 1, 1440), 1);
-  assert.equal(clampWhole("2000", 1, 1440), 1440);
-  assert.equal(clampWhole("30", 1, 1440), 30);
-  assert.equal(clampWhole(7, 1, 50), 7);
-  assert.equal(clampWhole("", 1, 50), null);
-  assert.equal(clampWhole("x", 1, 50), null);
-});
-
-test("the settings' bounds: an interval of 1 to 1440 minutes", () => {
-  assert.deepEqual(SETTING_BOUNDS, { saveEveryMinutes: { min: 1, max: 1440 } });
-});
-
-test("withLook applies a look at least as new as the one shown, and drops an older one whole", () => {
-  const opened = new Map([["s1", { at: "opened", address: "t2", since: 50 }]]);
-  const shown = { states: opened, running: new Map([["s1", "t2"]]), lookAt: 100 };
-  const older = withLook(shown, { at: 90, running: new Map() });
-  assert.equal(older, shown);
-  assert.equal(older.states.get("s1")?.at, "opened");
-  const newer = withLook(shown, { at: 120, running: new Map() });
-  assert.equal(newer.lookAt, 120);
-  assert.equal(newer.running.size, 0);
-  assert.equal(newer.states.has("s1"), false);
-  const same = withLook(shown, { at: 100, running: new Map() });
-  assert.equal(same.lookAt, 100);
-  assert.equal(same.running.size, 0);
-  const first = withLook({ states: opened, running: null, lookAt: null }, { at: 10, running: new Map([["s1", "t2"]]) });
-  assert.equal(first.lookAt, 10);
-  assert.equal(first.states.get("s1")?.at, "opened");
-});
-
 test("arrive takes a result, written or read, only when it is numbered after every one the field has taken", () => {
   const read5 = arrive({}, "settings", 5);
   assert.equal(read5.take, true);
@@ -649,17 +394,6 @@ test("arrive takes a result, written or read, only when it is numbered after eve
   assert.equal(arrive(write6.turns, "settings", 7).take, true);
 });
 
-test("stepSetting moves a number setting by one from the settings it is given, kept within its bounds", () => {
-  assert.deepEqual(stepSetting("saveEveryMinutes", 1)({ saveEveryMinutes: 30, autoSave: true }), { saveEveryMinutes: 31 });
-  assert.deepEqual(stepSetting("saveEveryMinutes", -1)({ saveEveryMinutes: 1 }), { saveEveryMinutes: 1 });
-  assert.deepEqual(stepSetting("saveEveryMinutes", 1)({ saveEveryMinutes: 5000 }), { saveEveryMinutes: 1440 });
-});
-
-test("toggleAutoSave turns auto save the other way from the settings it is given", () => {
-  assert.deepEqual(toggleAutoSave({ saveEveryMinutes: 10, autoSave: true }), { autoSave: false });
-  assert.deepEqual(toggleAutoSave({ autoSave: false }), { autoSave: true });
-});
-
 test("arrive keeps each field's turns apart", () => {
   const removed = arrive({}, "save", 8).turns;
   assert.equal(arrive(removed, "save", 7).take, false);
@@ -668,18 +402,66 @@ test("arrive keeps each field's turns apart", () => {
   assert.deepEqual(settings.turns, { save: 8, settings: 7 });
 });
 
-test("oneAtATime starts each job once the one before it has ended, a failed one included, in the order given", async () => {
-  const queue = oneAtATime(), log = [];
-  let release;
-  const first = queue(() => new Promise((r) => { log.push("start 1"); release = r; }).then(() => log.push("end 1")));
-  const second = queue(async () => { log.push("start 2"); throw new Error("no"); });
-  const third = queue(async () => { log.push("start 3"); return 3; });
-  await Promise.resolve();
-  await Promise.resolve();
-  assert.deepEqual(log, ["start 1"]);
-  release();
-  await first;
-  await assert.rejects(second, /no/);
-  assert.equal(await third, 3);
-  assert.deepEqual(log, ["start 1", "end 1", "start 2", "start 3"]);
+// ---- the save: one file, written only by Save ----
+
+test("nextSave is the sessions alive now and nothing else: no list is carried from an earlier save", () => {
+  const save = nextSave([{ sessionId: "b", address: "t2" }, { sessionId: "b", address: "t3" }, { sessionId: "c", address: "t4" }], { now: 5 });
+  assert.deepEqual(save, { version: 2, savedAt: 5, sessions: [
+    { sessionId: "b", address: "t2", parentSession: null, key: "b" },
+    { sessionId: "c", address: "t4", parentSession: null, key: "c" },
+  ] });
+  assert.deepEqual(nextSave([], { now: 6 }), { version: 2, savedAt: 6, sessions: [] });
+});
+
+test("entriesOf lists a save's sessions, and nothing for no save", () => {
+  assert.deepEqual(entriesOf({ sessions: [{ key: "a" }] }), [{ key: "a" }]);
+  assert.deepEqual(entriesOf(null), []);
+});
+
+test("ago says seconds under a minute, minutes under an hour, then hours", () => {
+  assert.deepEqual([ago(0), ago(59_000), ago(60_000), ago(59 * 60_000), ago(60 * 60_000), ago(5 * 3_600_000)], ["0s ago", "59s ago", "1m ago", "59m ago", "1h ago", "5h ago"]);
+  assert.equal(ago(-5), "0s ago");
+});
+
+test("summarize gives how many sessions the save holds, when it was made, and whether the last save failed", () => {
+  assert.deepEqual(summarize({ savedAt: 10, sessions: [{}, {}] }), { saved: 2, savedAt: 10, failed: false });
+  assert.deepEqual(summarize(null, { failed: true }), { saved: 0, savedAt: null, failed: true });
+});
+
+test("chipState: an open under way, then a save running, then a failed save, then no save yet, then how long ago", () => {
+  const ok = { saved: 3, savedAt: 1_000, failed: false };
+  const now = 1_000 + 2 * 3_600_000;
+  assert.deepEqual(chipState(ok, { opening: { opened: 1, total: 4 }, saving: true, now }), { label: "Opening 1/4", dot: "green" });
+  assert.deepEqual(chipState({ ...ok, failed: true }, { saving: true, now }), { label: "Saving", dot: "dim", spin: true });
+  assert.deepEqual(chipState({ ...ok, failed: true }, { now }), { label: "Save failed", dot: "red" });
+  assert.deepEqual(chipState(null, { now }), { label: "Not saved", dot: "dim" });
+  assert.deepEqual(chipState({ saved: 0, savedAt: null, failed: false }, { now }), { label: "Not saved", dot: "dim" });
+  assert.deepEqual(chipState(ok, { now }), { label: "Saved 2h ago", dot: "green" });
+  assert.deepEqual(chipState(ok, { opening: { opened: 0, total: 0 }, now }), { label: "Saved 2h ago", dot: "green" });
+});
+
+test("reopenable leaves out a row this panel is opening or has opened", () => {
+  const e = { key: "a", sessionId: "a" };
+  assert.equal(reopenable(e, [e], new Map()), true);
+  assert.equal(reopenable(e, [e], new Map([["a", { at: "opening" }]])), false);
+  assert.equal(reopenable(e, [e], new Map([["a", { at: "opened" }]])), false);
+  assert.equal(reopenable(e, [e], new Map([["a", { at: "failed" }]])), true);
+});
+
+test("withRunning shows each entry open where a live terminal holds its session, at that terminal, and closed otherwise", () => {
+  const entries = [{ key: "a", sessionId: "a", address: "t1" }, { key: "b", sessionId: "b", address: "t2" }];
+  assert.deepEqual(withRunning(entries, new Map([["a", "t9"]])), [
+    { key: "a", sessionId: "a", address: "t9", live: true },
+    { key: "b", sessionId: "b", address: "t2", live: false },
+  ]);
+});
+
+test("afterLook drops the opened marks from before the look and keeps newer ones and every other mark", () => {
+  const states = new Map([["old", { at: "opened", since: 5 }], ["new", { at: "opened", since: 20 }], ["f", { at: "failed" }], ["o", { at: "opening" }]]);
+  assert.deepEqual([...afterLook(states, 10).keys()], ["new", "f", "o"]);
+});
+
+test("activity: the look at the terminals runs one at a time, and its failure reads in the panel", () => {
+  assert.deepEqual(free(begin(IDLE, "look", [null]), "look", [null]), []);
+  assert.equal(errorAt(finish(begin(IDLE, "look", [null]), "look", [null], "core gone"), "sessions"), "Could not check which sessions are open: core gone");
 });

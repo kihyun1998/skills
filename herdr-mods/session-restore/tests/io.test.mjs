@@ -1,15 +1,15 @@
 // save.js and open.js against a fake hc and file system: run with node --test 'herdr-mods/session-restore/tests/*.test.mjs'
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { lookAtTerminals, runningSessions, saveOnce, savePath, removeEntries, startSaving, CHECK_EVERY_MS, settingsPath, readSettings, writeSettings, saveAndSummarize } from "../save.js";
-import { openSessions } from "../open.js";
-import { folderChange, parseSettings, settleOpen, withMarks } from "../logic.js";
+import { runningSessions, saveOnce, savePath, removeEntries, saveAndSummarize, parseSave } from "../save.js";
+import { openSessions, openLogPath, OPEN_LOG_LINES } from "../open.js";
+import { settleOpen, withMarks } from "../logic.js";
 
 const HOME = "C:/Users/U", APP = "C:/Users/U/.config/herdr-app";
 const SPACES = [{ id: "sp1", name: "skills", named: false, folder: "", tabs: [{ id: "tb1", name: "1", named: false }] }];
 
 // A fake machine: terminals as hc get answers them, files by path, and every hc call recorded.
-function machine({ terminals = [], files = {}, holder = "h1", now = 1_000_000, gone = new Set(), nullRead = new Set() } = {}) {
+function machine({ terminals = [], files = {}, now = 1_000_000, gone = new Set(), nullRead = new Set() } = {}) {
   let nextPid = 500;
   // A resume shows its session. One of a session in `gone` does too, as Claude does, and then
   // prints why it cannot and ends two looks later.
@@ -48,7 +48,6 @@ function machine({ terminals = [], files = {}, holder = "h1", now = 1_000_000, g
     run: (command, args) => { ran.push([command, args]); },
     hc: async (args) => {
       calls.push(args);
-      if (args[0] === "server") return ok({ holder: { current: true, instance: holder } });
       if (args[0] === "ls") return ok({ terminals: terminals.map((t) => ({ address: t.address, state: t.state, agent: /claude/i.test(t.foreground?.name ?? "") ? "claude-code" : t.foreground?.name })) });
       if (args[0] === "get") {
         const t = look(terminals.find((x) => x.address === args[1]));
@@ -81,28 +80,35 @@ const transcript = (dir, id) => HOME + "/.claude/projects/" + dir + "/" + id + "
 test("saveOnce records each live Claude with its session id, flags and place", async () => {
   const m = machine({ terminals: [claudeTerm("t4", 100)], files: { [pidPath(100)]: pidText("s1"), [transcript("D--repo", "s1")]: "{}\n" } });
   const { save } = await saveOnce(m.io);
-  assert.equal(save.core, "h1");
-  assert.deepEqual(save.current.map((e) => [e.sessionId, e.address, e.pid, e.spaceName, e.tabName, e.status]),
+  assert.deepEqual(Object.keys(save).sort(), ["savedAt", "sessions", "version"]);
+  assert.deepEqual(save.sessions.map((e) => [e.sessionId, e.address, e.pid, e.spaceName, e.tabName, e.status]),
     [["s1", "t4", 100, "skills", "1", "working"]]);
-  assert.deepEqual(save.current[0].flags, ["--model", "opus"]);
-  assert.deepEqual(save.current[0].labels, { "herdr.space": "sp1", "herdr.tab": "tb1" });
-  assert.deepEqual(save.restore, []);
+  assert.deepEqual(save.sessions[0].flags, ["--model", "opus"]);
+  assert.deepEqual(save.sessions[0].labels, { "herdr.space": "sp1", "herdr.tab": "tb1" });
   assert.deepEqual(JSON.parse(m.files[savePath(APP)]), save);
 });
 
-test("saveOnce on the same holder overwrites current, and a session that ended is not set aside", async () => {
-  const prev = { version: 1, core: "h1", savedAt: 1, current: [{ key: "s1", sessionId: "s1", address: "t4", labels: {}, flags: [] }], restore: [] };
-  const m = machine({ files: { [savePath(APP)]: JSON.stringify(prev) } });
+test("saveOnce writes over the file with the sessions alive now, keeping nothing the file held", async () => {
+  const prev = { version: 2, savedAt: 1, sessions: [{ key: "s1", sessionId: "s1", address: "t4", labels: {}, flags: [] }] };
+  const m = machine({ terminals: [claudeTerm("t5", 100)], files: { [savePath(APP)]: JSON.stringify(prev), [pidPath(100)]: pidText("s2"), [transcript("D--repo", "s2")]: "{}\n" } });
   const { save } = await saveOnce(m.io);
-  assert.deepEqual([save.current, save.restore], [[], []]);
+  assert.deepEqual(save.sessions.map((e) => e.sessionId), ["s2"]);
+  assert.deepEqual(JSON.parse(m.files[savePath(APP)]), save);
 });
 
-test("saveOnce after a core restart sets the last save aside as the restore list", async () => {
-  const prev = { version: 1, core: "h0", savedAt: 1, current: [{ key: "s1", sessionId: "s1", address: "t4", labels: {}, flags: [] }], restore: [] };
-  const m = machine({ files: { [savePath(APP)]: JSON.stringify(prev) } });
-  const { save } = await saveOnce(m.io);
-  assert.equal(save.core, "h1");
-  assert.deepEqual(save.restore.map((e) => e.sessionId), ["s1"]);
+test("saveOnce over a file an earlier version wrote keeps none of its lists", async () => {
+  const old = { version: 1, core: "h0", savedAt: 1, shownCore: "h0", current: [{ key: "s1", sessionId: "s1" }], restore: [{ key: "s0", sessionId: "s0" }] };
+  const m = machine({ files: { [savePath(APP)]: JSON.stringify(old) } });
+  const { save, copied } = await saveOnce(m.io);
+  assert.deepEqual(JSON.parse(m.files[savePath(APP)]), { version: 2, savedAt: 1_000_000, sessions: [] });
+  assert.equal(copied, null);
+  assert.equal(save.sessions.length, 0);
+});
+
+test("parseSave reads a file an earlier version wrote as the sessions alive at its save", () => {
+  const old = { version: 1, core: "h0", savedAt: 7, current: [{ key: "s1", sessionId: "s1" }], restore: [{ key: "s0", sessionId: "s0" }] };
+  assert.deepEqual(parseSave(JSON.stringify(old)), { version: 2, savedAt: 7, sessions: [{ key: "s1", sessionId: "s1" }] });
+  assert.equal(parseSave('{"sessions":{}}'), null);
 });
 
 test("saveOnce leaves out a Claude whose session has no transcript yet, and counts it as nothing", async () => {
@@ -111,9 +117,9 @@ test("saveOnce leaves out a Claude whose session has no transcript yet, and coun
     files: { [pidPath(100)]: pidText("s1"), [transcript("D--repo", "s1")]: "{}\n", [pidPath(101)]: pidText("fresh"), [transcript("D--repo", "other")]: "{}\n" },
   });
   const { save, unreadable, unchecked } = await saveOnce(m.io);
-  assert.deepEqual(save.current.map((e) => e.sessionId), ["s1"]);
+  assert.deepEqual(save.sessions.map((e) => e.sessionId), ["s1"]);
   assert.deepEqual([unreadable, unchecked], [0, 0]);
-  assert.deepEqual(JSON.parse(m.files[savePath(APP)]).current.map((e) => e.sessionId), ["s1"]);
+  assert.deepEqual(JSON.parse(m.files[savePath(APP)]).sessions.map((e) => e.sessionId), ["s1"]);
 });
 
 test("saveOnce keeps a session whose transcript is under any project folder, and lists the folders once a save", async () => {
@@ -127,7 +133,7 @@ test("saveOnce keeps a session whose transcript is under any project folder, and
     },
   });
   const { save } = await saveOnce(m.io);
-  assert.deepEqual(save.current.map((e) => e.sessionId), ["s1", "moved"]);
+  assert.deepEqual(save.sessions.map((e) => e.sessionId), ["s1", "moved"]);
   const root = HOME + "/.claude/projects";
   assert.equal(m.lists.filter((d) => d === root).length, 1);
 });
@@ -136,7 +142,7 @@ test("saveOnce keeps a session it cannot check, as before, and counts it as unch
   const m = machine({ terminals: [claudeTerm("t4", 100), claudeTerm("t5", 101)], files: { [pidPath(100)]: pidText("s1"), [pidPath(101)]: pidText("s2") } });
   m.io.exists = async () => { throw new Error("outside every granted read root"); };
   const { save, unreadable, unchecked } = await saveOnce(m.io);
-  assert.deepEqual(save.current.map((e) => e.sessionId), ["s1", "s2"]);
+  assert.deepEqual(save.sessions.map((e) => e.sessionId), ["s1", "s2"]);
   assert.deepEqual([unreadable, unchecked], [0, 2]);
 });
 
@@ -150,113 +156,14 @@ test("saveOnce counts a pid file without a session id as unreadable and saves no
   const m = machine({ terminals: [claudeTerm("t4", 100)], files: { [pidPath(100)]: "{\"id\":\"renamed\"}" } });
   const { save, unreadable } = await saveOnce(m.io);
   assert.equal(unreadable, 1);
-  assert.deepEqual(save.current, []);
+  assert.deepEqual(save.sessions, []);
 });
 
-test("removeEntries takes the named entries out of the restore list and nothing else", async () => {
-  const prev = { version: 1, current: [{ key: "c", sessionId: "c" }], restore: [{ key: "a", sessionId: "a" }, { key: "b", sessionId: "b" }] };
+test("removeEntries takes the named entries out of the save and nothing else", async () => {
+  const prev = { version: 2, savedAt: 3, sessions: [{ key: "a", sessionId: "a" }, { key: "b", sessionId: "b" }, { key: "c", sessionId: "c" }] };
   const m = machine({ files: { [savePath(APP)]: JSON.stringify(prev) } });
   await removeEntries(m.io, ["a"]);
-  const after = JSON.parse(m.files[savePath(APP)]);
-  assert.deepEqual([after.restore.map((e) => e.key), after.current.map((e) => e.key)], [["b"], ["c"]]);
-});
-
-// The chip's save on the fake machine: the timer and tasks are recorded, and a test fires them.
-function saver(m) {
-  const timers = [], tasks = [], shared = [], saves = [], saving = [];
-  let unfolds = 0;
-  const s = startSaving(m.io, {
-    saving: (on) => saving.push([on, saveCount(m)]),
-    every: (ms, fn) => timers.push({ ms, fn }),
-    spawn: (_cx, job) => tasks.push(job()),
-    share: (summary, save) => { shared.push(summary); saves.push(save); },
-    unfold: () => { unfolds++; },
-  });
-  const settle = async () => { while (tasks.length) await tasks.shift(); };
-  return { s, timers, shared, saves, saving, settle, unfolds: () => unfolds };
-}
-const saveCount = (m) => m.calls.filter((a) => a[0] === "server").length;
-const fileOf = (m) => JSON.parse(m.files[savePath(APP)]);
-// A save from before a reboot: holder h0 had s1 open, so the save on h1 sets it aside to restore.
-const beforeReboot = (over = {}) => JSON.stringify({ version: 1, core: "h0", savedAt: 1, shownCore: null,
-  current: [{ key: "s1", sessionId: "s1", address: "t4", labels: {}, flags: [] }], restore: [], ...over });
-
-test("the chip saves once at start, then once the set interval has passed, checking each minute", async () => {
-  const m = machine();
-  let now = 1_000_000;
-  m.io.now = () => now;
-  const r = saver(m);
-  await r.settle();
-  assert.equal(saveCount(m), 1);
-  assert.deepEqual(r.timers.map((t) => t.ms), [CHECK_EVERY_MS]);
-  assert.equal(CHECK_EVERY_MS, 60_000);
-  now += 9 * 60_000;
-  r.timers[0].fn();
-  await r.settle();
-  assert.equal(saveCount(m), 1);
-  now += 60_000;
-  r.timers[0].fn();
-  await r.settle();
-  assert.equal(saveCount(m), 2);
-  assert.equal(r.shared.length, 2);
-});
-
-test("the chip reads the interval from the settings file at each check, so a change applies without a restart", async () => {
-  const m = machine();
-  let now = 1_000_000;
-  m.io.now = () => now;
-  const r = saver(m);
-  await r.settle();
-  m.files[settingsPath(APP)] = JSON.stringify({ saveEveryMinutes: 2 });
-  now += 2 * 60_000;
-  r.timers[0].fn();
-  await r.settle();
-  assert.equal(saveCount(m), 2);
-  assert.equal(r.s.settings().saveEveryMinutes, 2);
-});
-
-test("the chip's save says it runs from before it looks at the terminals until it ends, and a check with no save due says nothing", async () => {
-  const m = machine();
-  let now = 1_000_000;
-  m.io.now = () => now;
-  const r = saver(m);
-  await r.settle();
-  assert.deepEqual(r.saving, [[true, 0], [false, 1]]);
-  now += 60_000;
-  r.timers[0].fn();
-  await r.settle();
-  assert.deepEqual(r.saving, [[true, 0], [false, 1]]);
-});
-
-test("the save command saves at once, whatever the interval", async () => {
-  const m = machine();
-  const r = saver(m);
-  await r.settle();
-  r.s.command("save");
-  await r.settle();
-  assert.equal(saveCount(m), 2);
-});
-
-test("each save hands share the save it is of: the one it wrote, or the last good one when it fails", async () => {
-  const m = machine({ terminals: [claudeTerm("t4", 100)], files: { [pidPath(100)]: pidText("s1"), [transcript("D--repo", "s1")]: "{}\n" } });
-  let now = 1_000_000, down = false;
-  m.io.now = () => now;
-  const hc = m.io.hc;
-  m.io.hc = async (args) => (down && args[0] === "server" ? { code: 1, stdout: "", stderr: "core not running" } : hc(args));
-  const r = saver(m);
-  await r.settle();
-  now += 60_000;
-  r.s.tick();
-  await r.settle();
-  // Nothing opened or closed between the two saves, so the shared summary's sig did not change.
-  assert.equal(r.shared[1].sig, r.shared[0].sig);
-  assert.deepEqual(r.saves.map((s) => [s.savedAt, s.current.length]), [[1_000_000, 1], [1_060_000, 1]]);
-  down = true;
-  now += 60_000;
-  r.s.tick();
-  await r.settle();
-  assert.equal(r.shared[2].stalled, true);
-  assert.equal(r.saves[2].savedAt, 1_060_000);
+  assert.deepEqual(JSON.parse(m.files[savePath(APP)]), { version: 2, savedAt: 3, sessions: [{ key: "b", sessionId: "b" }, { key: "c", sessionId: "c" }] });
 });
 
 function counted(m) {
@@ -271,130 +178,34 @@ function counted(m) {
 const lastAt = (at, kind, path) => at.filter((a) => a[0] === kind && a[1] === path).at(-1)[2];
 const firstAt = (at, kind, path) => at.find((a) => a[0] === kind && a[1] === path)[2];
 
-test("each save hands share the number taken as its save file was written", async () => {
+test("a save gives the number taken as its save file was written, and summarizes what it wrote", async () => {
   const m = machine({ terminals: [claudeTerm("t4", 100)], files: { [pidPath(100)]: pidText("s1"), [transcript("D--repo", "s1")]: "{}\n" } });
   const at = counted(m);
-  const shared = [], tasks = [];
-  startSaving(m.io, {
-    every: () => {},
-    spawn: (_cx, job) => tasks.push(job()),
-    share: (_summary, _save, turn) => shared.push(turn),
-    unfold: () => {},
-  });
-  while (tasks.length) await tasks.shift();
-  assert.deepEqual(shared, [firstAt(at, "write", savePath(APP)) + 1]);
+  const { turn, summary } = await saveAndSummarize(m.io);
+  assert.equal(turn, lastAt(at, "write", savePath(APP)) + 1);
+  assert.deepEqual(summary, { saved: 1, savedAt: 1_000_000, failed: false, unreadable: 0, unchecked: 0, saveCopied: null, error: null });
 });
 
-test("a failed save hands share the number taken before it read the save file back", async () => {
-  const m = machine();
+test("a failed save leaves the file as it was, says it failed, and gives the number taken before it read the file back", async () => {
+  const prev = JSON.stringify({ version: 2, savedAt: 1, sessions: [{ key: "s1", sessionId: "s1" }] });
+  const m = machine({ files: { [savePath(APP)]: prev } });
   const at = counted(m);
   m.io.hc = async () => ({ code: 1, stdout: "", stderr: "core not running" });
-  const { turn, summary } = await saveAndSummarize(m.io, parseSettings(null));
-  assert.ok(summary.error);
+  const { save, turn, summary } = await saveAndSummarize(m.io);
+  assert.match(summary.error, /core not running/);
+  assert.deepEqual([summary.failed, summary.saved, summary.savedAt], [true, 1, 1]);
+  assert.equal(m.files[savePath(APP)], prev);
+  assert.deepEqual(save.sessions.map((e) => e.key), ["s1"]);
   assert.equal(turn, lastAt(at, "read", savePath(APP)));
 });
 
-test("removeEntries and writeSettings return the number taken once their write landed", async () => {
-  const prev = { version: 1, current: [], restore: [{ key: "a", sessionId: "a" }] };
+test("removeEntries returns the number taken once its write landed", async () => {
+  const prev = { version: 2, savedAt: 1, sessions: [{ key: "a", sessionId: "a" }] };
   const m = machine({ files: { [savePath(APP)]: JSON.stringify(prev) } });
   const at = counted(m);
   const removed = await removeEntries(m.io, ["a"]);
-  assert.deepEqual(removed.save.restore, []);
+  assert.deepEqual(removed.save.sessions, []);
   assert.deepEqual(removed.turn, lastAt(at, "write", savePath(APP)) + 1);
-  const set = await writeSettings(m.io, () => ({ saveEveryMinutes: 6 }));
-  assert.equal(set.turn, lastAt(at, "write", settingsPath(APP)) + 1);
-});
-
-test("the chip runs one save at a time: a tick while one runs does nothing", async () => {
-  const m = machine();
-  let release;
-  const gate = new Promise((res) => { release = res; });
-  const hc = m.io.hc;
-  m.io.hc = async (args) => { if (args[0] === "server") await gate; return hc(args); };
-  const r = saver(m);
-  assert.equal(r.s.tick(), false);
-  assert.equal(r.s.command("save"), false);
-  r.timers[0].fn();
-  release();
-  await r.settle();
-  assert.equal(saveCount(m), 1);
-  assert.equal(r.s.tick(), true);
-  await r.settle();
-  assert.equal(saveCount(m), 2);
-});
-
-test("the save command saves at once, and another command does not", async () => {
-  const m = machine();
-  const r = saver(m);
-  await r.settle();
-  assert.equal(r.s.command("save"), true);
-  await r.settle();
-  assert.equal(saveCount(m), 2);
-  assert.equal(r.s.command("close"), false);
-  await r.settle();
-  assert.equal(saveCount(m), 2);
-});
-
-test("the first save on a new core holder unfolds the panel once and marks the holder shown", async () => {
-  const m = machine({ files: { [savePath(APP)]: beforeReboot() } });
-  const r = saver(m);
-  await r.settle();
-  assert.equal(r.unfolds(), 1);
-  assert.equal(fileOf(m).shownCore, "h1");
-  assert.equal(r.shared[0].restorable, 1);
-  r.s.tick();
-  await r.settle();
-  assert.equal(r.unfolds(), 1);
-});
-
-test("the chip does not unfold on a holder already shown, as after folding it and starting Herdr again", async () => {
-  const m = machine({ files: { [savePath(APP)]: beforeReboot() } });
-  await saver(m).settle();
-  const again = saver(m);
-  await again.settle();
-  assert.equal(again.unfolds(), 0);
-  assert.equal(again.shared[0].restorable, 1);
-});
-
-test("the chip marks a new holder shown without unfolding when nothing can be restored", async () => {
-  const m = machine({ files: { [savePath(APP)]: beforeReboot({ current: [] }) } });
-  const r = saver(m);
-  await r.settle();
-  assert.equal(r.unfolds(), 0);
-  assert.equal(fileOf(m).shownCore, "h1");
-});
-
-test("a failed save does not unfold or mark the holder; the next good one does", async () => {
-  const m = machine({ files: { [savePath(APP)]: beforeReboot() } });
-  const hc = m.io.hc;
-  let down = true;
-  m.io.hc = async (args) => (down && args[0] === "server" ? { code: 1, stdout: "", stderr: "core not running" } : hc(args));
-  const r = saver(m);
-  await r.settle();
-  assert.equal(r.unfolds(), 0);
-  assert.equal(fileOf(m).shownCore, null);
-  assert.match(r.shared[0].error, /core not running/);
-  assert.equal(r.shared[0].stalled, true);
-  down = false;
-  r.s.tick();
-  await r.settle();
-  assert.equal(r.unfolds(), 1);
-  assert.equal(fileOf(m).shownCore, "h1");
-});
-
-test("a core restart while the chip is open does not unfold the panel", async () => {
-  const m = machine({ files: { [savePath(APP)]: beforeReboot({ current: [], shownCore: "h0" }) } });
-  const hc = m.io.hc;
-  let holder = "h0";
-  m.io.hc = async (args) => (args[0] === "server" ? { code: 0, stdout: JSON.stringify({ holder: { current: true, instance: holder } }), stderr: "" } : hc(args));
-  const r = saver(m);
-  await r.settle();
-  m.files[savePath(APP)] = JSON.stringify({ ...fileOf(m), current: [{ key: "s1", sessionId: "s1", address: "t4", labels: {}, flags: [] }] });
-  holder = "h2";
-  r.s.tick();
-  await r.settle();
-  assert.equal(r.shared[1].restorable, 1);
-  assert.equal(r.unfolds(), 0);
 });
 
 const saved = (over) => ({ key: over.sessionId, live: false, status: "idle", flags: ["--model", "opus"], cwd: "D:/repo",
@@ -578,7 +389,7 @@ test("openSessions keeps a blocked row's own reason when it cannot list the term
   const hc = m.io.hc;
   m.io.hc = async (args) => (args[0] === "ls" ? { code: 1, stdout: "", stderr: "core not running" } : hc(args));
   const results = await openSessions(m.io, [w], [w]);
-  assert.deepEqual(results.map((r) => [r.key, r.ok, r.reason]), [["w1", false, "its conductor is not in the restore list"]]);
+  assert.deepEqual(results.map((r) => [r.key, r.ok, r.reason]), [["w1", false, "its conductor is not in the save"]]);
 });
 
 test("openSessions uses the look at the terminals it is given instead of making its own", async () => {
@@ -589,18 +400,6 @@ test("openSessions uses the look at the terminals it is given instead of making 
   assert.equal(m.calls.filter((a) => a[0] === "ls" || a[0] === "run").length, 0);
 });
 
-test("lookAtTerminals stamps a look with the time before it lists the terminals", async () => {
-  const m = machine({ terminals: [claudeTerm("t7", 7)], files: { [pidPath(7)]: pidText("s1") } });
-  let clock = 100;
-  m.io.now = () => clock;
-  const hc = m.io.hc;
-  m.io.hc = async (args) => { clock += 50; return hc(args); };
-  const look = await lookAtTerminals(m.io);
-  assert.equal(look.at, 100);
-  assert.deepEqual([...look.running], [["s1", "t7"]]);
-  assert.ok(clock > 100);
-});
-
 test("runningSessions maps each session a live Claude terminal's pid file holds to that terminal", async () => {
   const m = machine({ terminals: [claudeTerm("t7", 7), claudeTerm("t8", 8), shellTerm("t9"), { ...claudeTerm("t10", 10), state: "finished" }],
     files: { [pidPath(7)]: pidText("s1"), [pidPath(8)]: "{}", [pidPath(10)]: pidText("s3") } });
@@ -608,85 +407,9 @@ test("runningSessions maps each session a live Claude terminal's pid file holds 
 });
 
 
-// ---- settings on disk (#83) ----
+// ---- the save file on disk ----
 
 const oneClaude = (id = "s1", pid = 100, address = "t4") => ({ terminals: [claudeTerm(address, pid)], files: { [pidPath(pid)]: pidText(id), [transcript("D--repo", id)]: "{}\n" } });
-
-test("readSettings gives the defaults with no file, and writeSettings writes the file", async () => {
-  const m = machine();
-  assert.deepEqual(await readSettings(m.io), { saveEveryMinutes: 10, autoSave: true });
-  await writeSettings(m.io, () => ({ saveEveryMinutes: 5 }));
-  assert.deepEqual(JSON.parse(m.files[settingsPath(APP)]), { saveEveryMinutes: 5, autoSave: true });
-});
-
-test("writeSettings writes only the fields its change gives, onto the settings file as it reads it then, and returns what it wrote", async () => {
-  const m = machine({ files: { [settingsPath(APP)]: JSON.stringify({ saveEveryMinutes: 30, autoSave: false }) } });
-  const { settings } = await writeSettings(m.io, () => ({ saveEveryMinutes: 2 }));
-  const written = { saveEveryMinutes: 2, autoSave: false };
-  assert.deepEqual(JSON.parse(m.files[settingsPath(APP)]), written);
-  assert.deepEqual(settings, written);
-});
-
-test("writeSettings drops a historyLimit a settings file from before kept", async () => {
-  const m = machine({ files: { [settingsPath(APP)]: JSON.stringify({ saveEveryMinutes: 30, historyLimit: 7, autoSave: true }) } });
-  await writeSettings(m.io, () => ({ saveEveryMinutes: 31 }));
-  assert.deepEqual(JSON.parse(m.files[settingsPath(APP)]), { saveEveryMinutes: 31, autoSave: true });
-});
-
-test("writeSettings applies a change to the settings as it reads them, a hand edit's included", async () => {
-  const m = machine({ files: { [settingsPath(APP)]: JSON.stringify({ saveEveryMinutes: 30, autoSave: true }) } });
-  const seen = [];
-  const { settings } = await writeSettings(m.io, (s) => { seen.push(s); return { saveEveryMinutes: s.saveEveryMinutes + 1, autoSave: !s.autoSave }; });
-  assert.deepEqual(seen, [{ saveEveryMinutes: 30, autoSave: true }]);
-  assert.deepEqual(settings, { saveEveryMinutes: 31, autoSave: false });
-  assert.deepEqual(JSON.parse(m.files[settingsPath(APP)]), settings);
-});
-
-test("writeSettings over a file changed while it wrote writes its fields onto the change, keeping the change's other fields", async () => {
-  const path = settingsPath(APP);
-  const m = machine({ files: { [path]: JSON.stringify({ saveEveryMinutes: 10 }) } });
-  const write = m.io.write;
-  let edited = false;
-  m.io.write = async (p, text, expected) => {
-    if (p === path && !edited) { edited = true; m.files[path] = JSON.stringify({ saveEveryMinutes: 30, autoSave: false }); }
-    return write(p, text, expected);
-  };
-  const { settings } = await writeSettings(m.io, () => ({ saveEveryMinutes: 40 }));
-  assert.equal(edited, true);
-  assert.deepEqual(JSON.parse(m.files[path]), { saveEveryMinutes: 40, autoSave: false });
-  assert.deepEqual(settings, { saveEveryMinutes: 40, autoSave: false });
-});
-
-test("with auto save off the chip saves nothing at start or on its timer, and the save command still saves", async () => {
-  const m = machine({ files: { [settingsPath(APP)]: JSON.stringify({ autoSave: false }) } });
-  let now = 1_000_000;
-  m.io.now = () => now;
-  const r = saver(m);
-  await r.settle();
-  assert.equal(saveCount(m), 0);
-  assert.deepEqual(r.saving, []);
-  now += 30 * 60_000;
-  r.timers[0].fn();
-  await r.settle();
-  assert.equal(saveCount(m), 0);
-  r.s.command("save");
-  await r.settle();
-  assert.equal(saveCount(m), 1);
-});
-
-test("auto save turned back on in the settings file saves at the next check", async () => {
-  const m = machine({ files: { [settingsPath(APP)]: JSON.stringify({ autoSave: false }) } });
-  let now = 1_000_000;
-  m.io.now = () => now;
-  const r = saver(m);
-  await r.settle();
-  assert.equal(saveCount(m), 0);
-  m.files[settingsPath(APP)] = JSON.stringify({ autoSave: true });
-  now += 60_000;
-  r.timers[0].fn();
-  await r.settle();
-  assert.equal(saveCount(m), 1);
-});
 
 const brokenCopies = (m) => Object.keys(m.files).filter((p) => p.startsWith(APP + "/data/session-restore.broken-")).sort();
 
@@ -697,9 +420,8 @@ for (const [what, text] of [["text that does not parse", '{"version":1,"current"
     const { save, copied } = await saveOnce(m.io);
     assert.deepEqual(brokenCopies(m), [copied]);
     assert.equal(m.files[copied], text);
-    assert.deepEqual(JSON.parse(m.files[savePath(APP)]).current.map((e) => e.sessionId), ["s1"]);
-    assert.deepEqual(save.current.map((e) => e.sessionId), ["s1"]);
-    assert.equal(folderChange([copied], APP + "/data", [settingsPath(APP)]), "skip");
+    assert.deepEqual(JSON.parse(m.files[savePath(APP)]).sessions.map((e) => e.sessionId), ["s1"]);
+    assert.deepEqual(save.sessions.map((e) => e.sessionId), ["s1"]);
   });
 }
 
@@ -763,14 +485,14 @@ test("with exists rejecting, a missing save file is written, as no file", async 
   m.io.exists = async () => { throw new Error("outside every granted read root"); };
   const { summary } = await saveAndSummarize(m.io);
   assert.equal(summary.error, null);
-  assert.deepEqual(JSON.parse(m.files[savePath(APP)]).current.map((e) => e.sessionId), ["s1"]);
+  assert.deepEqual(JSON.parse(m.files[savePath(APP)]).sessions.map((e) => e.sessionId), ["s1"]);
 });
 
 test("a save that fails after copying the save file still says where the copy is", async () => {
   const m = machine(oneClaude());
   m.files[savePath(APP)] = "{";
   const hc = m.io.hc;
-  m.io.hc = async (args) => (args[0] === "server" ? { code: 1, stdout: "", stderr: "down" } : hc(args));
+  m.io.hc = async (args) => (args[0] === "ls" ? { code: 1, stdout: "", stderr: "down" } : hc(args));
   const { summary } = await saveAndSummarize(m.io);
   assert.match(summary.error, /down/);
   assert.equal(m.files[summary.saveCopied], "{");
@@ -789,4 +511,49 @@ test("a save that copied on its first try and found the file whole on its retry 
   const { copied } = await saveOnce(m.io);
   assert.equal(once, true);
   assert.equal(m.files[copied], "{");
+});
+
+const openLog = (m) => (m.files[openLogPath(APP)] ?? "").split("\n").filter(Boolean).map((l) => JSON.parse(l));
+
+test("a failed open is written to the open log with when, which session, where and why", async () => {
+  const e = saved({ sessionId: "s1", address: "t4", title: "work" });
+  const m = machine({ terminals: [claudeTerm("t4", 4)], files: { [pidPath(4)]: pidText("s9") } });
+  await openSessions(m.io, [e], [e]);
+  assert.deepEqual(openLog(m), [{ at: new Date(1_000_000).toISOString(), sessionId: "s1", title: "work", address: "t4", reason: "its terminal runs another Claude session" }]);
+});
+
+test("an open that cannot list the terminals is written to the open log too", async () => {
+  const e = saved({ sessionId: "s1", address: "t4" });
+  const m = machine({ terminals: [] });
+  const hc = m.io.hc;
+  m.io.hc = async (args) => (args[0] === "ls" ? { code: 1, stdout: "", stderr: "core not running" } : hc(args));
+  await openSessions(m.io, [e], [e]);
+  assert.deepEqual(openLog(m).map((l) => l.sessionId), ["s1"]);
+  assert.match(openLog(m)[0].reason, /could not check which sessions run/);
+});
+
+test("an open that succeeds writes nothing to the open log", async () => {
+  const e = saved({ sessionId: "s1", address: "t4" });
+  const m = machine({ terminals: [shellTerm("t4")] });
+  const results = await openSessions(m.io, [e], [e]);
+  assert.deepEqual(results.map((r) => r.ok), [true]);
+  assert.equal(openLogPath(APP) in m.files, false);
+});
+
+test("the open log adds to what is there and keeps only the newest lines", async () => {
+  const old = Array.from({ length: OPEN_LOG_LINES }, (_, i) => JSON.stringify({ n: i })).join("\n") + "\n";
+  const e = saved({ sessionId: "s1", address: "t4" });
+  const m = machine({ terminals: [claudeTerm("t4", 4)], files: { [pidPath(4)]: pidText("s9"), [openLogPath(APP)]: old } });
+  await openSessions(m.io, [e], [e]);
+  const lines = openLog(m);
+  assert.equal(lines.length, OPEN_LOG_LINES);
+  assert.deepEqual([lines[0], lines.at(-1).sessionId], [{ n: 1 }, "s1"]);
+});
+
+test("an open log that cannot be written leaves the open's results as they are", async () => {
+  const e = saved({ sessionId: "s1", address: "t4" });
+  const m = machine({ terminals: [claudeTerm("t4", 4)], files: { [pidPath(4)]: pidText("s9") } });
+  m.io.write = async () => { throw new Error("disk full"); };
+  const results = await openSessions(m.io, [e], [e]);
+  assert.deepEqual(results.map((r) => [r.key, r.ok]), [["s1", false]]);
 });

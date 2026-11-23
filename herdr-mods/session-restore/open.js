@@ -1,5 +1,5 @@
 // Opening saved sessions again: into the shell a kept terminal came back as, or into a new
-// terminal in the saved space and tab. io: { hc, run, spaces, sleep, read, home }.
+// terminal in the saved space and tab. io: { hc, run, spaces, sleep, read, write, now, home, appHome }.
 import { isClaude, isShell, placement, planOpen, resumeArgv, shellLine } from "./logic.js";
 import { pidFile, runningSessions, sessionIn } from "./save.js";
 
@@ -29,6 +29,32 @@ export async function confirm(io, address, sessionId, tries = 40) {
     }
   }
   return "still starting at " + address + ", not confirmed within " + Math.round(tries / 2) + " s";
+}
+
+/** Where every open that failed is written down, one JSON line each, newest last. */
+export const openLogPath = (appHome) => String(appHome).replace(/[\\/]+$/, "") + "/data/session-restore.open-failures.log";
+
+/** How many lines the open log keeps; older ones are dropped as new ones are written. */
+export const OPEN_LOG_LINES = 1000;
+
+async function logFailures(io, results, all) {
+  const failed = results.filter((r) => !r.ok);
+  if (!failed.length) return;
+  const byKey = new Map(all.map((e) => [e.key, e]));
+  const at = new Date(io.now()).toISOString();
+  const lines = failed.map((r) => {
+    const e = byKey.get(r.key);
+    return JSON.stringify({ at, sessionId: e?.sessionId ?? r.key, title: e?.title ?? null, address: r.address ?? e?.address ?? null, reason: r.reason ?? null });
+  });
+  const path = openLogPath(io.appHome);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const before = await io.read(path);
+      const kept = (before ?? "").split("\n").filter(Boolean);
+      await io.write(path, [...kept, ...lines].slice(-OPEN_LOG_LINES).join("\n") + "\n", before);
+      return;
+    } catch {}
+  }
 }
 
 async function get(io, address) {
@@ -90,7 +116,8 @@ async function openOne(io, e, parentAddress) {
  * opened: a closed row reads opened at that terminal. A row all shows open counts as open only at
  * the terminal that holds its session, so no worker starts under a terminal that no longer does.
  * When the terminals cannot be listed, nothing is opened. known is that look when the caller has
- * made it. A failed row carries the address it was tried at, where there was one.
+ * made it. A failed row carries the address it was tried at, where there was one. Every failed
+ * row is written to the open log (openLogPath) before it returns.
  */
 export async function openSessions(io, selected, all, onStep = () => {}, known = null) {
   const addressOf = new Map(), results = [], started = [];
@@ -100,9 +127,10 @@ export async function openSessions(io, selected, all, onStep = () => {}, known =
     running ??= await runningSessions(io);
   } catch (err) {
     for (const step of planOpen(selected, all)) {
-      if (step.blocked) settle({ key: step.entry.key, ok: false, reason: "its conductor is not in the restore list" });
+      if (step.blocked) settle({ key: step.entry.key, ok: false, reason: "its conductor is not in the save" });
       else if (!step.skip) settle({ key: step.entry.key, ok: false, reason: "could not check which sessions run: " + String(err?.message ?? err) });
     }
+    await logFailures(io, results, all);
     return results;
   }
   const seen = all.map((e) => (running.has(e.sessionId) ? { ...e, live: true, address: running.get(e.sessionId) } : e));
@@ -115,7 +143,7 @@ export async function openSessions(io, selected, all, onStep = () => {}, known =
       if (running.has(e.sessionId) && !wasLive.has(e.sessionId)) settle({ key: e.key, ok: true, address: e.address, reason: "already running at " + e.address });
       continue;
     }
-    if (step.blocked) { settle({ key: e.key, ok: false, reason: "its conductor is not in the restore list" }); continue; }
+    if (step.blocked) { settle({ key: e.key, ok: false, reason: "its conductor is not in the save" }); continue; }
     const parent = step.conductor ? addressOf.get(step.conductor) : null;
     if (step.conductor && !parent) {
       settle({ key: e.key, ok: false, reason: stale.has(step.conductor) ? "its conductor no longer runs at " + stale.get(step.conductor) : "its conductor did not open" });
@@ -134,5 +162,6 @@ export async function openSessions(io, selected, all, onStep = () => {}, known =
     const why = await confirm(io, address, e.sessionId);
     settle(why ? { key: e.key, ok: false, address, reason: why } : { key: e.key, ok: true, address });
   }));
+  await logFailures(io, results, all);
   return results;
 }

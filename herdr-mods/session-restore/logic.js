@@ -40,50 +40,6 @@ export const isClaude = (fg) => /^claude(\.exe)?$/i.test(program(fg)) || /^claud
 /** The terminal's foreground program is a shell. */
 export const isShell = (fg) => /^(pwsh|powershell|cmd|bash|zsh|fish|sh|dash|ksh|nu)(\.exe)?$/i.test(program(fg));
 
-const MIN = 60_000;
-
-/** The settings a missing or unreadable settings file stands for. */
-export const DEFAULT_SETTINGS = { saveEveryMinutes: 10, autoSave: true };
-
-/** What the Settings tab lets each number be. */
-export const SETTING_BOUNDS = { saveEveryMinutes: { min: 1, max: 1440 } };
-
-/** The ASCII digits of what a number field was given, in order. */
-export const digitsOnly = (text) => String(text ?? "").replace(/[^0-9]/g, "");
-
-/** A whole number from a field's text or a number, kept within min and max; null for no number. */
-export function clampWhole(value, min, max) {
-  const n = typeof value === "number" ? value : String(value ?? "").trim() === "" ? NaN : Number(value);
-  if (!Number.isFinite(n)) return null;
-  return Math.min(max, Math.max(min, Math.round(n)));
-}
-
-const whole = (v) => (typeof v === "number" && Number.isFinite(v) && Math.round(v) >= 1 ? Math.round(v) : null);
-
-/** The settings file's text read: each field its default when missing or not a positive number. */
-export function parseSettings(text) {
-  let raw = null;
-  try { raw = JSON.parse(text ?? "null"); } catch {}
-  if (!raw || typeof raw !== "object") return { ...DEFAULT_SETTINGS };
-  return {
-    saveEveryMinutes: whole(raw.saveEveryMinutes) ?? DEFAULT_SETTINGS.saveEveryMinutes,
-    autoSave: raw.autoSave !== false,
-  };
-}
-
-/** How long a save may age before it reads as stalled: three save intervals. */
-export const staleAfter = (minutes) => 3 * minutes * MIN;
-
-/** The stale time of the default interval. */
-export const STALE_MS = staleAfter(DEFAULT_SETTINGS.saveEveryMinutes);
-
-/** The core holder's instance id, or the core's pid and start time when no holder is listed. */
-export function coreIdentity(status, now = Date.now()) {
-  const holder = status?.holder?.current ? status.holder : (status?.holders ?? []).find((h) => h.current);
-  if (holder?.instance) return holder.instance;
-  return "core-" + status?.pid + "-" + Math.round((now - (status?.uptime_ms ?? 0)) / 1000) * 1000;
-}
-
 /** Each observed entry's parentSession: the session of the observed Claude in its parent terminal. */
 export function linkParents(observed) {
   const byAddress = new Map(observed.map((o) => [o.address, o]));
@@ -95,24 +51,13 @@ const bySession = (list) => {
   return list.filter((e) => !seen.has(e.sessionId) && seen.add(e.sessionId));
 };
 
-/**
- * The next save. current is the Claude sessions alive now, replaced whole each time. On a new core
- * holder (a reboot or core restart), the previous run's last current is set aside into restore,
- * where an entry stays until it is open again (live in current) or removed by hand.
- */
-export function nextSave(prev, observed, { core, now }) {
-  const current = bySession(linkParents(observed)).map((e) => ({ ...e, key: e.sessionId }));
-  let restore = prev?.restore ?? [];
-  if (prev?.core && prev.core !== core) restore = bySession([...(prev.current ?? []), ...restore]);
-  const live = new Set(current.map((e) => e.sessionId));
-  return { version: 1, core, savedAt: now, shownCore: prev?.shownCore ?? null, current, restore: restore.filter((e) => !live.has(e.sessionId)) };
+/** The save: the Claude sessions alive now, replacing whatever the file held. */
+export function nextSave(observed, { now }) {
+  return { version: 2, savedAt: now, sessions: bySession(linkParents(observed)).map((e) => ({ ...e, key: e.sessionId })) };
 }
 
-/** A save's entries in one list for the panel and planOpen: restore ones closed, current ones live. */
-export const entriesOf = (save) => [
-  ...(save?.restore ?? []).map((e) => ({ ...e, live: false })),
-  ...(save?.current ?? []).map((e) => ({ ...e, live: true })),
-];
+/** A save's sessions in one list for the panel and planOpen. */
+export const entriesOf = (save) => [...(save?.sessions ?? [])];
 
 const working = (e) => e.status === "working";
 const workingFirst = (list) => [...list].sort((a, b) => Number(working(b)) - Number(working(a)));
@@ -204,34 +149,30 @@ export function shellLine(argv, shell) {
   return argv.map((w) => (SAFE.test(w) ? w : "'" + w.replace(/'/g, "'\\''") + "'")).join(" ");
 }
 
-/** What the chip and the panel need, small enough to share; sig changes with the entries. */
-export function summarize(save, { now, failed, staleMs = STALE_MS }) {
-  const all = entriesOf(save), restore = all.filter((e) => !e.live);
-  return {
-    restorable: restore.filter((e) => openable(e, all)).length,
-    working: restore.filter((e) => openable(e, all) && working(e)).length,
-    saved: all.length - restore.length,
-    stalled: Boolean(failed) || (typeof save?.savedAt === "number" && now - save.savedAt > staleMs),
-    sig: all.map((e) => e.key + ":" + (e.live ? 1 : 0)).sort().join(","),
-  };
+/** How long ago, as the chip and the panel say it. */
+export function ago(ms) {
+  const s = Math.max(0, Math.round(ms / 1000));
+  if (s < 60) return s + "s ago";
+  const m = Math.round(s / 60);
+  return m < 60 ? m + "m ago" : Math.round(m / 60) + "h ago";
+}
+
+/** What the chip and the panel show of a save: how many sessions it holds, when, and whether the last save failed. */
+export function summarize(save, { failed = false } = {}) {
+  return { saved: save?.sessions?.length ?? 0, savedAt: typeof save?.savedAt === "number" ? save.savedAt : null, failed: Boolean(failed) };
 }
 
 /**
- * The chip's label and dot for a summary (null: no save yet), or for an open under way
- * ({ opened, total }). sinceSave is how long ago the chip's last save ended, in ms; longer than
- * staleMs reads as stalled. saving is whether a save runs now. The order: an open under way, a
- * stalled save (red), a save running (spin, its dot the color the count would have), then what can
- * be restored (amber) and the count saved (green). With autoSave false no age reads as stalled, and
- * "Auto save off" (dim) takes the place of the count saved and of no save yet.
+ * The chip's label and dot for a summary, or for an open under way ({ opened, total }). The order:
+ * an open under way, a save running (spin), a failed save (red), no save yet (dim), then how long
+ * ago the save was made.
  */
-export function chipState(summary, opening = null, sinceSave = 0, staleMs = STALE_MS, saving = false, autoSave = true) {
+export function chipState(summary, { opening = null, saving = false, now = Date.now() } = {}) {
   if (opening?.total > 0) return { label: "Opening " + opening.opened + "/" + opening.total, dot: "green" };
-  if (summary?.stalled || (autoSave && sinceSave > staleMs)) return { label: "Save stalled", dot: "red" };
-  if (saving) return { label: "Saving", dot: !summary ? "dim" : summary.restorable > 0 ? "amber" : "green", spin: true };
-  if (summary?.restorable > 0) return { label: summary.restorable + " to restore", dot: "amber" };
-  if (!autoSave) return { label: "Auto save off", dot: "dim" };
-  if (!summary) return { label: "Not saved yet", dot: "dim" };
-  return { label: "⟲ " + summary.saved, dot: "green" };
+  if (saving) return { label: "Saving", dot: "dim", spin: true };
+  if (summary?.failed) return { label: "Save failed", dot: "red" };
+  if (summary?.savedAt == null) return { label: "Not saved", dot: "dim" };
+  return { label: "Saved " + ago(now - summary.savedAt), dot: "green" };
 }
 
 /**
@@ -296,11 +237,9 @@ export function settleOpen(states, id, r, now) {
 const plural = (list, one, many) => (list.length === 1 ? one : many);
 const ACTIONS = {
   remove: { place: "sessions", failed: (keys) => plural(keys, "The session is", keys.length + " sessions are") + " still in the save" },
-  refresh: { place: "sessions", single: true, failed: () => "The refresh did not finish" },
-  check: { single: true },
   save: { place: "sessions", single: true, failed: () => "The save did not run" },
-  load: { place: "sessions", single: true, failed: () => "Could not read the save or the settings" },
-  settings: { place: "settings", failed: () => "The settings change did not finish" },
+  load: { place: "sessions", single: true, failed: () => "Could not read the save" },
+  look: { place: "sessions", single: true, failed: () => "Could not check which sessions are open" },
 };
 
 /**
@@ -319,7 +258,7 @@ export const anyBusy = (act, action) => [...act.busy].some((k) => k.startsWith(a
 
 /**
  * The targets a press of the action may still start: those not under way, or none while an
- * action that runs one at a time (save, refresh, the open check, the first read) is under way. An
+ * action that runs one at a time (save, the first read, the look at the terminals) is under way. An
  * empty list is a press ignored.
  */
 export const free = (act, action, targets) =>
@@ -331,13 +270,12 @@ export const begin = (act, action, targets) => ({ busy: new Set([...act.busy, ..
 /**
  * A press of the action on the targets: { act, go }, go the targets it starts (free). When go is
  * empty the press is ignored and act is the one given; otherwise the targets are under way and the
- * error of the action's tab is cleared, unless clear is false (a refresh the panel runs as it
- * unfolds) or the action has no tab (the Open check, whose failure the rows show).
+ * error of the action's tab is cleared.
  */
-export function press(act, action, targets, { clear = true } = {}) {
+export function press(act, action, targets) {
   const go = free(act, action, targets);
   const { place } = ACTIONS[action];
-  return go.length ? { act: begin(clear ? dismiss(act, place) : act, action, go), go } : { act, go };
+  return go.length ? { act: begin(dismiss(act, place), action, go), go } : { act, go };
 }
 
 /**
@@ -362,24 +300,6 @@ export function dismiss(act, place) {
   return { busy: act.busy, errors };
 }
 
-/** The sessions a save lists live: session id to address. */
-export const liveOf = (save) => new Map((save?.current ?? []).map((e) => [e.sessionId, e.address]));
-
-/**
- * The states with every opened mark that a look at the terminals made at time at shows gone: one
- * whose session running (session id to address) does not hold at the mark's address. Other marks,
- * and opened marks newer than the look, stay.
- */
-export function keepLive(states, running, at) {
-  if (typeof at !== "number") return states;
-  return new Map([...states].filter(([k, s]) => !(s.at === "opened" && !(s.since > at) && running.get(k) !== s.address)));
-}
-
-export function withLook(view, look) {
-  if (view.lookAt != null && look.at < view.lookAt) return view;
-  return { states: keepLive(view.states, look.running, look.at), running: look.running, lookAt: look.at };
-}
-
 /**
  * The turns once a result numbered n (io.turn()) reaches a field of the panel: { turns, take }. A
  * result, a write's or a read's, is taken only when it is numbered after every one the field has
@@ -390,33 +310,24 @@ export function arrive(turns, field, n) {
   return { turns: { ...turns, [field]: n }, take: true };
 }
 
-/** A press that moves a number setting by sign from the settings it is given, kept within its bounds. */
-export const stepSetting = (field, sign) => (settings) => {
-  const { min, max } = SETTING_BOUNDS[field];
-  return { [field]: clampWhole(settings[field] + sign, min, max) };
-};
-
-/** A press that turns auto save the other way from the settings it is given. */
-export const toggleAutoSave = (settings) => ({ autoSave: !settings.autoSave });
-
-/** A runner of jobs one at a time, each starting once the one before has ended, failed or not. */
-export function oneAtATime() {
-  let last = Promise.resolve();
-  return (job) => {
-    const run = last.then(job);
-    last = run.catch(() => {});
-    return run;
-  };
-}
-
 /** The states once rows are taken out of the panel: their results forgotten, an open's opening mark left to that open. */
 export function withoutRows(states, keys) {
   const gone = new Set(keys);
   return new Map([...states].filter(([k, s]) => !gone.has(k) || s.at === "opening"));
 }
 
-/** A row the panel can still open: closed, openable, and not marked opened by this panel. */
-export const reopenable = (e, all, states) => !e.live && openable(e, all) && states?.get(e.key)?.at !== "opened";
+/**
+ * The entries as the terminals hold them now: live when running (session id to address) holds the
+ * session, at that address. It reads; nothing is saved.
+ */
+export const withRunning = (entries, running) =>
+  entries.map((e) => (running.has(e.sessionId) ? { ...e, live: true, address: running.get(e.sessionId) } : { ...e, live: false }));
+
+/** The states once a look at the terminals made at time at lands: an opened mark from before it is dropped, as the look shows where it runs. */
+export const afterLook = (states, at) => new Map([...states].filter(([, s]) => !(s.at === "opened" && !(s.since > at))));
+
+/** A row the panel can still open: openable, and not marked opened or opening by this panel. */
+export const reopenable = (e, all, states) => !e.live && openable(e, all) && !["opened", "opening"].includes(states?.get(e.key)?.at);
 
 /**
  * How the batch's open ended for its rows: { opened, failed }, each a list of keys, or null when no
@@ -456,33 +367,6 @@ export function groupsOf(entries, states = new Map()) {
 export function groupProgress(group, states, batch) {
   const keys = group.rows.map((r) => r.entry.key).filter((k) => batch?.has(k));
   return { opened: keys.filter((k) => states.get(k)?.at === "opened").length, total: keys.length };
-}
-
-/**
- * The entries as the terminals hold them now: live when running (session id to address) holds the
- * session, at that address. Nothing is saved; it is the panel's refresh.
- */
-export const withRunning = (entries, running) =>
-  entries.map((e) => (running.has(e.sessionId) ? { ...e, live: true, address: running.get(e.sessionId) } : { ...e, live: false }));
-
-const segments = (p) => String(p ?? "").toLowerCase().split(/[\\/]+/).filter(Boolean);
-
-/**
- * What the panel does with a batch watchFolder(dir) gave: "released" on [] (the watch was cancelled,
- * as when the copy closes, or possibly reclaimed: the d.ts does not say how a reclaim ends), "reload" when it holds dir itself or one of files (the ones the panel
- * reads again), else "skip" (other files, as other mods'). A path is read by its last segments, as
- * the d.ts promises only absolute paths, not their form: dir is a path ending in dir's last two
- * segments, and a file one in dir's last segment then the file's name, or that name with a suffix,
- * as an atomic write's temporary file.
- */
-export function folderChange(paths, dir, files) {
-  if (!paths.length) return "released";
-  const [parent, folder] = segments(dir).slice(-2), names = files.map((f) => segments(f).pop());
-  const ours = (p) => {
-    const s = segments(p), [a, b] = s.slice(-2);
-    return (a === parent && b === folder) || (a === folder && names.some((n) => b.startsWith(n)));
-  };
-  return paths.some(ours) ? "reload" : "skip";
 }
 
 /** A terminal title without what an agent puts before it (a status glyph, a [ ! ] mark). */

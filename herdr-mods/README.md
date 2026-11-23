@@ -64,7 +64,7 @@ rewritten for each Herdr version and are the truth about the API.
 
 | Mod | What it does |
 | --- | --- |
-| [`session-restore`](session-restore/) | Saves which Claude session each terminal holds, every 10 minutes by default and after a reboot or a core restart reopens them in place. It shows as a chip, a small kept window on the layout it was opened on, dragged to a corner once; pressed, the chip unfolds the Sessions panel above itself. See below. |
+| [`session-restore`](session-restore/) | Saves which Claude session each terminal holds when Save is pressed, and after a reboot or a core restart reopens them in place. It shows as a chip, a small kept window on the layout it was opened on, dragged to a corner once; pressed, the chip unfolds the Sessions panel above itself. See below. |
 
 ### session-restore
 
@@ -78,104 +78,70 @@ rewritten for each Herdr version and are the truth about the API.
   send it `session-restore.close` (`herdr-app do session-restore.close`, or a
   `keys.json` binding), or run `mod.open` again; after Herdr reopened the chip at start, `mod.open` has to be run twice
   (the first reopens it, the second closes it).
-- **The chip's label** is green `⟲ N` with N sessions saved, amber `N to restore`
-  when something can be restored, red `Save stalled` when the save stalled (failed,
-  unreadable pid files, sessions whose transcript could not be looked for,
-  or older
-  than three save intervals, which auto save off does not count), `Opening k/N` while sessions reopen, `Saving` with a turning
-  ring in the dot's place while a save runs (the timed one or one the panel started), and
-  `Not saved yet` before the first save. The chip keeps one width for every label, so the
-  panel above it does not move when the label changes. With auto save off, grey `Auto save off` takes the place of
-  green and of `Not saved yet`. The order is: reopening, red, `Saving`, amber, green or grey;
-  so a stalled save stays red while a new one runs. Pressed without moving, the chip unfolds the
-  Sessions panel above itself and refreshes it; pressed again, it folds it. A press that moves drags
-  the chip.
-- **The save** is in `~/.config/herdr-app/data/session-restore.json`. `current` is the
-  Claude sessions alive at the last save, replaced at each save. The chip runs the
-  save, one at a time, once at start and then every `saveEveryMinutes` (it looks each
-  minute whether one is due), unless auto save is off; the panel's button runs it at once
-  whatever the setting, and so does the
-  `session-restore.save` command, which a `keys.json` binding can send (none is installed). For each live terminal whose foreground is Claude, it reads
-  `~/.claude/sessions/<pid>.json` for the session id, and records the terminal's
-  name, parent, folder, space and tab, title, status and Claude flags. The task
-  prompt at the end of a `thegraph-herdr` worker's argv is dropped. A session
-  with no conversation yet is left out until it has one: no
-  `~/.claude/projects/*/<id>.jsonl` exists. The save looks first in the folder
-  Claude names from the pid file's `cwd` (every character but a letter or digit
-  as `-`) and lists the others only when the transcript is not there.
-- **The restore list** (`restore`) is the previous run's last `current`. It is set
-  aside when the core holder (`hc server status` `holder.instance`) changes, as
-  after a reboot. An entry leaves it when it is open again or removed by hand. A
-  session that crashes while Herdr runs is not offered.
+- **The chip's label** says how long ago the save was made: green `Saved 2h ago`.
+  `Opening k/N` shows while sessions reopen, `Saving` with a turning ring while a
+  save runs, red `Save failed` after a save that failed (it threw, a pid file had no
+  session id, or a transcript could not be looked for), and grey `Not saved` before
+  any save. The order is: reopening, `Saving`, red, grey, green. The chip keeps one
+  width for every label, so the panel above it does not move when the label changes.
+  Pressed without moving, the chip unfolds the Sessions panel above itself and looks at
+  the terminals (below); pressed again, it folds it. A press that moves drags the chip.
+- **The save** is one file, `~/.config/herdr-app/data/session-restore.json`:
+  `{ version: 2, savedAt, sessions }`. It is written only when Save is pressed (the
+  panel's save icon) or the `session-restore.save` command arrives (a `keys.json`
+  binding can send it; none is installed). Nothing saves by itself: not at start, not on
+  a timer, not after an Open or a ×. A save lists the terminals with `hc ls`, and for
+  each live one whose foreground is Claude reads `~/.claude/sessions/<pid>.json` for
+  the session id, and records the terminal's name, parent, folder, space and tab,
+  title, status and Claude flags. The task prompt at the end of a `thegraph-herdr`
+  worker's argv is dropped. A session with no conversation yet is left out: no
+  `~/.claude/projects/*/<id>.jsonl` exists. The save looks first in the folder Claude
+  names from the pid file's `cwd` (every character but a letter or digit as `-`) and
+  lists the others only when the transcript is not there. `sessions` replaces what the
+  file held; nothing from an earlier save is kept. A save that fails leaves the file as
+  it was. A file an earlier version wrote (`current` and `restore`) reads as its
+  `current` until the next save writes over it.
+- **After a reboot** the file still holds what was open at the last Save, since
+  nothing writes it until Save is pressed. Open the sessions from it before pressing
+  Save again: a Save then writes only what is open at that moment.
 - **Opening** resumes `claude --resume <id> <flags>` in the shell a kept terminal
   came back as, or in a new terminal with the saved space and tab labels (a new tab
   or space when they are gone, renamed to the name it had). Conductors open
   first, and their workers start with `--parent` the conductor's address. A worker
-  whose conductor is in neither list cannot be opened; its row offers only ×. A worker
-  whose conductor is open now has its own Open. A session counts as opened
-  when its Claude has held the id for 2 seconds; otherwise the row says why, and
-  one whose terminal is still starting says so ("still starting at tN"). Before
-  opening, the panel reads which sessions live terminals hold: a session already
-  running is not opened again but shown open at its terminal, and a worker never
-  starts under a terminal that no longer holds its conductor.
-- **The panel** has two tabs: Sessions (the save's sessions, as above) and
-  Settings. Its ⟳ button and every unfold **refresh** it: they read
-  which sessions live terminals hold now and show that, saving nothing, so a
-  session closed since the last save shows `closed` with Open instead of
-  `● open`.
-- **Under way and failed.** Every panel action that waits on disk or on `hc` shows
-  itself from the press until it ends: a row being removed
-  (Sessions ×, Clear failed) pulses with a braille spinner in place of its buttons,
-  and stays in the list until the write lands; the refresh and save icons turn into a
-  ring; the rows an Open is about to open spin while it checks which sessions run, the
-  footer says `Checking`, and no other Open shows until the check ends; the list says `Loading` until the first read ends. A
-  second press on something under way does nothing, and Save now does nothing while
-  any save runs. A failure leaves a red box at the top of its tab (Sessions or
-  Settings) with what failed and why, until the next action pressed
-  there or its × (the refresh that unfolding runs does not clear it). A failed
-  check before an Open shows no box: the open checks again, and a row that does
-  not open says why. A failed remove leaves the session in the list. A failed settings write shows the settings on disk again, the number field included, or the
-  previous ones when the file cannot be read, unless a later change was pressed meanwhile, whose own
-  write then shows the file; a field being typed in keeps what was typed.
-- **Overlapping reads and saves.** The save and the settings the panel shows each
-  keep the newest result. A save, a remove or a settings change is numbered when its
-  write reaches the file, a read of a file as it starts, and a
-  settings change also at the press; a result is shown only when it is numbered after every one
-  shown for that file. So a save whose file was written before a remove
-  does not put back what that one changed, a read (the first read, the refresh's re-read of the
-  settings, the read after the settings file changes) that started before such a write landed, or before
-  a settings change was pressed, does not overwrite it, and a write does not overwrite a read that
-  started after it landed. A read that started after a settings change was pressed and before its
-  write landed shows the file from before it, the changes still waiting included, until the last
-  one's write lands. Of two looks at which sessions run (a refresh and an Open's check), one
-  that started before the look already shown changes nothing when it ends last, and an Open whose
-  check ended so plans and opens against the look shown.
-- **No history.** Only the save above is kept; there is no list of past saves. A
-  `session-restore.history.json` an earlier version left in the data folder is no longer read or
-  written, and can be deleted by hand.
-  The panel reads the settings again whenever the file changes.
+  whose conductor is not in the save cannot be opened; its row offers only ×. A
+  worker opens with its conductor, or on its own once this panel has opened that
+  conductor. Before opening, the open reads which sessions live terminals hold: a
+  session already running is not opened again but shown open at its terminal, and
+  a worker never starts under a terminal that no longer holds its conductor. A
+  session counts as opened when its Claude has held the id for 2 seconds; otherwise
+  the row says why, and one whose terminal is still starting says so ("still starting
+  at tN"). Every row that does not open is also added, as one JSON line (`at`,
+  `sessionId`, `title`, `address`, `reason`), to
+  `~/.config/herdr-app/data/session-restore.open-failures.log`, which keeps its newest
+  1000 lines; a log that cannot be written changes nothing else.
+- **The panel** lists the save's sessions grouped by space, with how many the save
+  holds and how long ago it was made. Each unfold reads which sessions live terminals
+  hold (`hc ls` and the pid files) and shows each row `● open` or `closed`; it writes
+  nothing. While it reads, the rows turn a braille spinner and the footer says
+  `Checking which are open`. There is no button for it. A row shows what this panel's
+  opens did to it over that (`opening…`, `failed` with the reason as its tooltip,
+  `● open`); a newer look drops the `● open` an earlier open left. A closed row has Open
+  and ×, an open one Go, each space `Open · N` and the footer `Open all · N` over the
+  closed rows; × takes the session out of the save.
+- **Under way and failed.** A row being removed (×, Clear failed) pulses with a
+  braille spinner in place of its buttons and stays in the list until the write lands;
+  the save icon turns into a ring while a save runs; the list says `Loading` until the
+  first read ends. A second press on something under way does nothing. A failure
+  leaves a red box at the top of the panel with what failed and why, until the next
+  action pressed or its ×. A failed remove leaves the session in the list.
+- **Overlapping reads and writes.** The panel keeps the newest save it was handed. A
+  save or a remove is numbered when its write reaches the file, the first read as it
+  starts; a result is shown only when it is numbered after every one shown.
 - **A save file that cannot be read** (its text does not parse, parses to something that is not a
   save, or the read gives nothing for a file that is there) is first
   copied, byte for byte, beside it as `session-restore.broken-<hash>.json` (one copy for
   each distinct content, however many saves or retries meet it), then written as before; a
-  line at the foot of the Sessions tab gives the copy's path until its × is pressed. The
-  settings file is left as it was: one that cannot be read stands for the defaults, and a
-  Settings change writes over it.
-- **The settings** are in `~/.config/herdr-app/data/session-restore.settings.json`:
-  `autoSave` (default `true`; `false` turns off the save at start and on the timer, while
-  the panel's button and the `session-restore.save` command still save) and
-  `saveEveryMinutes` (default 10). A `historyLimit` an earlier version left in the file is ignored, and the
-  next Settings change drops it. The Settings tab writes them: a switch for auto save, and a number
-  field for the interval that takes only digits and applies on Enter or on leaving the field,
-  beside its − and +, with its range shown and kept to it (1–1440 minutes; − or + at an end is
-  greyed). A hand edit of the interval is not held to its range, and applies at the chip's next check.
-  A change in the Settings tab writes only the field it changes, onto the file as it is when the
-  write runs: a hand edit (or another Herdr window's change) of another field is kept. A typed
-  number and an interval chip write their value over a hand edit of the same field; − and + step
-  from the value in the file, and the auto-save switch turns it the other way from the file's, so a
-  hand edit of 30 then + gives 31.
-  Changes run one at a time, in the order pressed, so quick presses all land and raise no error.
-- **Unfolding by itself.** When Herdr starts, the chip's first successful save
-  unfolds the panel once if there is something to restore and the panel has not
-  unfolded itself on that core holder yet. A core restart with the window open
-  shows only the amber chip.
+  line at the foot of the panel gives the copy's path until its × is pressed.
+- **Files an earlier version left** in the data folder are no longer read or written, and
+  can be deleted by hand: `session-restore.history.json` and
+  `session-restore.settings.json`.
