@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   keptFlags, nextSave, planOpen, placement, resumeArgv, shellLine, isClaude, isShell, summarize, linkParents, openable, groupsOf, chipState, openProgress, groupProgress, batchResult, startOpen, endOpen, reopenable, withMarks, settleOpen, withoutRows,
-  cleanTitle, ago, entriesOf, withRunning, afterLook,
+  cleanTitle, ago, entriesOf, withRunning, afterLook, panelSide,
   IDLE, begin, press, finish, free, busyWith, anyBusy, errorAt, dismiss, arrive,
 } from "../logic.js";
 
@@ -464,4 +464,12 @@ test("afterLook drops the opened marks from before the look and keeps newer ones
 test("activity: the look at the terminals runs one at a time, and its failure reads in the panel", () => {
   assert.deepEqual(free(begin(IDLE, "look", [null]), "look", [null]), []);
   assert.equal(errorAt(finish(begin(IDLE, "look", [null]), "look", [null], "core gone"), "sessions"), "Could not check which sessions are open: core gone");
+});
+
+test("panelSide unfolds the panel below a chip pressed in the top half of the window, else above it", () => {
+  assert.equal(panelSide(10, 800), "below");
+  assert.equal(panelSide(399, 800), "below");
+  assert.equal(panelSide(400, 800), "above");
+  assert.equal(panelSide(790, 800), "above");
+  assert.equal(panelSide(10, 0), "above");
 });

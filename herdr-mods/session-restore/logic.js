@@ -369,5 +369,11 @@ export function groupProgress(group, states, batch) {
   return { opened: keys.filter((k) => states.get(k)?.at === "opened").length, total: keys.length };
 }
 
+/**
+ * Where the panel unfolds: "below" the chip when the press landed in the top half of the window
+ * (y and height in window pixels), else "above". No height, as before the first frame, reads as above.
+ */
+export const panelSide = (y, height) => (height > 0 && y < height / 2 ? "below" : "above");
+
 /** A terminal title without what an agent puts before it (a status glyph, a [ ! ] mark). */
 export const cleanTitle = (s) => (s ?? "").replace(/^[^\p{L}\p{N}\p{Ps}\p{Pi}]+/u, "").replace(/^\[ [!.] \] /, "").trim();

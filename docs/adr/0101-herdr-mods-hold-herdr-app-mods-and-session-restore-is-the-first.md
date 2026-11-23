@@ -1118,6 +1118,12 @@ write the near-empty list over the sessions to reopen, the maintainer chose:
   append, so it reads and writes through `writeTextFile`'s expected, once more on a rejected write.
   A log that cannot be written leaves the results as they are.
 - A blocked worker's reason reads "its conductor is not in the save".
+- **The panel unfolds below a chip in the top half of the window.** Asked for afterwards: with the
+  chip dragged to the top, the panel stayed anchored above it, and `Popup` only clamps into the
+  window (gpui-kit.d.ts: "keeps it clear of the window edges"; tooltips are the ones "flipped and
+  clamped"), so it covered the chip. At each unfolding press the chip compares the press's
+  window-relative `position.y` with `window.viewport_size()` read in `render` (`panelSide`), and
+  anchors the panel by its top-right corner below the chip, or by its bottom-right above it.
 - This supersedes the restore-list rule in "The calls" above, the #65 amendment's unfold on a new
   holder, the 2026-11-20 amendment's auto save and settings, and the "Not covered" line of the
   history amendment that said the restore list does not keep sessions from before the last run

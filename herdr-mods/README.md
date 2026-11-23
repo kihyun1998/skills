@@ -84,8 +84,9 @@ rewritten for each Herdr version and are the truth about the API.
   session id, or a transcript could not be looked for), and grey `Not saved` before
   any save. The order is: reopening, `Saving`, red, grey, green. The chip keeps one
   width for every label, so the panel above it does not move when the label changes.
-  Pressed without moving, the chip unfolds the Sessions panel above itself and looks at
-  the terminals (below); pressed again, it folds it. A press that moves drags the chip.
+  Pressed without moving, the chip unfolds the Sessions panel above itself, or below it
+  when the press lands in the top half of the window, and looks at the terminals (below);
+  pressed again, it folds it. A press that moves drags the chip.
 - **The save** is one file, `~/.config/herdr-app/data/session-restore.json`:
   `{ version: 2, savedAt, sessions }`. It is written only when Save is pressed (the
   panel's save icon) or the `session-restore.save` command arrives (a `keys.json`
