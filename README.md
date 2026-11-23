@@ -2,7 +2,8 @@
 
 Personal collection of [Claude Code](https://claude.com/claude-code) and [Codex](https://openai.com/codex/) skills.
 
-Each top-level folder containing a `SKILL.md` is one skill. This repo is the
+Each top-level folder containing a `SKILL.md`, and each such folder inside
+`ki-skills/`, is one skill. This repo is the
 single source of truth; skills become active by linking them into each agent's
 skill directory, where Claude Code and Codex discover them.
 
@@ -67,8 +68,9 @@ Link every skill in this repo into both `~/.claude/skills` and
 
 To sync only one agent, add `--claude` or `--codex`.
 
-The script scans the repo for every folder containing a `SKILL.md`, so new
-skills are picked up automatically on re-run. It creates links — a directory
+The script scans the repo for every top-level folder containing a `SKILL.md`,
+and every such folder inside `ki-skills/`, so new skills are picked up
+automatically on re-run. It creates links — a directory
 junction on Windows, a symlink on Unix — not copies, so edits made in this
 repo are live in both agents immediately. No Developer Mode or elevation is
 needed.
@@ -115,6 +117,22 @@ anything.
    `write-a-skill` skill, or copy `to-html/` as a template.
 2. Re-run the install script to symlink the new skill.
 
+## ki-skills
+
+`ki-skills/` holds this repo's own copies of fourteen skills from
+[mattpocock/skills](https://github.com/mattpocock/skills), each named `ki-<name>`:
+`ki-tdd`, `ki-pr`, `ki-to-spec`, `ki-grilling`, `ki-domain-modeling`,
+`ki-prototype`, `ki-research`, `ki-writing-for-agents`, `ki-code-review`,
+`ki-triage`, `ki-grill-with-docs`, `ki-to-tickets`, `ki-codebase-design` and
+`ki-setup` (upstream's `setup-matt-pocock-skills`). They are copied at one
+upstream commit and differ only where a copy names one of the fourteen, so the
+set calls itself; [`ki-skills/UPSTREAM.md`](ki-skills/UPSTREAM.md) holds the
+commit, every changed file and how to read upstream's changes since. They install
+beside the upstream skills installed by hand, which keep their own names
+([ADR-0104](docs/adr/0104-ki-skills-are-own-copies-beside-the-upstream-skills.md)).
+`./scripts/install-skills.sh` links each one into `~/.claude/skills` and the
+Codex skills folder like any other skill.
+
 ## Mods
 
 `mods/` holds Claude Code mods — plugins of function hooks, not skills. This
@@ -159,6 +177,7 @@ Writing one, and the checks: [`herdr-mods/README.md`](herdr-mods/README.md).
 ├── docs/agents/    config the Matt Pocock engineering skills read for this repo
 ├── CLAUDE.md       guidance auto-loaded by Claude Code when working in this repo
 ├── <skill>/        one folder per skill, each with a SKILL.md
+├── ki-skills/      own copies of upstream mattpocock/skills skills, one folder each — see ki-skills/UPSTREAM.md
 ├── mods/           Claude Code mods (hooks plugins), one folder each — see mods/README.md
 ├── herdr-mods/     Herdr-app mods — see herdr-mods/README.md
 └── retired/        skills no longer installed — not scanned, see retired/README.md

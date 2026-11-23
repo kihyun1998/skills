@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { readdirSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, lstatSync, readlinkSync, symlinkSync, rmSync } from 'node:fs';
+import { readdirSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, lstatSync, readlinkSync, symlinkSync, rmSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -76,6 +76,52 @@ test('--codex makes no agents folder', (t) => {
   assert.equal(r.status, 0, r.stdout + r.stderr);
   assert.ok(!existsSync(join(home, '.codex', 'agents')));
   assert.ok(!existsSync(join(home, '.claude', 'agents')));
+});
+
+const kiSkills = readdirSync(join(repo, 'ki-skills')).filter((d) => existsSync(join(repo, 'ki-skills', d, 'SKILL.md')));
+
+function assertKiLinked(skillsHome) {
+  assert.equal(kiSkills.length, 14);
+  for (const name of kiSkills) {
+    const link = join(skillsHome, name);
+    assert.ok(lstatSafe(link)?.isSymbolicLink(), `${name} is not linked`);
+    assert.equal(realpathSync(link), realpathSync(join(repo, 'ki-skills', name)));
+  }
+}
+
+test('links each ki-skills/<name> into ~/.claude/skills, and a second run neither relinks nor prunes them', (t) => {
+  const home = scratch();
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  const skills = join(home, '.claude', 'skills');
+  const first = install(home);
+  assertKiLinked(skills);
+  assert.match(first, /link {2}ki-tdd -> /);
+  assert.ok(!existsSync(join(skills, 'ki-skills')));
+  const second = install(home);
+  assertKiLinked(skills);
+  assert.match(second, /ok {4}ki-tdd - already linked/);
+  assert.doesNotMatch(second, /prune ki-|relink ki-/);
+});
+
+test('links each ki-skills/<name> into the Codex skills folder', (t) => {
+  const home = mkdtempSync(join(tmpdir(), 'install-skills-'));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  const r = spawnSync('bash', [script, '--codex'], { encoding: 'utf8', env: { ...process.env, HOME: home, CODEX_HOME: join(home, '.codex') } });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assertKiLinked(join(home, '.codex', 'skills'));
+});
+
+test('prunes a link into ki-skills/ whose skill is gone', (t) => {
+  const home = scratch();
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  const skills = join(home, '.claude', 'skills');
+  mkdirSync(skills, { recursive: true });
+  const stale = join(skills, 'ki-gone');
+  symlinkSync(join(repo, 'ki-skills', 'ki-gone'), stale, 'junction');
+  const out = install(home);
+  assert.match(out, /prune ki-gone - no longer a skill in this repo/);
+  assert.ok(!lstatSafe(stale));
+  assertKiLinked(skills);
 });
 
 function lstatSafe(p) {

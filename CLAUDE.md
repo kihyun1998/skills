@@ -15,6 +15,10 @@ read it before writing or changing a mod.
 `herdr-mods/` holds Herdr-app mods, which run in the Herdr window and are
 neither skills nor Claude Code mods; `herdr-mods/README.md` holds their layout
 and `scripts/install-herdr-mods.sh`, and ADR-0101 why they are a kind of their own.
+`ki-skills/` holds this repo's own copies of upstream mattpocock/skills skills, one
+folder each, named `ki-<name>`; `scripts/install-skills.sh` links them as it links a
+top-level skill, `ki-skills/UPSTREAM.md` holds the upstream commit and every change
+from it, and ADR-0104 why they sit beside the upstream skills.
 `.claude-plugin/marketplace.json` is generated from `mods/` by the install
 script — never edit it by hand. See `README.md` for details.
 
