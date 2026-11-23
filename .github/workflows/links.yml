@@ -1,10 +1,6 @@
 name: links
 
-on:
-  push:
-    paths: &paths ['**/*.md', 'scripts/check-links.mjs', '.github/workflows/links.yml']
-  pull_request:
-    paths: *paths
+on: [push, pull_request]
 
 permissions:
   contents: read

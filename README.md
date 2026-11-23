@@ -168,7 +168,7 @@ Writing one, and the checks: [`herdr-mods/README.md`](herdr-mods/README.md).
 ```
 .
 ├── .claude-plugin/ marketplace.json — generated from mods/ by install-mods; do not edit
-├── scripts/        install scripts — sync.sh runs two: symlink skills, install mods; install-herdr-mods.sh runs alone — and check-links.mjs, which CI runs on every markdown change
+├── scripts/        install scripts — sync.sh runs two: symlink skills, install mods; install-herdr-mods.sh runs alone — and check-links.mjs, which CI runs on every push and pull request
 ├── docs/agents/    config the Matt Pocock engineering skills read for this repo
 ├── CLAUDE.md       guidance auto-loaded by Claude Code when working in this repo
 ├── <skill>/        one folder per skill, each with a SKILL.md

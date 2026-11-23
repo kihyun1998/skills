@@ -139,3 +139,34 @@ test('the command still checks when it is run through a linked folder', (t) => {
   assert.equal(r.status, 1, r.stdout + r.stderr);
   assert.match(r.stdout, /^a\.md:1: gone\.md does not resolve \(gone\.md\)$/m);
 });
+
+test('a tracked file missing on disk neither crashes the command nor resolves a link', (t) => {
+  const dir = repo(t, { 'a.md': '[b](b.md) [s](tools/run.sh)\n', 'b.md': 'x\n', 'c.md': '[a](a.md)\n', 'tools/run.sh': 'x\n' });
+  spawnSync('git', ['add', '-A'], { cwd: dir });
+  for (const path of ['b.md', 'c.md', 'tools/run.sh']) rmSync(join(dir, path));
+  const r = spawnSync(process.execPath, [script], { cwd: dir, encoding: 'utf8' });
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.match(r.stdout, /^a\.md:1: b\.md does not resolve \(b\.md\)$/m);
+  assert.match(r.stdout, /^a\.md:1: tools\/run\.sh does not resolve \(tools\/run\.sh\)$/m);
+  assert.doesNotMatch(r.stderr, /ENOENT/);
+});
+
+test('a tracked file whose folder is now a file neither crashes the command nor resolves a link', (t) => {
+  const dir = repo(t, { 'a.md': '[x](d/x.md)\n', 'd/x.md': 'x\n' });
+  spawnSync('git', ['add', '-A'], { cwd: dir });
+  rmSync(join(dir, 'd'), { recursive: true });
+  writeFileSync(join(dir, 'd'), 'x\n');
+  const r = spawnSync(process.execPath, [script], { cwd: dir, encoding: 'utf8' });
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.match(r.stdout, /^a\.md:1: d\/x\.md does not resolve \(d\/x\.md\)$/m);
+});
+
+test('a tracked markdown file that is now a folder neither crashes the command nor resolves a link', (t) => {
+  const dir = repo(t, { 'a.md': '[y](y.md)\n', 'y.md': '[a](a.md)\n' });
+  spawnSync('git', ['add', '-A'], { cwd: dir });
+  rmSync(join(dir, 'y.md'));
+  mkdirSync(join(dir, 'y.md'));
+  const r = spawnSync(process.execPath, [script], { cwd: dir, encoding: 'utf8' });
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.match(r.stdout, /^a\.md:1: y\.md does not resolve \(y\.md\)$/m);
+});

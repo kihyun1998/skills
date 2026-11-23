@@ -95,13 +95,23 @@ export function brokenLinks(files, tracked) {
   return broken;
 }
 
+function isFileOnDisk(path) {
+  try {
+    return !lstatSync(path).isDirectory();
+  } catch (error) {
+    if (error.code === 'ENOENT' || error.code === 'ENOTDIR') return false;
+    throw error;
+  }
+}
+
 const git = (...args) => execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64 << 20 }).split('\0').filter(Boolean);
 
 function main() {
   const symlinks = new Set(git('ls-files', '--stage', '-z')
     .filter((entry) => entry.startsWith('120000 '))
     .map((entry) => entry.slice(entry.indexOf('\t') + 1)));
-  const tracked = git('ls-files', '--cached', '--others', '--exclude-standard', '-z');
+  const tracked = git('ls-files', '--cached', '--others', '--exclude-standard', '-z')
+    .filter(isFileOnDisk);
   const files = tracked
     .filter((path) => isChecked(path) && !symlinks.has(path) && !lstatSync(path).isSymbolicLink())
     .map((path) => ({ path, text: readFileSync(path, 'utf8') }));
