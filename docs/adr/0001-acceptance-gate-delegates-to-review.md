@@ -1,5 +1,11 @@
 # Acceptance Gate delegates its review engine to the `code-review` skill
 
+> **Amended by [ADR-0105](0105-the-catalog-calls-the-ki-copies-and-upstream-is-reference-only.md)
+> (2026-11-24).** The Gate delegates to `ki-code-review`, this repository's own copy
+> in `ki-skills/`, and the upstream `code-review` is no longer installed. It is no
+> longer a declared external in `docs/agents/skill-dependencies.md`: the name
+> resolves to this catalog. The delegation itself stands.
+
 > **Amended 2026-08-30.** The skill this record delegates to was called `review`
 > when this was written. Upstream renamed it to `code-review` (99% identical
 > content) and promoted it out of `in-progress`; the two-axis interface this

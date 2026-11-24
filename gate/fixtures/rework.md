@@ -8,11 +8,11 @@ clear spec citations).
 
 The AFK agent implemented issue #44 ("Add input validation to the signup
 form"). The PR adds the validation but skips the test the issue asked for and
-names a helper inconsistently. `code-review` ran from the merge-base.
+names a helper inconsistently. `ki-code-review` ran from the merge-base.
 
 Prior `Verdict: Rework` comments on the issue: **0**.
 
-## Sample `code-review` output
+## Sample `ki-code-review` output
 
 ### Standards report
 
@@ -38,5 +38,5 @@ and 1 missing requirement. Rule 4 (Respec) does not match — every Spec finding
 **has** a spec citation (issue #44 line 9). Rule 5 (Escalate) does not match —
 neither finding needs architectural judgement: a rename and a missing test are
 both mechanical and local. Rule 6 matches. The gate proposes re-applying
-`ready-for-agent` and posting fix notes drawn from `code-review`: rename
+`ready-for-agent` and posting fix notes drawn from `ki-code-review`: rename
 `chk_email` → `checkEmail`, and add the unit test required by issue #44 line 9.

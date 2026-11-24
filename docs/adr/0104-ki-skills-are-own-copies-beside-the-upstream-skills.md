@@ -1,5 +1,11 @@
 # ADR-0104 — `ki-skills/` holds own copies of upstream skills, beside the originals
 
+> **Amended by [ADR-0105](0105-the-catalog-calls-the-ki-copies-and-upstream-is-reference-only.md).**
+> The coexistence call below is superseded: the upstream skills are no longer
+> installed, and the catalog calls the `ki-` copies. Both of the reopening grounds
+> below came true (#137). The other calls stand: a folder of its own kind, only the
+> names among the copies renamed, and the commit only, with no sync script.
+
 **Status:** accepted.
 
 `ki-skills/` is a new top-level folder holding this repository's own copies of fourteen

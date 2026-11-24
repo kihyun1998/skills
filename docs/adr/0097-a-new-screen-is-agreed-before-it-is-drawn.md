@@ -1,5 +1,11 @@
 # ADR-0097 — A new screen is agreed before it is drawn
 
+> **Amended by [ADR-0105](0105-the-catalog-calls-the-ki-copies-and-upstream-is-reference-only.md)
+> (2026-11-24).** `design-it` hands its brief to `ki-prototype`, this repository's
+> own copy in `ki-skills/`, not to the upstream `prototype`, which is no longer
+> installed. It is no longer a declared external in
+> `docs/agents/skill-dependencies.md`. The rest stands.
+
 **Status:** accepted.
 
 `design-it` agrees a **design brief** with the person before any UI variant is

@@ -49,7 +49,7 @@ the retired `checkup` skill, and nothing could see it.
 other.** A reference asks whether a *name* resolves, which is what catches a name
 going stale. A declaration asks what is actually invoked. The gap between them is
 the **boundary reference** — *"don't do a rearchitecture (that's
-`improve-codebase-architecture`)"* — which names a skill in order to say it is
+`ki-improve-codebase-architecture`)"* — which names a skill in order to say it is
 somebody else's job. It must resolve; it is **not** declared, since nothing calls
 it (the `--resolve` check that once enforced this is gone, ADR-0066).
 _Avoid_: dependency (unqualified — say which of the two)
@@ -81,7 +81,7 @@ _Avoid_: bot, worker
 A skill that reviews an AFK agent's finished output, issues a verdict with a
 recommended next action, and — once the user approves — executes that action
 on the issue tracker.
-_Avoid_: review agent (collides with the `code-review` skill)
+_Avoid_: review agent (collides with the `ki-code-review` skill)
 
 **Verdict**:
 The Acceptance Gate's judgement of an AFK agent's output — one of **Pass**
@@ -341,7 +341,7 @@ What a new screen is for, confirmed by the person before any variant is drawn:
 its job, who reaches it and in what situation, the one thing they must do and
 how success would show, the real content at minimum, typical and maximum, the
 states that matter, scope, constraints, taste in words, and what stays open.
-[`design-it`](design-it/) writes it and `prototype` builds to it.
+[`design-it`](design-it/) writes it and `ki-prototype` builds to it.
 _Avoid_: Brief (what `check-it` hands to `lens`), spec
 
 **Anchor** (read-it):
@@ -350,7 +350,7 @@ not a finding — falsifying it is the more valuable of the two outcomes. Its ro
 is the tracker's subtree, never a list in the body.
 _Avoid_: Spine (the retired skill's name, ADR-0090. The anchor is
 the *issue*, and what a run knows about the cluster is `read-it`'s cluster read), Root (the claim the
-anchor makes, which the anchor is not), **Map** (see below — an upstream skill
+anchor makes, which the anchor is not), **Map** (see below — `ki-wayfinder`
 calls a parent issue with child tickets "the map", which is this thing under a
 word this repo has already spent)
 
@@ -543,9 +543,10 @@ A skill folder copied from another catalog, with an `UPSTREAM.md` that records
 the source repository, the commit it was copied at, and every change made
 since. `create-formal-verification-skill` and `maintain-formal-verification-skill`
 are vendored from pstack at `e1cc031` (#78) and keep upstream's folder paths;
-`statechart`, vendored with them, is retired (#113). The fourteen folders in
+`statechart`, vendored with them, is retired (#113). The sixteen folders in
 `ki-skills/` are vendored from mattpocock/skills at `abeeaf9` and renamed
-`ki-<name>`, so they sit beside the upstream skills they copy (#133, ADR-0104);
+`ki-<name>`, and are what this catalog calls in place of the upstream skills,
+which are no longer installed (#133, #137, ADR-0105);
 their `UPSTREAM.md` maps each folder to its upstream path, so either kind can be
 compared with later upstream commits.
 _Avoid_: fork (the folder is a pinned copy with recorded changes, not a
@@ -580,7 +581,7 @@ nothing else (ADR-0103).
 - Each **Verdict** maps to a triage outcome: Pass → issue closed; Rework →
   `ready-for-agent` re-applied; Respec → `needs-info`; Escalate →
   `ready-for-human`.
-- The **Acceptance Gate** is distinct from the **`code-review` skill**: `code-review`
+- The **Acceptance Gate** is distinct from the **`ki-code-review` skill**: `ki-code-review`
   only produces a two-axis report; the Acceptance Gate adds the verdict, the
   next action, and — on approval — its execution.
 - **A Dependency or Lineage reference resolves against three places**: this
@@ -599,10 +600,10 @@ nothing else (ADR-0103).
 - **`thegraph` reads two things at the start of a change** — the **Issue
   contract** for this change, the **Build** for this repository — and both are
   read by [`read-it`](read-it/) rather than by `thegraph` itself.
-  `grill-the-graph` writes the second. **The first has no producer in this
-  catalog**: `tickets` filled it and is retired
+  `grill-the-graph` writes the second. **The first has no producer of this
+  catalog's own**: `tickets` filled it and is retired
   ([ADR-0069](docs/adr/0069-tickets-is-retired.md)), so a contract is written by
-  hand or by an upstream slicer, or not at all — and a ticket answering none of it
+  hand or by a slicer such as `ki-to-tickets`, a copy of upstream's, or not at all — and a ticket answering none of it
   was always the ordinary case, never a gap. Neither producer could ever be part
   of the method itself: one spec fans out to N tickets and N runs, and a method
   that authored its own acceptance would be restating its own words (ADR-0045).
@@ -617,8 +618,8 @@ nothing else (ADR-0103).
   the repo keeps one. The same setup/execution split as the two below, with one
   difference worth stating: `grill-map` is **standalone** — a MAP is worth having
   on its own, and the read is worth nothing without one.
-- **An upstream wayfinding skill calls a parent issue holding child tickets "the
-  map".** In this vocabulary that is an **Anchor**, not a **MAP** — one is an
+- **`ki-wayfinder`, this catalog's copy of an upstream skill, calls a parent issue
+  holding child tickets "the map".** In this vocabulary that is an **Anchor**, not a **MAP** — one is an
   issue, the other a document, and the collision is with a word `thegraph`
   already spends elsewhere. Read it as an Anchor when it arrives: its children
   are the roster `read-it`'s cluster read queries, and its *"Decisions so far"* index is contract
@@ -642,7 +643,7 @@ nothing else (ADR-0103).
   | Step | What it calls |
   |---|---|
   | [`read-it`](read-it/) | `firsthand` (`spine` absorbed, ADR-0090) |
-  | [`make-it`](make-it/) | `tdd` (`redden` absorbed, ADR-0090); `design-it` for a new screen (ADR-0097); `encode-it` for a check-adding change (#80) |
+  | [`make-it`](make-it/) | `ki-tdd` (`redden` absorbed, ADR-0090); `design-it` for a new screen (ADR-0097); `encode-it` for a check-adding change (#80) |
   | [`check-it`](check-it/) | `lens`, `sweep`, `comment-it` (#75); its own refactoring, bug and security reviewers, each a fresh agent (ADR-0102, #105) (`bare` and `boundary` absorbed, ADR-0090; `assay` and `silt` absorbed, ADR-0092; the spec and rules reviewer and the proving agent, ADR-0095, ADR-0102) |
   | [`ask-it`](ask-it/) | — (`envelope` and `byartifact` were absorbed, ADR-0089) |
 
@@ -683,17 +684,17 @@ nothing else (ADR-0103).
 
 ## Example dialogue
 
-> **Dev:** "The AFK agent finished issue #12 — do I just run the `code-review`
+> **Dev:** "The AFK agent finished issue #12 — do I just run the `ki-code-review`
 > skill on the branch?"
-> **Maintainer:** "`code-review` tells you *what's wrong*, but it stops at a
+> **Maintainer:** "`ki-code-review` tells you *what's wrong*, but it stops at a
 > report. The **Acceptance Gate** reads that, decides pass or rework, and — if
 > you approve — bounces the issue back to the AFK agent with fix notes or
 > escalates it to `ready-for-human`."
 
 ## Flagged ambiguities
 
-- "review agent" was used to mean both the existing **`code-review` skill** and the
-  new **Acceptance Gate** — resolved: these are distinct. `code-review` reports;
+- "review agent" was used to mean both the existing **`ki-code-review` skill** and the
+  new **Acceptance Gate** — resolved: these are distinct. `ki-code-review` reports;
   the Acceptance Gate judges and acts.
 - "worker" is what an **AFK agent** is told to avoid being called, and it is also the
   **Worker** of a `thegraph-herdr` run — resolved: the word means only the latter.

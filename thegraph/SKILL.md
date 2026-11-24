@@ -276,7 +276,7 @@ those paths are then released (*In the same tree*, above).
 
 **The tracker decides, not an argument.** Where the issue passed has open
 sub-issues, or the path passed is a folder of issue files (the shape
-`to-tickets` writes locally), this is a **cluster run**: the issue is the
+`ki-to-tickets` writes locally), this is a **cluster run**: the issue is the
 anchor, and its open children are the work. Otherwise it is one issue, as below.
 A title or a label is never read for this. A wrong call is corrected at the
 confirm stop: *"only this one"* runs the anchor alone.
@@ -306,12 +306,12 @@ A cluster run is the same order once per child, in one session:
   last one.
 - **The anchor gets the result**, written back the way `ask-it` writes back to
   an anchor: the root confirmed or falsified, what was measured, and what is
-  still open. Whether to close it is asked then. `to-tickets` never closes it,
+  still open. Whether to close it is asked then. `ki-to-tickets` never closes it,
   and nothing else will. A local folder has no anchor file, so there the result
   goes in the closing report, and each child is closed by its own `Status:` line
   in its local commit.
 
-One session for the whole cluster diverges on purpose from `wayfinder`'s one
+One session for the whole cluster diverges on purpose from `ki-wayfinder`'s one
 ticket per session
 ([ADR-0088](../docs/adr/0088-thegraph-takes-a-cluster.md)).
 

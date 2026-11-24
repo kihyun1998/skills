@@ -1,18 +1,18 @@
 # Fixture: Respec
 
 **Expected verdict:** Respec
-**Decision-tree rule:** Rule 4 (a Spec finding `code-review` could not cite a spec
+**Decision-tree rule:** Rule 4 (a Spec finding `ki-code-review` could not cite a spec
 line for).
 
 ## Scenario
 
 The AFK agent implemented issue #58 ("Improve the export feature"). The PR adds
-an export, but the issue body never says which format. `code-review` ran from the
+an export, but the issue body never says which format. `ki-code-review` ran from the
 merge-base.
 
 Prior `Verdict: Rework` comments on the issue: **0**.
 
-## Sample `code-review` output
+## Sample `ki-code-review` output
 
 ### Standards report
 
@@ -33,7 +33,7 @@ Prior `Verdict: Rework` comments on the issue: **0**.
 ## Why this is Respec
 
 Rules 1 and 2 do not fire. Rule 3 does not match — there are open Spec
-findings. Rule 4 matches: `code-review` explicitly **could not cite a spec line**
+findings. Rule 4 matches: `ki-code-review` explicitly **could not cite a spec line**
 for its findings — the issue itself is underspecified. Bouncing it to the AFK
 agent (Rework) would only reproduce the same guess, so the gate proposes
 applying `needs-info` for spec refinement. Note that Respec outranks both

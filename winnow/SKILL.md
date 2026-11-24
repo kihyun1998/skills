@@ -1,7 +1,7 @@
 ---
 name: winnow
 disable-model-invocation: true
-requires: [writing-for-agents]
+requires: [ki-writing-for-agents]
 description: "Cut an always-loaded agent document (CLAUDE.md, AGENTS.md, a skill body) down to what every run needs. /winnow."
 ---
 
@@ -12,7 +12,7 @@ or `AGENTS.md`, a `SKILL.md` body, a doc a pointer pulls in on most runs. Every
 line there is paid for on every session. Source comments follow the comment rule in `CLAUDE.md`;
 decision records are out of scope, since they are where history is kept.
 
-Load `writing-for-agents` first. It holds the levers — pointers, disclosure,
+Load `ki-writing-for-agents` first. It holds the levers — pointers, disclosure,
 pruning, positive phrasing. This skill is the procedure that applies them to a
 document that already exists.
 
@@ -138,5 +138,5 @@ the repository's own rules.
   the rest goes; this sorts an agent document into itself and its detail docs.
 - **`sweep`** asks whether a change made a surface wrong; this asks whether a
   paragraph earns its place in a document every run loads.
-- **`writing-for-agents`** says how a document for agents should read; this
+- **`ki-writing-for-agents`** says how a document for agents should read; this
   applies it to one that already exists.

@@ -8,7 +8,7 @@ How the engineering skills should consume this repo's domain documentation when 
 - **`GLOSSARY-MAP.md`** at the repo root if it exists — it points at one `GLOSSARY.md` per context. Read each one relevant to the topic.
 - **`docs/adr/`** — read ADRs that touch the area you're about to work in. In multi-context repos, also check `src/<context>/docs/adr/` for context-scoped decisions.
 
-If any of these files don't exist, **proceed silently**. Don't flag their absence; don't suggest creating them upfront. The producer skill (`/grill-with-docs`) creates them lazily when terms or decisions actually get resolved.
+If any of these files don't exist, **proceed silently**. Don't flag their absence; don't suggest creating them upfront. The producer skill (`/ki-grill-with-docs`) creates them lazily when terms or decisions actually get resolved.
 
 ## File structure
 
@@ -42,7 +42,7 @@ Multi-context repo (presence of `GLOSSARY-MAP.md` at the root):
 
 When your output names a domain concept (in an issue title, a refactor proposal, a hypothesis, a test name), use the term as defined in `GLOSSARY.md`. Don't drift to synonyms the glossary explicitly avoids.
 
-If the concept you need isn't in the glossary yet, that's a signal — either you're inventing language the project doesn't use (reconsider) or there's a real gap (note it for `/grill-with-docs`).
+If the concept you need isn't in the glossary yet, that's a signal — either you're inventing language the project doesn't use (reconsider) or there's a real gap (note it for `/ki-grill-with-docs`).
 
 ## Flag ADR conflicts
 
@@ -53,7 +53,7 @@ If your output contradicts an existing ADR, surface it explicitly rather than si
 ## What gets a record, and how it reads
 
 **A record is for a decision that is hard to reverse, surprising without context,
-and the result of a real trade-off** — all three, as `domain-modeling`'s
+and the result of a real trade-off** — all three, as `ki-domain-modeling`'s
 `ADR-FORMAT.md` puts it. Any other decision lives in the issue's decision comment
 and the commit message; a retirement lives in `retired/README.md`'s table (#79).
 

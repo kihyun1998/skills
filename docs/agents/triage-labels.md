@@ -18,7 +18,7 @@ Edit the right-hand column to match whatever vocabulary you actually use.
 
 `needs-triage` is the only role whose label string is not its upstream name. The
 role is *"maintainer needs to evaluate this issue"*, and in this repo that
-evaluation is a named act — `/grilling` — which an issue carries until it has
+evaluation is a named act — `/ki-grilling` — which an issue carries until it has
 been stress-tested and sliced into tickets. The label reads `needs-grill` so it
 says which act is owed rather than that one is.
 

@@ -1,7 +1,7 @@
 ---
 name: design-it
-requires: [prototype]
-description: "Agree with the person on what a new screen is for, then have `prototype` build variants against that agreement. Use when a new UI design or a UI prototype is asked for, before any variant is drawn."
+requires: [ki-prototype]
+description: "Agree with the person on what a new screen is for, then have `ki-prototype` build variants against that agreement. Use when a new UI design or a UI prototype is asked for, before any variant is drawn."
 ---
 
 # design-it — agree first, then draw
@@ -9,7 +9,7 @@ description: "Agree with the person on what a new screen is for, then have `prot
 A designer judges a screen against what it is for, never against whether it
 looks good. So the agreement comes before the drawing: a **design brief**
 the person has confirmed, then variants built to it, then a hand-over that says
-what to judge them on. `prototype` owns how the variants are built; this skill owns the
+what to judge them on. `ki-prototype` owns how the variants are built; this skill owns the
 design brief and the framing around them.
 
 ## 1. Read before asking
@@ -94,7 +94,7 @@ Record the confirmed brief:
 
 ## 4. Build to the brief
 
-Run `prototype`'s UI branch with the confirmed design brief as its question.
+Run `ki-prototype`'s UI branch with the confirmed design brief as its question.
 Where the screen has no web route for its `?variant=` switch (a mod panel, a
 Flutter or native screen), the variants go in one HTML file with the same
 switcher that opens without installing anything. Every variant holds the job,
@@ -123,7 +123,7 @@ lines it won on.
 
 ## 6. After the verdict
 
-`prototype`'s own step 6 (fold the winner in, keep the variants on a throwaway
+`ki-prototype`'s own step 6 (fold the winner in, keep the variants on a throwaway
 branch, point the issue at it) splits by where this was called from.
 
 - **On a run sheet, or called from `make-it`**: move the variant files into the
@@ -132,5 +132,5 @@ branch, point the issue at it) splits by where this was called from.
   nothing of the prototype, and `make-it` writes the picked design test-first.
   The `## Carried` line gains the variants: `ask-it` offers keeping them on a
   throwaway branch, with a pointer on the issue.
-- **Otherwise**: step 6 runs as `prototype` says, and its commit waits for the
+- **Otherwise**: step 6 runs as `ki-prototype` says, and its commit waits for the
   person's yes.

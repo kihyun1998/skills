@@ -8,12 +8,12 @@ trade-off decision).
 
 The AFK agent implemented issue #67 ("Speed up the report query"). The PR makes
 the query faster by caching results, but the cache has no invalidation
-strategy and the spec is silent on staleness tolerance. `code-review` ran from the
+strategy and the spec is silent on staleness tolerance. `ki-code-review` ran from the
 merge-base.
 
 Prior `Verdict: Rework` comments on the issue: **0**.
 
-## Sample `code-review` output
+## Sample `ki-code-review` output
 
 ### Standards report
 

@@ -1,8 +1,9 @@
 # Upstream
 
-The fourteen skill folders here started as verbatim copies of folders under
+The sixteen skill folders here started as verbatim copies of folders under
 `skills/` in https://github.com/mattpocock/skills at commit
-`abeeaf95660ba9e8b7c753eb38f441ca707a8823` (2026-11-19 13:34 +0000), copied on 2026-11-23 (kihyun1998/skills#133).
+`abeeaf95660ba9e8b7c753eb38f441ca707a8823` (2026-11-19 13:34 +0000), copied on 2026-11-23 (kihyun1998/skills#133); `ki-wayfinder/` and
+`ki-improve-codebase-architecture/` from the same commit on 2026-11-24 (kihyun1998/skills#137).
 `LICENSE` is that commit's `LICENSE` (MIT, Matt Pocock).
 
 | Here | Upstream |
@@ -21,10 +22,13 @@ The fourteen skill folders here started as verbatim copies of folders under
 | `ki-to-tickets/` | `skills/engineering/to-tickets/` |
 | `ki-codebase-design/` | `skills/engineering/codebase-design/` |
 | `ki-setup/` | `skills/engineering/setup-matt-pocock-skills/` |
+| `ki-wayfinder/` | `skills/engineering/wayfinder/` |
+| `ki-improve-codebase-architecture/` | `skills/engineering/improve-codebase-architecture/` |
 
-They are this repository's own copies, kept beside the upstream skills installed
-by hand under their upstream names, so they can change without touching those
-([ADR-0104](../docs/adr/0104-ki-skills-are-own-copies-beside-the-upstream-skills.md)).
+They are this repository's own copies, and the skills this catalog calls; the upstream
+skills are no longer installed, and mattpocock/skills is kept as a reference only
+([ADR-0105](../docs/adr/0105-the-catalog-calls-the-ki-copies-and-upstream-is-reference-only.md),
+which amends [ADR-0104](../docs/adr/0104-ki-skills-are-own-copies-beside-the-upstream-skills.md)).
 Once a file here is changed for any other reason, say what changed and why below,
 so the copy can still be compared with upstream.
 
@@ -32,13 +36,13 @@ To see what upstream changed since:
 
 ```sh
 git clone --filter=blob:none --no-checkout https://github.com/mattpocock/skills.git matt
-git -C matt log --oneline abeeaf9..origin/main -- skills/engineering/tdd skills/engineering/pr skills/engineering/to-spec skills/productivity/grilling skills/engineering/domain-modeling skills/engineering/prototype skills/engineering/research skills/productivity/writing-for-agents skills/engineering/code-review skills/engineering/triage skills/engineering/grill-with-docs skills/engineering/to-tickets skills/engineering/codebase-design skills/engineering/setup-matt-pocock-skills
+git -C matt log --oneline abeeaf9..origin/main -- skills/engineering/tdd skills/engineering/pr skills/engineering/to-spec skills/productivity/grilling skills/engineering/domain-modeling skills/engineering/prototype skills/engineering/research skills/productivity/writing-for-agents skills/engineering/code-review skills/engineering/triage skills/engineering/grill-with-docs skills/engineering/to-tickets skills/engineering/codebase-design skills/engineering/setup-matt-pocock-skills skills/engineering/wayfinder skills/engineering/improve-codebase-architecture
 ```
 
 ## Changes from upstream
 
 Every file not listed is byte-identical to the commit above. The listed ones differ
-only where a copied skill names itself or another of the fourteen, so the set calls
+only where a copied skill names itself or another of the sixteen, so the set calls
 itself and not the upstream skills: the `name:` line, and each such name as a
 slash command, in backticks, or as the name given to the Skill tool, is the
 `ki-` name (`setup-matt-pocock-skills` is `ki-setup`). Prose, titles and
@@ -63,14 +67,16 @@ slash command, in backticks, or as the name given to the Skill tool, is the
 - `ki-setup/domain.md`
 - `ki-setup/issue-tracker-github.md`
 - `ki-setup/issue-tracker-gitlab.md`
+- `ki-setup/issue-tracker-local.md`
+- `ki-wayfinder/SKILL.md`
+- `ki-improve-codebase-architecture/SKILL.md`
+- `ki-improve-codebase-architecture/HTML-REPORT.md`
 
 Left as upstream, on purpose:
 
-- `/wayfinder` in `ki-setup/issue-tracker-*.md` and `/improve-codebase-architecture`
-  in `ki-setup/domain.md`: upstream skills that are not among the fourteen; they
-  are declared in `docs/agents/skill-dependencies.md`.
-- `research`, `prototype` and `grilling` in `ki-setup/issue-tracker-*.md`: ticket
-  type labels, not skill names.
+- `research`, `prototype` and `grilling` in `ki-setup/issue-tracker-*.md` and
+  `ki-wayfinder/SKILL.md`, and `wayfinder:` in labels such as `wayfinder:map`: ticket
+  labels, not skill names.
 - `/triage` in `ki-triage/AGENT-BRIEF.md`: an example of a good brief about an
   imagined command, not a call to the skill.
 - No `requires:` key, though `ki-tdd`, `ki-triage`, `ki-grill-with-docs` and others

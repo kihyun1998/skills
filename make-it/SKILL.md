@@ -1,6 +1,6 @@
 ---
 name: make-it
-requires: [tdd, design-it, encode-it]
+requires: [ki-tdd, design-it, encode-it]
 description: "Write the change, test-first where it compiles or runs. Use as the writing step of `thegraph`, after `read-it` has named a route."
 ---
 
@@ -29,9 +29,9 @@ past mistake are its.
 
 ## Tests
 
-**Where the change compiles or runs, call `tdd`** — what a good test is, where
+**Where the change compiles or runs, call `ki-tdd`** — what a good test is, where
 seams go, and the anti-patterns are all its. **Confirm the seams before writing
-the first test**, which is `tdd`'s own bar and the one most often skipped.
+the first test**, which is `ki-tdd`'s own bar and the one most often skipped.
 
 Drive it **one behaviour at a time**. Take side effects — ports, clock,
 clipboard, scroll, DOM, IPC — through **injected seams**, and assert against
@@ -50,7 +50,7 @@ input or the property case the lane can take, say that the case was not watched
 failing and the lane was not run, and never report it as run.
 
 **Then watch every test you write or change fail**, and every fixture, golden,
-snapshot and guard. This is the one thing `tdd` does not do: **a green from a
+snapshot and guard. This is the one thing `ki-tdd` does not do: **a green from a
 test nobody ever watched fail is not evidence.**
 
 - **Name the assertion first**: which one should go red, before mutating.

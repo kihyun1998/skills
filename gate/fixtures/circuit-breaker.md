@@ -7,7 +7,7 @@ findings).
 ## Scenario
 
 The AFK agent implemented issue #72 ("Wire up the settings page"). The current
-`code-review` output, taken on its own, would be a clean **Rework** — the findings
+`ki-code-review` output, taken on its own, would be a clean **Rework** — the findings
 are mechanical and locally fixable, all with spec citations. But the issue has
 already been Reworked twice: the AFK agent keeps missing the same things.
 
@@ -28,7 +28,7 @@ machine-findable marker the loop counter parses:
 
 Prior `Verdict: Rework` comments: **2**.
 
-## Sample `code-review` output (this run)
+## Sample `ki-code-review` output (this run)
 
 ### Standards report
 

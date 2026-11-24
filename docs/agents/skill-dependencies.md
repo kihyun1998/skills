@@ -42,22 +42,17 @@ questions:
   the repo can be told.
 
 A name can be here without being in any `requires:`. That is the **boundary
-reference** case: `grill-code` names `improve-codebase-architecture` to say a
-rearchitecture is that skill's job, not its own. The name must resolve, so it is
+reference** case: a skill names another to say that something is that skill's
+job, not its own. The name must resolve, so where it is not in this catalog it is
 declared here; nothing invokes it, so it is declared nowhere else. A row no
-skill requires is the normal case for one, not a defect.
+skill requires is the normal case for one, not a defect: `nit` and
+`unregistered-archives` below are two.
 
 ## Declared externals
 
 | Skill | Namespace | Upstream | Why | Identity |
 |---|---|---|---|---|
-| `code-review` | `user` | mattpocock/skills — installed by hand, not by this repo's installers | `gate` (the Acceptance Gate) is built on its two-axis report and states the dependency as a hard stop; without it the Gate cannot produce a verdict | Standards (does the code follow this repo's documented coding standards?) |
-| `tdd` | `user` | mattpocock/skills — installed by hand, not by this repo's installers | `make-it` calls it for what a good test is, where seams go, and the anti-patterns; without it the writing step has only its own test bar, which asks whether a test can fail and not whether it was worth writing | Use when the user wants to build features or fix bugs test-first, mentions "red-green-refactor" |
-| `improve-codebase-architecture` | `user` | mattpocock/skills — installed by hand | `grill-code` scopes itself against it: architecture-level redesign is out of `grill-code`'s scope precisely because this skill owns it; `ki-setup`'s `domain.md` template names it as one way `/ki-domain-modeling` is reached, and the line is written into each repository `ki-setup` configures | Scan a codebase for deepening opportunities, present them as a visual HTML report |
-| `prototype` | `user` | mattpocock/skills — installed by hand, not by this repo's installers | `design-it` hands its confirmed brief to the UI branch to build the variants; without it the brief is agreed and nothing builds to it | Build a throwaway prototype to answer a design question |
-| `wayfinder` | `user` | mattpocock/skills — installed by hand, not by this repo's installers | `ki-setup`'s issue-tracker templates name it (`Used by /wayfinder`) for the map-and-child-ticket section they write into each repository it configures; without it that section describes a convention nothing uses | Plan a huge chunk of work (more than one agent session can hold) as a shared map of decision tickets |
 | `artifact-design` | `platform` | bundled with Claude Code; no file under `~/.claude` | `brief` must load it before writing any Artifact page, which is a platform requirement rather than a preference | Design guidance and fundamentals for Artifacts |
-| `writing-for-agents` | `user` | mattpocock/skills (`skills/productivity/writing-for-agents`) — installed by hand, not by this repo's installers | `winnow` loads it for the levers it applies — pointers, disclosure, pruning, positive phrasing; without it the procedure has no stated standard for how the cut document should read | Writing documents for agents. Use when creating or editing skills, or modifying AGENTS.md or CLAUDE.md |
 | `nit` | `user` | `kihyun-work-skills` — this maintainer's work catalog, installed by its own `scripts/install-skills.*` ([ADR-0078](../adr/0078-work-skills-move-to-their-own-repo.md)) | Nothing here invokes it. Decision records here, `skill-authoring.md` and `scripts/desc-audit.py` cite it as the worked example of a length budget reset, a human stop, and the invocation-placeholder shape; without it those examples point at nothing | Single entry point for all NIT tracker work |
 | `unregistered-archives` | `user` | `kihyun-work-skills`, as above | Nothing here invokes it. ADR-0027 and ADR-0049 cite it as the skill whose paths a retirement had to keep resolving | Find archived features in the consuming repo that never reached the NIT tracker |
 

@@ -9,7 +9,7 @@ hand against the decision tree.
 
 For each fixture below:
 
-1. Read the fixture. It contains a sample `code-review` output (a Standards report
+1. Read the fixture. It contains a sample `ki-code-review` output (a Standards report
    and a Spec report) plus, for the circuit-breaker case, the prior verdict
    comments on the issue.
 2. Apply the decision tree in `../REFERENCE.md` to that input.
@@ -25,7 +25,7 @@ a change to `SKILL.md` or `REFERENCE.md`, the change broke the decision tree.
 |-----------------------------------|------------------|--------------------------------------------------------|
 | `pass.md`                         | Pass             | 0 hard violations, 0 missing requirements; nits only   |
 | `rework.md`                       | Rework           | Mechanical, locally-fixable findings with spec citations |
-| `respec.md`                       | Respec           | A Spec finding `code-review` could not cite a spec line for |
+| `respec.md`                       | Respec           | A Spec finding `ki-code-review` could not cite a spec line for |
 | `escalate.md`                     | Escalate         | A finding needing architectural judgement / trade-off  |
 | `circuit-breaker.md`              | Escalate         | Mechanical findings, but N prior Rework verdicts        |
 

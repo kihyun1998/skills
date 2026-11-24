@@ -85,7 +85,7 @@ test('--codex makes no agents folder', (t) => {
 const kiSkills = readdirSync(join(repo, 'ki-skills')).filter((d) => existsSync(join(repo, 'ki-skills', d, 'SKILL.md')));
 
 function assertKiLinked(skillsHome) {
-  assert.equal(kiSkills.length, 14);
+  assert.equal(kiSkills.length, 16);
   for (const name of kiSkills) {
     const link = join(skillsHome, name);
     assert.ok(lstatSafe(link)?.isSymbolicLink(), `${name} is not linked`);

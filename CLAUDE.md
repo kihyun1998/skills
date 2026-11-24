@@ -18,7 +18,7 @@ and `scripts/install-herdr-mods.sh`, and ADR-0101 why they are a kind of their o
 `ki-skills/` holds this repo's own copies of upstream mattpocock/skills skills, one
 folder each, named `ki-<name>`; `scripts/install-skills.sh` links them as it links a
 top-level skill, `ki-skills/UPSTREAM.md` holds the upstream commit and every change
-from it, and ADR-0104 why they sit beside the upstream skills.
+from it, and ADR-0105 why the catalog calls them and no upstream skill is installed.
 `.claude-plugin/marketplace.json` is generated from `mods/` by the install
 script — never edit it by hand. See `README.md` for details.
 
@@ -45,7 +45,7 @@ Issues and PRDs are tracked in this repo's GitHub Issues via the `gh` CLI. See `
 
 Triage uses five canonical roles, and **`docs/agents/triage-labels.md` is the
 only copy of the strings**. Restating them here made this file wrong the day one
-diverged: the maintainer's evaluation act in this repo is `/grilling`, so the
+diverged: the maintainer's evaluation act in this repo is `/ki-grilling`, so the
 `needs-triage` role is labelled `needs-grill`.
 
 ### Skill dependencies

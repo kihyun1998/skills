@@ -6,11 +6,11 @@
 ## Scenario
 
 The AFK agent implemented issue #31 ("Add a `--quiet` flag to the CLI"). The PR
-adds the flag, a test, and a docs line. `code-review` ran from the merge-base.
+adds the flag, a test, and a docs line. `ki-code-review` ran from the merge-base.
 
 Prior `Verdict: Rework` comments on the issue: **0**.
 
-## Sample `code-review` output
+## Sample `ki-code-review` output
 
 ### Standards report
 
@@ -33,7 +33,7 @@ Prior `Verdict: Rework` comments on the issue: **0**.
 
 ## Why this is Pass
 
-Rule 1 (fallback) does not fire — `code-review` output is well-formed. Rule 2
+Rule 1 (fallback) does not fire — `ki-code-review` output is well-formed. Rule 2
 (circuit breaker) does not fire — 0 prior Rework comments. Rule 3 matches: 0
 hard violations and 0 missing requirements. The single judgement-call finding
 is recorded in the verdict comment but does not block. The gate proposes

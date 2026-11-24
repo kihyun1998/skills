@@ -25,7 +25,7 @@ N = 2
 Apply these rules **in order**. The first rule that matches wins. The verdict
 is always exactly one of Pass / Rework / Respec / Escalate.
 
-1. **Fallback first.** `code-review`'s output is missing, or cannot be parsed into a
+1. **Fallback first.** `ki-code-review`'s output is missing, or cannot be parsed into a
    Standards report and a Spec report → **Escalate**. Do not guess.
 
 2. **Circuit breaker.** The issue already carries **≥ N** prior `Verdict: Rework`
@@ -36,7 +36,7 @@ is always exactly one of Pass / Rework / Respec / Escalate.
    judgement-call findings (nits, style) are listed in the verdict comment but
    do **not** block. This is the only verdict that closes the issue.
 
-4. **Respec.** The Spec report has a finding for which `code-review` **could not
+4. **Respec.** The Spec report has a finding for which `ki-code-review` **could not
    cite a spec line** — the issue itself is underspecified. Routing it to the
    AFK agent would only reproduce the same failure, so it goes to `needs-info`
    for spec refinement instead. This rule outranks Rework: if any finding lacks
@@ -91,7 +91,7 @@ machine-findable:
 
 ### Fix notes (Rework only)
 
-<concrete fix notes drawn verbatim from `code-review`'s findings — omit this
+<concrete fix notes drawn verbatim from `ki-code-review`'s findings — omit this
 section for non-Rework verdicts>
 ```
 
@@ -113,10 +113,10 @@ gh api "repos/{owner}/{repo}/issues/<N>/timeline" --paginate \
         and .source.issue.pull_request) | .source.issue.number)'
 
 # From that PR number: its base + head, then the merge-base — the
-# fixed point passed to `code-review`.
+# fixed point passed to `ki-code-review`.
 gh pr view <PR> --json number,headRefName,baseRefName,headRefOid
 git merge-base <baseRef> <headRef>
 ```
 
-The merge-base is the **fixed point** passed to `code-review`. If the timeline
+The merge-base is the **fixed point** passed to `ki-code-review`. If the timeline
 shows no cross-referencing PR, stop — the gate has nothing to judge.
