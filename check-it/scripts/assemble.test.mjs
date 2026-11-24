@@ -170,6 +170,25 @@ test('a value is not expanded again, so an issue text cannot pull in another pla
   assert.equal(fill('{{issue}} {{repo}}', { issue: '{{repo}}', repo: 'R' }, 'f'), '{{repo}} R');
 });
 
+test('with --issue-file the issue text ends the prompt, and the brief says where it is', () => {
+  const brief = { [join(CHECK_IT, 'reviewers/brief.md')]: 'BRIEF {{issue}}\ntext: {{issue_text}}.' };
+  const given = fakeDeps({ tracked: ['a'], files: { ...brief, [resolve('/work/s.issue.md')]: '\uFEFFTHE BODY\r\n\r\nDECISION COMMENT\r\n' } });
+  const out = prompt('bug', given.deps, ['--issue-file', 's.issue.md']);
+  assert.equal(out, `BRIEF owner/repo#7\ntext: at the end of this prompt, as the caller wrote it from the tracker into \`${resolve('/work/s.issue.md')}\`: its body and its decision comments. Read the tracker only for what it links to.\n\nBUG PART\n\n# The issue's text\n\nTHE BODY\n\nDECISION COMMENT\n`);
+  const proving = prompt('proving', fakeDeps({ tracked: ['a'], files: { ...brief, [resolve('/work/s.issue.md')]: 'THE BODY', [resolve('/work/s.bug.md')]: 'BUG FINDINGS' } }).deps, ['--findings', 's.bug.md', '--issue-file', 's.issue.md']);
+  assert.match(proving, /BUG FINDINGS\n\n# The issue's text\n\nTHE BODY\n$/);
+  const without = prompt('bug', fakeDeps({ tracked: ['a'], files: brief }).deps);
+  assert.equal(without, 'BRIEF owner/repo#7\ntext: not given: read the issue from the tracker.\n\nBUG PART\n');
+  throwsCheck(() => prompt('bug', fakeDeps({ tracked: ['a'], files: brief }).deps, ['--issue-file', 'missing.md']), /the issue file .*missing\.md could not be read/);
+  throwsCheck(() => prompt('bug', fakeDeps({ tracked: ['a'], files: { ...brief, [resolve('/work/e.md')]: ' \n' } }).deps, ['--issue-file', 'e.md']), /the issue file .*e\.md is empty/);
+});
+
+test('the issue file is named beside the run sheet, per child in a cluster', () => {
+  const deps = { cwd: resolve('/w') };
+  assert.equal(reportPath('issue', { sheet: 'run.md' }, deps), resolve('/w/run.issue.md'));
+  assert.equal(reportPath('issue', { sheet: 'run.md', child: '#12' }, deps), resolve('/w/run.12.issue.md'));
+});
+
 test('the proving agent gets Whose is it whole and every report it proves', () => {
   const files = { [resolve('/work/s.bug.md')]: 'BUG FINDINGS', [resolve('/work/s.lens.md')]: 'LENS FINDINGS' };
   const { deps } = fakeDeps({ tracked: ['a'], files });

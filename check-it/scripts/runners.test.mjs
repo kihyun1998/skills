@@ -4,12 +4,14 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { CheckItError, OutOfUsage, RunnerFailed, SKILLS, run } from './assemble.mjs';
-import { RUNNERS, locateCodex, readEvents, spawnRunner } from './runners.mjs';
+import { RUNNERS, codexVerdict, hookCommand, locateCodex, readEvents, spawnRunner } from './runners.mjs';
 
 const REPO = resolve('/work/repo');
 const RUN = resolve('/work/run');
 const CHECK_IT = join(SKILLS, 'check-it');
 const REPORT = join(RUN, 'check-it.bug.md');
+const NODE = 'C:/node/node.exe';
+const HOOK = join(CHECK_IT, 'scripts', 'codex-hook.mjs');
 
 const event = (e) => `${JSON.stringify(e)}\n`;
 const completed = (input, cached, output) => event({ type: 'turn.completed', usage: { input_tokens: input, cached_input_tokens: cached, output_tokens: output } });
@@ -44,6 +46,7 @@ function fakeDeps({ located = { command: 'codex', args: [] }, outcome } = {}) {
       throw new Error(`unexpected git ${args.join(' ')}`);
     },
     locate: (runner) => (runner === 'codex' ? located : undefined),
+    node: NODE,
     spawn: (command, args, opts) => {
       spawned.push({ command, args, opts });
       const o = outcome({ args, files });
@@ -74,19 +77,60 @@ const base = ['--issue', 'owner/repo#7', '--run-folder', RUN, '--ledger', '/work
 const runBug = (deps, extra = []) => run(['run', 'bug', '--runner', 'codex', '--model', 'gpt-6.1-sol', ...base, ...extra], deps);
 const throwsCheck = (fn, pattern) => assert.throws(fn, (err) => err instanceof CheckItError && pattern.test(err.message));
 
-test('a Codex review is codex exec held read-only, the prompt check-it prints on stdin, in the repository', () => {
+test('a Codex review is codex exec with read-only files and the network on, no token variables, no sub-agents, under the hook, with the prompt on stdin, in the repository', () => {
   const { deps, spawned } = fakeDeps({ outcome: writes('REPORT', completed(100, 40, 7)) });
   runBug(deps);
   assert.equal(spawned.length, 1);
   const { command, args, opts } = spawned[0];
   assert.equal(command, 'codex');
   assert.deepEqual(args, [
-    'exec', '-s', 'read-only', '-c', 'windows.sandbox="unelevated"', '-c', 'approval_policy="never"',
+    'exec', '-c', 'windows.sandbox="unelevated"',
+    '-c', 'default_permissions="check-it-review"', '-c', 'permissions.check-it-review.extends=":read-only"',
+    '-c', 'permissions.check-it-review.network.enabled=true',
+    '-c', 'shell_environment_policy.inherit="core"', '--disable', 'multi_agent', '--disable', 'apps', '-c', 'approval_policy="never"',
+    '-c', `hooks.PreToolUse=[{matcher="^Bash$",hooks=[{type="command",command=${JSON.stringify(`${NODE} ${HOOK}`)},timeout=30}]}]`,
+    '--dangerously-bypass-hook-trust',
     '--ephemeral', '--ignore-user-config', '-m', 'gpt-6.1-sol', '-C', REPO, '--json', '-o', `${REPORT}.part`,
   ]);
   assert.equal(opts.cwd, REPO);
   assert.equal(opts.timeout, 30 * 60 * 1000);
   assert.equal(opts.input, run(['prompt', 'bug', ...base], deps));
+});
+
+test('the hook command is node and the script unquoted, and none where either path would need quotes', () => {
+  assert.equal(hookCommand('C:\\node\\node.exe', 'D:\\s\\codex-hook.mjs'), 'C:\\node\\node.exe D:\\s\\codex-hook.mjs');
+  for (const node of ['C:\\Program Files\\nodejs\\node.exe', 'C:\\a"b\\node.exe', 'C:\\a;b\\node.exe', 'C:\\a$b\\node.exe']) assert.equal(hookCommand(node, 'D:\\s\\h.mjs'), undefined, node);
+  assert.equal(hookCommand('C:\\node.exe', 'C:\\Users\\A B\\h.mjs'), undefined);
+});
+
+test('a node or skills path that would need quotes falls back before codex starts', () => {
+  const { deps, spawned } = fakeDeps({ outcome: writes('R', completed(1, 0, 1)) });
+  deps.node = 'C:\\Program Files\\nodejs\\node.exe';
+  assert.throws(() => runBug(deps), (err) => err instanceof RunnerFailed && /would need quotes/.test(err.message) && /Claude model/.test(err.message));
+  assert.equal(spawned.length, 0);
+});
+
+const hookInput = (command, toolName = 'Bash') => JSON.stringify({ hook_event_name: 'PreToolUse', tool_name: toolName, tool_input: { command }, cwd: SKILLS });
+
+test('the Codex hook denies by JSON what check-it-reviewer\'s hook refuses, and says nothing to a read', () => {
+  const denied = JSON.parse(codexVerdict(hookInput('codex exec hi'), { platform: 'linux', env: {} }));
+  assert.equal(denied.hookSpecificOutput.hookEventName, 'PreToolUse');
+  assert.equal(denied.hookSpecificOutput.permissionDecision, 'deny');
+  assert.match(denied.hookSpecificOutput.permissionDecisionReason, /^check-it on Codex: a review starts no model run/);
+  assert.equal(codexVerdict(hookInput('git status'), { platform: 'linux', env: {} }), '');
+  assert.equal(JSON.parse(codexVerdict('not json', { platform: 'linux', env: {} })).hookSpecificOutput.permissionDecision, 'deny');
+});
+
+test('on Windows the Codex hook reads the command as PowerShell, which Codex runs it in though it names it Bash', () => {
+  const out = join(tmpdir(), 'check-it-copy');
+  const command = `Set-Location ${out} -ErrorAction Stop; Remove-Item x.txt`;
+  assert.equal(codexVerdict(hookInput(command), { platform: 'win32', env: {} }), '');
+  assert.match(codexVerdict(hookInput(command), { platform: 'linux', env: {} }), /"deny"/);
+});
+
+test('the Codex hook judges the repository Codex runs in, not one an inherited CLAUDE_PROJECT_DIR names', () => {
+  const elsewhere = { CLAUDE_PROJECT_DIR: tmpdir() };
+  assert.match(codexVerdict(hookInput('Remove-Item README.md'), { platform: 'win32', env: elsewhere }), /"deny"/);
 });
 
 test('the located launcher goes first, so a Windows npm install runs through node', () => {
@@ -214,6 +258,7 @@ test('a runner entry carries how it is found, started and read, so another CLI i
   assert.equal(RUNNERS.codex.read, readEvents);
   assert.equal(typeof RUNNERS.codex.args, 'function');
   assert.equal(typeof RUNNERS.codex.outOfUsage, 'function');
+  assert.equal(RUNNERS.codex.hook({ node: 'C:\\n\\node.exe', skills: 'D:\\s' }), `C:\\n\\node.exe ${join('D:\\s', 'check-it', 'scripts', 'codex-hook.mjs')}`);
 });
 
 test('a timed-out run leaves no process behind on Windows, where codex.js starts codex.exe as a child', { skip: process.platform !== 'win32' && 'codex.js execs codex.exe in place elsewhere' }, (t) => {

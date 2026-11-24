@@ -7,7 +7,9 @@ issue, the records, the run folder and the rule to edit nothing.
 ## What you answer
 
 Read the **whole** diff, the issue, and what this repo wrote down: its
-`CLAUDE.md`, decision records and conventions. Answer two questions, reported
+`CLAUDE.md`, decision records and conventions. The issue is the text at the
+end of this prompt where the brief says it is there; judge the spec against
+it, and name a link in it you could not follow as *not read*. Answer two questions, reported
 apart, each with its own worst finding and never merged into one ranking:
 
 - **Rules: does it hold up** against what this repo wrote down: its

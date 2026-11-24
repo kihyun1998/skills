@@ -67,6 +67,7 @@ const realDeps = {
     execPath: process.execPath,
   }),
   spawn: spawnRunner,
+  node: process.execPath,
   now: () => Date.now(),
   moveFile: (from, to) => renameSync(from, to),
   removeFile: (path) => rmSync(path, { force: true }),

@@ -68,8 +68,9 @@ are.
   run sheet the worker's skills are told to keep their files beside, and the
   decision model's answer at the confirm stop and the planned change it reads,
   named by `check-it`'s script against that per-issue run sheet
-  (`….<slug>.pick-confirm.md`, `….<slug>.change.md`). So every one of them is
-  named after the run sheet.
+  (`….<slug>.pick-confirm.md`, `….<slug>.change.md`), and the issue's text
+  this session writes at the confirm stop as `thegraph`'s confirm stop says
+  (`….<slug>.issue.md`). So every one of them is named after the run sheet.
 - **The run's hooks** are the run sheet's path without `.md`, then
   `.stop-hook.json`, written once per run and passed to every worker with
   `--settings`. The `Stop` hook makes each turn a worker ends say so to this
@@ -146,7 +147,8 @@ says, which also says when it runs again. Nothing else about the reviews is
 asked. `check-it`'s table of each review's runner and model goes before the question
 (*Each review's runner and model*), with what that section says about changing a row, a
 runner changed in the same words as a model. The
-pick as the person left it goes into that worker's brief.
+pick as the person left it goes into that worker's brief, and so does the path
+of the issue's text this session writes then (`….<slug>.issue.md`).
 
 Check `confirm` on the sheet with what it changed written under it, the
 permission mode, each issue's reviews as the person left them with what they
@@ -270,6 +272,7 @@ Earlier attempts at this issue: <or "none": what each tried and why it fell shor
 Left in the tree for you: <or "nothing": the files the person handed over>
 Reviews picked at the confirm stop: <each review check-it's decision model picked, the floor included, as the person left it, with its one line of reason; what the person added or removed in words; any review an earlier worker's check-it added on this issue, with its reason; the path of the decision model's answer; its cost line>
 Review runners and models changed at the confirm stop: <each row of check-it's runner and model table the person changed, its runner or its model, or "none">
+Issue file: <its ….<slug>.issue.md>, the issue's body and decision comments; give it to every check-it prompt and run call as --issue-file
 Report file: <its report file>
 This run's run sheet: <its per-issue run sheet path>. It does not exist; the skills
 you call keep their files beside it.

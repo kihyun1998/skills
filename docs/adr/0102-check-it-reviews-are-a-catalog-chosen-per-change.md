@@ -2,7 +2,7 @@
 
 **Status:** accepted. Implements #91; amended for #86, #95, #97, #102, #105,
 #112 and #114, folded for #125 on 2026-11-23 into this one current record, and
-amended since for #140 and #141.
+amended since for #140, #141 and #146.
 The amendment history is in git:
 `git log -p -- docs/adr/0102-check-it-reviews-are-a-catalog-chosen-per-change.md`
 shows the record before the fold.
@@ -62,8 +62,26 @@ was decided, on what, and what would reopen it.
   the proving agent reproduces, reports its tokens and wall time with no
   dollar figure, is stopped after 30 minutes, and falls back unasked to its
   row's Claude model when Codex is out of usage or fails otherwise, the result
-  saying so. Its sandbox, not the agent type's hook, keeps it from starting a
-  model run. Another CLI is one more runner entry.
+  saying so. Another CLI is one more runner entry.
+- **How a Codex review is held** (#146): read-only files in Codex's
+  `unelevated` Windows sandbox, with command network on, so a reviewer reads
+  its tracker with the person's own login; only the core environment, so no
+  token variable reaches a command; and Codex's sub-agent tool and connectors
+  off.
+  `check-it-reviewer`'s decision script runs as a Codex `PreToolUse` hook on
+  every shell command and refuses what it refuses for a Claude review: an AI
+  CLI, a kill by image name, a non-read inside the repository, and any `gh`
+  or `glab` command but a known read, for either runner: an allowlist, as the
+  repository rule is (#143), since a list of writes missed aliases, unlisted
+  verbs and a `-R` between subcommand and verb at the first review. The issue's text also reaches every review through the prompt: the
+  caller writes its body and decision comments to a file at the confirm stop,
+  and `check-it.mjs` puts it at the prompt's end. **Known gap, accepted by the
+  maintainer**: a command or a script that reads a stored credential (`gh auth
+  token` reached through a variable, another interpreter, an encoded command or
+  a script file) and calls a model API, a tracker's write API or any other host
+  itself is held by no check, since the network is open and the hook reads only
+  the command's text. Where the hook command would
+  need quoting, the review falls back to Claude as any Codex failure does.
 - **One report, one question** (#105): after the proving agent, every finding
   goes into one numbered report, and one question offers *fix as pre-ticked*,
   *fix nothing* or *pick by number*; no answer fixes nothing. A refactoring
@@ -130,14 +148,41 @@ maintainer was shown:
   was looked at and not taken. Measured at build (2026-11-24): no console
   window opens from the script's spawn (a visible-window watcher); from inside
   the read-only sandbox, `curl.exe` to `api.openai.com` and `api.anthropic.com`
-  failed on its proxy at `127.0.0.1:9`, while `claude --version` ran; a
+  failed on its proxy at `127.0.0.1:9`, while `claude --version` ran (#146
+  then measured that this held only for programs that honour the proxy); a
   timed-out run leaves no child process behind on Windows. At the check-it
   question the maintainer chose that the proving agent also takes the Codex-run
   spec and rules reviewer's and `comment-it`'s findings, that any Codex failure
   falls back, and the 30-minute limit. Not measured: how
-  a Codex review compares with a Claude review of the same change, and Codex's
-  exit and output when out of usage, read instead from the error text in its
-  binary.
+  a Codex review compares with a Claude review of the same change. Codex out
+  of usage was seen once in #146: the error text the script reads, exit 1.
+- **For the sandbox** (#146, at `/grilling 143, 144, 146` and three questions
+  during the build, 2026-11-24, codex-cli 0.171.0, Windows 11 build 26200).
+  The legacy read-only sandbox (`-s read-only`) sent `glab` to the dead proxy,
+  so the spec reviewer could not read its issue, and a Node script in it
+  reached `api.openai.com` directly (HTTP 401), so turning the network off had
+  never held model runs for a program that ignores the proxy. Tried and left: the MXC
+  sandbox with a tracker-host allowlist blocked the APIs but refused to change
+  directory into the read-only tree, so `git diff` and `git status` failed;
+  the elevated sandbox (one UAC setup) ran git, but its allowlist held nothing
+  (`api.openai.com` answered with `Server: cloudflare`, through the proxy and
+  with `--noproxy`), and with network off it blocked every host but once
+  failed to start on Windows error 1909; tracker CLIs could not log in in
+  either. Shown those, the maintainer chose the network on, read-only files,
+  the tracker-write rule, the issue text and the hook, and accepted the gap
+  above. Measured for the choice: with `inherit="core"`, `gh auth status`
+  (keyring) and `glab auth status` (config file) still log in and `gh issue
+  view 146` reads, the environment drops from 109 variables to 38 with none
+  named for a token or key; in a real `codex exec` with the runner's
+  arguments the hook refused `gh issue comment`, `codex --version` and a
+  write in the repository while `gh issue view` and `git diff` ran. The hook
+  loads from `-c` only with `--dangerously-bypass-hook-trust`, denies only
+  through its JSON answer, and does not run when its command is quoted (Codex
+  runs it through PowerShell, inferred). A hook in the reviewed tree's
+  `.codex` does not load: under `--ignore-user-config` no saved project trust
+  is read, so that layer stays disabled (0.171.0 source), and a run with the
+  runner's arguments in a temporary repository listed as trusted showed it:
+  its `.codex/hooks.json` SessionStart and PreToolUse hooks wrote nothing. Not measured: macOS and Linux.
 - **For the script** (#114): `check-it` had grown to 673 body lines against the
   repository's 500-line guidance, an agent not following the prose had twice
   been answered with more prose (#87, #92), and #87 measured a quarter of

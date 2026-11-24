@@ -32,8 +32,8 @@ export const REVIEWS = {
 
 const CONFIRM_SECTION = 'At the confirm stop';
 
-export const REPORTS = [...Object.keys(REVIEWS), 'verify', 'findings', 'change'];
-const PER_CHILD = new Set(['pick-confirm', 'change']);
+export const REPORTS = [...Object.keys(REVIEWS), 'verify', 'findings', 'change', 'issue'];
+const PER_CHILD = new Set(['pick-confirm', 'change', 'issue']);
 
 const ALLOWED = {
   record: ['repo', 'run-folder', 'from'],
@@ -42,8 +42,8 @@ const ALLOWED = {
   range: ['repo', 'run-folder'],
   name: ['repo', 'sheet', 'run-folder', 'child'],
   verify: ['repo', 'covered', 'run-folder'],
-  prompt: ['repo', 'issue', 'run-folder', 'ledger', 'findings', 'change'],
-  run: ['repo', 'issue', 'run-folder', 'ledger', 'sheet', 'runner', 'model'],
+  prompt: ['repo', 'issue', 'issue-file', 'run-folder', 'ledger', 'findings', 'change'],
+  run: ['repo', 'issue', 'issue-file', 'run-folder', 'ledger', 'sheet', 'runner', 'model'],
 };
 
 const CLAUDE_ONLY = new Set(['proving', 'pick', 'pick-confirm']);
@@ -78,11 +78,12 @@ export const USAGE = `Usage: node check-it.mjs <command> [options]
                                 ${REPORTS.join(', ')}
   verify --covered <file> ... [--run-folder <dir>]
                                 the files the diff touches that a verify skill covers, or none
-  prompt <review> --issue <issue> --run-folder <dir> --ledger <file> [--findings <report> ...] [--change <file>]
-                                the prompt handed to Agent as it is, the change read as range reads it;
+  prompt <review> --issue <issue> [--issue-file <file>] --run-folder <dir> --ledger <file> [--findings <report> ...] [--change <file>]
+                                the prompt handed to Agent as it is, the change read as range reads it,
+                                and the issue's text from --issue-file at its end where given;
                                 <review> is one of
                                 ${Object.keys(REVIEWS).join(', ')}
-  run <review> --runner <runner> --model <model> --issue <issue> --run-folder <dir> --ledger <file> [--sheet <run sheet>]
+  run <review> --runner <runner> --model <model> --issue <issue> [--issue-file <file>] --run-folder <dir> --ledger <file> [--sheet <run sheet>]
                                 runs the review on another CLI from the same prompt, saves its report
                                 where name puts it (beside --sheet where given) and prints its path and
                                 cost line; <runner> is one of ${Object.keys(RUNNERS).join(', ')}, and <review> any but
@@ -482,10 +483,15 @@ export function assemblePrompt(review, opts, deps) {
   const checkIt = join(deps.skills, 'check-it');
   const change = spec.confirm ? 'the planned change, at the end of this prompt' : changeLine(changedFiles(repo, deps, runFolder));
   const skillDir = spec.skill ? join(deps.skills, spec.skill) : undefined;
+  const issueFile = opts['issue-file'] && resolve(deps.cwd, opts['issue-file']);
+  const issueText = issueFile && read(deps, issueFile, `the issue file ${issueFile}`).trim();
   const values = {
     skills: deps.skills,
     repo,
     issue: opts.issue,
+    issue_text: issueFile
+      ? `at the end of this prompt, as the caller wrote it from the tracker into \`${issueFile}\`: its body and its decision comments. Read the tracker only for what it links to`
+      : 'not given: read the issue from the tracker',
     run_folder: runFolder,
     ledger: resolve(deps.cwd, opts.ledger),
     change,
@@ -522,6 +528,7 @@ export function assemblePrompt(review, opts, deps) {
     const p = resolve(deps.cwd, opts.change);
     parts.push(`# The planned change\n\n${read(deps, p, `the planned change ${p}`).trim()}`);
   }
+  if (issueFile) parts.push(`# The issue's text\n\n${issueText}`);
   return `${parts.join('\n\n')}\n`;
 }
 
@@ -546,7 +553,9 @@ export function runReview(review, opts, deps) {
   if (!located) failed(`${opts.runner} is not on PATH, so ${review} did not run on ${runner.name}`);
   deps.removeFile(part);
   const start = deps.now();
-  const r = deps.spawn(located.command, [...located.args, ...runner.args({ model: opts.model, tree: repo, report: part })], { cwd: repo, input: prompt, timeout: runner.timeoutMs });
+  const hook = runner.hook?.({ node: deps.node, skills: deps.skills });
+  if (runner.hook && hook === undefined) failed(`${runner.name} runs its hook command through a shell that a quoted path breaks, and the path of ${deps.node} or of the skills folder ${deps.skills} would need quotes, so ${review} did not run on ${runner.name}`);
+  const r = deps.spawn(located.command, [...located.args, ...runner.args({ model: opts.model, tree: repo, report: part, hook })], { cwd: repo, input: prompt, timeout: runner.timeoutMs });
   const seconds = Math.round((deps.now() - start) / 1000);
   if (r.error?.code === 'ETIMEDOUT') failed(`${runner.name} did not finish ${review} in ${runner.timeoutMs / 60000} min, so it was stopped`);
   if (r.error) failed(`${runner.name} could not be started as ${located.command}: ${r.error.message}`);

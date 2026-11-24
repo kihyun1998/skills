@@ -349,6 +349,13 @@ and model*), as it
 stands, with what that section says about changing a row, a runner changed in
 the same words as a model.
 
+**At the same stop, write the issue's text for `check-it`**: the issue's body
+and its decision comments as the tracker holds them, or an issue file whole,
+at the path `check-it`'s script prints for `name issue --sheet <run sheet>`
+(in a cluster with `--child`), and pass it to every `check-it` `prompt` and
+`run` call as `--issue-file`. Every review then judges against that text, whether or not it
+can reach the tracker (`check-it`'s *Briefing the fresh agents*, #146).
+
 **This is not `ask-it`.** That one comes at the end and asks what to *file*; this
 one asks whether the reading is right, before anything has run.
 

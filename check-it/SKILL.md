@@ -368,12 +368,13 @@ them. That is the point: the hand that shaped the change is the worst judge of i
 is all it gets: the prompt of a newly started agent (not a fork of this
 conversation, which inherits it), started with `Agent` as `check-it-reviewer`
 on its row's model and effort, or, on a Codex row, by the script (*A review on
-Codex*). **No review starts a model run** (#123, #131); a Codex review is held
-to that by its sandbox (*A review on Codex*).
+Codex*). **No review starts a model run** (#123, #131), and none writes to a
+tracker (#146); a Codex review is held to both by the same decision script, as
+its Codex hook (*A review on Codex*).
 That type, [agents/check-it-reviewer.md](agents/check-it-reviewer.md), has no
 `Agent` and no `Skill` tool, and a `PreToolUse` hook on its `Bash` and
 `PowerShell` ([scripts/no-model-run.mjs](scripts/no-model-run.mjs), deciding
-in [scripts/model-run-check.mjs](scripts/model-run-check.mjs)) refuses three
+in [scripts/model-run-check.mjs](scripts/model-run-check.mjs)) refuses four
 kinds of command:
 
 - one that starts an AI CLI: `claude`, `codex`, `agy` or `gemini` (#131,
@@ -393,7 +394,16 @@ kinds of command:
   started as well. A variable the command sets (`export`, `$env:`) is read as
   set, and a path it cannot place (an unset variable, `cd -`, a writer whose
   paths come from `xargs`) is refused. A PowerShell command is read with
-  PowerShell's quoting, where a backslash is a character;
+  PowerShell's quoting, where a backslash is a character. A tracker read
+  (below) is a read here;
+- one that runs `gh` or `glab` for anything but a tracker read, from anywhere
+  (#146). A read is `issue` or `pr`/`mr` with `view`, `list`, `status`,
+  `diff` or `checks` (`-R`/`--repo` and its value skipped wherever they
+  stand), `gh api` or `glab api` whose method is GET, read as gh reads it,
+  the last `-X`/`--method` winning and `-iX` clusters unpacked, with no
+  field or `--input`, and `gh api graphql` with a `query=` field that names
+  no `mutation` or `subscription`. Everything else, an alias and `gh auth
+  token` included, is refused;
 - one that kills processes by image name (#144): `pkill`, `killall`,
   `taskkill` with `/IM` or an `IMAGENAME` filter (`//IM` in Git Bash too),
   `Stop-Process -Name` (and `spps`, `kill -Name`), `Get-Process` by name piped
@@ -422,7 +432,7 @@ default agent.
 skill's folder:
 
 ```
-node <check-it>/scripts/check-it.mjs prompt <review> --issue <issue> --run-folder <run folder> --ledger <ledger>
+node <check-it>/scripts/check-it.mjs prompt <review> --issue <issue> [--issue-file <issue file>] --run-folder <run folder> --ledger <ledger>
 ```
 
 - `<review>` is one of the names the script's usage lists (run it with no
@@ -431,6 +441,14 @@ node <check-it>/scripts/check-it.mjs prompt <review> --issue <issue> --run-folde
 - `proving` adds `--findings <report>` for each saved report of 4, 6, 7 and 8
   that ran, and of 5 and 9 where they ran on Codex; `pick-confirm` adds `--change <file>`, the issue and the two
   statements.
+- `<issue file>` is the issue's body and its decision comments as the caller
+  read them from the tracker, written to the path `name issue --sheet <run
+  sheet>` prints (`thegraph` writes it at its confirm stop, with `--child` in
+  a cluster). The script puts it at the end of every review's prompt, Claude's
+  and Codex's, and the brief says it is there, so every review judges
+  against the text the caller confirmed, whether or not it can reach the
+  tracker (#146). Pass it wherever it exists; without it the brief tells the
+  review to read the tracker.
 - `<issue>` is the issue's reference, or the request where there is none; the
   run folder and the ledger are [`clean-it`'s](../clean-it/RULES.md), the run
   folder made before the first call (a direct `/check-it` makes its own).

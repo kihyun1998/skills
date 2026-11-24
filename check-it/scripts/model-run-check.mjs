@@ -73,6 +73,21 @@ const PS_OTHER_VALUE_PARAMS = /^-(erroraction|ea|value|encoding|itemtype|type|na
 const SINKS = new Set(['/dev/null', 'nul', '$null', 'nul:']);
 
 const KILL_NAMES = new Set(['pkill', 'killall']);
+
+const TRACKERS = new Set(['gh', 'glab']);
+const TRACKER_READS = new Map([
+  ['gh', new Map([
+    ['issue', new Set(['view', 'list', 'status'])],
+    ['pr', new Set(['view', 'list', 'status', 'diff', 'checks'])],
+  ])],
+  ['glab', new Map([
+    ['issue', new Set(['view', 'list', 'status'])],
+    ['mr', new Set(['view', 'list', 'diff', 'checks'])],
+  ])],
+]);
+const TRACKER_VALUE_FLAGS = new Set(['-R', '--repo', '--hostname']);
+const API_LONG_VALUE_FLAGS = new Set(['--header', '--jq', '--template', '--hostname', '--preview', '--cache']);
+const API_SHORT_VALUE_FLAGS = 'XfFHqtp';
 const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
 
 const name = (word) => word.split(/[\\/]/).pop().toLowerCase().replace(/\.(exe|cmd|bat|ps1)$/, '');
@@ -201,6 +216,58 @@ function listsByName(cmd) {
 }
 
 const STOPPERS = new Set(['stop-process', 'spps', 'kill']);
+
+function apiRead(args) {
+  let method = null;
+  let input = false;
+  let endpoint = null;
+  const fields = [];
+  const take = (flag, value) => {
+    if (flag === 'X') method = value;
+    else if (flag === 'f' || flag === 'F') fields.push(value ?? '');
+  };
+  for (let k = 0; k < args.length; k++) {
+    const a = args[k];
+    const long = /^(--[a-z-]+)(?:=(.*))?$/.exec(a);
+    if (long) {
+      const [, flag, inline] = long;
+      const value = () => (inline !== undefined ? inline : args[++k]);
+      if (flag === '--method') method = value();
+      else if (flag === '--field' || flag === '--raw-field') fields.push(value() ?? '');
+      else if (flag === '--input') {
+        input = true;
+        value();
+      } else if (API_LONG_VALUE_FLAGS.has(flag)) value();
+    } else if (/^-[A-Za-z]/.test(a)) {
+      for (let j = 1; j < a.length; j++) {
+        if (API_SHORT_VALUE_FLAGS.includes(a[j])) {
+          take(a[j], a.slice(j + 1) || args[++k]);
+          break;
+        }
+      }
+    } else if (endpoint === null) endpoint = a;
+  }
+  if (input) return false;
+  if (endpoint === 'graphql') {
+    const query = fields.find((f) => f.startsWith('query='));
+    return query !== undefined && !query.startsWith('query=@') && !fields.some((f) => /\b(mutation|subscription)\b/i.test(f));
+  }
+  return fields.length === 0 && (method === null || method.toUpperCase() === 'GET');
+}
+
+function trackerCall(cmd) {
+  const n = name(cmd[0] ?? '');
+  if (!TRACKERS.has(n)) return null;
+  const args = cmd.slice(1);
+  const words = [];
+  for (let k = 0; k < args.length; k++) {
+    if (TRACKER_VALUE_FLAGS.has(args[k])) k++;
+    else if (!args[k].startsWith('-')) words.push(args[k]);
+  }
+  const [sub, verb] = words;
+  const read = sub === 'api' ? apiRead(args.slice(args.indexOf('api') + 1)) : TRACKER_READS.get(n).get(sub)?.has(verb) ?? false;
+  return { read, what: [n, sub, sub === 'api' ? undefined : verb].filter(Boolean).join(' ') };
+}
 
 function shellBody(words, i) {
   const k = words.findIndex((x, j) => j > i && (/^-[a-z]{0,3}c[a-z]{0,3}$/.test(x) || /^(\/c|-command|-c)$/i.test(x)));
@@ -449,6 +516,8 @@ function inspectWords(all, state, ctx, depth) {
     const cli = words.find(isAi) ?? 'an AI CLI';
     return refusal('model', name(cli));
   }
+  const tracker = trackerCall(cmd);
+  if (ctx.rules.has('tracker') && tracker && !tracker.read) return refusal('tracker', tracker.what);
   if (ctx.rules.has('kill')) {
     const k = killByName(cmd) ?? (state.pipedFromNamed && STOPPERS.has(name(cmd[0] ?? '')) ? 'Get-Process by name piped to Stop-Process' : null);
     if (k) return refusal('kill', k);
@@ -520,6 +589,7 @@ function inspectWords(all, state, ctx, depth) {
 
   if (!cwdInside(ctx, state.cwd)) return null;
   if (readerCheck(n, args)) return null;
+  if (tracker?.read) return null;
   return refusal('repo-run', cmd.join(' '));
 }
 
@@ -617,7 +687,7 @@ function protectedRoots(rootDir, fs, drives) {
   return [...new Set(roots)];
 }
 
-export const ALL_RULES = ['repo', 'model', 'kill'];
+export const ALL_RULES = ['repo', 'model', 'kill', 'tracker'];
 
 function message(who, found, root) {
   const by = who + ': ';
@@ -629,6 +699,9 @@ function message(who, found, root) {
     case 'kill':
       return by + 'this command kills processes by image name (' + found.detail + "), and a process found by name may be the person's, so it is refused (#144). " +
         "Kill only a process whose command line holds the run folder's path, by its id, as clean-it/RULES.md Processes says.";
+    case 'tracker':
+      return by + '\x60' + found.detail + '\x60 is not a tracker read, and a review only reads a tracker, so it is refused (#146). ' +
+        'Read with view, list, status, diff or checks, gh api or glab api with GET and no fields, or a GraphQL query, and write in your report what the command would have done.';
     case 'repo-run':
       return by + '\x60' + found.detail + '\x60 would run inside the reviewed repository (' + root + '), where only read commands run, so it is refused (#143). ' +
         'Run it in your copy, in your own folder in the run folder, with cd to the copy in the same command.';

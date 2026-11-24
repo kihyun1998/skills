@@ -363,3 +363,110 @@ test('input it cannot read is refused, never let through', () => {
   assert.equal(decide(JSON.stringify({ tool_input: { command: 'ls' } })).code, 2);
   assert.equal(decide(JSON.stringify({ cwd: REPO, tool_input: { command: 'ls' } }), { env, fs }).code, 0);
 });
+
+const TRACKER_WRITES = [
+  'gh issue comment 1 --body x',
+  'gh pr comment 2 -b x',
+  'gh issue create -t a -b b',
+  'gh issue edit 3 --add-label bug',
+  'gh issue close 3',
+  'gh issue reopen 3',
+  'gh pr review 4 --approve',
+  'gh pr merge 4',
+  'gh label create bug',
+  'gh api -X POST repos/o/r/issues/1/comments -f body=x',
+  'gh api --method=PATCH repos/o/r/issues/1',
+  'gh api --method put repos/o/r/issues/1/lock',
+  'gh api -XDELETE repos/o/r/labels/x',
+  'gh api repos/o/r/issues/1/comments -f body=x',
+  'gh api repos/o/r/issues/1/comments -F body=@f.md',
+  'gh api repos/o/r/issues/1/comments --raw-field body=x',
+  'gh api repos/o/r/issues/1/comments --field=body=x',
+  'gh api --input body.json repos/o/r/issues',
+  'glab issue note 1 -m x',
+  'glab mr note 2 -m x',
+  'glab issue create -t a',
+  'glab issue update 1 --label x',
+  'glab mr close 2',
+  'glab mr approve 2',
+  'glab api -X POST projects/1/issues',
+  'glab api --method PUT projects/1',
+  'glab api projects/1/issues -f title=x',
+  '"C:/Program Files/GitHub CLI/gh.exe" issue comment 1 -b x',
+  'bash -c "gh issue comment 1 -b x"',
+  'env GH_TOKEN=x gh issue close 1',
+  'git status && gh issue comment 1 -b x',
+  'gh api -X GET repos/o/r/issues/146/comments -f body=x --method POST',
+  'gh api -iXDELETE repos/o/r/labels/x',
+  'gh api -iX DELETE repos/o/r/labels/x',
+  'gh api -X GET repos/o/r/labels/x --method DELETE',
+  'gh api --method GET repos/o/r/labels/x -X DELETE',
+  'gh api -X GET search/issues -f q=x',
+  'glab api -X GET projects/1/issues/2/notes -f body=x --method POST',
+  'gh issue -R o/r comment 1 -b x',
+  'gh -R o/r issue comment 1 -b x',
+  'gh pr --repo o/r merge 2',
+  'gh pr --repo=o/r merge 2',
+  'glab -R g/p mr approve 2',
+  'glab issue comment 779 -m x',
+  'glab issue new -t a',
+  'glab mr accept 3',
+  'gh issue new -t a',
+  'gh pr revert 4',
+  'gh repo delete o/r --yes',
+  'gh workflow run x',
+  'gh release create v1',
+  'gh secret set X -b y',
+  'gh auth token',
+  'gh',
+  'gh api graphql -f query="mutation { addComment(input: {}) { clientMutationId } }"',
+  "gh api graphql -f query='mutation{deleteIssue(input:{issueId:1}){clientMutationId}}'",
+  'gh api graphql --input q.json',
+  'gh api graphql -f query=@q.graphql',
+];
+
+test('a tracker command that is not a known read is refused, in the repository, in a copy and anywhere else', () => {
+  for (const c of TRACKER_WRITES) {
+    for (const cwd of [REPO, COPY, 'C:/Users/me']) {
+      const r = run(c, cwd);
+      assert.equal(r.code, 2, `${c} in ${cwd}`);
+      assert.match(r.message, /not a tracker read/, c);
+      assert.match(r.message, /#146/, c);
+    }
+  }
+  const p = ps('Set-Location C:\\ -ErrorAction Stop; gh issue comment 1 --body x');
+  assert.equal(p.code, 2);
+  assert.match(p.message, /not a tracker read/);
+});
+
+test('a tracker read runs, in the repository too', () => {
+  for (const c of [
+    'gh issue view 146 --comments',
+    'gh pr view 2',
+    'gh pr diff 2',
+    'gh issue list --state open',
+    'gh api repos/o/r/issues/1',
+    'gh api repos/o/r/issues/1/comments --paginate',
+    'gh api --method GET repos/o/r',
+    'gh issue view 146 -R o/r --comments',
+    'gh issue -R o/r view 146',
+    'gh pr checks 4',
+    'gh pr status',
+    'gh api graphql -f query="query { viewer { login } }"',
+    "gh api graphql -f query='{ repository(owner:\"o\", name:\"r\") { issue(number:1) { title } } }'",
+    'gh api graphql -F owner=o -f query="query($owner:String!){ repositoryOwner(login:$owner){ login } }"',
+    'glab issue view 779',
+    'glab mr view 3',
+    'glab api projects/1/issues',
+    'glab api -X GET projects/1',
+    'glab issue list -R g/p',
+    'glab mr diff 3',
+  ]) {
+    assert.deepEqual(run(c, REPO), { code: 0 }, c);
+    assert.deepEqual(run(c, COPY), { code: 0 }, c);
+  }
+});
+
+test('the tracker rule is check-it-reviewer\'s, not a worker\'s', () => {
+  assert.deepEqual(run('gh issue comment 1 -b x', 'C:/Users/me', { rules: ['kill'] }), { code: 0 });
+});

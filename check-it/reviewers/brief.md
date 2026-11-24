@@ -10,10 +10,12 @@ prompt is all you get.
 - **Edit nothing.** Write no file outside the OS temp folder, and run nothing
   that acts outside your copy: no write to a tracker or a remote, nothing sent
   to another terminal or a process you did not start. Such a command is read
-  and reported as traced. Under `check-it-reviewer` a hook holds part of this:
-  inside the repository it refuses any command but a read, it refuses a write
-  into the repository from anywhere (#143), and it refuses a kill by image
-  name, which may hit the person's processes (#144).
+  and reported as traced. Under `check-it-reviewer`, and in a review on Codex,
+  a hook holds part of this: inside the repository it refuses any command but
+  a read, it refuses a write into the repository from anywhere (#143), it
+  refuses a kill by image name, which may hit the person's processes (#144),
+  and it refuses any `gh` or `glab` command but a tracker read from anywhere
+  (#146).
 - **A probe that can only run inside the tree runs in a copy** made in your own
   folder in the run folder from the files git lists (`git ls-files -co
   --exclude-standard`: tracked and untracked, not ignored), so the tree's build
@@ -40,6 +42,7 @@ prompt is all you get.
 
 - The repository: `{{repo}}`
 - The issue: {{issue}}
+- The issue's text: {{issue_text}}.
 - The repository's records: its `CLAUDE.md`, its decision records and the
   conventions it writes down.
 - The run folder: `{{run_folder}}`
