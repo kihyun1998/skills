@@ -21,7 +21,9 @@ Each finding is graded **violation** (cite the rule), **judgement**, or **alread
 decided** (a record settled it; one line), and carries its reproduction: the
 exact command, the output it printed, and the output the intent requires. A
 finding a run could show and nobody ran is left out; one no run here can show,
-such as a naming rule, is kept and marked *not run*, with why. The report ends with
+such as a naming rule, is kept and marked *not run*, with why. One that needs
+a run in a copy you cannot make, because your run is read-only, is kept and
+marked *unproven*, with the run that would show it: the proving agent runs it. The report ends with
 `lens`'s safety line (`{{skills}}/lens/SKILL.md`, *Verification*, item 6), for
 the fact the change's safety rests on. A clean answer is a result.
 

@@ -139,14 +139,15 @@ statements, with the prompt `check-it`'s script prints (`pick-confirm` in its
 *Briefing the fresh agents*), wait for its answer, and put its pick, the floor added, as one line
 in that issue's question that carries ②, as `check-it`'s *Choosing the reviews*
 says, which also says when it runs again. Nothing else about the reviews is
-asked. `check-it`'s table of each review's model goes before the question
-(*Each review's model*), with what that section says about changing a row. The
+asked. `check-it`'s table of each review's runner and model goes before the question
+(*Each review's runner and model*), with what that section says about changing a row, a
+runner changed in the same words as a model. The
 pick as the person left it goes into that worker's brief.
 
 Check `confirm` on the sheet with what it changed written under it, the
 permission mode, each issue's reviews as the person left them with what they
-changed in words and the decision model's cost line, and any review model
-changed included.
+changed in words and the decision model's cost line, and any review runner or
+model changed included.
 
 ### 3. Follow the route
 
@@ -264,7 +265,7 @@ Corrections received so far in this run, which hold for this work too: <each wit
 Earlier attempts at this issue: <or "none": what each tried and why it fell short>
 Left in the tree for you: <or "nothing": the files the person handed over>
 Reviews picked at the confirm stop: <each review check-it's decision model picked, the floor included, as the person left it, with its one line of reason; what the person added or removed in words; any review an earlier worker's check-it added on this issue, with its reason; the path of the decision model's answer; its cost line>
-Review models changed at the confirm stop: <each row of check-it's model table the person changed, or "none">
+Review runners and models changed at the confirm stop: <each row of check-it's runner and model table the person changed, its runner or its model, or "none">
 Report file: <its report file>
 This run's run sheet: <its per-issue run sheet path>. It does not exist; the skills
 you call keep their files beside it.

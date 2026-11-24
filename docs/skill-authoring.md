@@ -138,7 +138,8 @@ done
 ```
 
 It counts the body below the frontmatter, under GNU and BSD `awk` alike. On
-2026-11-23 it printed nothing: #132 moved *Proving it works* and *Cost (10) and
+2026-11-24 it printed `572  check-it/SKILL.md`, after #141 added the Codex
+runner to it. On 2026-11-23 it had printed nothing: #132 moved *Proving it works* and *Cost (10) and
 comments (9)* from `check-it/SKILL.md` (553 before) into `check-it/code.md`, as
 #117 had brought `grill-the-graph/SKILL.md` from 533 to 419 by moving what only
 some runs read into sibling files. Two earlier ones are records. `thegraph/SKILL.md` was cut by #40

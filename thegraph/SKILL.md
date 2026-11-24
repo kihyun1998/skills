@@ -344,8 +344,10 @@ in a cluster with `--child`), wait for its answer, and put its pick, the floor
 added, as one line in the question that carries ②, as `check-it`'s *Choosing
 the reviews* says, which also says when it runs again. Nothing else about the
 reviews is asked, and there is no call of its own. **Before the question goes
-`check-it`'s table of each review's model** (*Each review's model*), as it
-stands, with what that section says about changing a row.
+`check-it`'s table of each review's runner and model** (*Each review's runner
+and model*), as it
+stands, with what that section says about changing a row, a runner changed in
+the same words as a model.
 
 **This is not `ask-it`.** That one comes at the end and asks what to *file*; this
 one asks whether the reading is right, before anything has run.
@@ -359,7 +361,7 @@ to be a typo ends here, said out loud. That is a result, not a skipped step.
 The answer is checked off on the run sheet as `confirm`, with what it changed
 written under it for the next step: the reviews that will run as the person
 left them, what the person added or removed in words, the decision model's cost
-line, and any review model the person changed. In a cluster, where the step list
+line, and any review runner or model the person changed. In a cluster, where the step list
 is rewritten for each child, the pick is each child's, kept in a `## Reviews`
 section without checkboxes, one line per child (`- #38 — reviewer, bug
 reviewer, security reviewer, proving agent; removed by the person: lens; reviewer: opus,

@@ -4,8 +4,9 @@ Read when `check-it` runs its proving agent. This is its own part of the brief;
 `reviewers/brief.md`, before it, adds the diff, the issue, the records, the run
 folder and the rule to edit nothing. After it come *Whose is it*, whole, and
 every finding of the refactoring reviewer (4), the bug reviewer (6), the
-security reviewer (7) and `lens` (8), as each report gave it, with its grade or
-severity.
+security reviewer (7) and `lens` (8), and of the spec and rules reviewer (5) and
+`comment-it` (9) where they ran on Codex, read-only, as each report gave it,
+with its grade or severity.
 
 ## What you do
 

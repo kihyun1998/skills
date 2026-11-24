@@ -1,7 +1,16 @@
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { RUNNERS } from './runners.mjs';
 
 export class CheckItError extends Error {}
+
+export class RunnerFailed extends CheckItError {
+  exitCode = 4;
+}
+
+export class OutOfUsage extends RunnerFailed {
+  exitCode = 3;
+}
 
 const fail = (message) => {
   throw new CheckItError(message);
@@ -34,7 +43,10 @@ const ALLOWED = {
   name: ['repo', 'sheet', 'run-folder', 'child'],
   verify: ['repo', 'covered', 'run-folder'],
   prompt: ['repo', 'issue', 'run-folder', 'ledger', 'findings', 'change'],
+  run: ['repo', 'issue', 'run-folder', 'ledger', 'sheet', 'runner', 'model'],
 };
+
+const CLAUDE_ONLY = new Set(['proving', 'pick', 'pick-confirm']);
 
 export const RECORD = 'check-it.untracked.json';
 export const CLAIMS = 'check-it.claimed.json';
@@ -70,6 +82,12 @@ export const USAGE = `Usage: node check-it.mjs <command> [options]
                                 the prompt handed to Agent as it is, the change read as range reads it;
                                 <review> is one of
                                 ${Object.keys(REVIEWS).join(', ')}
+  run <review> --runner <runner> --model <model> --issue <issue> --run-folder <dir> --ledger <file> [--sheet <run sheet>]
+                                runs the review on another CLI from the same prompt, saves its report
+                                where name puts it (beside --sheet where given) and prints its path and
+                                cost line; <runner> is one of ${Object.keys(RUNNERS).join(', ')}, and <review> any but
+                                ${[...CLAUDE_ONLY].join(', ')}. Exit 3: the runner is out of usage; exit 4:
+                                it failed otherwise; either way the review runs again on its Claude model
 
   --repo <dir>                  the repository (default: the one the current folder is in)
 `;
@@ -507,6 +525,49 @@ export function assemblePrompt(review, opts, deps) {
   return `${parts.join('\n\n')}\n`;
 }
 
+const count = (n) => n.toLocaleString('en-US');
+
+export function runReview(review, opts, deps) {
+  if (CLAUDE_ONLY.has(review)) fail(`${review} runs only on Claude, with Agent: it reproduces findings or picks reviews, which a read-only run on another CLI cannot`);
+  if (!opts.runner) fail(`run ${review ?? ''} needs --runner <runner>, one of ${Object.keys(RUNNERS).join(', ')}`);
+  const runner = RUNNERS[opts.runner];
+  if (!runner) fail(`no runner named ${opts.runner}; one of ${Object.keys(RUNNERS).join(', ')}`);
+  if (!opts.model) fail(`run ${review ?? ''} needs --model <model>, the runner's model from check-it's table`);
+  const prompt = assemblePrompt(review, opts, deps);
+  const repo = repoRoot(opts, deps);
+  const report = reportPath(review, opts.sheet ? { sheet: opts.sheet } : { 'run-folder': opts['run-folder'] }, deps);
+  const part = `${report}.part`;
+  const fallBack = `Run ${review} again with Agent as check-it-reviewer on its Claude model in check-it's table, and say in the result that it fell back`;
+  const failed = (why) => {
+    deps.removeFile(part);
+    throw new RunnerFailed(`${why}. ${fallBack}`);
+  };
+  const located = deps.locate(opts.runner);
+  if (!located) failed(`${opts.runner} is not on PATH, so ${review} did not run on ${runner.name}`);
+  deps.removeFile(part);
+  const start = deps.now();
+  const r = deps.spawn(located.command, [...located.args, ...runner.args({ model: opts.model, tree: repo, report: part })], { cwd: repo, input: prompt, timeout: runner.timeoutMs });
+  const seconds = Math.round((deps.now() - start) / 1000);
+  if (r.error?.code === 'ETIMEDOUT') failed(`${runner.name} did not finish ${review} in ${runner.timeoutMs / 60000} min, so it was stopped`);
+  if (r.error) failed(`${runner.name} could not be started as ${located.command}: ${r.error.message}`);
+  const { usage, errors } = runner.read(r.stdout ?? '');
+  const text = deps.isFile(part) ? deps.readFile(part) : '';
+  if (r.status !== 0 || text.trim() === '') {
+    const said = [...errors, (r.stderr ?? '').trim()].filter((s) => s !== '');
+    const spent = said.find((s) => runner.outOfUsage(s));
+    if (spent !== undefined) {
+      deps.removeFile(part);
+      throw new OutOfUsage(`${runner.name} is out of usage: ${spent}. ${fallBack}`);
+    }
+    const last = errors.at(-1) ?? (r.stderr ?? '').trim().slice(-2000);
+    if (r.status !== 0) failed(`${runner.name} failed on ${review}, exit ${r.status}: ${last || 'it said nothing'}`);
+    failed(`${runner.name} exited 0 on ${review} but wrote no report at ${part}`);
+  }
+  if (!usage) failed(`${runner.name} printed no turn.completed event on ${review}, so its cost is unknown and the run did not finish`);
+  deps.moveFile(part, report);
+  return `report: ${report}\ncost: ${review} on ${runner.name} ${opts.model}: ${seconds} s, ${count(usage.input)} input tokens (${count(usage.cached)} cached), ${count(usage.output)} output tokens\n`;
+}
+
 export function run(argv, deps) {
   const { command, args, opts } = parseArgs(argv);
   for (const key of Object.keys(opts)) {
@@ -547,6 +608,10 @@ export function run(argv, deps) {
     case 'prompt': {
       extra(1);
       return assemblePrompt(args[0], opts, deps);
+    }
+    case 'run': {
+      extra(1);
+      return runReview(args[0], opts, deps);
     }
     case undefined:
       fail(`no command given\n\n${USAGE}`);

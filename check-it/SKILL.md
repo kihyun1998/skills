@@ -27,12 +27,12 @@ person picks which findings are fixed (*One report, one question*).
 | 8 | What did it leave out or do differently from its siblings and the prior art | `lens`, a fresh agent given its skill's body | picked | picked |
 | 9 | Do the new comments and lint suppressions keep the repository's comment rule | `comment-it`, a fresh agent given its skill's body | picked | picked |
 | 10 | Will it get slower | `benchmark.md`, when it applies | the change adds state, loops, or I/O | — |
-| 11 | Which findings of 4, 6, 7 and 8 hold | the proving agent, a fresh agent | whenever 4, 6, 7 or 8 runs | the same |
+| 11 | Which findings of 4, 6, 7 and 8 hold, and of 5 and 9 where they ran on Codex | the proving agent, a fresh agent | whenever 4, 6, 7 or 8 runs, or 5 or 9 on Codex | the same |
 | 12 | Which surfaces now describe it wrongly | `sweep` | always | always |
 
 Rows 4 to 9 and 11 are the reviews, and none of them is asked per change
-(*Choosing the reviews*). *Always* and *whenever 4, 6, 7 or 8 runs* are the
-floor; *picked* means it runs where the decision model picked it, or a person
+(*Choosing the reviews*). *Always* and *whenever 4, 6, 7 or 8 runs, or 5 or 9
+on Codex* are the floor; *picked* means it runs where the decision model picked it, or a person
 added it in words. `sweep` (12) is not a review, since the surfaces a change
 leaves wrong are kept in line through it (ADR-0055), and the verify check is not
 one either, since it is part of (1). A review the person removed in words is
@@ -50,8 +50,9 @@ picks are fixed, and `sweep` (12) runs on the change as it then stands.
 
 **What each review cost goes in the result**, one line per review that ran,
 and one per call of the decision model: its wall-clock time and its tokens.
-Every review and every pick is an `Agent` call, whose completion reports
-`subagent_tokens` and `duration_ms`. A person weighs the pick against these
+A review on Claude and every pick is an `Agent` call, whose completion reports
+`subagent_tokens` and `duration_ms`; a review on Codex has the cost line its
+script prints (*A review on Codex*). A person weighs the pick against these
 numbers, so a line left out is a call whose cost nobody can weigh.
 
 **A prose change has no gates to run and no round trip to prove**: it runs 2
@@ -115,7 +116,8 @@ a `pick:` list with one line of reason for each review, picked or not.
 
 **The floor is added after the pick, whatever the pick says**: the spec and
 rules reviewer (5) always runs, and the proving agent (11) runs whenever the
-refactoring, bug, security or `lens` reviewer runs. Only the person removes a
+refactoring, bug, security or `lens` reviewer runs, or the spec and rules
+reviewer or `comment-it` runs on Codex (#141). Only the person removes a
 floor review, in words at the confirm stop, and this skill's start does not add
 it back. **The answer is read for gaps**: a question left unanswered, or answered
 no with neither a line nor a search grounding it, is read as yes, and the review it points to is added with that as its reason; a
@@ -132,46 +134,112 @@ the bug reviewer, `lens`, the proving agent (the decision model; answers in
 `….pick-confirm.md`); say which to add or remove*. **How the person's words
 read**: a review they name to add runs, one they name to remove is removed by
 the person, the floor's included, and words that name no review leave the pick
-as it is. A removed proving agent leaves the findings of 4 and 6 to 8
-unreproduced: each goes into the report as *unproven* with what would show it,
+as it is. A removed proving agent leaves the findings of 4 and 6 to 8, and of
+5 and 9 run on Codex, unreproduced: each goes into the report as *unproven* with what would show it,
 and none is pre-ticked.
 
-### Each review's model
+### Each review's runner and model
 
-**Each review runs on a model fixed for its role, whatever model the session
-calling this runs on** (ADR-0102, amended for #86): a session on a smaller model
-would otherwise hand its reviews that model too.
+**Each review runs on a runner and a model fixed for its role, whatever model
+the session calling this runs on** (ADR-0102, amended for #86 and #141): a
+session on a smaller model would otherwise hand its reviews that model too.
+The runner is the CLI the review runs in: Claude, through `Agent`, or Codex,
+through this skill's script.
 
-| Review | Model, effort |
-|---|---|
-| the refactoring reviewer (4) | Opus 5.5, `medium` |
-| the spec and rules reviewer (5) | Opus 5.5, `high` |
-| the bug reviewer (6) | Opus 5.5, `high` |
-| the security reviewer (7) | Opus 5.5, `high` |
-| `lens` (8) | Opus 5.5, `high` |
-| `comment-it` (9) | Sonnet 5.5, `medium` |
-| the proving agent (11) | Opus 5.5, `medium` |
-| the decision model (*Choosing the reviews*) | Haiku 5.5, `medium` |
+| Review | Runner, model | Claude model, effort |
+|---|---|---|
+| the refactoring reviewer (4) | Claude | Opus 5.5, `medium` |
+| the spec and rules reviewer (5) | Codex, `gpt-6.1-sol` | Opus 5.5, `high` |
+| the bug reviewer (6) | Codex, `gpt-6.1-sol` | Opus 5.5, `high` |
+| the security reviewer (7) | Claude | Opus 5.5, `high` |
+| `lens` (8) | Claude | Opus 5.5, `high` |
+| `comment-it` (9) | Codex, `gpt-6-luna` | Sonnet 5.5, `medium` |
+| the proving agent (11) | Claude | Opus 5.5, `medium` |
+| the decision model (*Choosing the reviews*) | Claude | Haiku 5.5, `medium` |
 
-**Every row is set on its `Agent` call**, as `model` and `effort`: `model:
+**A Claude row is set on its `Agent` call**, as `model` and `effort`: `model:
 "opus"`, `model: "sonnet"` or `model: "haiku"`, and the effort as the row says. `lens`'s and
 `comment-it`'s frontmatter also names a model, for a caller that runs them with
-`Skill`; here the `Agent` call sets it. The verify check has no row: it is part
+`Skill`; here the `Agent` call sets it. **A Codex row's Claude model is the one
+its review falls back to** (*A review on Codex*). The proving agent and the
+decision model run only on Claude: one reproduces in a copy, which a read-only
+run cannot make, and the other picks reviews, not models (#141). The verify check has no row: it is part
 of (1), runs the project's own command in this session, and its reading follows
 that project's skill.
 
 `thegraph` and `thegraph-herdr` show this table at their confirm stop, before
 the reading question that carries the pick. A direct `/check-it` shows it with
 the pick, as lines before its reviews start, asking nothing, and again in its
-result. **A row changes only where the person asks**: at a confirm stop in
+result. **A row changes only where the person asks**, its runner as its model:
+at a confirm stop in
 the same words that change the pick, and in a direct run where the request that
 started it says so. The changed row reaches this step the way the pick does. A
 changed row takes effect for that run, except
 that an `Agent` call takes only a model alias (`sonnet`, `opus`, `haiku`,
-`fable`), so a model with none cannot go on a row, and a session on another
-Opus version runs the Opus rows on its own version. The confirm stop says so
+`fable`), so a Claude model with none cannot go on a row, and a session on another
+Opus version runs the Opus rows on its own version. A Codex model is any name
+`codex exec -m` takes. The confirm stop says so
 when it shows the table, and a change asked anyway that cannot apply is
 reported as not applied, with the reason.
+
+### A review on Codex
+
+**A review whose row's runner is Codex runs from the same prompt** a Claude
+reviewer gets, through the script, which prints the report's path and its cost
+line, and is awaited like any check:
+
+```
+node <check-it>/scripts/check-it.mjs run <review> --runner codex --model <model> --issue <issue> --run-folder <run folder> --ledger <ledger> [--sheet <run sheet>]
+```
+
+- **It is held read-only.** The exact `codex exec` call is `RUNNERS.codex` in
+  [scripts/runners.mjs](scripts/runners.mjs): the read-only sandbox, approvals
+  never asked, nothing kept after the run, the repository as its root, the
+  events as JSONL, and the prompt on stdin. Codex writes the report through
+  `-o`, so the model writes nothing. `--ignore-user-config` leaves out
+  `config.toml`'s MCP servers, which run outside the sandbox, and drops its
+  `[windows] sandbox` too, so the script sets it again (the #141 trial: without
+  it every command was refused).
+- **It reaches no network, and so starts no model run.** The sandbox sends
+  outbound connections through a proxy at `127.0.0.1:9`, where nothing listens:
+  measured on 2026-11-24 (#141), `curl.exe -I` to `api.openai.com` and
+  `api.anthropic.com` from inside it printed *Failed to connect to 127.0.0.1
+  port 9*, while `claude --version` ran (2.1.331). A program that ignores the
+  proxy variables was not tried. The `check-it-reviewer` type and its hook do
+  not apply to a Codex review.
+- **It is a static review.** It cannot make the copy the brief offers for a
+  probe, so every finding of a review run on Codex goes to the proving agent
+  (11), the spec and rules reviewer's and `comment-it`'s included, which on
+  Claude carry their own evidence (#141). Its report's first line, on `Agent`
+  and `Skill`, says nothing about `check-it-reviewer` and is not read for it.
+- **Its report is saved** where `name` puts it, beside `--sheet` where given,
+  only once Codex finished and wrote one in this run; a `.part` an earlier run
+  left is removed before Codex starts.
+- **It is stopped after 30 minutes.** The #141 runs took 23 to 67 s. On
+  Windows the script starts the npm install's `codex.js` with `node`, and
+  `codex.exe`, its child, ends with it (a test holds that a timed-out run leaves
+  no process behind).
+- **Its cost line** is the `turn.completed` events' `input_tokens`,
+  `cached_input_tokens` and `output_tokens`, with the wall time. No dollar
+  figure is given.
+- **When it fails, it falls back without asking.** The script exits 3 when
+  Codex says it is out of usage, and 4 on any other failure: no `codex` on
+  PATH, a non-zero exit, the time limit, no report, no `turn.completed`. Either
+  way the review runs again on its row's Claude model, with `Agent` as any
+  Claude review, and the result names it as fallen back, with what the script
+  said, so the floor review still runs (#141). Exit 1 is a call the script
+  refused, such as a missing option: fix it and run it again. Out of usage is
+  read from the error text Codex prints (its usage limit hit or reached, quota
+  exceeded, out of credits, a spend cap), as found in codex-cli 0.171.0's
+  binary; the state itself was not triggered, so its exit code and exact output
+  are unverified, and a message not matched still falls back, as exit 4.
+- **What it does not change**: `~/.codex/AGENTS.md` still loads under
+  `--ignore-user-config`, so the report can come back in that file's language,
+  and the repository's skills load as Codex skills, whose frontmatter errors on
+  stderr are noise.
+
+Another CLI is one more runner: an entry in the script's runner table, with how
+it is found, started and read, and a value this table can name (#141).
 
 ### Each review's own brief
 
@@ -189,9 +257,10 @@ whole. None of them edits.
   [reviewers/lens.md](reviewers/lens.md) or
   [reviewers/comment-it.md](reviewers/comment-it.md) as its argument
 - the proving agent (11): [reviewers/proving.md](reviewers/proving.md), then
-  *Whose is it* whole and every finding of 4, 6, 7 and 8, each returned
-  passed, dropped or unproven. The reviewer's findings (5) and `comment-it`'s
-  (9) carry their own evidence and do not go through it.
+  *Whose is it* whole and every finding of 4, 6, 7 and 8, and of 5 and 9 where
+  they ran on Codex, each returned passed, dropped or unproven. Run on Claude,
+  the reviewer's findings (5) and `comment-it`'s (9) carry their own evidence
+  and do not go through it.
 
 ### One report, one question
 
@@ -206,7 +275,7 @@ highest group any of them reaches, as `ask-it` counts several sightings of one
 gap as one item. The groups are four:
 
 1. **To fix, pre-ticked**: reproduced here and introduced by this change. A
-   finding of 4, 6, 7 or 8 the proving agent passed as introduced by this change
+   finding of 4, 6, 7 or 8, or of 5 or 9 run on Codex, the proving agent passed as introduced by this change
    and asking for no decision, where a refactoring proposal (4) that changes
    behaviour or edits a file outside the diff asks for one; a finding of 5 graded *violation* whose command,
    re-run here, printed what it carries, on what this change wrote; a finding
@@ -351,7 +420,9 @@ ADR-0095, ADR-0102), 4 to 9 and 11, and so does the decision model that picks
 them. That is the point: the hand that shaped the change is the worst judge of it. So the brief
 is all it gets: the prompt of a newly started agent (not a fork of this
 conversation, which inherits it), started with `Agent` as `check-it-reviewer`
-on its row's model and effort. **No review starts a model run** (#123, #131).
+on its row's model and effort, or, on a Codex row, by the script (*A review on
+Codex*). **No review starts a model run** (#123, #131); a Codex review is held
+to that by its sandbox (*A review on Codex*).
 That type, [agents/check-it-reviewer.md](agents/check-it-reviewer.md), has no
 `Agent` and no `Skill` tool, and a `PreToolUse` hook on its `Bash` and
 `PowerShell` refuses a command that runs `claude`
@@ -365,7 +436,8 @@ until the person is asked, through the question tool where there is one: *open t
 again* (recommended, since the default agent holds `Agent` and `Skill` and only
 its brief stops it using them, ADR-0053), or *run on the default agent this
 once*, which starts each review and the decision model as the default agent
-with the same prompt. The result names each one run that way. **A session started before the definition
+with the same prompt. The result names each one run that way. A review on Codex needs no type and
+starts; where it falls back to Claude, it waits with the Claude reviews. **A session started before the definition
 changed** still starts the type, on the grant it had then. So each review's
 report opens by saying whether `Agent` or `Skill` is in its tool list, and the
 result names each review that had one as run on an older definition or the
@@ -383,7 +455,7 @@ node <check-it>/scripts/check-it.mjs prompt <review> --issue <issue> --run-folde
   command): each review's own, `pick` for the decision model at this skill's
   start, and `pick-confirm` for it at a confirm stop.
 - `proving` adds `--findings <report>` for each saved report of 4, 6, 7 and 8
-  that ran; `pick-confirm` adds `--change <file>`, the issue and the two
+  that ran, and of 5 and 9 where they ran on Codex; `pick-confirm` adds `--change <file>`, the issue and the two
   statements.
 - `<issue>` is the issue's reference, or the request where there is none; the
   run folder and the ledger are [`clean-it`'s](../clean-it/RULES.md), the run

@@ -2,7 +2,7 @@
 
 **Status:** accepted. Implements #91; amended for #86, #95, #97, #102, #105,
 #112 and #114, folded for #125 on 2026-11-23 into this one current record, and
-amended since for #140.
+amended since for #140 and #141.
 The amendment history is in git:
 `git log -p -- docs/adr/0102-check-it-reviews-are-a-catalog-chosen-per-change.md`
 shows the record before the fold.
@@ -23,7 +23,8 @@ was decided, on what, and what would reopen it.
 - **The catalog** (#91, #105). `check-it`'s reviews are its own refactoring
   reviewer, spec and rules reviewer, bug reviewer and security reviewer,
   `lens`, `comment-it` and the proving agent. Each is a fresh agent started
-  with `Agent`, briefed by its prompt alone, and none edits. Claude Code's
+  with `Agent`, or on another CLI from the same prompt where its row's runner
+  says so (#141), briefed by its prompt alone, and none edits. Claude Code's
   bundled `/review`, `/security-review` and `/simplify` are not run. `lens`
   and `comment-it` get their skill's body in the prompt and are not started
   through `Skill`.
@@ -31,7 +32,9 @@ was decided, on what, and what would reopen it.
   finding of the refactoring, bug and security reviewers and `lens`, and
   returns it passed, dropped with why, or unproven for a person, saying whether
   this change introduced it. The spec and rules reviewer's and `comment-it`'s
-  findings carry their own evidence and do not go through it.
+  findings carry their own evidence and do not go through it, except where they
+  ran on Codex, read-only, which cannot make the copy a reproduction needs
+  (#141).
 - **A decision model picks the reviews** (#112). No review is asked per change.
   A Haiku 5.5 agent at `medium` answers six fixed questions about the change,
   each with the lines that ground the answer or the search that found nothing,
@@ -41,12 +44,26 @@ was decided, on what, and what would reopen it.
   `check-it`'s start on the diff, where a review it adds is added unasked and
   nothing chosen is removed.
 - **The floor** (#112): the spec and rules reviewer always runs, and the
-  proving agent whenever a review it proves runs. A person may remove any
+  proving agent whenever a review it proves runs, which includes the spec and
+  rules reviewer and `comment-it` on Codex. A person may remove any
   review in words, the floor included, and `check-it`'s start adds back nothing
   the person removed.
 - **Each review's model** (#86, #105): fixed for its role whatever the calling
-  session runs on, set on the `Agent` call, shown at the confirm stop, and
+  session runs on, set on the `Agent` call or, for a Codex row, passed to
+  `codex exec`, shown at the confirm stop, and
   changed only where the person asks. The table is `check-it`'s.
+- **Each review's runner** (#141): the table also names the CLI each review
+  runs in, changed at the confirm stop as a model is. The spec and rules
+  reviewer and the bug reviewer default to Codex `gpt-6.1-sol` and
+  `comment-it` to Codex `gpt-6-luna`; the refactoring and security reviewers,
+  `lens`, the proving agent and the decision model stay on Claude. A Codex
+  review runs from the same prompt through `check-it.mjs run`, as `codex exec`
+  held read-only with the prompt on stdin, is a static review whose findings
+  the proving agent reproduces, reports its tokens and wall time with no
+  dollar figure, is stopped after 30 minutes, and falls back unasked to its
+  row's Claude model when Codex is out of usage or fails otherwise, the result
+  saying so. Its sandbox, not the agent type's hook, keeps it from starting a
+  model run. Another CLI is one more runner entry.
 - **One report, one question** (#105): after the proving agent, every finding
   goes into one numbered report, and one question offers *fix as pre-ticked*,
   *fix nothing* or *pick by number*; no answer fixes nothing. A refactoring
@@ -67,7 +84,8 @@ was decided, on what, and what would reopen it.
   the decision model is a section of `check-it/reviewers/decision-model.md`
   (#125).
 - **Each review's cost goes in the result** (2026-11-20): its time and tokens,
-  from its `Agent` call, one line per review and per call of the decision model.
+  from its `Agent` call, or from the `turn.completed` events of a Codex run
+  (#141), one line per review and per call of the decision model.
 
 What a review copies, builds or starts follows `clean-it/RULES.md`
 ([ADR-0103](0103-what-a-step-makes-it-deletes.md)), and no review starts a model
@@ -104,6 +122,22 @@ maintainer was shown:
   strength question (2026-11-20) had both been run; running one review too many
   costs less than missing one. It reverses the strength question's rejection of
   a Haiku layer, the maintainer's call reversed; it picks reviews, not models.
+- **For the runner** (#141): one trial of the bug prompt on `codex exec`
+  (codex-cli 0.171.0, 2026-11-23, on the issue's decision comment): 60 s,
+  136,205 input tokens (95,104 cached), 1,994 output, no bug reported; writes
+  refused inside and outside the tree; every command refused until
+  `windows.sandbox` was set again under `--ignore-user-config`. Gemini's CLI
+  was looked at and not taken. Measured at build (2026-11-24): no console
+  window opens from the script's spawn (a visible-window watcher); from inside
+  the read-only sandbox, `curl.exe` to `api.openai.com` and `api.anthropic.com`
+  failed on its proxy at `127.0.0.1:9`, while `claude --version` ran; a
+  timed-out run leaves no child process behind on Windows. At the check-it
+  question the maintainer chose that the proving agent also takes the Codex-run
+  spec and rules reviewer's and `comment-it`'s findings, that any Codex failure
+  falls back, and the 30-minute limit. Not measured: how
+  a Codex review compares with a Claude review of the same change, and Codex's
+  exit and output when out of usage, read instead from the error text in its
+  binary.
 - **For the script** (#114): `check-it` had grown to 673 body lines against the
   repository's 500-line guidance, an agent not following the prose had twice
   been answered with more prose (#87, #92), and #87 measured a quarter of
@@ -135,6 +169,9 @@ The runs, times, tokens and costs behind each are in
   ground for leaving the security reviewer off the floor.
 - #96's measurements showing a review missing what the bundled reviews caught,
   or a pick costing more than the reviews it saves.
+- #96's measurements, or a later trial, showing a Codex review missing what a
+  Claude review of the same change caught, or Codex out of usage printing what
+  the script does not read as out of usage.
 - A bundled review gaining what removes the ground for replacing it:
   `/simplify` or `/security-review` a report-only mode that reads uncommitted
   and untracked files, or `/review` a way to leave out its rules and cleanups.

@@ -2,10 +2,12 @@
 // It runs main() unconditionally: it is reached through the ~/.claude/skills
 // link, where argv[1] and import.meta.url name different paths.
 
-import { closeSync, lstatSync, openSync, readFileSync, readSync, readdirSync, readlinkSync, realpathSync, renameSync, statSync, writeFileSync } from 'node:fs';
+import { closeSync, lstatSync, openSync, readFileSync, readSync, readdirSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { delimiter } from 'node:path';
 import { CheckItError, SKILLS, run } from './assemble.mjs';
+import { RUNNERS, spawnRunner } from './runners.mjs';
 
 function hash(path) {
   try {
@@ -28,12 +30,14 @@ function hash(path) {
   }
 }
 
+const isFile = (path) => statSync(path, { throwIfNoEntry: false })?.isFile() ?? false;
+
 const realDeps = {
   cwd: process.cwd(),
   skills: SKILLS,
   readFile: (path) => readFileSync(path, 'utf8'),
   isDir: (path) => statSync(path, { throwIfNoEntry: false })?.isDirectory() ?? false,
-  isFile: (path) => statSync(path, { throwIfNoEntry: false })?.isFile() ?? false,
+  isFile,
   exists: (path) => lstatSync(path, { throwIfNoEntry: false }) !== undefined,
   realPath: (path) => {
     try {
@@ -56,6 +60,16 @@ const realDeps = {
       return [];
     }
   },
+  locate: (runner) => RUNNERS[runner]?.locate({
+    platform: process.platform,
+    pathDirs: (process.env.PATH ?? '').split(delimiter).filter((d) => d !== ''),
+    isFile,
+    execPath: process.execPath,
+  }),
+  spawn: spawnRunner,
+  now: () => Date.now(),
+  moveFile: (from, to) => renameSync(from, to),
+  removeFile: (path) => rmSync(path, { force: true }),
   git: (dir, args) => {
     try {
       return execFileSync('git', args, {
@@ -75,7 +89,7 @@ function main() {
   } catch (err) {
     if (!(err instanceof CheckItError)) throw err;
     process.stderr.write(`check-it: ${err.message}\n`);
-    process.exit(1);
+    process.exit(err.exitCode ?? 1);
   }
   process.stdout.write(out);
 }

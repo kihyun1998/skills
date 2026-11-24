@@ -1,9 +1,9 @@
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { delimiter, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { REVIEWS, section } from './assemble.mjs';
 
@@ -38,8 +38,8 @@ mkdirSync(runFolder);
 writeFileSync(join(scratch, 'run.bug.md'), 'BUG FINDING ONE\n');
 writeFileSync(join(scratch, 'run.change.md'), 'THE ISSUE AND TWO STATEMENTS\n');
 
-const call = (entry, args, cwd = repo) =>
-  spawnSync(process.execPath, [join(entry, 'check-it.mjs'), ...args], { cwd, encoding: 'utf8', windowsHide: true });
+const call = (entry, args, cwd = repo, env = process.env) =>
+  spawnSync(process.execPath, [join(entry, 'check-it.mjs'), ...args], { cwd, encoding: 'utf8', windowsHide: true, env });
 
 const brief = ['--issue', 'owner/repo#7', '--run-folder', runFolder, '--ledger', join(scratch, 'run.made.md')];
 
@@ -306,4 +306,44 @@ test('a file committed and released can be claimed by the run beside it, and one
   assert.deepEqual(JSON.parse(readFileSync(join(first, 'check-it.claimed.json'), 'utf8')).files, ['b.c']);
   const taken = call(here, ['claim', '--run-folder', second, 'a.c'], tree);
   assert.equal(taken.status, 0, taken.stderr);
+});
+
+function fakeCodex(name, script) {
+  const bin = join(scratch, `codex-${name}`);
+  const entryDir = join(bin, 'node_modules', '@openai', 'codex', 'bin');
+  mkdirSync(entryDir, { recursive: true });
+  const body = `#!/usr/bin/env node\n${script}\n`;
+  writeFileSync(join(entryDir, 'codex.js'), body);
+  writeFileSync(join(bin, 'codex.cmd'), '@echo off\r\nexit /b 9\r\n');
+  writeFileSync(join(bin, 'codex'), body);
+  chmodSync(join(bin, 'codex'), 0o755);
+  return { ...process.env, PATH: `${bin}${delimiter}${process.env.PATH}` };
+}
+
+const runBug = (env) => call(here, ['run', 'bug', '--runner', 'codex', '--model', 'gpt-x', ...brief], repo, env);
+const bugReport = join(runFolder, 'check-it.bug.md');
+
+test('run, through the real script, hands a codex found on PATH the prompt on stdin and saves its report', (t) => {
+  t.after(() => rmSync(bugReport, { force: true }));
+  const env = fakeCodex('ok', `
+const fs = require('node:fs');
+const args = process.argv.slice(2);
+const input = fs.readFileSync(0, 'utf8');
+fs.writeFileSync(args[args.indexOf('-o') + 1], 'SAW ' + (input.startsWith('# How you work') ? 'the prompt' : 'something else') + ' in ' + args[args.indexOf('-C') + 1]);
+console.log(JSON.stringify({ type: 'turn.completed', usage: { input_tokens: 1234, cached_input_tokens: 0, output_tokens: 5 } }));`);
+  const r = runBug(env);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /cost: bug on Codex gpt-x: \d+ s, 1,234 input tokens \(0 cached\), 5 output tokens/);
+  assert.equal(readFileSync(bugReport, 'utf8'), `SAW the prompt in ${top}`);
+});
+
+test('run, through the real script, exits 3 when codex is out of usage and leaves no report', () => {
+  const env = fakeCodex('spent', `
+console.log(JSON.stringify({ type: 'turn.failed', error: { message: "You've hit your usage limit." } }));
+process.exit(1);`);
+  const r = runBug(env);
+  assert.equal(r.status, 3, r.stderr);
+  assert.match(r.stderr, /^check-it: Codex is out of usage: You've hit your usage limit\./);
+  assert.ok(!existsSync(bugReport));
+  assert.ok(!existsSync(`${bugReport}.part`));
 });
