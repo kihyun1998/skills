@@ -302,6 +302,90 @@ test('the copy stays fully usable, its own .git included', () => {
   ]) assert.equal(run(c, COPY).code, 0, c);
 });
 
+test('a non-read command whose argument names the reviewed repository is refused, wherever it runs (#147)', () => {
+  for (const [c, cwd] of [
+    ['make -C D:/repo', COPY],
+    ['npm --prefix D:/repo install', COPY],
+    ['curl -o D:/repo/x https://example.com/x', COPY],
+    ['cargo build --manifest-path D:/repo/Cargo.toml', COPY],
+    ['npm --prefix=D:/repo install', COPY],
+    ['curl -oD:/repo/x https://example.com/x', COPY],
+    ['cargo build --manifest-path=D:/repo/Cargo.toml', COPY],
+    ['make -C ../repo', 'D:/elsewhere'],
+    ['npm --prefix=../repo install', 'D:/elsewhere'],
+    ['make -C /d/repo', COPY],
+    ['make DESTDIR=D:/repo install', COPY],
+    ['make -C D:/repo.worktrees/abc', COPY],
+    ['make -C E:/elsewhere/wt-1/src', COPY],
+    ['timeout 60 make -C D:/repo', COPY],
+    ['npx prettier --write D:/repo/f.md', COPY],
+    ['bash build.sh D:/repo', COPY],
+    ['sort -o D:/repo/f.md f.md', COPY],
+    ['uniq f.md D:/repo/f.md', COPY],
+    ['git clone C:/Temp/run/copy D:/repo.worktrees/new', COPY],
+    ['git -C C:/Temp/run/copy worktree add D:/repo.worktrees/x', COPY],
+    [`node -e "require('fs').writeFileSync('D:/repo/x', '')"`, COPY],
+    [`python -c "open('D:/repo/x', 'w')"`, COPY],
+    ['cd C:/Temp/run/copy && make -C D:/repo', REPO],
+    ['make -C $UNSET_VAR', COPY],
+    ['make -C ${UNSET_VAR}/x', COPY],
+    ['make -C %UNSET_VAR%/x', COPY],
+    ['make -C $(pwd)/x', COPY],
+    ['env -C D:/repo make', COPY],
+    ['npm exec --prefix D:/repo -- make', COPY],
+    ['D:/repo/build.sh', COPY],
+    ['link /OUT:D:/repo/x.exe', COPY],
+    ['curl -sSLoD:/repo/x https://example.com/x', COPY],
+  ]) assert.equal(run(c, cwd).code, 2, c + ' in ' + cwd);
+  for (const c of [
+    'make -C D:\\repo',
+    'npm --prefix D:\\repo install',
+    'Invoke-WebRequest -Uri https://example.com/x -OutFile D:\\repo\\x',
+    'iwr https://example.com/x -OutFile:D:\\repo\\x',
+    'cargo build --manifest-path D:\\repo\\Cargo.toml',
+  ]) assert.equal(ps(c, COPY).code, 2, c);
+  assert.equal(ps('Invoke-WebRequest https://example.com/x -OutFile:..\\repo\\x', 'D:/elsewhere').code, 2);
+  assert.equal(ps('csc /out:D:\\repo\\x.exe x.cs', COPY).code, 2);
+  const spaced = {
+    env: { CLAUDE_PROJECT_DIR: 'D:/repo with space' },
+    fs: { exists: (p) => norm(p) === 'D:/repo with space/.git', read: () => null, list: () => [] },
+  };
+  assert.equal(run(`node -e "require('fs').writeFileSync('D:/repo with space/x', '')"`, COPY, spaced).code, 2);
+  assert.equal(run(`node -e "require('fs').writeFileSync('D:/repo with spaceship/x', '')"`, COPY, spaced).code, 0);
+});
+
+test('reads of the reviewed repository, and commands on paths outside it, run from anywhere (#147)', () => {
+  for (const [c, cwd] of [
+    ['cat D:/repo/f.md', COPY],
+    ['diff D:/repo/f.md C:/Temp/run/copy/f.md', COPY],
+    ['grep -rn x D:/repo', COPY],
+    ['sed -n 1,5p D:/repo/f.md', COPY],
+    ['git -C D:/repo diff', COPY],
+    ['git diff --no-index D:/repo/f.md f.md', COPY],
+    ['make -C C:/Temp/run/copy', COPY],
+    ['npm --prefix C:/Temp/run/copy test', COPY],
+    ['curl -o out.txt https://example.com/x', COPY],
+    ['cargo build --manifest-path C:/Temp/run/copy/Cargo.toml', COPY],
+    ['node x.mjs D:/repository/f.md', COPY],
+    ['make -C D:/repo-other', COPY],
+    ['make -C build/d/repo', COPY],
+    ['make -C build/$UNSET_VAR', COPY],
+    ['timeout 5 cat D:/repo/f.md', COPY],
+    ['git -c color.ui=never log -1', COPY],
+    ['env -C C:/Temp/run/copy make', COPY],
+    [`node -e "console.log([1].map(x=>x/2), /a$/.test(1))"`, COPY],
+    ['curl "https://e.com/x?a=$Q"', COPY],
+    ['git commit -qm "costs $5/month"', COPY],
+    ["awk '{print $1 \"/\" $2}' f.md", COPY],
+    ["awk '{print $1}' f.md", COPY],
+    ['make -C ../copy', 'C:/Temp/run/other'],
+  ]) assert.equal(run(c, cwd).code, 0, c + ' in ' + cwd);
+  for (const c of [
+    'Get-Content D:\\repo\\f.md',
+    'npm --prefix C:\\Temp\\run\\copy test',
+  ]) assert.equal(ps(c, COPY).code, 0, c);
+});
+
 test('a path whose place cannot be told is refused, never let through', () => {
   for (const [c, cwd] of [
     ['rm -rf $UNSET_VAR/target', COPY],
@@ -358,6 +442,7 @@ test('each refusal names its rule and issue', () => {
   assert.match(run('pkill node').message, /image name.*#144/);
   assert.match(run('cargo clean').message, /#143/);
   assert.match(run('rm -rf D:/repo/x', COPY).message, /writes inside the reviewed repository.*#143/);
+  assert.match(run('make -C D:/repo', COPY).message, /\x60make\x60 is not a read.*D:\/repo.*#147/);
 });
 
 test('input it cannot read is refused, never let through', () => {

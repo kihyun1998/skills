@@ -384,7 +384,13 @@ kinds of call:
   `rg`, `ls`, `head`, `sed` that only prints a line range), and one that
   writes a path inside it from anywhere, through `rm`, `mv`, a copy's
   destination, `git --output` or a redirection, each with *run it in your copy*
-  (#143). The reviewed repository is the git root of the session's project
+  (#143), and one from anywhere that is not a read and has an argument naming a
+  path inside it, with *point it at your copy* (#147): `make -C`, `npm
+  --prefix`, `curl -o`, `cargo --manifest-path`, a `--flag=<path>`,
+  `/flag:<path>` or `-o<path>` value (bundled short options too), a
+  wrapper's own options (`env -C`, `npm exec --prefix`), the program's own
+  path, a `git` command that is not a read, and an absolute path written in
+  inline code (`node -e`, `python -c`), spaces in it included. The reviewed repository is the git root of the session's project
   folder, or of the call's working directory where that is not set, with every
   worktree of it: those `git worktree list` names and anything under
   `<root>.worktrees/`. `git` is judged where `-C`, `--git-dir` or
@@ -393,7 +399,10 @@ kinds of call:
   -ErrorAction Stop`; after `;` or a new line the rest is judged where it
   started as well. A variable the command sets (`export`, `$env:`) is read as
   set, and a path it cannot place (an unset variable, `cd -`, a writer whose
-  paths come from `xargs`) is refused. A PowerShell command is read with
+  paths come from `xargs`, an argument of a non-read that starts as a path
+  does, with `$VAR`, `~`, `%X%`, a drive or a `/`, and cannot be
+  expanded) is refused; an argument it cannot expand that does not start so,
+  such as inline code or a URL with a `$` in it, is not. A PowerShell command is read with
   PowerShell's quoting, where a backslash is a character. A tracker read
   (below) is a read here;
 - one that runs `gh` or `glab` for anything but a tracker read, from anywhere
@@ -423,7 +432,14 @@ kinds of call:
   this rule and the kill rule, and no other.
 
 The hook is set to block the call when it fails or times out, so a missing or
-broken script refuses rather than lets through. It reads the command's text, so
+broken script refuses rather than lets through. **A limit** (#147): where
+`CLAUDE_PROJECT_DIR` does not reach the hook, the repository is found from the
+call's working directory, so a reviewer whose shell stays in a copy holding its
+own `.git` gets that copy read-only. The error is a refusal, and Claude Code
+resets a `cd` outside the project to its root
+([mods/ENGINE-NOTES.md](../mods/ENGINE-NOTES.md)), so the working directory is
+the repository in the usual case. The variable was empty in a reviewer's REPL
+shell in #147's probe; whether the hook process receives it is not measured. It reads the command's text, so
 it catches a name or a path written in the command itself, and not one reached
 from a script file, another interpreter, a variable, an encoded command or a
 renamed copy. **Where the session's agent list lacks the type**

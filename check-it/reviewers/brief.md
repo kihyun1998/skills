@@ -12,7 +12,9 @@ prompt is all you get.
   to another terminal or a process you did not start. Such a command is read
   and reported as traced. Under `check-it-reviewer`, and in a review on Codex,
   a hook holds part of this: inside the repository it refuses any command but
-  a read, it refuses a write into the repository from anywhere (#143), it
+  a read, it refuses a write into the repository from anywhere (#143) and,
+  from anywhere, a command that is not a read and has an argument naming a
+  path in the repository (#147), so point such a command at your copy; it
   refuses a kill by image name, which may hit the person's processes (#144),
   it refuses any `gh` or `glab` command but a tracker read from anywhere
   (#146), and it refuses a rewrite of the ledger (#138).

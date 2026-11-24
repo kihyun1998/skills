@@ -70,7 +70,8 @@ was decided, on what, and what would reopen it.
   off.
   `check-it-reviewer`'s decision script runs as a Codex `PreToolUse` hook on
   every shell command and refuses what it refuses for a Claude review: an AI
-  CLI, a kill by image name, a non-read inside the repository, any `gh`
+  CLI, a kill by image name, a non-read inside the repository or naming a path
+  inside it from anywhere (#147), any `gh`
   or `glab` command but a known read, and a write to a run's ledger but an
   append (#138), for either runner: an allowlist, as the
   repository rule is (#143), since a list of writes missed aliases, unlisted
@@ -81,7 +82,12 @@ was decided, on what, and what would reopen it.
   token` reached through a variable, another interpreter, an encoded command or
   a script file) and calls a model API, a tracker's write API or any other host
   itself is held by no check, since the network is open and the hook reads only
-  the command's text. Where the hook command would
+  the command's text. **Two more known gaps, accepted by the maintainer at
+  #147**, both Codex's own behaviour as its hooks documentation states it (read
+  2026-11-24, not measured): `write_stdin` into a shell already started does not
+  run `PreToolUse` again, so input sent to a running shell is not read by the
+  hook; and a `PreToolUse` error, timeout or malformed answer lets the command
+  run. Files stay read-only through the sandbox in both. Where the hook command would
   need quoting, the review falls back to Claude as any Codex failure does.
 - **One report, one question** (#105): after the proving agent, every finding
   goes into one numbered report, and one question offers *fix as pre-ticked*,

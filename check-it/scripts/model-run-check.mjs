@@ -70,6 +70,7 @@ const WRITERS = new Set([
 const COPIERS = new Set(['dd', 'cp', 'copy-item', 'copy', 'cpi', 'rsync', 'robocopy', 'xcopy', 'ln', 'tar']);
 const PS_PATH_PARAMS = /^-(path|literalpath|lp|pspath|filepath|destination|dest|target|targetpath)$/i;
 const PS_OTHER_VALUE_PARAMS = /^-(erroraction|ea|value|encoding|itemtype|type|name|filter|include|exclude|stream|delimiter|width|inputobject|newname|credential)$/i;
+const PS_COLON = /^(-[A-Za-z]+):(.+)$/;
 const SINKS = new Set(['/dev/null', 'nul', '$null', 'nul:']);
 
 const KILL_NAMES = new Set(['pkill', 'killall']);
@@ -348,7 +349,7 @@ function positional(args) {
   const out = [];
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
-    const colon = /^(-[A-Za-z]+):(.+)$/.exec(a);
+    const colon = PS_COLON.exec(a);
     if (colon && PS_PATH_PARAMS.test(colon[1])) out.push(colon[2]);
     else if (colon && PS_OTHER_VALUE_PARAMS.test(colon[1])) continue;
     else if (PS_PATH_PARAMS.test(a)) out.push(args[++i]);
@@ -427,13 +428,14 @@ function gitCheck(words, cwd, ctx, assigned) {
     if (res === null) return refusal('unknown', target ?? '--output');
     if (inside(ctx, res)) return refusal('repo-write', 'git ' + sub + ' --output');
   }
-  if (!named && !cwdInside(ctx, dir)) return null;
-  if (config) return refusal('repo-run', 'git with configuration set in the command');
-  if (sub === undefined || sub === '--version' || sub === '--help') return null;
-  if (args.some((a) => /^(-O.*|--open-files-in-pager.*)$/.test(a))) return refusal('repo-run', 'git ' + sub + ' -O');
-  if (GIT_READS.has(sub)) return null;
-  if (GIT_READ_FORMS.has(sub) && GIT_READ_FORMS.get(sub)(args)) return null;
-  return refusal('repo-run', 'git ' + sub);
+  const pager = args.some((a) => /^(-O.*|--open-files-in-pager.*)$/.test(a));
+  const read = sub === undefined || sub === '--version' || sub === '--help' ||
+    (!pager && (GIT_READS.has(sub) || (GIT_READ_FORMS.has(sub) && GIT_READ_FORMS.get(sub)(args))));
+  const isInside = named || cwdInside(ctx, dir);
+  if (isInside && config) return refusal('repo-run', 'git with configuration set in the command');
+  if (isInside && pager) return refusal('repo-run', 'git ' + sub + ' -O');
+  if (read) return null;
+  return nonReadRefusal(words, dir, ctx, isInside, 'git ' + sub);
 }
 
 function readerCheck(n, args) {
@@ -477,6 +479,46 @@ function splitRedirects(all) {
     } else words.push(w);
   }
   return { redirects, operators, words };
+}
+
+const PATH_START = /(?<![\w.~$%\\/-])(?:[A-Za-z]:)?[\\/]/g;
+const PATH_END = /^($|[\/\s'"\x60,;)\]}|<>])/;
+const PATH_SHAPED = /^(\$(\{?[A-Za-z_]|env:|\(|$)|~|%[A-Za-z_]|[A-Za-z]:|[\\/])/i;
+
+function argumentPaths(word) {
+  const out = [word];
+  const eq = /^(-{1,2}[A-Za-z0-9][\w-]*|[A-Za-z_]\w*)=(.*)$/.exec(word);
+  if (eq) out.push(eq[2]);
+  const colon = PS_COLON.exec(word);
+  if (colon) out.push(colon[2]);
+  const bundle = /^-[A-Za-z]+/.exec(word);
+  if (bundle) for (let k = 2; k <= bundle[0].length; k++) out.push(word.slice(k));
+  return [...new Set(out)].filter((p) => p !== '');
+}
+
+function embedsRoot(word, ctx) {
+  for (const m of word.matchAll(PATH_START)) {
+    const tail = canonical(word.slice(m.index), ctx.drives);
+    if (ctx.roots.some((root) => tail.startsWith(root) && PATH_END.test(tail.slice(root.length)))) return true;
+  }
+  return false;
+}
+
+function argumentRefusal(words, cwd, ctx) {
+  for (const a of words) {
+    for (const p of argumentPaths(a)) {
+      const res = resolve(cwd, p, ctx);
+      if (res === null) {
+        if (PATH_SHAPED.test(p)) return refusal('unknown', p);
+      } else if (inside(ctx, res)) return refusal('repo-arg', { what: words[0], arg: a });
+    }
+    if (embedsRoot(a, ctx)) return refusal('repo-arg', { what: words[0], arg: a });
+  }
+  return null;
+}
+
+function nonReadRefusal(words, cwd, ctx, isInside = cwdInside(ctx, cwd), detail = words.join(' ')) {
+  return isInside ? refusal('repo-run', detail) : argumentRefusal(words, cwd, ctx);
 }
 
 function targetRefusal(targets, cwd, ctx, label) {
@@ -611,12 +653,16 @@ function inspectWords(all, state, ctx, depth) {
       const ps = SHELLS.has(n) ? ['pwsh', 'powershell', 'cmd'].includes(n) : state.ps;
       return inspect(body, { cwd: state.cwd, stack: [], ps }, ctx, depth + 1) ?? redirectRefusal();
     }
-    if (repo && cwdInside(ctx, state.cwd)) return refusal('repo-run', cmd.join(' '));
-    return redirectRefusal();
+    return (repo ? nonReadRefusal(cmd, state.cwd, ctx) : null) ?? redirectRefusal();
   }
   if (cmd.length && (WRAPPERS.has(n) || (RUNNERS.has(n) && RUNNERS.get(n).has(cmd[1])))) {
-    const inner = unwrap(cmd.slice(RUNNERS.has(n) && !WRAPPERS.has(n) ? 2 : 1));
+    const rest = cmd.slice(RUNNERS.has(n) && !WRAPPERS.has(n) ? 2 : 1);
+    const inner = unwrap(rest);
     if (n === 'command' && /^-[vV]$/.test(cmd[1] ?? '')) return null;
+    if (repo && !cwdInside(ctx, state.cwd)) {
+      const found = argumentRefusal([cmd[0], ...rest.slice(0, rest.length - inner.length)], state.cwd, ctx);
+      if (found) return found;
+    }
     if (inner.length) return inspectWords([...inner, ...redirects.map((r, j) => operators[j] + r)], state, ctx, depth);
   }
 
@@ -665,10 +711,8 @@ function inspectWords(all, state, ctx, depth) {
   }
   if (n === 'git') return gitCheck(cmd, state.cwd, ctx, assigned);
 
-  if (!cwdInside(ctx, state.cwd)) return null;
-  if (readerCheck(n, args)) return null;
-  if (tracker?.read) return null;
-  return refusal('repo-run', cmd.join(' '));
+  if (readerCheck(n, args) || tracker?.read) return null;
+  return nonReadRefusal(cmd, state.cwd, ctx);
 }
 
 function inspect(command, state, ctx, depth) {
@@ -788,6 +832,9 @@ function message(who, found, root) {
     case 'repo-run':
       return by + '\x60' + found.detail + '\x60 would run inside the reviewed repository (' + root + '), where only read commands run, so it is refused (#143). ' +
         'Run it in your copy, in your own folder in the run folder, with cd to the copy in the same command.';
+    case 'repo-arg':
+      return by + '\x60' + found.detail.what + '\x60 is not a read, and its argument ' + found.detail.arg + ' names a path inside the reviewed repository (' + root + '), so it is refused (#147). ' +
+        'Point it at your copy instead.';
     case 'repo-write':
       return by + 'this command writes inside the reviewed repository (' + root + ') through ' + found.detail + ', so it is refused (#143). Write only in your copy.';
     case 'unknown':

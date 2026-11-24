@@ -33,7 +33,7 @@ node <check-it>/scripts/check-it.mjs run <review> --runner codex --model <model>
   `PreToolUse` hook on every shell command, through
   [scripts/codex-hook.mjs](scripts/codex-hook.mjs), refuses what that agent
   type's hook refuses in a shell: an AI CLI, a kill by image name, a non-read inside the
-  repository, any `gh` or `glab` command but a tracker read, and a rewrite of
+  repository or naming a path inside it from anywhere (#147), any `gh` or `glab` command but a tracker read, and a rewrite of
   the run's ledger
   ([SKILL.md](SKILL.md), *Briefing the fresh agents*). On
   Windows it reads the command as PowerShell, which Codex runs it in though it

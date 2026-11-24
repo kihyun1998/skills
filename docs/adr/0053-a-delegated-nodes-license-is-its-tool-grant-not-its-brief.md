@@ -1,5 +1,9 @@
 # A delegated node's license is its tool grant, not its brief
 
+> **Amended for #147 on 2026-11-24.** The hook also refuses, wherever the
+> command runs, one that is not a read and has an argument naming a path
+> inside the reviewed repository.
+
 > **Amended for #138 on 2026-11-24.** The hook also covers `Write` and `Edit`,
 > and refuses a rewrite of a run's ledger: a `Write` or `Edit` on it, or a
 > shell write to it other than an append. Every `thegraph-herdr` worker runs
