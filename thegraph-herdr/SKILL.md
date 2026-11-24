@@ -70,11 +70,15 @@ are.
   named by `check-it`'s script against that per-issue run sheet
   (`….<slug>.pick-confirm.md`, `….<slug>.change.md`). So every one of them is
   named after the run sheet.
-- **The run's Stop hook** is the run sheet's path without `.md`, then
+- **The run's hooks** are the run sheet's path without `.md`, then
   `.stop-hook.json`, written once per run and passed to every worker with
-  `--settings`. It makes each turn a worker ends say so to this session:
+  `--settings`. The `Stop` hook makes each turn a worker ends say so to this
+  session. The `PreToolUse` hook refuses a shell command that kills processes
+  by image name (#144), through `check-it`'s `scripts/no-image-kill.mjs` at
+  its installed link; the other two rules of `check-it-reviewer`'s hook are
+  not a worker's, since a worker edits the tree and runs what it needs:
   ```json
-  {"hooks":{"Stop":[{"hooks":[{"type":"command","command":"hc send <$HC_TERMINAL_ID> 'turn ended'"}]}]}}
+  {"hooks":{"Stop":[{"hooks":[{"type":"command","command":"hc send <$HC_TERMINAL_ID> 'turn ended'"}]}],"PreToolUse":[{"matcher":"Bash|PowerShell","hooks":[{"type":"command","command":"node \"$HOME/.claude/skills/check-it/scripts/no-image-kill.mjs\"","onFailure":"block"}]}]}}
   ```
 
 ## The order
@@ -175,11 +179,11 @@ For each issue:
    `git stash push -u -m "tg-<run id>"`, hand them to this worker as named in its
    brief, or stop the run. Nothing is discarded without the person.
 2. **Write its brief** to its brief file from the template below, and the run's
-   Stop hook if this is the run's first worker.
+   hooks if this is the run's first worker.
 3. **Start it** with no label, which runs it without a pane, with the flag of the
    permission mode step 2 confirmed:
    ```sh
-   hc run --bg --json --name tg-<run id>-<slug> --cwd <the run's tree> claude --model <alias> --effort <level> <flag> --settings <stop hook path> "Read <brief path> and do what it says."
+   hc run --bg --json --name tg-<run id>-<slug> --cwd <the run's tree> claude --model <alias> --effort <level> <flag> --settings <hooks path> "Read <brief path> and do what it says."
    ```
    Tell the person the worker's address from the reply, which `terminal.peek`
    opens.

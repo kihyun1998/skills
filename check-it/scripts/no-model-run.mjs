@@ -5,6 +5,6 @@
 import { readFileSync } from 'node:fs';
 import { decide } from './model-run-check.mjs';
 
-const { code, message } = decide(readFileSync(0, 'utf8'));
+const { code, message } = decide(readFileSync(0, 'utf8'), { env: process.env });
 if (message) process.stderr.write(`${message}\n`);
 process.exit(code);

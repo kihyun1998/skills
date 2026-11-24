@@ -156,7 +156,11 @@ else: what is in it is either this step's, and goes, or not, and is reported.
 
 **Kill only a process whose command line holds the run folder's path**, and
 list any other the step may have started instead of killing it: a process
-found by name alone may be the person's.
+found by name alone may be the person's. A hook refuses a kill by image name
+under `check-it-reviewer` (`check-it/scripts/no-model-run.mjs`) and in a
+`thegraph-herdr` worker (`check-it/scripts/no-image-kill.mjs`), with the forms it
+catches listed in `check-it/SKILL.md` (#144); this rule is why, and it holds
+where no hook runs.
 
 - Windows: `Get-CimInstance Win32_Process`, its `CommandLine` matched against
   the path in both forms, `C:\...` and `C:/...`, since a command line can mix

@@ -1,9 +1,14 @@
-const PACKAGE = '@anthropic-ai/claude-code';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { posix } from 'node:path';
+
+const AI_PACKAGES = ['@anthropic-ai/claude-code', '@openai/codex', '@google/gemini-cli'];
+const AI_NAMES = new Set(['claude', 'claude-code', 'codex', 'agy', 'gemini']);
 
 const WRAPPERS = new Set([
   'env', 'exec', 'command', 'builtin', 'nohup', 'sudo', 'doas', 'time', 'nice', 'ionice', 'stdbuf',
   'timeout', 'xargs', 'npx', 'bunx', 'pnpx', 'call', 'start', 'start-process', 'saps',
 ]);
+const WRAPPER_VALUE_FLAGS = new Set(['-u', '-g', '-n', '-s', '-k', '-i', '-o', '-e', '-I', '-L', '-P', '-d', '-E', '-a', '-c', '-p', '-C']);
 const RUNNERS = new Map([
   ['pnpm', new Set(['dlx', 'exec'])],
   ['yarn', new Set(['dlx', 'exec'])],
@@ -13,8 +18,62 @@ const RUNNERS = new Map([
 const SHELLS = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh', 'fish', 'pwsh', 'powershell', 'cmd']);
 const STRING_RUNNERS = new Set(['eval', 'iex', 'invoke-expression']);
 
-const KEYWORDS = new Set(['!', 'if', 'then', 'else', 'elif', 'while', 'until', 'do', 'time']);
-const REDIRECT = /^[0-9]*(>>?|<<?<?|&>>?|>&|<&)/;
+const KEYWORDS = new Set(['!', 'if', 'then', 'else', 'elif', 'while', 'until', 'do', 'time', 'fi', 'done', 'esac']);
+const REDIRECT = /^[0-9*]*(>&|<&|&>>?|>>?\|?|<<?<?)/;
+
+const READERS = new Set([
+  'cat', 'head', 'tail', 'wc', 'grep', 'egrep', 'fgrep', 'rg', 'ls', 'dir', 'tree', 'file', 'stat', 'du', 'df',
+  'pwd', 'echo', 'printf', 'true', 'false', 'test', '[', '[[', ']]', 'which', 'type', 'whereis', 'basename',
+  'dirname', 'realpath', 'readlink', 'diff', 'cmp', 'comm', 'cut', 'tr', 'nl', 'od', 'xxd', 'hexdump',
+  'strings', 'md5sum', 'sha1sum', 'sha256sum', 'jq', 'column', 'fold', 'paste', 'rev', 'date', 'whoami',
+  'hostname', 'uname', 'export', 'unset', 'sleep', 'sed', 'sort', 'find', 'uniq',
+  'get-content', 'gc', 'get-childitem', 'gci', 'select-string', 'sls', 'test-path', 'get-item', 'gi',
+  'get-itemproperty', 'gp', 'resolve-path', 'rvpa', 'get-location', 'gl', 'measure-object', 'measure',
+  'select-object', 'select', 'where-object', 'where', '?', 'sort-object', 'format-table', 'ft', 'format-list',
+  'fl', 'out-string', 'out-host', 'write-output', 'write', 'write-host', 'convertfrom-json', 'convertto-json',
+  'get-filehash', 'compare-object', 'group-object', 'get-command', 'gcm', 'get-date', 'join-path', 'split-path',
+  'get-process', 'gps', 'get-ciminstance',
+]);
+const READER_WRITE_FLAGS = new Map([
+  ['sed', /^(-i.*|--in-place.*|-[a-zA-Z]*i[a-zA-Z]*)$/],
+  ['sort', /^(-o.*|--output.*)$/],
+  ['find', /^-(delete|exec|execdir|ok|okdir|fprint|fprint0|fprintf|fls)$/],
+  ['rg', /^--pre(=.*)?$/],
+  ['tree', /^-o$/],
+  ['file', /^-C$/],
+  ['date', /^(-s.*|--set.*)$/],
+]);
+const SED_PRINT = /^((\d+|\$)(,(\d+|\$|\+\d+))?|\/[^/]*\/(,\/[^/]*\/)?)p$/;
+const ASSIGNERS = new Set(['export', 'declare', 'typeset', 'local', 'readonly']);
+const CD = new Set(['cd', 'chdir', 'pushd', 'popd', 'set-location', 'sl', 'push-location', 'pop-location']);
+const GIT_READS = new Set([
+  'diff', 'log', 'show', 'status', 'blame', 'annotate', 'grep', 'ls-files', 'ls-tree', 'rev-parse', 'rev-list',
+  'cat-file', 'shortlog', 'describe', 'merge-base', 'show-ref', 'name-rev', 'whatchanged', 'diff-tree',
+  'diff-files', 'diff-index', 'for-each-ref', 'count-objects', 'check-ignore', 'check-attr', 'var', 'help',
+  'version',
+]);
+const GIT_READ_FORMS = new Map([
+  ['stash', (a) => ['list', 'show'].includes(a[0])],
+  ['worktree', (a) => a[0] === 'list'],
+  ['remote', (a) => a.length === 0 || (a.every((x) => x.startsWith('-')) && a.every((x) => /^(-v|--verbose)$/.test(x)))],
+  ['config', (a) => a.some((x) => /^(--get|--get-all|--get-regexp|--list|-l)$/.test(x))],
+  ['tag', (a) => a.length === 0 || a.some((x) => /^(-l|--list)$/.test(x))],
+  ['reflog', (a) => a.length === 0 || a[0] === 'show'],
+  ['branch', (a) => a.every((x) => x.startsWith('-') && !/^(-[dDmMcCuf]|--delete|--move|--copy|--force|--set-upstream-to.*|--unset-upstream|--edit-description)$/.test(x))],
+]);
+const WRITERS = new Set([
+  'rm', 'rmdir', 'unlink', 'mv', 'touch', 'mkdir', 'chmod', 'chown', 'truncate', 'shred', 'tee',
+  'remove-item', 'ri', 'del', 'erase', 'rd', 'move-item', 'mi', 'move', 'rename-item', 'rni', 'ren',
+  'new-item', 'ni', 'md', 'set-content', 'sc', 'add-content', 'ac', 'clear-content', 'clc', 'out-file',
+  'tee-object', 'set-item', 'si', 'clear-item', 'cli',
+]);
+const COPIERS = new Set(['dd', 'cp', 'copy-item', 'copy', 'cpi', 'rsync', 'robocopy', 'xcopy', 'ln', 'tar']);
+const PS_PATH_PARAMS = /^-(path|literalpath|lp|pspath|filepath|destination|dest|target|targetpath)$/i;
+const PS_OTHER_VALUE_PARAMS = /^-(erroraction|ea|value|encoding|itemtype|type|name|filter|include|exclude|stream|delimiter|width|inputobject|newname|credential)$/i;
+const SINKS = new Set(['/dev/null', 'nul', '$null', 'nul:']);
+
+const KILL_NAMES = new Set(['pkill', 'killall']);
+const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
 
 const name = (word) => word.split(/[\\/]/).pop().toLowerCase().replace(/\.(exe|cmd|bat|ps1)$/, '');
 
@@ -34,15 +93,15 @@ function withoutHeredocBodies(text) {
   return out.join('\n');
 }
 
-function substitutions(text) {
+function substitutions(text, ps = false) {
   const unquoted = text.replace(/'[^']*'/g, "''");
   const found = [];
   for (const m of unquoted.matchAll(/\$\(([^()]*)\)/g)) found.push(m[1]);
-  for (const m of unquoted.matchAll(/`([^`]*)`/g)) found.push(m[1]);
+  if (!ps) for (const m of unquoted.matchAll(/`([^`]*)`/g)) found.push(m[1]);
   return found;
 }
 
-function segments(text) {
+function segments(text, ps = false) {
   const out = [];
   let words = [];
   let word = null;
@@ -50,10 +109,13 @@ function segments(text) {
     if (word !== null) words.push(word);
     word = null;
   };
-  const endSegment = () => {
+  const endSegment = (by) => {
     endWord();
-    if (words.length) out.push(words);
+    if (words.length) out.push({ words, by });
+    else if ((by === '|' || by === '&') && out.length && out[out.length - 1].words && out[out.length - 1].by === by) out[out.length - 1].by = by + by;
     words = [];
+    if (by === '(') out.push({ open: true });
+    if (by === ')') out.push({ close: true });
   };
   for (let i = 0; i < text.length; i++) {
     const c = text[i];
@@ -66,12 +128,19 @@ function segments(text) {
       let j = i + 1;
       let s = '';
       while (j < text.length && text[j] !== '"') {
-        if (text[j] === '\\' && '$`"\\'.includes(text[j + 1] ?? '')) j++;
+        if (ps ? text[j] === '\x60' : text[j] === '\\' && '$`"\\'.includes(text[j + 1] ?? '')) j++;
         s += text[j++];
       }
       word = (word ?? '') + s;
       i = j;
-    } else if (c === '\\' && i + 1 < text.length && !/[A-Za-z0-9]/.test(text[i + 1])) {
+    } else if (c === '$' && text[i + 1] === '{') {
+      const j = text.indexOf('}', i);
+      const end = j < 0 ? text.length - 1 : j;
+      word = (word ?? '') + text.slice(i, end + 1);
+      i = end;
+    } else if (ps && c === '\x60' && i + 1 < text.length) {
+      word = (word ?? '') + text[++i];
+    } else if (!ps && c === '\\' && i + 1 < text.length && !/[A-Za-z0-9]/.test(text[i + 1])) {
       word = (word ?? '') + text[++i];
     } else if (/\s/.test(c) && c !== '\n' && c !== '\r') {
       endWord();
@@ -80,22 +149,21 @@ function segments(text) {
         word += c;
         continue;
       }
-      endSegment();
-    } else if ((c === '<' || c === '>') && word !== null && !REDIRECT.test(word) && !/^[0-9]+$/.test(word)) {
+      endSegment(c);
+    } else if ((c === '<' || c === '>') && word !== null && !REDIRECT.test(word) && !/^[0-9*]+$/.test(word)) {
       endWord();
       word = c;
     } else {
       word = (word ?? '') + c;
     }
   }
-  endSegment();
+  endSegment(null);
   return out;
 }
 
-const isClaude = (word) => ['claude', 'claude-code'].includes(name(word)) || word.includes(PACKAGE);
+const isAi = (word) => AI_NAMES.has(name(word)) || AI_PACKAGES.some((p) => word.includes(p));
 
-function runsInSegment(all, depth) {
-  const words = all.filter((w, j) => !REDIRECT.test(w) && !(j > 0 && REDIRECT.test(all[j - 1]) && /^[0-9]*(>>?|<<?|&>>?)$/.test(all[j - 1])));
+function aiInWords(words, depth) {
   let i = 0;
   while (i < words.length) {
     const w = words[i];
@@ -104,42 +172,492 @@ function runsInSegment(all, depth) {
       continue;
     }
     const n = name(w);
-    if (isClaude(w)) return true;
+    if (isAi(w)) return true;
     if (n === 'command' && /^-[vV]$/.test(words[i + 1] ?? '')) return false;
-    if (WRAPPERS.has(n)) return words.slice(i + 1).some(isClaude) || runsInSegment(words.slice(i + 1).filter((x) => !x.startsWith('-')), depth);
-    if (n === 'node' || n === 'bun' || n === 'deno') return words.slice(i + 1).some((x) => x.includes(PACKAGE));
-    if (RUNNERS.has(n) && RUNNERS.get(n).has(words[i + 1])) return words.slice(i + 2).some(isClaude);
-    if (SHELLS.has(n)) {
-      const k = words.findIndex((x, j) => j > i && (/^-[a-z]{0,3}c[a-z]{0,3}$/.test(x) || /^(\/c|-command)$/i.test(x)));
-      return k > 0 && runsClaude(words.slice(k + 1).filter((x, j) => !(j === 0 && x === '--')).join(' '), depth + 1);
-    }
-    if (STRING_RUNNERS.has(n)) return runsClaude(words.slice(i + 1).join(' '), depth + 1);
+    if (WRAPPERS.has(n)) return words.slice(i + 1).some(isAi) || aiInWords(words.slice(i + 1).filter((x) => !x.startsWith('-')), depth);
+    if (n === 'node' || n === 'bun' || n === 'deno') return words.slice(i + 1).some((x) => AI_PACKAGES.some((p) => x.includes(p)));
+    if (RUNNERS.has(n) && RUNNERS.get(n).has(words[i + 1])) return words.slice(i + 2).some(isAi);
     return false;
   }
   return false;
 }
 
-export function runsClaude(command, depth = 0) {
-  if (typeof command !== 'string') return false;
-  if (depth > 8) return true;
-  const text = withoutHeredocBodies(command);
-  if (substitutions(text).some((s) => runsClaude(s, depth + 1))) return true;
-  return segments(text).some((words) => runsInSegment(words, depth));
+function killByName(cmd) {
+  const n = name(cmd[0] ?? '');
+  const rest = cmd.slice(1).map((x) => x.toLowerCase());
+  if (KILL_NAMES.has(n)) return n;
+  if (n === 'taskkill' && rest.some((x, j) => /^(\/\/?|-)im$/.test(x) || (/^(\/\/?|-)fi$/.test(x) && /imagename/.test(rest[j + 1] ?? '')))) return 'taskkill by image name';
+  if ((n === 'stop-process' || n === 'spps') && rest.some((x) => /^-(n|na|nam|name|processname)(:.*)?$/.test(x))) return 'Stop-Process -Name';
+  if (n === 'kill' && rest.some((x) => /^-(na|nam|name)(:.*)?$/.test(x))) return 'Stop-Process -Name';
+  if (n === 'wmic' && rest.includes('process') && rest.some((x) => /name/.test(x)) && rest.some((x) => /^(delete|terminate|call)$/.test(x))) return 'wmic by name';
+  return null;
 }
 
-export const REFUSAL =
-  'check-it-reviewer: a review starts no model run, so this command, which runs claude, is refused (#131). ' +
-  'Report the finding unproven instead, with what would show it: how many runs, on which model, and their estimated cost. ' +
-  "Whether to spend them is the person's, at check-it's question.";
+function listsByName(cmd) {
+  const n = name(cmd[0] ?? '');
+  if (n !== 'get-process' && n !== 'gps') return false;
+  const args = cmd.slice(1);
+  return !args.some((a) => /^-id$/i.test(a)) && (args.some((a) => /^-(n|na|nam|name|processname)$/i.test(a)) || args.some((a) => !a.startsWith('-')));
+}
 
-export function decide(stdin) {
+const STOPPERS = new Set(['stop-process', 'spps', 'kill']);
+
+function shellBody(words, i) {
+  const k = words.findIndex((x, j) => j > i && (/^-[a-z]{0,3}c[a-z]{0,3}$/.test(x) || /^(\/c|-command|-c)$/i.test(x)));
+  return k > 0 ? words.slice(k + 1).filter((x, j) => !(j === 0 && x === '--')).join(' ') : null;
+}
+
+function unwrap(words) {
+  let i = 0;
+  while (i < words.length) {
+    const w = words[i];
+    if (w.startsWith('-')) i += WRAPPER_VALUE_FLAGS.has(w) ? 2 : 1;
+    else if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(w) || /^[0-9.]+[smhd]?$/.test(w)) i++;
+    else break;
+  }
+  return words.slice(i);
+}
+
+function expand(word, env) {
+  let unknown = false;
+  const lookup = (k) => {
+    const v = env[k] ?? env[Object.keys(env).find((e) => e.toLowerCase() === k.toLowerCase()) ?? ''];
+    if (v === undefined) unknown = true;
+    return v ?? '';
+  };
+  let s = word
+    .replace(/^~(?=$|[\\/])/, () => lookup('HOME') || lookup('USERPROFILE'))
+    .replace(/\$env:([A-Za-z_][A-Za-z0-9_]*)/gi, (_, k) => lookup(k))
+    .replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (_, k) => lookup(k))
+    .replace(/\$([A-Za-z_][A-Za-z0-9_]*)/g, (_, k) => lookup(k))
+    .replace(/%([A-Za-z_][A-Za-z0-9_]*)%/g, (_, k) => lookup(k));
+  if (unknown || /[$`]/.test(s)) return null;
+  return s;
+}
+
+function canonical(path, drives) {
+  let s = path.replace(/\\/g, '/');
+  if (drives) {
+    const m = /^\/([A-Za-z])(\/|$)/.exec(s) ?? /^\/cygdrive\/([A-Za-z])(\/|$)/.exec(s);
+    if (m) s = m[1] + ':/' + s.slice(m[0].length);
+  }
+  s = s.replace(/^([A-Za-z]):(?!\/)/, '$1:/');
+  const drive = /^[A-Za-z]:/.exec(s)?.[0] ?? '';
+  let rest = posix.normalize(s.slice(drive.length) || '/');
+  if (rest.length > 1) rest = rest.replace(/\/$/, '');
+  const out = drive + rest;
+  return drive || drives ? out.toLowerCase() : out;
+}
+
+function isAbsolute(p) {
+  return /^([A-Za-z]:)?[\\/]/.test(p) || /^[A-Za-z]:$/.test(p);
+}
+
+function resolve(cwd, word, ctx) {
+  if (SINKS.has(word.toLowerCase())) return { sink: true };
+  const s = expand(word, ctx.env);
+  if (s === null) return null;
+  if (isAbsolute(s)) return { path: canonical(s, ctx.drives) };
+  if (cwd === null) return null;
+  return { path: canonical(cwd + '/' + s, ctx.drives) };
+}
+
+function inside(ctx, resolved) {
+  if (resolved === null) return true;
+  if (resolved.sink) return false;
+  return ctx.roots.some((root) => resolved.path === root || resolved.path.startsWith(root + '/'));
+}
+
+const cwdInside = (ctx, cwd) => inside(ctx, cwd === null ? null : { path: cwd });
+
+function positional(args) {
+  const out = [];
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (PS_PATH_PARAMS.test(a)) out.push(args[++i]);
+    else if (PS_OTHER_VALUE_PARAMS.test(a)) i++;
+    else if (a === '--') out.push(...args.slice(i + 1).filter(Boolean)), (i = args.length);
+    else if (!a.startsWith('-')) out.push(a);
+  }
+  return out.filter((x) => x !== undefined);
+}
+
+function writeTargets(n, args) {
+  if (WRITERS.has(n)) return positional(args);
+  if (n === 'dd') return args.filter((a) => a.startsWith('of=')).map((a) => a.slice(3));
+  if (n === 'tar') {
+    const bundle = /^[a-zA-Z]+$/.test(args[0] ?? '') ? args[0] : '';
+    const short = args.filter((a) => /^-[a-zA-Z]+$/.test(a)).join('') + bundle;
+    const value = (re) => {
+      const k = args.findIndex((a) => re.test(a));
+      if (k < 0) return null;
+      const eq = args[k].indexOf('=');
+      return eq > 0 ? args[k].slice(eq + 1) : args[k + 1];
+    };
+    if (/x/.test(short) || args.some((a) => /^--(extract|get)$/.test(a))) return [value(/^(-C|--directory(=.*)?)$/) ?? '.'];
+    const f = value(/^(-[a-zA-Z]*f|--file(=.*)?)$/) ?? (bundle.includes('f') ? args[1] : null);
+    return f && f !== '-' ? [f] : [];
+  }
+  if (n === 'cp' || n === 'ln') {
+    const t = args.findIndex((a) => a === '-t' || a.startsWith('--target-directory'));
+    if (t >= 0) return [args[t].includes('=') ? args[t].split('=')[1] : args[t + 1]];
+  }
+  if (n === 'copy-item' || n === 'copy' || n === 'cpi' || n === 'cp') {
+    const d = args.findIndex((a) => /^-dest(ination)?$/i.test(a));
+    if (d >= 0) return [args[d + 1]];
+  }
+  if (n === 'robocopy' || n === 'xcopy') return positional(args).filter((a) => !/^\/[A-Za-z]+(:.*)?$/.test(a)).slice(1, 2);
+  return positional(args).slice(-1);
+}
+
+function dirArg(n, args) {
+  if (args.includes('-')) return { to: null };
+  const pos = positional(args);
+  if (n === 'popd' || n === 'pop-location') return { pop: true };
+  if (pos.length === 0) return n === 'pushd' || n === 'push-location' ? { pop: false, to: null } : { to: '~' };
+  if (pos[0] === '-') return { to: null };
+  return { to: pos[0] };
+}
+
+function gitCheck(words, cwd, ctx, assigned) {
+  let i = 1;
+  let dir = cwd;
+  let named = assigned.some((a) => /^GIT_(DIR|WORK_TREE)=/.test(a) && inside(ctx, resolve(cwd, a.slice(a.indexOf('=') + 1), ctx)));
+  let config = assigned.some((a) => /^(GIT_[A-Z_]*|PAGER|LESSOPEN|LESSCLOSE)=/.test(a) && !/^GIT_(DIR|WORK_TREE)=/.test(a));
+  while (i < words.length && words[i].startsWith('-')) {
+    const w = words[i];
+    const pathOption = /^--(git-dir|work-tree)(=(.*))?$/.exec(w);
+    if (w === '-C') {
+      const r = resolve(dir, words[i + 1] ?? '', ctx);
+      dir = r?.path ?? null;
+      i += 2;
+    } else if (pathOption) {
+      const value = pathOption[2] ? pathOption[3] : words[i + 1];
+      if (inside(ctx, resolve(dir, value ?? '', ctx))) named = true;
+      i += pathOption[2] ? 1 : 2;
+    } else if (w === '-c' || w === '--config-env' || w.startsWith('--config-env=') || w.startsWith('--exec-path')) {
+      config = true;
+      i += w === '-c' || w === '--config-env' ? 2 : 1;
+    } else i++;
+  }
+  const sub = words[i];
+  const args = words.slice(i + 1);
+  for (let k = 0; k < args.length; k++) {
+    const o = /^--output(=(.*))?$/.exec(args[k]);
+    if (!o) continue;
+    const target = o[1] ? o[2] : args[k + 1];
+    const res = resolve(dir, target ?? '', ctx);
+    if (res === null) return refusal('unknown', target ?? '--output');
+    if (inside(ctx, res)) return refusal('repo-write', 'git ' + sub + ' --output');
+  }
+  if (!named && !cwdInside(ctx, dir)) return null;
+  if (config) return refusal('repo-run', 'git with configuration set in the command');
+  if (sub === undefined || sub === '--version' || sub === '--help') return null;
+  if (args.some((a) => /^(-O.*|--open-files-in-pager.*)$/.test(a))) return refusal('repo-run', 'git ' + sub + ' -O');
+  if (GIT_READS.has(sub)) return null;
+  if (GIT_READ_FORMS.has(sub) && GIT_READ_FORMS.get(sub)(args)) return null;
+  return refusal('repo-run', 'git ' + sub);
+}
+
+function readerCheck(n, args) {
+  if (!READERS.has(n)) return false;
+  const bad = READER_WRITE_FLAGS.get(n);
+  if (bad && args.some((a) => bad.test(a))) return false;
+  if ((n === 'uniq' || n === 'xxd') && positional(args).length > 1) return false;
+  if (n === 'hostname' && positional(args).length > 0) return false;
+  if (n === 'sed') {
+    const e = args.flatMap((a, k) => (a === '-e' || a === '--expression' ? [args[k + 1]] : a.startsWith('--expression=') ? [a.slice(13)] : []));
+    const scripts = e.length ? e : positional(args).slice(0, 1);
+    if (args.some((a) => a === '-f' || a.startsWith('--file')) || !scripts.every((s) => s !== undefined && SED_PRINT.test(s))) return false;
+  }
+  return true;
+}
+
+const refusal = (rule, detail) => ({ rule, detail });
+
+function splitRedirects(all) {
+  const redirects = [];
+  const words = [];
+  for (let j = 0; j < all.length; j++) {
+    const w = all[j];
+    const m = REDIRECT.exec(w);
+    if (m) {
+      if (/[&]$/.test(m[0]) && /^[0-9-]*$/.test(w.slice(m[0].length))) continue;
+      if (/^[0-9*]*</.test(m[0])) {
+        if (w.slice(m[0].length) === '') j++;
+        continue;
+      }
+      const target = w.slice(m[0].length) || all[++j];
+      if (target !== undefined) redirects.push(target);
+    } else words.push(w);
+  }
+  return { redirects, words };
+}
+
+function targetRefusal(targets, cwd, ctx, label) {
+  for (const t of targets) {
+    const res = resolve(cwd, t, ctx);
+    if (res === null) return refusal('unknown', t);
+    if (inside(ctx, res)) return refusal('repo-write', label(t));
+  }
+  return null;
+}
+
+function setVariable(ctx, key, value) {
+  ctx.env = { ...ctx.env, [key]: value === undefined ? undefined : expand(value, ctx.env) ?? undefined };
+}
+
+function variableAssignment(cmd) {
+  const m = /^\$(env:)?([A-Za-z_][A-Za-z0-9_]*)(=(.*))?$/i.exec(cmd[0] ?? '');
+  if (!m) return null;
+  if (m[3] !== undefined) return { key: m[2], value: cmd.length === 1 ? m[4] : undefined };
+  if (cmd[1] === '=') return { key: m[2], value: cmd.length === 3 ? cmd[2] : undefined };
+  return null;
+}
+
+const stopsOnError = (args) => args.some((a, k) => /^-(erroraction|ea)(:stop)?$/i.test(a) && (/:stop$/i.test(a) || /^stop$/i.test(args[k + 1] ?? '')));
+
+function moveTo(n, args, state, ctx) {
+  const d = dirArg(n, args);
+  const old = state.cwd;
+  let next;
+  if (d.pop) next = state.stack.length ? state.stack.pop() : null;
+  else {
+    if (n === 'pushd' || n === 'push-location') state.stack.push(old);
+    next = d.to === null ? null : resolve(old, d.to, ctx)?.path ?? null;
+  }
+  if (state.by === '|') return;
+  const trusted = state.by === '&&' || state.by === null || (state.ps && stopsOnError(args) && state.by !== '||');
+  if (trusted) {
+    if (state.by === '&&' && state.fallback === undefined) state.fallback = old;
+    state.cwd = next;
+  } else state.cwd = old !== null && cwdInside(ctx, old) ? old : next;
+}
+
+function inspectWords(all, state, ctx, depth) {
+  const { redirects, words } = splitRedirects(all);
+
+  let i = 0;
+  const assigned = [];
+  while (i < words.length && (ASSIGNMENT.test(words[i]) || KEYWORDS.has(words[i]))) {
+    if (!KEYWORDS.has(words[i])) assigned.push(words[i]);
+    i++;
+  }
+  const cmd = words.slice(i);
+
+  if (ctx.rules.has('model') && aiInWords(words, depth)) {
+    const cli = words.find(isAi) ?? 'an AI CLI';
+    return refusal('model', name(cli));
+  }
+  if (ctx.rules.has('kill')) {
+    const k = killByName(cmd) ?? (state.pipedFromNamed && STOPPERS.has(name(cmd[0] ?? '')) ? 'Get-Process by name piped to Stop-Process' : null);
+    if (k) return refusal('kill', k);
+  }
+
+  const repo = ctx.rules.has('repo') && ctx.roots.length > 0;
+  const redirectRefusal = () => (repo ? targetRefusal(redirects, state.cwd, ctx, (t) => 'a redirection to ' + t) : null);
+  const n = cmd.length ? name(cmd[0]) : '';
+
+  if (cmd.length && (SHELLS.has(n) || STRING_RUNNERS.has(n))) {
+    const body = SHELLS.has(n) ? shellBody(cmd, 0) : cmd.slice(1).join(' ');
+    if (body !== null) {
+      const ps = SHELLS.has(n) ? ['pwsh', 'powershell', 'cmd'].includes(n) : state.ps;
+      return inspect(body, { cwd: state.cwd, stack: [], ps }, ctx, depth + 1) ?? redirectRefusal();
+    }
+    if (repo && cwdInside(ctx, state.cwd)) return refusal('repo-run', cmd.join(' '));
+    return redirectRefusal();
+  }
+  if (cmd.length && (WRAPPERS.has(n) || (RUNNERS.has(n) && RUNNERS.get(n).has(cmd[1])))) {
+    const inner = unwrap(cmd.slice(RUNNERS.has(n) && !WRAPPERS.has(n) ? 2 : 1));
+    if (n === 'command' && /^-[vV]$/.test(cmd[1] ?? '')) return null;
+    if (inner.length) return inspectWords([...inner, ...redirects.map((r) => '>' + r)], state, ctx, depth);
+  }
+
+  if (!repo) return null;
+
+  const r = redirectRefusal();
+  if (r) return r;
+
+  if (cmd.length === 0) {
+    for (const a of assigned) setVariable(ctx, a.slice(0, a.indexOf('=')), a.slice(a.indexOf('=') + 1));
+    return null;
+  }
+  const args = cmd.slice(1);
+  const variable = variableAssignment(cmd);
+  if (variable) {
+    setVariable(ctx, variable.key, variable.value);
+    return null;
+  }
+  if (ASSIGNERS.has(n)) {
+    for (const a of args) if (ASSIGNMENT.test(a)) setVariable(ctx, a.slice(0, a.indexOf('=')), a.slice(a.indexOf('=') + 1));
+    return null;
+  }
+  if (n === 'for' || n === 'read') {
+    for (const a of n === 'for' ? args.slice(0, 1) : args.filter((x) => !x.startsWith('-'))) if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(a)) setVariable(ctx, a, undefined);
+    return null;
+  }
+  if (CD.has(n)) {
+    moveTo(n, args, state, ctx);
+    return null;
+  }
+
+  if (WRITERS.has(n) || COPIERS.has(n)) {
+    const targets = writeTargets(n, args);
+    if (targets.length === 0 && n !== 'tar' && n !== 'dd') return refusal('unknown', cmd[0] + ' with no path written in the command');
+    return targetRefusal(targets, state.cwd, ctx, (t) => cmd[0] + ' on ' + t);
+  }
+  if (n === 'sed' && args.some((a) => READER_WRITE_FLAGS.get('sed').test(a))) {
+    const pos = positional(args);
+    const found = targetRefusal(args.some((a) => a === '-e' || a === '-f') ? pos : pos.slice(1), state.cwd, ctx, (t) => 'sed -i on ' + t);
+    if (found) return found;
+  }
+  if (n === 'find' && args.some((a) => READER_WRITE_FLAGS.get('find').test(a))) {
+    const k = args.findIndex((a) => /^[-(!]/.test(a));
+    const found = targetRefusal(args.slice(0, k < 0 ? args.length : k), state.cwd, ctx, (t) => 'find on ' + t);
+    if (found) return found;
+  }
+  if (n === 'git') return gitCheck(cmd, state.cwd, ctx, assigned);
+
+  if (!cwdInside(ctx, state.cwd)) return null;
+  if (readerCheck(n, args)) return null;
+  return refusal('repo-run', cmd.join(' '));
+}
+
+function inspect(command, state, ctx, depth) {
+  if (depth > 8) return refusal('depth', 'nested too deep');
+  const text = withoutHeredocBodies(command);
+  for (const s of substitutions(text, state.ps)) {
+    const found = inspect(s, { cwd: state.cwd, stack: [], ps: state.ps }, ctx, depth + 1);
+    if (found) return found;
+  }
+  const saved = [];
+  let prev = null;
+  let named = false;
+  for (const seg of segments(text, state.ps)) {
+    if (seg.open) {
+      saved.push({ cwd: state.cwd, fallback: state.fallback });
+      state.fallback = undefined;
+      continue;
+    }
+    if (seg.close) {
+      if (saved.length) ({ cwd: state.cwd, fallback: state.fallback } = saved.pop());
+      continue;
+    }
+    named = prev !== null && prev.by === '|' && (named || listsByName(unwrap(prev.words)));
+    state.pipedFromNamed = named;
+    state.by = seg.by;
+    const found = inspectWords(seg.words, state, ctx, depth);
+    if (found) return found;
+    if (seg.by !== '&&' && seg.by !== '|' && state.fallback !== undefined) {
+      if (state.fallback === null || cwdInside(ctx, state.fallback)) state.cwd = state.fallback;
+      state.fallback = undefined;
+    }
+    prev = seg;
+  }
+  return null;
+}
+
+const ruleOnly = (rule, command) =>
+  typeof command === 'string'
+    ? inspect(command, { cwd: null, stack: [], ps: false }, { rules: new Set([rule]), roots: [], env: {}, drives: false }, 0)
+    : null;
+
+export function startsAiCli(command) {
+  return ruleOnly('model', command) !== null;
+}
+
+export function killsByImageName(command) {
+  const found = ruleOnly('kill', command);
+  return found === null ? null : found.detail;
+}
+
+const REAL_FS = {
+  exists: existsSync,
+  read: (p) => {
+    try {
+      return readFileSync(p, 'utf8');
+    } catch {
+      return null;
+    }
+  },
+  list: (p) => {
+    try {
+      return readdirSync(p);
+    } catch {
+      return [];
+    }
+  },
+};
+
+export function findRoot(dir, exists = existsSync) {
+  if (typeof dir !== 'string' || dir === '') return null;
+  let d = dir.replace(/\\/g, '/').replace(/\/+$/, '');
+  for (;;) {
+    if (exists(d + '/.git')) return d;
+    const up = d.replace(/\/[^/]*$/, '');
+    if (up === d || up === '' || /^[A-Za-z]:$/.test(d)) return null;
+    d = up;
+  }
+}
+
+function protectedRoots(rootDir, fs, drives) {
+  const join = (base, rel) => (isAbsolute(rel) ? rel : base + '/' + rel);
+  let gitDir = rootDir + '/.git';
+  const pointer = /^gitdir:\s*(.+)$/m.exec(fs.read(gitDir) ?? '');
+  if (pointer) gitDir = join(rootDir, pointer[1].trim());
+  const common = fs.read(gitDir + '/commondir');
+  const commonDir = common ? join(gitDir, common.trim()) : gitDir;
+  const commonPath = canonical(commonDir, drives);
+  const main = commonPath.endsWith('/.git') ? commonPath.slice(0, -5) : canonical(rootDir, drives);
+  const roots = [canonical(rootDir, drives), main, main + '.worktrees'];
+  for (const w of fs.list(commonDir + '/worktrees')) {
+    const g = fs.read(commonDir + '/worktrees/' + w + '/gitdir');
+    if (g) roots.push(canonical(g.trim().replace(/[\\/]\.git$/, ''), drives));
+  }
+  return [...new Set(roots)];
+}
+
+export const ALL_RULES = ['repo', 'model', 'kill'];
+
+function message(who, found, root) {
+  const by = who + ': ';
+  switch (found.rule) {
+    case 'model':
+      return by + 'a review starts no model run, so this command, which starts ' + found.detail + ', is refused (#131, #143). ' +
+        'Report the finding unproven instead, with what would show it: how many runs, on which model, and their estimated cost. ' +
+        "Whether to spend them is the person's, at check-it's question.";
+    case 'kill':
+      return by + 'this command kills processes by image name (' + found.detail + "), and a process found by name may be the person's, so it is refused (#144). " +
+        "Kill only a process whose command line holds the run folder's path, by its id, as clean-it/RULES.md Processes says.";
+    case 'repo-run':
+      return by + '\x60' + found.detail + '\x60 would run inside the reviewed repository (' + root + '), where only read commands run, so it is refused (#143). ' +
+        'Run it in your copy, in your own folder in the run folder, with cd to the copy in the same command.';
+    case 'repo-write':
+      return by + 'this command writes inside the reviewed repository (' + root + ') through ' + found.detail + ', so it is refused (#143). Write only in your copy.';
+    case 'unknown':
+      return by + 'whether ' + found.detail + ' is inside the reviewed repository (' + root + ') cannot be told from the command, so it is refused (#143). Write the path literally.';
+    default:
+      return by + 'the command is nested too deep to read, so it is refused.';
+  }
+}
+
+export function decide(stdin, { rules = ALL_RULES, who = 'check-it-reviewer', env = {}, fs = REAL_FS } = {}) {
   let input;
   try {
     input = JSON.parse(stdin);
   } catch {
-    return { code: 2, message: 'check-it-reviewer: the hook could not read its input, so the call is refused' };
+    return { code: 2, message: who + ': the hook could not read its input, so the call is refused' };
   }
   const command = input?.tool_input?.command;
-  if (typeof command !== 'string') return { code: 2, message: 'check-it-reviewer: the call carries no command to read, so it is refused' };
-  return runsClaude(command) ? { code: 2, message: REFUSAL } : { code: 0 };
+  if (typeof command !== 'string') return { code: 2, message: who + ': the call carries no command to read, so it is refused' };
+  const set = new Set(rules);
+  const cwd = typeof input.cwd === 'string' && input.cwd !== '' ? input.cwd : null;
+  if (set.has('repo') && cwd === null) return { code: 2, message: who + ': the call carries no working directory, so whether it runs inside the reviewed repository cannot be told, and it is refused' };
+  const rootDir = set.has('repo') ? findRoot(env.CLAUDE_PROJECT_DIR || cwd, fs.exists) : null;
+  const drives = /^[A-Za-z]:/.test(rootDir ?? cwd ?? '');
+  const roots = rootDir === null ? [] : protectedRoots(rootDir, fs, drives);
+  const ctx = { rules: set, roots, env, drives };
+  const ps = input.tool_name === 'PowerShell';
+  const found = inspect(command, { cwd: cwd === null ? null : canonical(cwd, drives), stack: [], ps }, ctx, 0);
+  return found ? { code: 2, message: message(who, found, rootDir) } : { code: 0 };
 }

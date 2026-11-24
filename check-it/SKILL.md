@@ -372,12 +372,39 @@ Codex*). **No review starts a model run** (#123, #131); a Codex review is held
 to that by its sandbox (*A review on Codex*).
 That type, [agents/check-it-reviewer.md](agents/check-it-reviewer.md), has no
 `Agent` and no `Skill` tool, and a `PreToolUse` hook on its `Bash` and
-`PowerShell` refuses a command that runs `claude`
-([scripts/no-model-run.mjs](scripts/no-model-run.mjs)); the hook is set to block
-the call when it fails or times out, so a missing or broken script refuses
-rather than lets through. It reads the command's text, so it catches `claude`
-named in the command itself, and not one started from a script file, another
-interpreter, a variable, an encoded command or a renamed copy. **Where the session's agent list lacks the type**
+`PowerShell` ([scripts/no-model-run.mjs](scripts/no-model-run.mjs), deciding
+in [scripts/model-run-check.mjs](scripts/model-run-check.mjs)) refuses three
+kinds of command:
+
+- one that starts an AI CLI: `claude`, `codex`, `agy` or `gemini` (#131,
+  #143);
+- one whose working directory is inside the reviewed repository and that is not
+  a read (`git diff`, `log`, `show`, `status` and the like, `cat`, `grep`,
+  `rg`, `ls`, `head`, `sed` that only prints a line range), and one that
+  writes a path inside it from anywhere, through `rm`, `mv`, a copy's
+  destination, `git --output` or a redirection, each with *run it in your copy*
+  (#143). The reviewed repository is the git root of the session's project
+  folder, or of the call's working directory where that is not set, with every
+  worktree of it: those `git worktree list` names and anything under
+  `<root>.worktrees/`. `git` is judged where `-C`, `--git-dir` or
+  `--work-tree` points. A `cd` moves where the rest runs only when a failed
+  one would stop it: joined with `&&`, or in PowerShell `Set-Location …
+  -ErrorAction Stop`; after `;` or a new line the rest is judged where it
+  started as well. A variable the command sets (`export`, `$env:`) is read as
+  set, and a path it cannot place (an unset variable, `cd -`, a writer whose
+  paths come from `xargs`) is refused. A PowerShell command is read with
+  PowerShell's quoting, where a backslash is a character;
+- one that kills processes by image name (#144): `pkill`, `killall`,
+  `taskkill` with `/IM` or an `IMAGENAME` filter (`//IM` in Git Bash too),
+  `Stop-Process -Name` (and `spps`, `kill -Name`), `Get-Process` by name piped
+  through any stages to `Stop-Process`, and `wmic process` by name. This is the
+  one list.
+
+The hook is set to block the call when it fails or times out, so a missing or
+broken script refuses rather than lets through. It reads the command's text, so
+it catches a name or a path written in the command itself, and not one reached
+from a script file, another interpreter, a variable, an encoded command or a
+renamed copy. **Where the session's agent list lacks the type**
 (a session started before the install), no review and no decision model starts
 until the person is asked, through the question tool where there is one: *open the session
 again* (recommended, since the default agent holds `Agent` and `Skill` and only

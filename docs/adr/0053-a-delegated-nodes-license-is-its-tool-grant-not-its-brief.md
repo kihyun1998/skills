@@ -1,5 +1,12 @@
 # A delegated node's license is its tool grant, not its brief
 
+> **Amended for #143 and #144 on 2026-11-24.** The same hook also refuses
+> `codex`, `agy` and `gemini` by name, a command that is not a read where its
+> working directory is inside the reviewed repository, a write into that
+> repository from anywhere, and a kill by image name; every `thegraph-herdr`
+> worker runs the last of these too (`check-it/scripts/no-image-kill.mjs`).
+> It still reads the command's text, with the limits below.
+
 > **Amended for #131 on 2026-11-23.** The grant withholds `Skill` too, and a
 > `PreToolUse` hook in the definition refuses a `Bash` or `PowerShell`
 > command that names `claude` (`check-it/scripts/no-model-run.mjs`), so a
