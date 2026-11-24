@@ -84,8 +84,8 @@ done
 ```
 
 `mattpocock/skills` holds the same rule (`.agents/invocation.md`) and there it
-does produce short user-invoked skills — `grill-me` is one line calling
-`grilling` — because a name a person remembers and a method other skills call are
+does produce short user-invoked skills — its grill alias is one line calling
+its grilling skill — because a name a person remembers and a method other skills call are
 split on purpose. That shape is a consequence of the rule, not the rule. An alias
 like it is legitimate here too: it costs no context and buys a name.
 

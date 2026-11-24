@@ -28,8 +28,8 @@ best practices, cited by line in the raw `.md`:
   with no closing tag and no attributes -- so a new skill inherits it and a real
   tag still fires.
 
-**The pronoun column reports candidates, not violations.** A `me` inside the
-alias `/grill-me` and an `I` inside a quoted user utterance are both hits and
+**The pronoun column reports candidates, not violations.** A `me` inside an
+alias ending in `-me` and an `I` inside a quoted user utterance are both hits and
 neither is a point-of-view defect. The guidance's own Avoid examples are about
 the *skill* speaking (*"I can help you..."*, *"You can use this to..."*); a
 trigger clause describing the *user's* state reads differently. Each hit is read
