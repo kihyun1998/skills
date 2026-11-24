@@ -442,7 +442,11 @@ the repository in the usual case. The variable was empty in a reviewer's REPL
 shell in #147's probe; whether the hook process receives it is not measured. It reads the command's text, so
 it catches a name or a path written in the command itself, and not one reached
 from a script file, another interpreter, a variable, an encoded command or a
-renamed copy. **Where the session's agent list lacks the type**
+renamed copy, nor a repository path written another way (escaped, globbed,
+braced, drive-relative, `file:///`, `\\?\`, or built from pieces), reached
+through a symbolic link, or deleted as the source of a move-like copy option
+(`rsync --remove-source-files`, `tar --remove-files`, `robocopy /MOVE`): limits
+of reading text, accepted with #131's renamed copy (#147). **Where the session's agent list lacks the type**
 (a session started before the install), no review and no decision model starts
 until the person is asked, through the question tool where there is one: *open the session
 again* (recommended, since the default agent holds `Agent` and `Skill` and only
