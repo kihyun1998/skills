@@ -150,7 +150,7 @@ test('a record made before the change leaves out the untracked files unchanged s
   writeFileSync(join(kept, 'docs', 'notes.md'), 'mine\n');
   const made = call(here, ['record', '--run-folder', folder], kept);
   assert.equal(made.status, 0, made.stderr);
-  assert.match(made.stdout, /recorded 2 untracked files/);
+  assert.match(made.stdout, /recorded 2 untracked files and 0 tracked files modified before the run/);
   assert.equal(call(here, ['record', '--run-folder', folder], kept).status, 1);
 
   writeFileSync(join(kept, 'docs', 'notes.md'), 'mine, edited by the change\n');
@@ -167,6 +167,63 @@ test('a record made before the change leaves out the untracked files unchanged s
   ].join('\n'));
   const all = call(here, ['range'], kept);
   assert.match(all.stdout, /- `\.DS_Store` \(untracked\)/);
+});
+
+test('a tracked file modified before the run is left out while its diff is unchanged, claim refuses it until taken, and --paths stages only the change', () => {
+  const tree = join(scratch, 'pre-tree');
+  const folder = join(scratch, 'pre-run');
+  mkdirSync(tree);
+  mkdirSync(folder);
+  writeFileSync(join(tree, 'pre.c'), 'int pre;\n');
+  writeFileSync(join(tree, 'mine.c'), 'int mine;\n');
+  git(tree, 'init', '-q');
+  git(tree, 'add', '.');
+  git(tree, 'commit', '-q', '-m', 'base');
+  writeFileSync(join(tree, 'pre.c'), 'int pre = 1; /* another session */\n');
+  writeFileSync(join(tree, 'stray.txt'), 'another session\n');
+  const made = call(here, ['record', '--run-folder', folder], tree);
+  assert.equal(made.status, 0, made.stderr);
+  assert.match(made.stdout, /^recorded 1 untracked file and 1 tracked file modified before the run in /);
+
+  const refused = call(here, ['claim', '--run-folder', folder, 'pre.c'], tree);
+  assert.equal(refused.status, 1);
+  assert.match(refused.stderr, /^check-it: `pre\.c` was modified before the run began, .* Ask them: take its earlier change as this run's \(then claim it with --take `pre\.c`\), leave that file alone, or stop the run\n$/);
+  assert.equal(call(here, ['claim', '--run-folder', folder, 'stray.txt'], tree).status, 1);
+  assert.equal(call(here, ['claim', '--run-folder', folder, 'mine.c'], tree).status, 0);
+  writeFileSync(join(tree, 'mine.c'), 'int mine = 1;\n');
+
+  const listed = call(here, ['range', '--run-folder', folder], tree);
+  assert.equal(listed.status, 0, listed.stderr);
+  const record = join(folder, 'check-it.untracked.json');
+  assert.equal(listed.stdout, [
+    '- `mine.c`',
+    '',
+    `Left out: modified before the run began, its diff against HEAD unchanged since, as ${record} records:`,
+    '- `pre.c`',
+    '',
+    `Left out: untracked before the run began and unchanged since, as ${record} records:`,
+    '- `stray.txt`',
+    '',
+  ].join('\n'));
+  const paths = call(here, ['range', '--run-folder', folder, '--paths'], tree);
+  assert.equal(paths.status, 0, paths.stderr);
+  assert.equal(paths.stdout, 'mine.c\n');
+  git(tree, 'add', '--', ...paths.stdout.trim().split('\n'));
+  assert.equal(git(tree, 'diff', '--cached', '--name-only'), 'mine.c\n');
+  git(tree, 'reset', '-q');
+
+  writeFileSync(join(tree, 'pre.c'), 'int pre = 2; /* edited during the run */\n');
+  assert.equal(call(here, ['range', '--run-folder', folder, '--paths'], tree).stdout, 'mine.c\npre.c\n');
+  writeFileSync(join(tree, 'pre.c'), 'int pre = 1; /* another session */\n');
+  const taken = call(here, ['claim', '--run-folder', folder, '--take', 'pre.c'], tree);
+  assert.equal(taken.status, 0, taken.stderr);
+  assert.equal(call(here, ['range', '--run-folder', folder, '--paths'], tree).stdout, 'mine.c\npre.c\n');
+
+  git(tree, 'add', '--', 'mine.c', 'pre.c');
+  git(tree, 'commit', '-q', '-m', 'run', '--', 'mine.c', 'pre.c');
+  assert.equal(call(here, ['release', '--run-folder', folder, 'mine.c', 'pre.c'], tree).status, 0);
+  const again = call(here, ['claim', '--run-folder', folder, 'pre.c'], tree);
+  assert.equal(again.status, 0, again.stderr);
 });
 
 test('an untracked link is recorded by where it points, so its target outside the repository is never read', { skip: process.platform === 'win32' && 'a file symlink needs Developer Mode on Windows' }, () => {

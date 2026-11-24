@@ -1,13 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { basename, dirname, join, relative, resolve } from 'node:path';
+import { createHash } from 'node:crypto';
 import { CLAIMS, CheckItError, RECORD, REPORTS, SKILLS, fill, matchCovered, ownPart, dropStep, parseArgs, reportPath, run, section, skillBody } from './assemble.mjs';
 import { readFileSync } from 'node:fs';
 
 const REPO = resolve('/work/repo');
 const CHECK_IT = join(SKILLS, 'check-it');
 
-function fakeDeps({ files = {}, tracked = [], untracked = [], dirs = ['/work/run'], onDisk = [], hashes = {}, links = [], aliases = {} } = {}) {
+function fakeDeps({ files = {}, tracked = [], untracked = [], diffs = {}, dirs = ['/work/run'], onDisk = [], hashes = {}, links = [], aliases = {} } = {}) {
   const base = {
     [join(CHECK_IT, 'reviewers/brief.md')]: 'BRIEF repo={{repo}} issue={{issue}} run={{run_folder}} ledger={{ledger}} rules={{skills}}/clean-it\nchange: {{change}}',
     [join(CHECK_IT, 'reviewers/bug.md')]: 'BUG PART',
@@ -55,7 +56,12 @@ function fakeDeps({ files = {}, tracked = [], untracked = [], dirs = ['/work/run
       git: (dir, args) => {
         calls.push({ dir, args });
         if (args[0] === 'rev-parse') return `${REPO}\n`;
-        if (args[0] === 'diff') return tracked.map((p) => `${p}\0`).join('');
+        if (args[0] === 'diff' && args.includes('--name-only')) return tracked.map((p) => `${p}\0`).join('');
+        if (args[0] === 'diff') {
+          const p = args.at(-1).replace(/^:\(literal\)/, '');
+          if (!tracked.includes(p)) throw new Error(`git diff of ${p}, which git does not list as changed`);
+          return diffs[p] ?? '';
+        }
         if (args[0] === 'ls-files') return untracked.map((p) => `${p}\0`).join('');
         throw new Error(`unexpected git ${args.join(' ')}`);
       },
@@ -337,8 +343,8 @@ const recordOf = (untracked, repo = REPO) => JSON.stringify({ repo, untracked })
 test('record writes the untracked files there now with their content hashes into the run folder, and only once', () => {
   const { deps, written } = fakeDeps({ untracked: ['.DS_Store', 'docs/diagrams.zip', 'nested/'], hashes: { '.DS_Store': H('a'), 'docs/diagrams.zip': H('b') } });
   const out = run(['record', '--run-folder', '/work/run'], deps);
-  assert.deepEqual(JSON.parse(written[RECORDED]), { repo: REPO, untracked: { '.DS_Store': H('a'), 'docs/diagrams.zip': H('b') } });
-  assert.match(out, /recorded 2 untracked files in .*check-it\.untracked\.json/);
+  assert.deepEqual(JSON.parse(written[RECORDED]), { repo: REPO, untracked: { '.DS_Store': H('a'), 'docs/diagrams.zip': H('b') }, tracked: {} });
+  assert.match(out, /recorded 2 untracked files and 0 tracked files modified before the run in .*check-it\.untracked\.json/);
   assert.match(out, /`nested\/`/);
   throwsCheck(() => run(['record', '--run-folder', '/work/run'], deps), /already holds a record/);
   throwsCheck(() => run(['record', '--run-folder', '/work/run'], fakeDeps({ links: [RECORDED] }).deps), /already holds a record/);
@@ -455,9 +461,9 @@ test('record --from carries the earlier run folder\'s record into the new one, s
   });
   const out = run(['record', '--run-folder', '/work/run', '--from', '/work/earlier'], deps);
   assert.deepEqual(Object.keys(written), [RECORDED]);
-  assert.deepEqual(JSON.parse(written[RECORDED]), { repo: REPO, untracked: { '.DS_Store': H('a') } });
+  assert.deepEqual(JSON.parse(written[RECORDED]), { repo: REPO, untracked: { '.DS_Store': H('a') }, tracked: {} });
   assert.deepEqual(hashed, []);
-  assert.equal(out, `carried the record of 1 untracked file from ${EARLIER_RECORD} into ${RECORDED}\n`);
+  assert.equal(out, `carried the record of 1 untracked file and 0 tracked files modified before the run from ${EARLIER_RECORD} into ${RECORDED}\n`);
   assert.match(run(['range', '--run-folder', '/work/run'], deps), /^- `feature\.c` \(untracked\)\n\nLeft out: .*\n- `\.DS_Store`\n$/);
   throwsCheck(() => run(['record', '--run-folder', '/work/run', '--from', '/work/earlier'], deps), /already holds a record/);
 });
@@ -466,9 +472,9 @@ test('record --from records no file where the earlier run folder had no record, 
   const { deps, written, hashed } = fakeDeps({ dirs: ['/work/run', '/work/earlier'], tracked: ['a.c'], untracked: ['feature.c'], hashes: { 'feature.c': H('b') } });
   const out = run(['record', '--run-folder', '/work/run', '--from', '/work/earlier'], deps);
   assert.deepEqual(Object.keys(written), [RECORDED]);
-  assert.deepEqual(JSON.parse(written[RECORDED]), { repo: REPO, untracked: {} });
+  assert.deepEqual(JSON.parse(written[RECORDED]), { repo: REPO, untracked: {}, tracked: {} });
   assert.deepEqual(hashed, []);
-  assert.equal(out, `recorded no untracked file, since there is no record at ${EARLIER_RECORD}: every untracked file is listed\n`);
+  assert.equal(out, `recorded no file, since there is no record at ${EARLIER_RECORD}: every changed file is listed\n`);
   assert.equal(run(['range', '--run-folder', '/work/run'], deps), '- `a.c`\n- `feature.c` (untracked)\n');
   throwsCheck(() => run(['record', '--run-folder', '/work/run'], deps), /already holds a record/);
   assert.deepEqual(hashed, []);
@@ -487,8 +493,8 @@ test('record --from the run folder itself keeps the record it has, or records no
   assert.equal(run(['record', '--run-folder', '/work/run', '--from', '/work/run'], kept.deps), `kept the record ${RECORDED}\n`);
   assert.deepEqual(kept.written, {});
   const none = fakeDeps({ untracked: ['feature.c'], hashes: { 'feature.c': H('b') } });
-  assert.equal(run(['record', '--run-folder', '/work/run', '--from', '/work/run'], none.deps), `recorded no untracked file, since there is no record at ${RECORDED}: every untracked file is listed\n`);
-  assert.deepEqual(JSON.parse(none.written[RECORDED]), { repo: REPO, untracked: {} });
+  assert.equal(run(['record', '--run-folder', '/work/run', '--from', '/work/run'], none.deps), `recorded no file, since there is no record at ${RECORDED}: every changed file is listed\n`);
+  assert.deepEqual(JSON.parse(none.written[RECORDED]), { repo: REPO, untracked: {}, tracked: {} });
   throwsCheck(() => run(['record', '--run-folder', '/work/run'], none.deps), /already holds a record/);
 });
 
@@ -515,8 +521,10 @@ test('record says a path it could not hash is not recorded, so always listed', (
 });
 
 test('record records an untracked file named __proto__ like any other', () => {
-  const { deps, written } = fakeDeps({ tracked: ['a.c'], untracked: ['__proto__', 'b.c'], hashes: { ['__proto__']: H('a'), 'b.c': H('b') } });
-  assert.equal(run(['record', '--run-folder', '/work/run'], deps), `recorded 2 untracked files in ${RECORDED}\n`);
+  const diffs = { 'a.c': 'before' };
+  const { deps, written } = fakeDeps({ tracked: ['a.c'], untracked: ['__proto__', 'b.c'], diffs, hashes: { ['__proto__']: H('a'), 'b.c': H('b') } });
+  assert.equal(run(['record', '--run-folder', '/work/run'], deps), `recorded 2 untracked files and 1 tracked file modified before the run in ${RECORDED}\n`);
+  diffs['a.c'] = 'edited by the run';
   assert.deepEqual(Object.keys(JSON.parse(written[RECORDED]).untracked).sort(), ['__proto__', 'b.c']);
   assert.equal(run(['range', '--run-folder', '/work/run'], deps), `- \`a.c\`\n\nLeft out: untracked before the run began and unchanged since, as ${RECORDED} records:\n- \`__proto__\`\n- \`b.c\`\n`);
 });
@@ -688,6 +696,139 @@ test('record --from the run folder itself leaves its claim as it is, with a reco
   assert.equal(run(['record', '--run-folder', '/work/run', '--from', '/work/run'], kept.deps), `kept the record ${RECORDED}\n`);
   assert.deepEqual(kept.written, {});
   const none = fakeDeps({ files: { [CLAIMED]: claimOf(['a.c']) } });
-  assert.equal(run(['record', '--run-folder', '/work/run', '--from', '/work/run'], none.deps), `recorded no untracked file, since there is no record at ${RECORDED}: every untracked file is listed\n`);
+  assert.equal(run(['record', '--run-folder', '/work/run', '--from', '/work/run'], none.deps), `recorded no file, since there is no record at ${RECORDED}: every changed file is listed\n`);
   assert.deepEqual(Object.keys(none.written), [RECORDED]);
+});
+
+
+const sha = (text) => createHash('sha256').update(text).digest('hex');
+const recordWith = (untracked, tracked) => JSON.stringify({ repo: REPO, untracked, tracked });
+
+test('range --paths prints only the change\'s paths, one per line, and none of the files left out', () => {
+  const { deps } = fakeDeps({
+    dirs: ['/work/run', '/work/other.made'],
+    tracked: ['src/a.js', 'pre.js', 'theirs.js'],
+    untracked: ['.DS_Store', 'src/new.js'],
+    diffs: { 'pre.js': 'P', 'src/a.js': 'A' },
+    hashes: { '.DS_Store': H('a'), 'src/new.js': H('d') },
+    files: { [RECORDED]: recordWith({ '.DS_Store': H('a') }, { 'pre.js': sha('P') }), [OTHER_CLAIMED]: claimOf(['theirs.js']) },
+  });
+  assert.equal(run(['range', '--run-folder', '/work/run', '--paths'], deps), 'src/a.js\nsrc/new.js\n');
+  assert.match(run(['range', '--run-folder', '/work/run'], deps), /Left out: .*\n- `pre\.js`[\s\S]*Left out: .*\n- `\.DS_Store`[\s\S]*Left out: .*\n- `theirs\.js`\n$/);
+  assert.equal(run(['range', '--paths'], fakeDeps({ tracked: ['a.js'], untracked: ['b.js'] }).deps), 'a.js\nb.js\n');
+  throwsCheck(() => run(['range', '--paths', '--paths'], deps), /--paths is given twice/);
+  throwsCheck(() => run(['claim', '--run-folder', '/work/run', '--paths', 'x'], deps), /claim takes no --paths/);
+});
+
+test('range --paths on an empty change stops, so git commit -- with no path never commits the whole index', () => {
+  throwsCheck(() => run(['range', '--paths'], fakeDeps().deps), /^the diff is empty: git diff HEAD and git ls-files --others --exclude-standard print nothing$/);
+  const left = fakeDeps({ tracked: ['pre.js'], diffs: { 'pre.js': 'P' }, files: { [RECORDED]: recordWith({}, { 'pre.js': sha('P') }) } });
+  throwsCheck(() => run(['range', '--run-folder', '/work/run', '--paths'], left.deps), /the diff is empty/);
+});
+
+test('range --paths stops on a path the shell would split or glob, or a git pathspec would read as a pattern or magic, naming each', () => {
+  for (const bad of ['a b.c', 'tab\there', 'line\nbreak', 'star*.c', 'q?.c', '[x].c', ':(exclude)x', 'back\\slash', 'bell\u0007']) {
+    const { deps } = fakeDeps({ tracked: ['ok.c'], untracked: [bad] });
+    throwsCheck(() => run(['range', '--paths'], deps), /would not pass whole through the shell's word splitting or a git pathspec, so --paths prints none/);
+  }
+  const { deps } = fakeDeps({ tracked: ['a b.c', 'ok.c', 'q?.c'] });
+  throwsCheck(() => run(['range', '--paths'], deps), /^`a b\.c`, `q\?\.c` would not pass/);
+  assert.equal(run(['range', '--paths'], fakeDeps({ untracked: ['a:b.c', "it's-(1)+&.c", 'x/-y.c', 'ä.c'] }).deps), "a:b.c\nit's-(1)+&.c\nx/-y.c\nä.c\n");
+});
+
+test('record writes each tracked file already modified with the hash of its diff against HEAD, read pathspec-literally', () => {
+  const { deps, written, calls } = fakeDeps({ tracked: ['src/a.js', 'star*.js'], diffs: { 'src/a.js': 'DIFF A', 'star*.js': 'DIFF S' } });
+  const out = run(['record', '--run-folder', '/work/run'], deps);
+  assert.deepEqual(JSON.parse(written[RECORDED]), { repo: REPO, untracked: {}, tracked: { 'src/a.js': sha('DIFF A'), 'star*.js': sha('DIFF S') } });
+  assert.equal(out, `recorded 0 untracked files and 2 tracked files modified before the run in ${RECORDED}\n`);
+  const perFile = calls.filter((c) => c.args[0] === 'diff' && !c.args.includes('--name-only')).map((c) => c.args);
+  assert.deepEqual(perFile, [
+    ['diff', 'HEAD', '--binary', '--no-color', '--no-ext-diff', '--no-textconv', '--no-renames', '--', ':(literal)src/a.js'],
+    ['diff', 'HEAD', '--binary', '--no-color', '--no-ext-diff', '--no-textconv', '--no-renames', '--', ':(literal)star*.js'],
+  ]);
+});
+
+test('with a record, a tracked file modified before the run is left out while its diff is unchanged, and listed once it changes', () => {
+  const diffs = { 'pre.js': 'P', 'other.js': 'O' };
+  const { deps } = fakeDeps({ tracked: ['pre.js', 'other.js', 'mine.js'], diffs, files: { [RECORDED]: recordWith({}, { 'pre.js': sha('P'), 'other.js': sha('O') }) } });
+  assert.equal(run(['range', '--run-folder', '/work/run'], deps), [
+    '- `mine.js`',
+    '',
+    `Left out: modified before the run began, its diff against HEAD unchanged since, as ${RECORDED} records:`,
+    '- `pre.js`',
+    '- `other.js`',
+    '',
+  ].join('\n'));
+  diffs['pre.js'] = 'P and the run\'s edit';
+  assert.equal(run(['range', '--run-folder', '/work/run', '--paths'], deps), 'pre.js\nmine.js\n');
+  assert.equal(run(['range'], deps), '- `pre.js`\n- `other.js`\n- `mine.js`\n');
+});
+
+test('only a tracked file git lists as changed now and the record names is diffed', () => {
+  const { deps, calls } = fakeDeps({ tracked: ['pre.js', 'mine.js'], diffs: { 'pre.js': 'P' }, files: { [RECORDED]: recordWith({}, { 'pre.js': sha('P'), 'committed.js': sha('C') }) } });
+  run(['range', '--run-folder', '/work/run'], deps);
+  assert.deepEqual(calls.filter((c) => c.args[0] === 'diff' && !c.args.includes('--name-only')).map((c) => c.args.at(-1)), [':(literal)pre.js']);
+});
+
+test('a record made before tracked files were recorded lists none, and one whose tracked entries check-it would not write stops', () => {
+  const { deps } = fakeDeps({ tracked: ['pre.js'], diffs: { 'pre.js': 'P' }, files: { [RECORDED]: recordOf({}) } });
+  assert.equal(run(['range', '--run-folder', '/work/run'], deps), '- `pre.js`\n');
+  for (const [tracked, why] of [
+    [[], /its tracked files are not a list of diff hashes/],
+    [null, /its tracked files are not a list of diff hashes/],
+    [{ '../x': H('a') }, /outside the repository/],
+    [{ 'pre.js': 'short' }, /gives `pre\.js` something that is not a diff hash/],
+  ]) {
+    throwsCheck(() => run(['range', '--run-folder', '/work/run'], fakeDeps({ tracked: ['pre.js'], files: { [RECORDED]: recordWith({}, tracked) } }).deps), why);
+  }
+});
+
+test('a change whose every file is left out as there before the run is empty, and says what was left out', () => {
+  const tracked = fakeDeps({ tracked: ['pre.js'], diffs: { 'pre.js': 'P' }, files: { [RECORDED]: recordWith({}, { 'pre.js': sha('P') }) } });
+  throwsCheck(() => run(['range', '--run-folder', '/work/run'], tracked.deps), /^the diff is empty: git ls-files --others --exclude-standard prints nothing, and the 1 tracked file modified before the run git diff HEAD lists is left out as unchanged since .*check-it\.untracked\.json was made$/);
+  const both = fakeDeps({ tracked: ['pre.js'], untracked: ['x'], diffs: { 'pre.js': 'P' }, hashes: { x: H('a') }, files: { [RECORDED]: recordWith({ x: H('a') }, { 'pre.js': sha('P') }) } });
+  throwsCheck(() => run(['range', '--run-folder', '/work/run'], both.deps), /^the diff is empty: the 1 tracked file modified before the run git diff HEAD lists and the 1 untracked file git ls-files --others --exclude-standard lists are left out as unchanged since .* was made$/);
+});
+
+test('a review prompt and verify leave out a tracked file modified before the run and unchanged', () => {
+  const { deps } = fakeDeps({ tracked: ['pre.c', 'mine.c'], onDisk: ['pre.c'], diffs: { 'pre.c': 'P' }, files: { [RECORDED]: recordWith({}, { 'pre.c': sha('P') }) } });
+  assert.match(prompt('bug', deps), /plus every untracked file not left out below, so a new file is in it\. The files it touches:\n\n- `mine\.c`\n\nLeft out: modified before the run began.*\n- `pre\.c`\n\nBUG PART/);
+  assert.equal(run(['verify', '--covered', 'pre.c', '--covered', 'mine.c', '--run-folder', '/work/run'], deps), 'mine.c\n');
+});
+
+test('claim refuses a file the record lists as there before the run, modified or untracked, with the three choices, and writes nothing', () => {
+  for (const [opts, kind] of [
+    [{ tracked: ['pre.c'], diffs: { 'pre.c': 'P' } }, 'modified'],
+    [{ untracked: ['pre.c'], hashes: { 'pre.c': H('a') } }, 'untracked'],
+    [{ tracked: ['pre.c'], diffs: { 'pre.c': 'P, edited since' } }, 'modified'],
+  ]) {
+    const record = kind === 'modified' ? recordWith({}, { 'pre.c': sha('P') }) : recordWith({ 'pre.c': H('a') }, {});
+    const { deps, written } = fakeDeps({ ...opts, files: { [RECORDED]: record } });
+    throwsCheck(() => run(['claim', '--run-folder', '/work/run', 'new.c', 'pre.c'], deps), new RegExp(`^\`pre\\.c\` was ${kind} before the run began, as .*check-it\\.untracked\\.json records, so writing it is the person's call\\. Ask them: take its earlier change as this run's \\(then claim it with --take \`pre\\.c\`\\), leave that file alone, or stop the run$`));
+    assert.deepEqual(written, {});
+  }
+  const committed = fakeDeps({ untracked: ['other.c'], files: { [RECORDED]: recordWith({ 'gone.c': H('a') }, { 'pre.c': sha('P') }) } });
+  assert.equal(run(['claim', '--run-folder', '/work/run', 'pre.c', 'gone.c'], committed.deps), `claimed 2 files in ${CLAIMED}: \`gone.c\`, \`pre.c\`\n`);
+  const fresh = fakeDeps({ tracked: ['during.c'], files: { [RECORDED]: recordWith({}, {}) } });
+  assert.equal(run(['claim', '--run-folder', '/work/run', 'during.c'], fresh.deps), `claimed 1 file in ${CLAIMED}: \`during.c\`\n`);
+});
+
+test('claim --take claims a recorded file once the person takes its earlier change, and range then keeps it in the change', () => {
+  const { deps, written } = fakeDeps({ tracked: ['pre.c', 'mine.c'], untracked: ['old.txt'], diffs: { 'pre.c': 'P' }, hashes: { 'old.txt': H('a') }, files: { [RECORDED]: recordWith({ 'old.txt': H('a') }, { 'pre.c': sha('P') }) } });
+  assert.equal(run(['claim', '--run-folder', '/work/run', 'mine.c', '--take', 'pre.c'], deps), `claimed 2 files in ${CLAIMED}: \`mine.c\`, \`pre.c\`\n`);
+  assert.deepEqual(JSON.parse(written[CLAIMED]).files, ['mine.c', 'pre.c']);
+  assert.equal(run(['range', '--run-folder', '/work/run', '--paths'], deps), 'pre.c\nmine.c\n');
+  run(['claim', '--run-folder', '/work/run', 'pre.c'], deps);
+  run(['claim', '--run-folder', '/work/run', '--take', 'old.txt'], deps);
+  assert.equal(run(['range', '--run-folder', '/work/run', '--paths'], deps), 'pre.c\nmine.c\nold.txt\n');
+  throwsCheck(() => run(['claim', '--run-folder', '/work/run', '--take', 'mine.c'], deps), /`mine\.c` is not a file .*check-it\.untracked\.json lists as there before the run, so --take does not apply: claim it without --take/);
+  throwsCheck(() => run(['claim', '--run-folder', '/work/run', '--take', 'x.c'], fakeDeps().deps), /`x\.c` is not a file a record in .*run lists as there before the run/);
+  throwsCheck(() => run(['release', '--run-folder', '/work/run', '--take', 'x.c'], deps), /release takes no --take/);
+});
+
+test('record --from carries the earlier record\'s tracked files with its untracked ones', () => {
+  const { deps, written } = fakeDeps({ dirs: ['/work/run', '/work/earlier'], files: { [EARLIER_RECORD]: recordWith({ x: H('a') }, { 'pre.c': H('b') }) } });
+  const out = run(['record', '--run-folder', '/work/run', '--from', '/work/earlier'], deps);
+  assert.deepEqual(JSON.parse(written[RECORDED]), { repo: REPO, untracked: { x: H('a') }, tracked: { 'pre.c': H('b') } });
+  assert.equal(out, `carried the record of 1 untracked file and 1 tracked file modified before the run from ${EARLIER_RECORD} into ${RECORDED}\n`);
 });

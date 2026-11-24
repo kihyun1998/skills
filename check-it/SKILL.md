@@ -487,19 +487,27 @@ node <check-it>/scripts/check-it.mjs prompt <review> --issue <issue> [--issue-fi
 
 The prompt is [reviewers/brief.md](reviewers/brief.md) filled in, the change
 named as `git diff HEAD` plus every untracked file not left out (below), each
-file listed (`range --run-folder <run folder>` prints the list), then the
+file listed (`range --run-folder <run folder>` prints the list; with `--paths`
+it prints only the change's paths, one per line, for a commit to name them,
+`git add -- $(… range --paths --run-folder <run folder>)`, and stops on an
+empty change and on a path the shell's word splitting or a git pathspec would
+not pass whole, naming it, so those are named to `git --literal-pathspecs`;
+`thegraph` holds how a commit takes them), then the
 review's own part (*Each review's own brief*), each file's title kept and the paragraph after it, for its maintainers, left out.
 `lens`'s and `comment-it`'s carry their skill's folder as an absolute path,
 since a body's links do not resolve from the agent's own folder.
 
-**An untracked file that was there before the run began is not the change's**
-(#119). `node <check-it>/scripts/check-it.mjs record --run-folder <run folder>`
+**A file that was untracked or modified before the run began is not the
+change's** (#119, #148). `node <check-it>/scripts/check-it.mjs record --run-folder <run folder>`
 writes `check-it.untracked.json` there, each untracked file with a hash of its
-content; when it runs is `thegraph`'s to say, where it makes the run folder.
+content and each tracked file already modified with a hash of its diff against
+`HEAD`; when it runs is `thegraph`'s to say, where it makes the run folder.
 Where the run folder holds that record, `range`, `verify` and `prompt`
-leave out each untracked file it names whose content is unchanged, and list
-the files left out under the change, so none disappears unseen. A file the
-change edited is listed again. A run started over or moved carries the earlier
+leave out each file it names whose content or diff is unchanged, unless this
+run took it (`claim --take`, below), and list the files left out under the
+change, so none disappears unseen. A file the change edited is listed again. A
+record made before tracked files were recorded lists none, so every modified
+tracked file is listed. A run started over or moved carries the earlier
 attempt's record into its new run folder with `record --run-folder <run folder>
 --from <earlier run folder>` instead (`thegraph` says when), and the earlier
 folder's claim with it where it holds one (below); a claim already in the new
@@ -517,8 +525,15 @@ is listed.
 writes `check-it.claimed.json` there, the paths this run takes; when a run
 claims and releases them is `thegraph`'s to say (*A run alongside another*). It refuses a
 path a claim in another run folder beside this one names, one that differs only
-in case from a path changed in the tree, and a folder; a path already changed
-that no other run folder claims is taken. `release --run-folder <run folder> <path> ...` takes
+in case from a path changed in the tree, a folder, and a file the run
+folder's record lists as there before the run, untracked or modified, while
+it is still changed in the tree (once its commit has landed it is not), since
+committing it would put another session's edits into this run's commit. Its
+message puts the person's choice: take its earlier change as this run's, leave
+that file alone, or stop the run. Where the person takes it, `claim
+--run-folder <run folder> --take <path>` claims it, and `range` keeps it in the
+change from then on; `--take` on a path the record does not list stops. A
+path changed during the run that no other run folder claims is taken. `release --run-folder <run folder> <path> ...` takes
 paths out of that claim once their commit has landed, so another run can claim
 them; it refuses a path still changed in the tree, one the claim does not name,
 and a run folder that holds no claim. `range`, `verify` and `prompt` leave

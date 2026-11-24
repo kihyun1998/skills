@@ -106,7 +106,7 @@ put into a command, except under *that run is over*: a worker's name goes to
 `hc` as `hc ls` gave it, and a path from the other run's ledger is deleted
 only once shown.
 
-**Then make its run folder** (`<run sheet>.made/`) and its ledger (`<run sheet>.made.md`): `check-it`'s script stops where the run folder is not there. When the run's first run folder is made, before any change is written, run `node <check-it>/scripts/check-it.mjs record --run-folder <run folder>` in the repository, `<check-it>` being `check-it`'s folder: it records the untracked files there now, which `check-it` then leaves out of the change while their content is unchanged. A run continued in place keeps its run folder whole, its record included, and records nothing. A run started over or moved keeps the earlier attempt's first record, since a record made now would take that attempt's new files for files there before the run: where the earlier sheet has its run folder beside it (`<earlier sheet>.made/`, the path made from that sheet's path, never typed), run `record --run-folder <run folder> --from <earlier run folder>` instead, and once it exits 0 and the takeover in the next paragraph is done, delete the earlier run folder whole, as [`clean-it`'s rules](../clean-it/RULES.md) say a run folder goes at its run's end. What `--from` carries, its claim included, and where it stops, is `check-it`'s to say. An earlier attempt with no run folder beside its sheet ended before writing any change, so there is nothing to carry: the run records as a new one does, continued in place or not.
+**Then make its run folder** (`<run sheet>.made/`) and its ledger (`<run sheet>.made.md`): `check-it`'s script stops where the run folder is not there. When the run's first run folder is made, before any change is written, run `node <check-it>/scripts/check-it.mjs record --run-folder <run folder>` in the repository, `<check-it>` being `check-it`'s folder: it records the files there before the run, untracked or already modified, which `check-it` then leaves out of the change while they are unchanged, as `check-it` says. A run continued in place keeps its run folder whole, its record included, and records nothing. A run started over or moved keeps the earlier attempt's first record, since a record made now would take that attempt's new files for files there before the run: where the earlier sheet has its run folder beside it (`<earlier sheet>.made/`, the path made from that sheet's path, never typed), run `record --run-folder <run folder> --from <earlier run folder>` instead, and once it exits 0 and the takeover in the next paragraph is done, delete the earlier run folder whole, as [`clean-it`'s rules](../clean-it/RULES.md) say a run folder goes at its run's end. What `--from` carries, its claim included, and where it stops, is `check-it`'s to say. An earlier attempt with no run folder beside its sheet ended before writing any change, so there is nothing to carry: the run records as a new one does, continued in place or not.
 
 **A run started over or moved takes over the earlier attempt's worktree and branch**, where the earlier sheet's `tree` line names a worktree, instead of ending them: they hold that attempt's commits, which no merge may have taken in yet. Before the earlier run folder goes, this run's `tree` line names that worktree, and the worktree's ledger line is written into this run's ledger, and a line `<path> | moved, <this run's ledger>` appended to the earlier one, not a `deleted` line. Its branch keeps its name, `tg-<earlier run id>`, and every command below that names `tg-<run id>` or the worktree's path uses the run id in that path. Where that attempt recorded its worktree in `<earlier run folder>/wt/` (below), carry that record into `<run folder>/wt/` the same way, `record --from`, the folder made first. Where `hc` is there, that attempt's live workers are ended as *that run is over* ends a run's workers, found by the name prefix `tg-<earlier run id>-` in `hc ls`, since one left running keeps writing to the tree this run takes over.
 
@@ -258,16 +258,24 @@ a lockfile a build rewrote, and that file then leaves the first run's change.
 Once a commit
 lands, the run releases the paths that commit named, `release --run-folder
 <run folder> <path> ...`, so the run beside it can take a file this run is done
-with. A refused claim means the two runs' files overlap, which this mode does
-not hold: stop and put the file and the refusal to the person. What `claim`
+with. A refused claim stops the run: put the file and the refusal to the
+person, with the choices the refusal names where it names any. What `claim`
 and `release` refuse, and what `check-it` then reads, is `check-it`'s
 (*Briefing the fresh agents*).
 
 **Every commit names its paths**, in every run, so a run that never asked takes
 none of another's files: the files the commit's change made, which for an
-issue's commit are those `check-it`'s `range --run-folder <run folder>` lists,
-added and committed by name, `git add -- <paths>` then `git
-commit -m <message> -- <paths>`. A file git does not track yet is refused by
+issue's commit are those `check-it`'s `range --paths --run-folder <run folder>`
+prints, one per line. Take them first, `paths=$(node <check-it>/scripts/check-it.mjs
+range --paths --run-folder <run folder>)`, and where that exits non-zero add and
+commit nothing, since `git commit -- ` with no path commits everything staged,
+another session's files included; then `git add -- $paths` and `git commit -m
+<message> -- $paths`. The listing `range` prints without `--paths` is for
+people, and a file under its *Left out* is never the commit's. Where `--paths`
+stops on a path the shell or git would not pass whole, name the change's paths
+from the listing, each quoted, to `git --literal-pathspecs add -- …` and `git
+--literal-pathspecs commit -m <message> -- …`, since quotes stop the shell
+splitting a name but not git reading it as a pattern. A file git does not track yet is refused by
 `git commit -- <path>` until it is added (git 2.50.1, tried 2026-11-23). Never
 `git add -A`, `git commit -a`, or a commit after a wide add. In the main tree,
 those paths are then released (*In the same tree*, above).

@@ -264,7 +264,7 @@ You are the worker for one issue of a /thegraph-herdr run.
 
 Conductor terminal: <$HC_TERMINAL_ID>
 Repo: <the run's tree, as an absolute path: the main tree, or the run's worktree>
-Claims: <"no: the run works in its own worktree", or, in the main tree, "yes: before writing a file, claim it with node <check-it>/scripts/check-it.mjs claim --run-folder <run folder> <path>, and once your commit lands release its paths with release --run-folder <run folder> <path> ...; a refused claim is a question for the person">
+Claims: <"no: the run works in its own worktree", or, in the main tree, "yes: before writing a file, claim it with node <check-it>/scripts/check-it.mjs claim --run-folder <run folder> <path>, and once your commit lands release its paths with release --run-folder <run folder> <path> ...; a refused claim is a question for the person, with the choices its message names">
 Issue: <address> — <title>
 Route: <prose or code>
 What this issue is, as confirmed: <①>
@@ -286,9 +286,12 @@ Read these sections of thegraph and hold them for this work: The signals that do
 not wait for their turn, What holds everywhere, Habits.
 
 Call make-it, then check-it. The reading is confirmed: read-it and its stop are
-done. Commit locally when check-it passes, naming the files check-it's range
-lists (`git add -- <paths>`, then `git commit -m <message> -- <paths>`), never
-`git add -A` or `git commit -a`. The message closes the issue: for a
+done. Commit locally when check-it passes, naming the paths as thegraph's
+*Every commit names its paths* says: those
+`node <check-it>/scripts/check-it.mjs range --paths --run-folder <run folder>`
+prints, taken first, with nothing added or committed where it exits non-zero,
+never `git add -A` or `git commit -a`, and never the files under *Left out*
+in range's listing. The message closes the issue: for a
 GitHub issue a `Closes #<number>` line; for an issue file, its `Status:` line
 changed in the same commit. The push, and everything written to a tracker,
 belong to the conductor.
@@ -321,7 +324,7 @@ Named and placed as `thegraph` says, and the conductor is its only writer.
 Before its run folder is made, the conductor looks for another live run on this
 repository and asks on one, as `thegraph` says. Its run folder and ledger are
 then made, and for a run alongside in a worktree the worktree, whose path goes on
-the sheet's `tree` line and in every brief's `Repo`, and the untracked files recorded in the run folder, as `thegraph`
+the sheet's `tree` line and in every brief's `Repo`, and the files there before the run recorded in the run folder, as `thegraph`
 says, before the first worker starts: every worker's
 `check-it` reads that one record. What a run continued in place, started over
 or moved does with the earlier run folder, its record and claim, and its worktree
