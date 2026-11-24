@@ -4,7 +4,7 @@ description: "A fresh agent that runs one of check-it's reviews, or its decision
 disallowedTools: Agent, Skill
 hooks:
   PreToolUse:
-    - matcher: "Bash|PowerShell"
+    - matcher: "Bash|PowerShell|Write|Edit"
       hooks:
         - type: command
           command: 'node "$HOME/.claude/skills/check-it/scripts/no-model-run.mjs"'

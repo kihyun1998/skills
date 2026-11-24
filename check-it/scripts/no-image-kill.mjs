@@ -3,8 +3,8 @@
 // link, where argv[1] and import.meta.url name different paths.
 
 import { readFileSync } from 'node:fs';
-import { decide } from './model-run-check.mjs';
+import { WORKER_RULES, decide } from './model-run-check.mjs';
 
-const { code, message } = decide(readFileSync(0, 'utf8'), { rules: ['kill'], who: 'thegraph-herdr worker', env: process.env });
+const { code, message } = decide(readFileSync(0, 'utf8'), { rules: WORKER_RULES, who: 'thegraph-herdr worker', env: process.env });
 if (message) process.stderr.write(`${message}\n`);
 process.exit(code);

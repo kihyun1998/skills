@@ -1,5 +1,10 @@
 # A delegated node's license is its tool grant, not its brief
 
+> **Amended for #138 on 2026-11-24.** The hook also covers `Write` and `Edit`,
+> and refuses a rewrite of a run's ledger: a `Write` or `Edit` on it, or a
+> shell write to it other than an append. Every `thegraph-herdr` worker runs
+> that rule too, beside the kill rule.
+
 > **Amended for #143, #144 and #146 on 2026-11-24.** The same hook also refuses
 > `codex`, `agy` and `gemini` by name, a command that is not a read where its
 > working directory is inside the reviewed repository, a write into that

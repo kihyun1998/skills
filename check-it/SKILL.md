@@ -372,10 +372,10 @@ Codex*). **No review starts a model run** (#123, #131), and none writes to a
 tracker (#146); a Codex review is held to both by the same decision script, as
 its Codex hook (*A review on Codex*).
 That type, [agents/check-it-reviewer.md](agents/check-it-reviewer.md), has no
-`Agent` and no `Skill` tool, and a `PreToolUse` hook on its `Bash` and
-`PowerShell` ([scripts/no-model-run.mjs](scripts/no-model-run.mjs), deciding
-in [scripts/model-run-check.mjs](scripts/model-run-check.mjs)) refuses four
-kinds of command:
+`Agent` and no `Skill` tool, and a `PreToolUse` hook on its `Bash`,
+`PowerShell`, `Write` and `Edit` ([scripts/no-model-run.mjs](scripts/no-model-run.mjs), deciding
+in [scripts/model-run-check.mjs](scripts/model-run-check.mjs)) refuses five
+kinds of call:
 
 - one that starts an AI CLI: `claude`, `codex`, `agy` or `gemini` (#131,
   #143);
@@ -408,7 +408,19 @@ kinds of command:
   `taskkill` with `/IM` or an `IMAGENAME` filter (`//IM` in Git Bash too),
   `Stop-Process -Name` (and `spps`, `kill -Name`), `Get-Process` by name piped
   through any stages to `Stop-Process`, and `wmic process` by name. This is the
-  one list.
+  one list;
+- one that rewrites a run's ledger, a file named `made.md` or ending
+  `.made.md`, instead of appending to it (#138): a `Write` or `Edit` on it,
+  and in a shell a redirection with `>`, `>|`, `&>` or `>&` to a file,
+  `rm`, `mv`, a copy's destination, `sed -i`, `sort -o`, `perl -i` or
+  `ruby -i`, `Set-Content`, `Clear-Content`, `tee` or `Out-File` without
+  its append switch (a PowerShell `-Path:<path>` read as `-Path <path>`),
+  inline code (`node -e`, `python -c` and the like) whose code names it, and a
+  PowerShell method call that takes it as an argument. `>>`, `Add-Content`,
+  `tee -a`, `Out-File -Append`, a read, and its path handed to a script or
+  set in a variable pass. A `thegraph-herdr`
+  worker's hook ([scripts/no-image-kill.mjs](scripts/no-image-kill.mjs)) holds
+  this rule and the kill rule, and no other.
 
 The hook is set to block the call when it fails or times out, so a missing or
 broken script refuses rather than lets through. It reads the command's text, so

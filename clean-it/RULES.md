@@ -65,12 +65,29 @@ look for.
 - In a `thegraph` run the file is `<run sheet>.made.md` (the conductor's in a
   `thegraph-herdr` run); otherwise `made.md` in the run folder.
 - A process's `<path>` is its pid and the command line it was started with.
-- **A deleted item keeps its line**, with `| deleted, <size>` appended, the size
-  measured with `du -sh` just before deleting. The line is the record of what was
-  freed; a line with no `deleted` is what is still on the disk.
-- **`kept` is only for something a person asked to keep**, and the line says
-  who. The item is moved out of the run folder, to where the person says, and
-  its line gets the new path, so the run's end does not take it.
+- **The ledger is only appended to.** Every agent of a run shares it, so no
+  line is edited and the file is never written whole: an agent that reads it
+  and writes it back drops the lines another appended in between, as
+  concurrent `check-it` reviewers did in three runs (#138). A line goes on with `>>`
+  (`Add-Content` in PowerShell). Under `check-it-reviewer` and in a
+  `thegraph-herdr` worker a hook refuses a `Write` or `Edit` on a ledger and
+  any shell write to one but an append (`check-it/SKILL.md`).
+- **A deleted item gets a line of its own**, `<path> | deleted, <size>`, its
+  path written as in the line that made it, the size measured with `du -sh`
+  just before deleting. That line is the record of what was freed.
+- **`kept` is only for something a person asked to keep**: the item is moved
+  out of the run folder, to where the person says, and a line
+  `<path> | kept, <new path>, <who asked>` records it, so the run's end does not
+  take it.
+- **A line is read with the others of its path.** An item is open, still on the
+  disk, while its own line's last field is not `kept` and no `deleted`,
+  `kept` or `moved` line names its path; `moved` is `thegraph`'s, for a
+  worktree another run's ledger took over. A line made `kept` when the item was
+  made, as `design-it`'s owner marker is, needs no second line. A ledger
+  written before #138 carries a deletion at the end of the item's own line
+  (`… | <when deleted> | deleted, <size>`), which reads as the item's line and
+  its `deleted` line at once, and a later `kept` in the item's own line, its
+  path already the new one, which reads as kept.
 
 ## When it goes
 
@@ -79,7 +96,7 @@ before it reports: a review copy goes before the review's report is saved, a
 probe before its number is written down.
 
 **At the run's end** go a worktree the run worked in and the run folder itself,
-after every line still open has been deleted or marked `kept`. The closing
+after every item still open has been deleted or kept. The closing
 report names the total freed and each kept item with its path. Then the ledger
 goes, with the run sheet in a `thegraph` run and with the run folder otherwise;
 a ledger found later is a run that did not end.
@@ -170,5 +187,5 @@ where no hook runs.
 ## Where nothing is written
 
 Nothing above is written into a repository. A step that cannot delete what it
-made (a file held open, a permission) leaves the line open and says so in its
-report, with the path.
+made (a file held open, a permission) writes no `deleted` line for it and says
+so in its report, with the path.

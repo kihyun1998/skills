@@ -556,9 +556,11 @@ diverging line of development)
 
 **Ledger** (clean-it):
 The list of what a run made outside the change, one line per item written when
-the item is made: its path, who made it, what it is, and when it is to go, with
-`deleted, <size>` appended once it has. Where it lives is `clean-it/RULES.md`'s.
-A line with no `deleted` is what is still on the disk; a ledger found after its run is a run that did not end
+the item is made: its path, who made it, what it is, and when it is to go. It is
+only appended to, being shared by every agent of the run: a deleted item gets a
+line of its own, `<path> | deleted, <size>`, and the lines are read together by
+path (#138). Where it lives is `clean-it/RULES.md`'s.
+An item with no `deleted` line is what is still on the disk; a ledger found after its run is a run that did not end
 (ADR-0103).
 _Avoid_: run state (the retired sixteen-slot store, ADR-0071), manifest
 

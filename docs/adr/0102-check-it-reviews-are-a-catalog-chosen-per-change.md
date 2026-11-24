@@ -2,7 +2,7 @@
 
 **Status:** accepted. Implements #91; amended for #86, #95, #97, #102, #105,
 #112 and #114, folded for #125 on 2026-11-23 into this one current record, and
-amended since for #140, #141 and #146.
+amended since for #140, #141, #146 and #138.
 The amendment history is in git:
 `git log -p -- docs/adr/0102-check-it-reviews-are-a-catalog-chosen-per-change.md`
 shows the record before the fold.
@@ -70,8 +70,9 @@ was decided, on what, and what would reopen it.
   off.
   `check-it-reviewer`'s decision script runs as a Codex `PreToolUse` hook on
   every shell command and refuses what it refuses for a Claude review: an AI
-  CLI, a kill by image name, a non-read inside the repository, and any `gh`
-  or `glab` command but a known read, for either runner: an allowlist, as the
+  CLI, a kill by image name, a non-read inside the repository, any `gh`
+  or `glab` command but a known read, and a write to a run's ledger but an
+  append (#138), for either runner: an allowlist, as the
   repository rule is (#143), since a list of writes missed aliases, unlisted
   verbs and a `-R` between subcommand and verb at the first review. The issue's text also reaches every review through the prompt: the
   caller writes its body and decision comments to a file at the confirm stop,

@@ -9,7 +9,16 @@
 > folder per repository within a run, that part no longer holds. The records of
 > those calls are #136's and #142's decision comments.
 
-**Status:** accepted, amended 2026-11-23 (the banner above). No issue of its own: the maintainer's grilling of
+> **Amended 2026-11-24 for #138: the ledger is only appended to.** A deleted
+> item no longer keeps its line with its size appended; it gets a new line,
+> `<path> | deleted, <size>`, and readers pair the lines by path, because
+> concurrent `check-it` reviewers rewrote the shared ledger whole to mark
+> their own line and dropped lines others had appended. A hook under
+> `check-it-reviewer` and in a `thegraph-herdr` worker refuses any write to a
+> ledger but an append. `clean-it/RULES.md`'s *The ledger* holds the format;
+> the record of the call is #138's decision comment.
+
+**Status:** accepted, amended 2026-11-23 and 2026-11-24 (the banners above). No issue of its own: the maintainer's grilling of
 2026-11-20, in a `/thegraph-herdr` conductor session. Extends
 [ADR-0080](0080-a-run-keeps-a-run-sheet-while-it-lasts.md) and amends
 [ADR-0091](0091-lens-runs-in-a-fresh-agent.md) and

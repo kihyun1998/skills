@@ -23,9 +23,10 @@ Each group is measured with `du -sh` on the paths it names, in parallel.
 
 - **Ledger leftovers.** Every ledger, at the places [RULES.md](RULES.md) puts
   one: `<OS temp>/thegraph/*.made.md`, `<OS temp>/made-*/made.md`, and for Claude
-  Code `<OS temp>/claude/*/*/scratchpad/made/made.md`. Each line in it with no
-  `deleted`: its path, what it is, who made it and when (the file's date). A
-  `kept` line is listed apart and never offered.
+  Code `<OS temp>/claude/*/*/scratchpad/made/made.md`, its lines read together
+  by path as RULES.md says. Each item still open in it: its path, what it is,
+  who made it and when (the file's date). A kept item is listed apart and never
+  offered.
 - **Run folders**: `<OS temp>/thegraph/*.made/`, `<OS temp>/made-*/` and
   `<OS temp>/claude/*/*/scratchpad/made/`, each read through its ledger.
 - **Folders with an owner marker**: `<OS temp>/*/.made`, the marker's line read
@@ -84,9 +85,9 @@ asked one by one. Nothing is deleted on silence.
 Delete what was confirmed as [RULES.md](RULES.md) says: a worktree with `git
 worktree remove` then `git worktree prune`, a process by its pid only where its
 command line still holds the path, everything else with `rm -rf` on the exact
-path. Append `| deleted, <size>` to each ledger line it settled, and delete a
-ledger whose lines are all deleted or `kept`, its kept items named with their
-paths in the report. A path that would not go (a file held open) is
+path. Append a line `<path> | deleted, <size>` to the ledger for each item it
+settled, never editing the item's own line, and delete a ledger with no item
+left open, its kept items named with their paths in the report. A path that would not go (a file held open) is
 reported with why.
 
 Report what was freed, per group and in total, with the drive's free space

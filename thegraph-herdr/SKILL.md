@@ -75,11 +75,14 @@ are.
   `.stop-hook.json`, written once per run and passed to every worker with
   `--settings`. The `Stop` hook makes each turn a worker ends say so to this
   session. The `PreToolUse` hook refuses a shell command that kills processes
-  by image name (#144), through `check-it`'s `scripts/no-image-kill.mjs` at
-  its installed link; the other two rules of `check-it-reviewer`'s hook are
-  not a worker's, since a worker edits the tree and runs what it needs:
+  by image name (#144), and a `Write`, an `Edit` or a shell write other than
+  an append on the run's ledger, which every worker and reviewer of the run
+  shares (#138), through `check-it`'s `scripts/no-image-kill.mjs` at its
+  installed link; the repository, model-run and tracker rules of
+  `check-it-reviewer`'s hook are not a worker's, since a worker edits the tree
+  and runs what it needs:
   ```json
-  {"hooks":{"Stop":[{"hooks":[{"type":"command","command":"hc send <$HC_TERMINAL_ID> 'turn ended'"}]}],"PreToolUse":[{"matcher":"Bash|PowerShell","hooks":[{"type":"command","command":"node \"$HOME/.claude/skills/check-it/scripts/no-image-kill.mjs\"","onFailure":"block"}]}]}}
+  {"hooks":{"Stop":[{"hooks":[{"type":"command","command":"hc send <$HC_TERMINAL_ID> 'turn ended'"}]}],"PreToolUse":[{"matcher":"Bash|PowerShell|Write|Edit","hooks":[{"type":"command","command":"node \"$HOME/.claude/skills/check-it/scripts/no-image-kill.mjs\"","onFailure":"block"}]}]}}
   ```
 
 ## The order
@@ -371,7 +374,7 @@ a worker outlives this session there, which is why a continued run looks for liv
 workers first.
 
 **Delete what the run made, then the sheet and every file named after it**:
-every line still open in the run's ledger, a worktree's branch as `thegraph`'s
+every item still open in the run's ledger, a worktree's branch as `thegraph`'s
 *A run alongside another* says, and the run folder, as
 [`clean-it`'s rules](../clean-it/RULES.md) say, with the total freed in the closing report,
 after the last `ask-it` has put

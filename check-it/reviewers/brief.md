@@ -14,8 +14,8 @@ prompt is all you get.
   a hook holds part of this: inside the repository it refuses any command but
   a read, it refuses a write into the repository from anywhere (#143), it
   refuses a kill by image name, which may hit the person's processes (#144),
-  and it refuses any `gh` or `glab` command but a tracker read from anywhere
-  (#146).
+  it refuses any `gh` or `glab` command but a tracker read from anywhere
+  (#146), and it refuses a rewrite of the ledger (#138).
 - **A probe that can only run inside the tree runs in a copy** made in your own
   folder in the run folder from the files git lists (`git ls-files -co
   --exclude-standard`: tracked and untracked, not ignored), so the tree's build
@@ -28,6 +28,11 @@ prompt is all you get.
   `{{skills}}/clean-it/RULES.md`: a ledger line when it is made, deleted before
   your report returns with its size in the report. A build goes inside your
   copy and goes with it.
+- **The ledger is shared by every agent of the run, and only appended to.**
+  Add a line with `>>` (`Add-Content` in PowerShell), and never write the
+  file whole or edit a line in it, your own included: a deletion is a new line,
+  `<path> | deleted, <size>`. A rewrite drops what another agent appended
+  meanwhile.
 - **Start no model run**: no `Agent`, no `Skill`, and no `claude`,
   `codex`, `agy` or `gemini` in a shell; a CLI started there is an agent
   outside your grant, which can spend tokens nobody approved and write. A finding whose reproduction needs a model's answers (a change to a

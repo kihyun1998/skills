@@ -74,6 +74,13 @@ const SINKS = new Set(['/dev/null', 'nul', '$null', 'nul:']);
 
 const KILL_NAMES = new Set(['pkill', 'killall']);
 
+const FILE_TOOLS = new Set(['Write', 'Edit']);
+const INTERPRETERS = new Set(['node', 'bun', 'deno', 'python', 'python3', 'py', 'perl', 'ruby', 'php']);
+const INLINE_FLAG = /^(-[a-zA-Z]*[ecpEr]|--eval|--print)$/;
+const IN_PLACE = new Set(['perl', 'ruby']);
+const ledgerPath = (word) => /(^|[\\/])([^\\/]*\.)?made\.md$/i.test(word.replace(/[,;)]+$/, ''));
+const namesLedger = (word) => /(^|[^A-Za-z0-9_-])made\.md/i.test(word);
+
 const TRACKERS = new Set(['gh', 'glab']);
 const TRACKER_READS = new Map([
   ['gh', new Map([
@@ -160,7 +167,7 @@ function segments(text, ps = false) {
     } else if (/\s/.test(c) && c !== '\n' && c !== '\r') {
       endWord();
     } else if (';&|(){}\n\r`'.includes(c)) {
-      if (c === '&' && word !== null && /[<>]$/.test(word)) {
+      if ((c === '&' || c === '|') && word !== null && /[<>]$/.test(word)) {
         word += c;
         continue;
       }
@@ -341,7 +348,10 @@ function positional(args) {
   const out = [];
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
-    if (PS_PATH_PARAMS.test(a)) out.push(args[++i]);
+    const colon = /^(-[A-Za-z]+):(.+)$/.exec(a);
+    if (colon && PS_PATH_PARAMS.test(colon[1])) out.push(colon[2]);
+    else if (colon && PS_OTHER_VALUE_PARAMS.test(colon[1])) continue;
+    else if (PS_PATH_PARAMS.test(a)) out.push(args[++i]);
     else if (PS_OTHER_VALUE_PARAMS.test(a)) i++;
     else if (a === '--') out.push(...args.slice(i + 1).filter(Boolean)), (i = args.length);
     else if (!a.startsWith('-')) out.push(a);
@@ -444,21 +454,29 @@ const refusal = (rule, detail) => ({ rule, detail });
 
 function splitRedirects(all) {
   const redirects = [];
+  const operators = [];
   const words = [];
   for (let j = 0; j < all.length; j++) {
     const w = all[j];
     const m = REDIRECT.exec(w);
     if (m) {
-      if (/[&]$/.test(m[0]) && /^[0-9-]*$/.test(w.slice(m[0].length))) continue;
+      if (/[&]$/.test(m[0]) && w.slice(m[0].length) === '' && /^[0-9-]+$/.test(all[j + 1] ?? '')) {
+        j++;
+        continue;
+      }
+      if (/[&]$/.test(m[0]) && /^[0-9-]+$/.test(w.slice(m[0].length))) continue;
       if (/^[0-9*]*</.test(m[0])) {
         if (w.slice(m[0].length) === '') j++;
         continue;
       }
       const target = w.slice(m[0].length) || all[++j];
-      if (target !== undefined) redirects.push(target);
+      if (target !== undefined) {
+        redirects.push(target);
+        operators.push(m[0]);
+      }
     } else words.push(w);
   }
-  return { redirects, words };
+  return { redirects, operators, words };
 }
 
 function targetRefusal(targets, cwd, ctx, label) {
@@ -501,8 +519,64 @@ function moveTo(n, args, state, ctx) {
   } else state.cwd = old !== null && cwdInside(ctx, old) ? old : next;
 }
 
+function appends(n, args) {
+  if (n === 'add-content' || n === 'ac') return true;
+  if (n === 'tee') return args.some((a) => /^(-[a-zA-Z]*a[a-zA-Z]*|--append)$/.test(a));
+  if (n === 'out-file' || n === 'tee-object') return args.some((a) => /^-append(:\$true)?$/i.test(a));
+  return false;
+}
+
+function inlineCode(args) {
+  const out = [];
+  for (let k = 0; k < args.length; k++) {
+    const eq = /^--(eval|print)=(.*)$/.exec(args[k]);
+    if (eq) out.push(eq[2]);
+    else if (INLINE_FLAG.test(args[k]) && args[k + 1] !== undefined) out.push(args[++k]);
+  }
+  return out;
+}
+
+function sortOutput(args) {
+  for (let k = 0; k < args.length; k++) {
+    const a = args[k];
+    if (a === '-o' || a === '--output') return args[k + 1];
+    const m = /^(-o|--output=)(.+)$/.exec(a);
+    if (m) return m[2];
+  }
+  return undefined;
+}
+
+function ledgerRewrite(cmd, redirects, operators) {
+  const k = redirects.findIndex((t, j) => ledgerPath(t) && !/>>$/.test(operators[j]));
+  if (k >= 0) return refusal('ledger', 'a redirection with ' + operators[k].replace(/^[0-9*&]*/, '') + ' to ' + redirects[k]);
+  if (cmd.length === 0 || variableAssignment(cmd)) return null;
+  const n = name(cmd[0]);
+  const args = cmd.slice(1);
+  const hit = (targets) => targets.find((t) => t !== undefined && ledgerPath(t))?.replace(/[,;)]+$/, '');
+  const first = hit([cmd[0]]);
+  if (first) return refusal('ledger', 'a call that takes ' + first + ' as its argument');
+  if ((WRITERS.has(n) && !appends(n, args)) || COPIERS.has(n)) {
+    const t = hit(writeTargets(n, args));
+    if (t) return refusal('ledger', cmd[0] + ' on ' + t);
+  }
+  if (n === 'sed' && args.some((a) => READER_WRITE_FLAGS.get('sed').test(a))) {
+    const t = hit(positional(args));
+    if (t) return refusal('ledger', 'sed -i on ' + t);
+  }
+  if (n === 'sort') {
+    const t = hit([sortOutput(args)]);
+    if (t) return refusal('ledger', 'sort -o on ' + t);
+  }
+  if (IN_PLACE.has(n) && args.some((a) => /^-[a-zA-Z]*i/.test(a))) {
+    const t = hit(positional(args));
+    if (t) return refusal('ledger', cmd[0] + ' -i on ' + t);
+  }
+  if (INTERPRETERS.has(n) && inlineCode(args).some(namesLedger)) return refusal('ledger', cmd[0] + ' with inline code that names a ledger');
+  return null;
+}
+
 function inspectWords(all, state, ctx, depth) {
-  const { redirects, words } = splitRedirects(all);
+  const { redirects, operators, words } = splitRedirects(all);
 
   let i = 0;
   const assigned = [];
@@ -522,6 +596,10 @@ function inspectWords(all, state, ctx, depth) {
     const k = killByName(cmd) ?? (state.pipedFromNamed && STOPPERS.has(name(cmd[0] ?? '')) ? 'Get-Process by name piped to Stop-Process' : null);
     if (k) return refusal('kill', k);
   }
+  if (ctx.rules.has('ledger')) {
+    const found = ledgerRewrite(cmd, redirects, operators);
+    if (found) return found;
+  }
 
   const repo = ctx.rules.has('repo') && ctx.roots.length > 0;
   const redirectRefusal = () => (repo ? targetRefusal(redirects, state.cwd, ctx, (t) => 'a redirection to ' + t) : null);
@@ -539,7 +617,7 @@ function inspectWords(all, state, ctx, depth) {
   if (cmd.length && (WRAPPERS.has(n) || (RUNNERS.has(n) && RUNNERS.get(n).has(cmd[1])))) {
     const inner = unwrap(cmd.slice(RUNNERS.has(n) && !WRAPPERS.has(n) ? 2 : 1));
     if (n === 'command' && /^-[vV]$/.test(cmd[1] ?? '')) return null;
-    if (inner.length) return inspectWords([...inner, ...redirects.map((r) => '>' + r)], state, ctx, depth);
+    if (inner.length) return inspectWords([...inner, ...redirects.map((r, j) => operators[j] + r)], state, ctx, depth);
   }
 
   if (!repo) return null;
@@ -687,7 +765,9 @@ function protectedRoots(rootDir, fs, drives) {
   return [...new Set(roots)];
 }
 
-export const ALL_RULES = ['repo', 'model', 'kill', 'tracker'];
+export const ALL_RULES = ['repo', 'model', 'kill', 'tracker', 'ledger'];
+
+export const WORKER_RULES = ['kill', 'ledger'];
 
 function message(who, found, root) {
   const by = who + ': ';
@@ -702,6 +782,9 @@ function message(who, found, root) {
     case 'tracker':
       return by + '\x60' + found.detail + '\x60 is not a tracker read, and a review only reads a tracker, so it is refused (#146). ' +
         'Read with view, list, status, diff or checks, gh api or glab api with GET and no fields, or a GraphQL query, and write in your report what the command would have done.';
+    case 'ledger':
+      return by + 'the run ledger is shared by every agent of the run and only appended to, and ' + found.detail + ' would rewrite it, dropping lines others appended meanwhile, so it is refused (#138). ' +
+        'Add a new line with >> (Add-Content in PowerShell): a deletion is a new line naming the path, \x60<path> | deleted, <size>\x60, never an edit of an existing line, as clean-it/RULES.md The ledger says.';
     case 'repo-run':
       return by + '\x60' + found.detail + '\x60 would run inside the reviewed repository (' + root + '), where only read commands run, so it is refused (#143). ' +
         'Run it in your copy, in your own folder in the run folder, with cd to the copy in the same command.';
@@ -721,9 +804,15 @@ export function decide(stdin, { rules = ALL_RULES, who = 'check-it-reviewer', en
   } catch {
     return { code: 2, message: who + ': the hook could not read its input, so the call is refused' };
   }
+  const set = new Set(rules);
+  if (FILE_TOOLS.has(input?.tool_name)) {
+    const path = input?.tool_input?.file_path;
+    if (!set.has('ledger')) return { code: 0 };
+    if (typeof path !== 'string' || path === '') return { code: 2, message: who + ': the call carries no file path to read, so it is refused' };
+    return ledgerPath(path) ? { code: 2, message: message(who, refusal('ledger', 'this ' + input.tool_name + ' on ' + path)) } : { code: 0 };
+  }
   const command = input?.tool_input?.command;
   if (typeof command !== 'string') return { code: 2, message: who + ': the call carries no command to read, so it is refused' };
-  const set = new Set(rules);
   const cwd = typeof input.cwd === 'string' && input.cwd !== '' ? input.cwd : null;
   if (set.has('repo') && cwd === null) return { code: 2, message: who + ': the call carries no working directory, so whether it runs inside the reviewed repository cannot be told, and it is refused' };
   const rootDir = set.has('repo') ? findRoot(env.CLAUDE_PROJECT_DIR || cwd, fs.exists) : null;

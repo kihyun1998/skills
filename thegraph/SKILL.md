@@ -89,12 +89,12 @@ ask, showing each sheet's issue and path and each live worker's name:
 3. *wait*: look again once the person says so;
 4. *that run is over*: end its live workers shown (`hc kill`, then `hc rm`),
    since one left running keeps writing to this tree. Then show what it made,
-   each line still open in its ledger and its run folder, with sizes, and
+   each item still open in its ledger and its run folder, with sizes, and
    delete them group by group on the person's yes, as `clean-it` confirms and
    as [`clean-it`'s rules](../clean-it/RULES.md) delete. Then delete its sheet
    and the other files named after it, as its run would have at its end,
    except what the person declined: a declined group stays, and so does the
-   run folder where the group lies inside it, and the ledger while a line the
+   run folder where the group lies inside it, and the ledger while an item the
    person declined is open in it, all for `clean-it`. Then go on in the main
    tree.
 
@@ -108,9 +108,9 @@ only once shown.
 
 **Then make its run folder** (`<run sheet>.made/`) and its ledger (`<run sheet>.made.md`): `check-it`'s script stops where the run folder is not there. When the run's first run folder is made, before any change is written, run `node <check-it>/scripts/check-it.mjs record --run-folder <run folder>` in the repository, `<check-it>` being `check-it`'s folder: it records the untracked files there now, which `check-it` then leaves out of the change while their content is unchanged. A run continued in place keeps its run folder whole, its record included, and records nothing. A run started over or moved keeps the earlier attempt's first record, since a record made now would take that attempt's new files for files there before the run: where the earlier sheet has its run folder beside it (`<earlier sheet>.made/`, the path made from that sheet's path, never typed), run `record --run-folder <run folder> --from <earlier run folder>` instead, and once it exits 0 and the takeover in the next paragraph is done, delete the earlier run folder whole, as [`clean-it`'s rules](../clean-it/RULES.md) say a run folder goes at its run's end. What `--from` carries, its claim included, and where it stops, is `check-it`'s to say. An earlier attempt with no run folder beside its sheet ended before writing any change, so there is nothing to carry: the run records as a new one does, continued in place or not.
 
-**A run started over or moved takes over the earlier attempt's worktree and branch**, where the earlier sheet's `tree` line names a worktree, instead of ending them: they hold that attempt's commits, which no merge may have taken in yet. Before the earlier run folder goes, this run's `tree` line names that worktree, and the worktree's ledger line moves from the earlier ledger to this run's, cut there and written here, not marked deleted. Its branch keeps its name, `tg-<earlier run id>`, and every command below that names `tg-<run id>` or the worktree's path uses the run id in that path. Where that attempt recorded its worktree in `<earlier run folder>/wt/` (below), carry that record into `<run folder>/wt/` the same way, `record --from`, the folder made first. Where `hc` is there, that attempt's live workers are ended as *that run is over* ends a run's workers, found by the name prefix `tg-<earlier run id>-` in `hc ls`, since one left running keeps writing to the tree this run takes over.
+**A run started over or moved takes over the earlier attempt's worktree and branch**, where the earlier sheet's `tree` line names a worktree, instead of ending them: they hold that attempt's commits, which no merge may have taken in yet. Before the earlier run folder goes, this run's `tree` line names that worktree, and the worktree's ledger line is written into this run's ledger, and a line `<path> | moved, <this run's ledger>` appended to the earlier one, not a `deleted` line. Its branch keeps its name, `tg-<earlier run id>`, and every command below that names `tg-<run id>` or the worktree's path uses the run id in that path. Where that attempt recorded its worktree in `<earlier run folder>/wt/` (below), carry that record into `<run folder>/wt/` the same way, `record --from`, the folder made first. Where `hc` is there, that attempt's live workers are ended as *that run is over* ends a run's workers, found by the name prefix `tg-<earlier run id>-` in `hc ls`, since one left running keeps writing to the tree this run takes over.
 
-**What the run made goes before the sheet does**: every line still open in its
+**What the run made goes before the sheet does**: every item still open in its
 ledger (`<run sheet>.made.md`) and its run folder (`<run sheet>.made/`), as
 [`clean-it`'s rules](../clean-it/RULES.md) say, with the total freed in the closing report.
 

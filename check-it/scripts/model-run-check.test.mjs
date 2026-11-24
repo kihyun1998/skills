@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { startsAiCli, killsByImageName, decide } from './model-run-check.mjs';
+import { startsAiCli, killsByImageName, decide, WORKER_RULES } from './model-run-check.mjs';
 
 const REPO = 'D:/repo';
 const COPY = 'C:/Temp/run/copy';
@@ -339,13 +339,16 @@ test('PowerShell tool calls are read with PowerShell quoting, where a backslash 
   ]) assert.equal(ps(c).code, 0, c);
 });
 
-test('the worker rules hold the kill rule only', () => {
+test('the worker rules hold the kill and ledger rules only', () => {
   const worker = (command) =>
-    decide(JSON.stringify({ tool_name: 'Bash', cwd: REPO, tool_input: { command } }), { env, fs, rules: ['kill'], who: 'thegraph-herdr worker' });
+    decide(JSON.stringify({ tool_name: 'Bash', cwd: REPO, tool_input: { command } }), { env, fs, rules: WORKER_RULES, who: 'thegraph-herdr worker' });
   assert.equal(worker('taskkill /IM node.exe').code, 2);
   assert.match(worker('taskkill /IM node.exe').message, /^thegraph-herdr worker: .*#144/);
   assert.equal(worker('cargo clean').code, 0);
   assert.equal(worker('claude -p x').code, 0);
+  assert.equal(worker('echo x > C:/Temp/thegraph/run.made.md').code, 2);
+  assert.match(worker('echo x > C:/Temp/thegraph/run.made.md').message, /^thegraph-herdr worker: .*#138/);
+  assert.equal(worker('echo x >> C:/Temp/thegraph/run.made.md').code, 0);
   assert.equal(decide(JSON.stringify({ tool_input: { command: 'ls' } }), { rules: ['kill'] }).code, 0);
 });
 
@@ -469,4 +472,127 @@ test('a tracker read runs, in the repository too', () => {
 
 test('the tracker rule is check-it-reviewer\'s, not a worker\'s', () => {
   assert.deepEqual(run('gh issue comment 1 -b x', 'C:/Users/me', { rules: ['kill'] }), { code: 0 });
+});
+
+const LEDGERS = ['C:/Temp/thegraph/run.made.md', 'C:/Temp/made-20261124-0949-abcd1234/made.md'];
+const tool = (tool_name, file_path, rules) =>
+  decide(JSON.stringify({ tool_name, cwd: REPO, tool_input: { file_path, content: 'x' } }), { env, fs, ...(rules ? { rules } : {}) });
+const ledgerOnly = (command, tool_name = 'Bash') =>
+  decide(JSON.stringify({ tool_name, cwd: 'C:/Temp/run', tool_input: { command } }), { env, fs, rules: ['ledger'] });
+
+test('a Write or Edit on a run ledger is refused, and one on any other file is let through', () => {
+  for (const L of [...LEDGERS, 'C:\\Temp\\thegraph\\run.made.md', 'C:/Temp/thegraph/RUN.MADE.MD']) {
+    for (const t of ['Write', 'Edit']) {
+      const refused = tool(t, L);
+      assert.equal(refused.code, 2, t + ' ' + L);
+      assert.match(refused.message, /^check-it-reviewer: .*appended.*#138/, t + ' ' + L);
+      assert.equal(tool(t, L, WORKER_RULES).code, 2, 'worker ' + t + ' ' + L);
+    }
+  }
+  for (const p of ['C:/Temp/run/lens/report.md', 'C:/Temp/thegraph/run.md', 'C:/Temp/thegraph/run.made/notes.md', 'D:/repo/made.md.bak', 'D:/repo/premade.md']) {
+    assert.deepEqual(tool('Write', p), { code: 0 }, p);
+    assert.deepEqual(tool('Edit', p, WORKER_RULES), { code: 0 }, p);
+  }
+  assert.deepEqual(tool('Write', LEDGERS[0], ['kill']), { code: 0 });
+  assert.equal(decide(JSON.stringify({ tool_name: 'Write', cwd: REPO, tool_input: {} }), { env, fs }).code, 2);
+});
+
+test('a shell command that rewrites a run ledger is refused, in every form that names it', () => {
+  for (const L of LEDGERS) {
+    for (const c of [
+      `echo x > ${L}`,
+      `cat C:/Temp/run/new.md > ${L}`,
+      `printf x >| ${L}`,
+      `echo x &> ${L}`,
+      `echo x 1> ${L}`,
+      `rm ${L}`,
+      `mv C:/Temp/run/new.md ${L}`,
+      `mv ${L} C:/Temp/run/old.md`,
+      `cp C:/Temp/run/new.md ${L}`,
+      `sed -i s/a/b/ ${L}`,
+      `tee ${L} < C:/Temp/run/new.md`,
+      `truncate -s 0 ${L}`,
+      `perl -pi -e s/a/b/ ${L}`,
+      `node -e "require('fs').writeFileSync('${L}', '')"`,
+      `python -c "open('${L}', 'w').write('')"`,
+      `bash -c "echo x > ${L}"`,
+      `sudo tee ${L} < x`,
+      `cd C:/Temp && echo x > ${L}`,
+      `sort -o ${L} C:/Temp/run/new.md`,
+      `sort --output=${L} C:/Temp/run/new.md`,
+      `sort -o${L} ${L}`,
+      `echo x >& ${L}`,
+      `echo x >|${L}`,
+      `ruby -i -pe 'x' ${L}`,
+      `bash -c "true" > ${L}`,
+    ]) {
+      const refused = ledgerOnly(c);
+      assert.equal(refused.code, 2, c);
+      assert.match(refused.message, /#138/, c);
+      assert.equal(run(c, 'C:/Temp/run').code, 2, 'reviewer ' + c);
+    }
+    for (const c of [
+      `Set-Content -Path ${L} -Value x`,
+      `Set-Content ${L} x`,
+      `'x' | Out-File ${L}`,
+      `'x' | Out-File -FilePath ${L}`,
+      `Clear-Content ${L}`,
+      `Remove-Item ${L}`,
+      `New-Item ${L} -Force`,
+      `Copy-Item C:/Temp/run/new.md -Destination ${L}`,
+      `[IO.File]::WriteAllText('${L}', $s)`,
+      `Get-Content ${L} | Where-Object { $_ -notmatch 'x' } | Set-Content ${L}`,
+      `Set-Content -Path:${L} -Value x`,
+      `'x' | Out-File -FilePath:${L}`,
+      `Remove-Item -LiteralPath:${L}`,
+    ]) assert.equal(ledgerOnly(c, 'PowerShell').code, 2, c);
+  }
+});
+
+test('an append to a run ledger, a read of it and a path handed to a script are let through', () => {
+  for (const L of LEDGERS) {
+    for (const c of [
+      `echo "x | deleted, 1M" >> ${L}`,
+      `printf '%s\\n' x >> ${L}`,
+      `echo x 1>> ${L}`,
+      `echo x | tee -a ${L}`,
+      `echo x | tee --append ${L}`,
+      `cat ${L}`,
+      `grep -n deleted ${L}`,
+      `cp ${L} C:/Temp/run/copy.md`,
+      `node D:/repo/check-it/scripts/check-it.mjs prompt bug --issue x --run-folder C:/Temp/run --ledger ${L}`,
+      `echo x > C:/Temp/run/other.md`,
+      `cd C:/Temp && echo x >> ${L}`,
+      `timeout 5 echo x >> ${L}`,
+      `node -e "console.log(process.argv[1])" ${L}`,
+      `python -c "import sys; print(sys.argv[1])" ${L}`,
+      `echo x >&2 >> ${L}`,
+      `echo x 2>& 1 >> ${L}`,
+    ]) assert.deepEqual(ledgerOnly(c), { code: 0 }, c);
+    for (const c of [
+      `Add-Content -Path ${L} -Value x`,
+      `Add-Content ${L} x`,
+      `'x' | Out-File -Append ${L}`,
+      `'x' | Out-File -FilePath ${L} -Append`,
+      `'x' | Tee-Object -Append -FilePath ${L}`,
+      `Get-Content ${L}`,
+      `'x' >> ${L}`,
+      `$l='${L}'; Add-Content -Path $l -Value x`,
+      `$l = '${L}'; Add-Content $l x`,
+      `'x' | Out-File -Append:$true -FilePath ${L}`,
+    ]) assert.deepEqual(ledgerOnly(c, 'PowerShell'), { code: 0 }, c);
+  }
+});
+
+test('a clobbering redirection with >| or >& file writes into the repository and is refused, from inside it or outside (#143)', () => {
+  for (const c of ['printf x >| D:/repo/.git/hooks/post-checkout', 'printf x >|D:/repo/x', 'echo x >& D:/repo/.git/hooks/post-checkout', 'echo x >&D:/repo/x']) {
+    for (const cwd of ['C:/Temp/run', REPO]) {
+      const refused = run(c, cwd);
+      assert.equal(refused.code, 2, c + ' in ' + cwd);
+      assert.match(refused.message, /writes inside the reviewed repository.*#143/, c + ' in ' + cwd);
+    }
+  }
+  for (const c of ['echo x >&2', 'echo x >& 2', 'ls 2>&1', 'ls 2>& 1 | head', 'echo x >| C:/Temp/run/out.txt', 'echo x >& C:/Temp/run/out.txt', 'cp C:/Temp/a C:/Temp/b >& 2']) {
+    assert.deepEqual(run(c, REPO), { code: 0 }, c);
+  }
 });
