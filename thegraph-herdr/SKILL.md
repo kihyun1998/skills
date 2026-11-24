@@ -177,7 +177,10 @@ For each issue:
 
 1. **Check the tree.** `git status --porcelain` must be empty in the run's
    tree, apart from the files `check-it`'s `range --run-folder <run folder>`
-   lists as left out because a run alongside in the same tree claimed them. In the main tree, read `HEAD` too: where it
+   lists as left out because a run alongside in the same tree claimed them, or
+   because the run folder's record shows them there before the run and unchanged
+   since, which a *leave that file alone* answer to a refused claim leaves in the
+   tree (#148). In the main tree, read `HEAD` too: where it
    has moved past this run's last commit, a run alongside merged, and the line
    that starts the next worker names the commits that arrived. Where it is not empty,
    put the files to the person, each with its diff summary: set them aside with
