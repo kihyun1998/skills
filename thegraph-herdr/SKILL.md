@@ -281,7 +281,9 @@ Review runners and models changed at the confirm stop: <each row of check-it's r
 Issue file: <its ….<slug>.issue.md>, the issue's body and decision comments; give it to every check-it prompt and run call as --issue-file
 Report file: <its report file>
 This run's run sheet: <its per-issue run sheet path>. It does not exist; the skills
-you call keep their files beside it.
+you call keep their files beside it, check-it's reports named with `--sheet <that path>`
+(the findings report where `check-it.mjs name findings --sheet <that path>` puts it), so
+the conductor's `open --sheet` finds it.
 Run folder and ledger: <the conductor's run sheet>.made/ and <the conductor's run sheet>.made.md, shared by every worker of this run (clean-it/RULES.md)<; where the run moved into a worktree after its run folder was made: "check-it's run folder is <the conductor's run sheet>.made/wt/, which holds the worktree's record (thegraph, A run alongside another)">.
 thegraph: <absolute path of thegraph's SKILL.md, as the conductor read it>
 
