@@ -264,6 +264,22 @@ a direct `/check-it`, it is asked directly with the question tool. A report
 with no finding in it asks nothing, and the result says the reviews found
 nothing.
 
+**Before the question, the report is opened for the person**, from the saved
+file as it is: `node <check-it>/scripts/check-it.mjs open --sheet <run sheet>`, or
+`--run-folder <run folder>` where there is no run sheet, hands it to their
+default viewer for a Markdown file and returns once the viewer has started. It
+takes no path: it opens the report where `name findings` puts it, so a question
+cannot name the file that is opened, and it refuses a network or device path.
+Its spawn is hidden: no console window flashed at its first real run
+([windows.md](../docs/environment/windows.md)). It is
+opened for each question, so a question asked again after a fix and a recheck
+opens the report as it then stands. The chat, the run sheet and the question
+carry no copy of it, and no summary stands in for it. The question adds one
+line: *the full report is open in your viewer: <path>*, or, where `open`
+stopped, *the report could not be opened (<the reason it printed>); it is at
+<path>*. In a `thegraph-herdr` worker the conductor opens it and adds that
+line (its `question` row); anywhere else this session does, before it asks.
+
 **No answer fixes nothing.** A question dismissed, or answered with text that
 names neither an option nor a number, fixes nothing: the run stops there,
 uncommitted, and the result says so. The run is not done, so its run sheet is

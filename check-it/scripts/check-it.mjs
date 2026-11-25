@@ -3,7 +3,7 @@
 // link, where argv[1] and import.meta.url name different paths.
 
 import { closeSync, lstatSync, openSync, readFileSync, readSync, readdirSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { delimiter } from 'node:path';
 import { CheckItError, SKILLS, run } from './assemble.mjs';
@@ -68,6 +68,10 @@ const realDeps = {
   }),
   spawn: spawnRunner,
   node: process.execPath,
+  platform: process.platform,
+  launch: (command, args, { env, timeout }) => spawnSync(command, args, {
+    env: { ...process.env, ...env }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, timeout,
+  }),
   now: () => Date.now(),
   moveFile: (from, to) => renameSync(from, to),
   removeFile: (path) => rmSync(path, { force: true }),

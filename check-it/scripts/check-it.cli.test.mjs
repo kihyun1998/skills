@@ -5,7 +5,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSyn
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { REVIEWS, section } from './assemble.mjs';
+import { REVIEWS, opener, section } from './assemble.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const scratch = realpathSync(mkdtempSync(join(tmpdir(), 'check-it-cli-')));
@@ -403,4 +403,20 @@ process.exit(1);`);
   assert.match(r.stderr, /^check-it: Codex is out of usage: You've hit your usage limit\./);
   assert.ok(!existsSync(bugReport));
   assert.ok(!existsSync(`${bugReport}.part`));
+});
+
+test('open, through the real script, stops on a findings report that is not there without starting a viewer', () => {
+  const sheet = join(scratch, 'no-such.md');
+  const r = call(here, ['open', '--sheet', sheet]);
+  assert.equal(r.status, 1);
+  assert.equal(r.stderr, `check-it: could not open ${join(scratch, 'no-such.findings.md')}: it is not a file\n`);
+  assert.equal(r.stdout, '');
+});
+
+test('the Windows opener, run by PowerShell on a path that is not there, parses and exits 1 with the reason, so no viewer starts', { skip: process.platform !== 'win32' && 'PowerShell is the opener on Windows only' }, () => {
+  const { command, args, env } = opener('win32', join(scratch, 'not-there.findings.md'));
+  const r = spawnSync(command, args, { env: { ...process.env, ...env }, encoding: 'utf8', windowsHide: true, timeout: 30 * 1000 });
+  assert.equal(r.status, 1, r.stderr);
+  assert.doesNotMatch(r.stderr, /ParserError|FullyQualifiedErrorId/);
+  assert.match(r.stderr.trim(), /^[^\n]+$/);
 });

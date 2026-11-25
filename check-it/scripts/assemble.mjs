@@ -45,6 +45,7 @@ const ALLOWED = {
   verify: ['repo', 'covered', 'run-folder'],
   prompt: ['repo', 'issue', 'issue-file', 'run-folder', 'ledger', 'findings', 'change'],
   run: ['repo', 'issue', 'issue-file', 'run-folder', 'ledger', 'sheet', 'runner', 'model'],
+  open: ['sheet', 'run-folder'],
 };
 
 const CLAUDE_ONLY = new Set(['proving', 'pick', 'pick-confirm']);
@@ -96,6 +97,13 @@ export const USAGE = `Usage: node check-it.mjs <command> [options]
                                 cost line; <runner> is one of ${Object.keys(RUNNERS).join(', ')}, and <review> any but
                                 ${[...CLAUDE_ONLY].join(', ')}. Exit 3: the runner is out of usage; exit 4:
                                 it failed otherwise; either way the review runs again on its Claude model
+  open (--sheet <run sheet> | --run-folder <dir>)
+                                opens the findings report, where name findings puts it, in the person's
+                                default viewer for a Markdown file and returns once the viewer is started:
+                                through ShellExecute (PowerShell) on Windows, open on macOS, xdg-open
+                                elsewhere, the spawn hidden; it takes no path, refuses a network or device
+                                path, and stops, saying why, where the report is not there or the viewer
+                                did not start or did not finish within 30 s
 
   --repo <dir>                  the repository (default: the one the current folder is in)
 `;
@@ -639,6 +647,38 @@ export function runReview(review, opts, deps) {
   return `report: ${report}\ncost: ${review} on ${runner.name} ${opts.model}: ${seconds} s, ${count(usage.input)} input tokens (${count(usage.cached)} cached), ${count(usage.output)} output tokens\n`;
 }
 
+const SHELL_OPEN = [
+  '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8;',
+  'try { [void][System.Diagnostics.Process]::Start((New-Object System.Diagnostics.ProcessStartInfo -Property @{ FileName = $env:CHECK_IT_OPEN; UseShellExecute = $true })) }',
+  'catch { $e = $_.Exception; if ($e.InnerException) { $e = $e.InnerException }; [Console]::Error.WriteLine($e.Message); exit 1 }',
+].join(' ');
+
+export function opener(platform, path) {
+  if (platform === 'win32') return { command: 'powershell.exe', args: ['-NoProfile', '-NonInteractive', '-Command', SHELL_OPEN], env: { CHECK_IT_OPEN: path } };
+  return { command: platform === 'darwin' ? 'open' : 'xdg-open', args: [path], env: {} };
+}
+
+export const OPEN_TIMEOUT_MS = 30 * 1000;
+
+const UNC = /^[\\/]{2}/;
+
+export function openReport(opts, deps) {
+  for (const given of [opts.sheet, opts['run-folder']].filter((v) => v !== undefined)) {
+    const where = resolve(deps.cwd, given);
+    if (UNC.test(given) || UNC.test(where)) fail(`could not open ${where}: a network or device path is not opened`);
+  }
+  const path = reportPath('findings', opts, deps);
+  const refuse = (why) => fail(`could not open ${path}: ${why}`);
+  if (!deps.isFile(path)) refuse('it is not a file');
+  const { command, args, env } = opener(deps.platform, path);
+  const r = deps.launch(command, args, { env, timeout: OPEN_TIMEOUT_MS });
+  if (r.error?.code === 'ETIMEDOUT') refuse(`${command} did not finish within ${OPEN_TIMEOUT_MS / 1000} s`);
+  if (r.error) refuse(`${command} did not start: ${r.error.message}`);
+  if (r.status === null) refuse(`${command} did not finish, stopped by ${r.signal}`);
+  if (r.status !== 0) refuse(`${command} exited ${r.status}: ${(r.stderr || r.stdout || '').trim()}`);
+  return `opened ${path}\n`;
+}
+
 export function run(argv, deps) {
   const { command, args, opts } = parseArgs(argv);
   for (const key of Object.keys(opts)) {
@@ -685,6 +725,10 @@ export function run(argv, deps) {
     case 'run': {
       extra(1);
       return runReview(args[0], opts, deps);
+    }
+    case 'open': {
+      if (args.length > 0) fail(`open takes no argument, given: ${args.join(' ')}`);
+      return openReport(opts, deps);
     }
     case undefined:
       fail(`no command given\n\n${USAGE}`);

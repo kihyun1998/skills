@@ -832,3 +832,100 @@ test('record --from carries the earlier record\'s tracked files with its untrack
   assert.deepEqual(JSON.parse(written[RECORDED]), { repo: REPO, untracked: { x: H('a') }, tracked: { 'pre.c': H('b') } });
   assert.equal(out, `carried the record of 1 untracked file and 1 tracked file modified before the run from ${EARLIER_RECORD} into ${RECORDED}\n`);
 });
+
+const REPORT = resolve('/work/s.findings.md');
+const SHEET = ['--sheet', 's.md'];
+const opening = (platform, result = { status: 0, stdout: '', stderr: '' }, files = { [REPORT]: 'FINDINGS' }) => {
+  const { deps } = fakeDeps({ files });
+  const launched = [];
+  deps.platform = platform;
+  deps.launch = (command, args, opts) => {
+    launched.push({ command, args, opts });
+    return result;
+  };
+  return { deps, launched };
+};
+
+test('open hands the findings report to the default viewer through ShellExecute on Windows, the path in the environment and never in the script', () => {
+  const { deps, launched } = opening('win32');
+  assert.equal(run(['open', ...SHEET], deps), `opened ${REPORT}\n`);
+  assert.equal(launched.length, 1);
+  const [{ command, args, opts }] = launched;
+  assert.equal(command, 'powershell.exe');
+  assert.deepEqual(args.slice(0, 3), ['-NoProfile', '-NonInteractive', '-Command']);
+  assert.equal(args.length, 4);
+  assert.match(args[3], /UseShellExecute = \$true/);
+  assert.match(args[3], /\$env:CHECK_IT_OPEN/);
+  assert.ok(!args[3].includes(REPORT));
+  assert.deepEqual(opts, { env: { CHECK_IT_OPEN: REPORT }, timeout: 30 * 1000 });
+});
+
+test('open runs open on macOS and xdg-open elsewhere, with the path as its one argument', () => {
+  for (const [platform, command] of [['darwin', 'open'], ['linux', 'xdg-open'], ['freebsd', 'xdg-open']]) {
+    const { deps, launched } = opening(platform);
+    assert.equal(run(['open', ...SHEET], deps), `opened ${REPORT}\n`, platform);
+    assert.deepEqual(launched, [{ command, args: [REPORT], opts: { env: {}, timeout: 30 * 1000 } }], platform);
+  }
+});
+
+test('open opens only the findings report where check-it saves it: beside the run sheet, or in the run folder, never per child as name findings is not', () => {
+  const perChild = opening('win32');
+  throwsCheck(() => run(['open', ...SHEET, '--child', '#38'], perChild.deps), /^open takes no --child$/);
+  assert.deepEqual(perChild.launched, []);
+  const inFolder = join(resolve('/work/run'), 'check-it.findings.md');
+  const direct = opening('win32', undefined, { [inFolder]: 'FINDINGS' });
+  assert.equal(run(['open', '--run-folder', '/work/run'], direct.deps), `opened ${inFolder}\n`);
+  assert.equal(direct.launched[0].opts.env.CHECK_IT_OPEN, inFolder);
+});
+
+test('open takes no path, so a question cannot name the file it opens', () => {
+  const { deps, launched } = opening('win32');
+  throwsCheck(() => run(['open', ...SHEET, 'probe.findings.vbs'], deps), /^open takes no argument, given: probe\.findings\.vbs$/);
+  throwsCheck(() => run(['open'], deps), /^give --sheet <run sheet>, or --run-folder <dir> where there is no run sheet$/);
+  throwsCheck(() => run(['open', ...SHEET, '--run-folder', '/work/run'], deps), /^give --sheet or --run-folder, not both$/);
+  throwsCheck(() => run(['open', ...SHEET, '--issue', 'x'], deps), /^open takes no --issue$/);
+  assert.deepEqual(launched, []);
+});
+
+test('open says the report could not be opened, with the path and what the opener said, when it fails, cannot start or does not finish', () => {
+  const said = opening('win32', { status: 1, stdout: '', stderr: 'No application is associated with the specified file\r\n' });
+  throwsCheck(() => run(['open', ...SHEET], said.deps), /^could not open .*s\.findings\.md: powershell\.exe exited 1: No application is associated with the specified file$/);
+  const missing = opening('linux', { status: null, error: new Error('spawnSync xdg-open ENOENT') });
+  throwsCheck(() => run(['open', ...SHEET], missing.deps), /^could not open .*s\.findings\.md: xdg-open did not start: spawnSync xdg-open ENOENT$/);
+  const timedOut = Object.assign(new Error('spawnSync open ETIMEDOUT'), { code: 'ETIMEDOUT' });
+  for (const result of [{ status: null, signal: 'SIGTERM', error: timedOut, stdout: '', stderr: '' }, { status: 0, signal: null, error: timedOut, stdout: '', stderr: '' }]) {
+    const hung = opening('darwin', result);
+    throwsCheck(() => run(['open', ...SHEET], hung.deps), /^could not open .*s\.findings\.md: open did not finish within 30 s$/);
+  }
+  const killed = opening('darwin', { status: null, signal: 'SIGKILL', stdout: '', stderr: '' });
+  throwsCheck(() => run(['open', ...SHEET], killed.deps), /^could not open .*s\.findings\.md: open did not finish, stopped by SIGKILL$/);
+});
+
+test('open stops on a findings report that is not there before anything is started', () => {
+  const { deps, launched } = opening('win32', undefined, {});
+  throwsCheck(() => run(['open', ...SHEET], deps), /^could not open .*s\.findings\.md: it is not a file$/);
+  assert.deepEqual(launched, []);
+});
+
+test('open refuses a UNC or device path before touching the file system, so no SMB connection is made', () => {
+  const unc = ['\\\\host\\share\\s.md', '//host/share/s.md', '\\\\?\\C:\\s.md', '\\\\.\\pipe\\s.md', '/\\host\\share\\s.md'];
+  for (const [flag, given] of [...unc.map((g) => ['--sheet', g]), ...unc.map((g) => ['--run-folder', g.slice(0, -5)])]) {
+    const { deps, launched } = opening('win32');
+    const touched = [];
+    deps.isFile = (p) => { touched.push(p); return true; };
+    deps.isDir = (p) => { touched.push(p); return true; };
+    throwsCheck(() => run(['open', flag, given], deps), /: a network or device path is not opened$/);
+    assert.deepEqual(touched, [], given);
+    assert.deepEqual(launched, [], given);
+  }
+  if (process.platform === 'win32') {
+    const { deps, launched } = opening('win32');
+    deps.cwd = '\\\\host\\share';
+    const touched = [];
+    deps.isFile = (p) => { touched.push(p); return true; };
+    deps.isDir = (p) => { touched.push(p); return true; };
+    throwsCheck(() => run(['open', '--sheet', 's.md'], deps), /^could not open \\\\host\\share\\s\.md: a network or device path is not opened$/);
+    assert.deepEqual(touched, []);
+    assert.deepEqual(launched, []);
+  }
+});

@@ -37,3 +37,37 @@ files and the network on (ADR-0102). The other two were measured on 2026-11-24
   `gh`, `glab` and a Node there do not start. It was set up on this machine
   during #146 and the config line put back to `"unelevated"`; `codex sandbox
   uninstall` removes the accounts and rules.
+
+## Opening a file in the person's default viewer (#151)
+
+`check-it.mjs open <file>` opens a file the way a double-click does. On
+Windows it runs `powershell.exe -NoProfile -NonInteractive -Command` with
+`System.Diagnostics.Process.Start` and `UseShellExecute = $true`. The path goes
+in through the `CHECK_IT_OPEN` environment variable, so no quoting can change
+the script. The spawn passes `windowsHide: true`.
+
+Measured on 2026-11-25 (Windows 11 Pro 10.0.26200, Windows PowerShell 5.1):
+
+- The default viewer for `.md` here is VS Code. The registry's
+  `FileExts\.md\UserChoiceLatest\ProgId` is `VSCode.md`, whose open command
+  is `Code.exe "%1"`.
+- On a file that exists, the command returns exit 0 in about 0.5 to 0.7 s, and
+  VS Code shows the file. While it ran, a watcher of visible top-level windows
+  saw one new window, VS Code's own.
+- On a path that does not exist, it returns exit 1 and prints
+  `The system cannot find the file specified`. No window opens.
+- PowerShell prints its own parse errors in the system's language (Korean
+  here), so the script sets `[Console]::OutputEncoding` to UTF-8 before it
+  prints a reason.
+
+Whether a console window flashes is observed, not measured. At the first real
+run (the #151 run, 2026-11-25), the conductor opened the findings report with
+`check-it.mjs open` (exit 0) and the person saw no console window flash. No
+measurement backs that up: the watcher of visible top-level windows saw no
+window for the command, but it also saw none for a detached Node process spawned
+without `windowsHide`, which the section above records as opening one in the
+#78 run, nor for `cmd /c start`, which opens a new console by design. So the
+watcher showed no console window in any case here, and why was not found.
+
+`open` on macOS and `xdg-open` elsewhere are the commands the script runs off
+Windows. Neither was run here.
