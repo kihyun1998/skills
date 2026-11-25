@@ -288,9 +288,11 @@ this as `stuck`, its brief's way to say the issue cannot proceed. *Fix nothing*
 is an answer: the run goes on to `sweep` (12) with nothing
 fixed.
 
-**After the answer**, each picked finding is fixed through `make-it`, then 1 to
-3 run again, and a review runs again only where a fix opened a surface it did
-not walk (*Going back, and stopping*). **A passed finding the person left
+**After the answer**, each picked finding is fixed through `make-it`, called
+again with `Skill`, then `check-it` is called again with `Skill` for 1 to 3
+only: that call starts no decision model, and a review runs again only where a
+fix opened a surface it did not walk (*Going back, and stopping*). The two
+calls are what the thegraph-panel mod reads as the fix and the recheck (#152). **A passed finding the person left
 unfixed is carried to `ask-it`**, with its number and evidence, marked as the
 person's choice not to fix it here. An unproven finding left unfixed is carried
 as *unproven*, with what would show it. A drop left unpicked is recorded in the
