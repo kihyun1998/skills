@@ -3,7 +3,7 @@ import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
 import type { Chip, Run } from '../types'
 
-import { CONFIRM, DECIDE, CHIP_KEY, CONDUCTOR_KEY, WORKER_KEY, addLog, chipOf, gantt, isDone, pressOf, stepAt, turnSummary, isSheetPath, sheetLog, testCounts, testOf, labelOf, onAnswer, onEdit, onSkill, parseSheet, stepsOf, onTurnEnd, signalSummary, startRun, stateOf, keepTurnLine, turnLineOf } from '../hooks/run'
+import { CONFIRM, DECIDE, REVIEW, FIX, RECHECK, GROUPS, onQuestion, findingsPathIn, parseFindings, parseBrief, CHIP_KEY, CONDUCTOR_KEY, WORKER_KEY, addLog, chipOf, gantt, isDone, pressOf, stepAt, turnSummary, isSheetPath, sheetLog, testCounts, testOf, labelOf, onAnswer, onEdit, onSkill, parseSheet, stepsOf, onTurnEnd, signalSummary, startRun, stateOf, keepTurnLine, turnLineOf } from '../hooks/run'
 
 const MIN = 60_000
 
@@ -170,7 +170,13 @@ const write = async ($: Engine, fs: { write: (path: string, text: string) => voi
 const question = (text: string) => ({ questions: [{ question: text, header: '확인', options: [], multiSelect: false }] })
 const DISMISSED = { isError: true, text: 'The user dismissed the question.' }
 
-const isButton = (n: unknown): n is { props: { label: string } } =>
+const plainButton = (node: { props: { label: string; plain?: true; hotkey?: string }; children?: unknown[] }): string => {
+  if (node.props.plain !== true) return `[ ${node.props.label} ]`
+  const text = node.children !== undefined && node.children.length > 0 ? node.children.map(flat).join('') : node.props.label
+  return `${node.props.hotkey === undefined ? '' : `${node.props.hotkey}: `}${text}`
+}
+
+const isButton = (n: unknown): n is { props: { label: string; plain?: true; hotkey?: string }; children?: unknown[] } =>
   n !== null && typeof n === 'object' && 'type' in n && n.type === 'Button'
 
 // A drawn tree's text, its string children joined in order.
@@ -178,7 +184,7 @@ const flat = (node: unknown): string =>
   typeof node === 'string'
     ? node
     : isButton(node)
-      ? `[ ${node.props.label} ]`
+      ? plainButton(node)
       : node !== null && typeof node === 'object' && 'children' in node && Array.isArray(node.children)
       ? node.children.map(flat).join('')
       : ''
@@ -226,6 +232,54 @@ const lineOf = ($: Engine): string => {
   return `[ ${chip} ]${kids}${back}  ${steps.join(' › ')}${isDone(r) ? '  done' : ''}`
 }
 const band = async ($: Engine) => ({ drawn: async () => lineOf($) })
+
+const FINDINGS_BOLD = [
+  '# check-it findings: #151 (open the findings report before check-it' + "'" + 's question)',
+  '',
+  'Reviews that ran: refactoring (4), security (7), lens (8).',
+  '',
+  '## 1. To fix, pre-ticked',
+  '',
+  '**1. security (7) — ' + '\`check-it/scripts/assemble.mjs\` \`openReport\` (~line 660): \`open\` hands any file to ShellExecute, so a \`.vbs\` is run, not opened.** In a thegraph-herdr run the path comes from the worker.',
+  '- Evidence: a harmless \`probe.findings.vbs\`; \`node check-it.mjs open probe.findings.vbs\` printed exit 0 and the marker file then held \`probe ran\`.',
+  '- Introduced by this change: yes (no \`open\` at HEAD).',
+  '- The fix: \`open\` refuses a file whose name does not end in \`.md\`.',
+  '',
+  '## 2. Passed, not pre-ticked (a decision)',
+  '',
+  '**4. refactoring (4) and lens (8) — \`assemble.mjs\` \`case ' + "'open'" + '\`, \`assemble.test.mjs\` (~line 883): with no argument the message ends empty (\`open takes 1 argument, given: \`).** Every other command checks its count with \`extra(n)\`. Introduced: yes.',
+  '',
+  '## 3. Unproven',
+  '',
+  '**8. bug (6) and lens (8) — \`check-it/scripts/check-it.mjs\` \`launch\`: off Windows, \`xdg-open\` may not return until the viewer exits.**',
+  '- What would show it: \`check-it.mjs open <file.md>\` on a Linux desktop, timing its return.',
+  '',
+  '## 4. Dropped',
+  '',
+  '**9. refactoring (4) — \`check-it.mjs\` \`launch\` is a near copy of \`runners.mjs\` \`spawnRunner\`.** Dropped by the proving agent: they differ in \`cwd\`.',
+  '',
+  'Spec and rules (5): no violation, no spec mismatch.',
+].join('\n')
+
+const FINDINGS_LINES = [
+  '# Findings — #2824',
+  '',
+  '## 1. To fix, pre-ticked',
+  '',
+  '1. **lens (L2)** — \`src/blockHost/lib/attachBesideParent.authInput.test.ts:7\` — the test header names \`planChildSplit\`, which this change deleted. Evidence: \`rg planChildSplit src\` finds only that line. Introduced: yes (the function went in this diff). The file is outside the change' + "'" + 's paths.',
+  '',
+  '## 2. Passed, not pre-ticked',
+  '',
+  '6. **lens (L1)** — \`GLOSSARY.md\` Accretion entry — it says every Block opened from a door joins beside the pressed Block. Introduced: yes.',
+  '',
+  '## 3. Unproven',
+  '',
+  '(none)',
+  '',
+  '## 4. Dropped',
+  '',
+  '12. **lens (L4)**, Minimized parent on the attach path. Dropped by the proving agent: the old code left the child in no tree (\`splitTree.ts:219-234\`).',
+].join('\n')
 
 describe('turn lines', () => {
   test('keep the latest turns, not the longest, and a repeated duration moves to the end', () => {
@@ -1050,6 +1104,106 @@ describe('thegraph-panel', () => {
 })
 
 describe('run', () => {
+  test("a worker walks make-it, then check-it's four stages: review, the person's confirm, fix, recheck", () => {
+    const states = (r: Run) => stepsOf(r).map(s => `${s.key}${MARK[s.state]}`).join(' › ')
+    let r = startRun(null, 0, 'worker')
+    expect(states(r)).toBe('make-it › review › confirm › fix › recheck')
+    r = onSkill(onSkill(r, 'make-it', 1), 'check-it', 2)
+    expect(states(r)).toBe('make-it ✓ › review ◐ › confirm › fix › recheck')
+    r = onQuestion(r, 3)
+    expect(states(r)).toBe('make-it ✓ › review ✓ › confirm ◆ › fix › recheck')
+    r = onAnswer(onTurnEnd(r, 4), 5) ?? r
+    r = onSkill(r, 'make-it', 6)
+    expect(states(r)).toBe('make-it ✓ › review ✓ › confirm ✓ › fix ◐ › recheck')
+    r = onSkill(r, 'check-it', 7)
+    expect(states(r)).toBe('make-it ✓ › review ✓ › confirm ✓ › fix ✓ › recheck ◐')
+    r = onQuestion(r, 8)
+    expect(states(r)).toBe('make-it ✓ › review ✓ › confirm ◆ › fix › recheck')
+  })
+
+  test("a worker that fixes and rechecks without calling the skills: the answer, or the first edit after the confirm, begins the fix, and a question in it is the confirm again", () => {
+    const states = (r: Run) => stepsOf(r).map(s => `${s.key}${MARK[s.state]}`).join(' › ')
+    const asked = onQuestion(onSkill(onSkill(startRun(null, 0, 'worker'), 'make-it', 1), 'check-it', 2), 3)
+    const answered = onAnswer(onTurnEnd(asked, 4), 5) ?? asked
+    expect(states(answered)).toBe('make-it ✓ › review ✓ › confirm ✓ › fix ◐ › recheck')
+    const edited = onEdit(onTurnEnd(asked, 4), 5)
+    expect(states(edited)).toBe('make-it ✓ › review ✓ › confirm ✓ › fix ◐ › recheck')
+    expect(onEdit(edited, 6)).toBe(edited)
+    expect(onSkill(edited, 'make-it', 6)).toBe(edited)
+    const again = onQuestion(edited, 7)
+    expect(states(again)).toBe('make-it ✓ › review ✓ › confirm ◆ › fix › recheck')
+    const early = onSkill(startRun(null, 0, 'worker'), 'make-it', 1)
+    expect(onEdit(early, 2)).toBe(early)
+  })
+
+  test('a question a worker sends outside check-it is no confirm, and check-it after make-it again reviews', () => {
+    const states = (r: Run) => stepsOf(r).map(s => `${s.key}${MARK[s.state]}`).join(' › ')
+    let r = onSkill(startRun(null, 0, 'worker'), 'make-it', 1)
+    expect(onQuestion(r, 2)).toBe(r)
+    r = onSkill(onSkill(onSkill(r, 'check-it', 3), 'make-it', 4), 'check-it', 5)
+    expect(states(r)).toBe('make-it ✓ › review ◐ › confirm › fix › recheck')
+    const plain = onSkill(startRun(null, 0), 'check-it', 1)
+    expect(onQuestion(plain, 2)).toBe(plain)
+  })
+
+  test("the findings report is the one the worker's report names under ## Question, not elsewhere", () => {
+    const report = (question: string) => ['# #152 worker report', '', '## Carried', '- old: C:\\Temp\\thegraph\\x.151.findings.md', '', '## Question', '', question, '', '## Result', '- C:\\Temp\\thegraph\\x.150.findings.md'].join('\n')
+    expect(findingsPathIn(report('리뷰 결과 보고서: C:\\Temp\\thegraph\\x.152.findings.md\n\n어떻게 할까요?'))).toBe('C:\\Temp\\thegraph\\x.152.findings.md')
+    expect(findingsPathIn(report('Findings: \`/tmp/thegraph/x.152.findings.md\`.'))).toBe('/tmp/thegraph/x.152.findings.md')
+    expect(findingsPathIn(report('(none open)'))).toBe(null)
+    expect(findingsPathIn(report('보고서: C:\\Users\\Ki Hyun\\AppData\\Local\\Temp\\thegraph\\x.152.findings.md\n'))).toBe('C:\\Users\\Ki Hyun\\AppData\\Local\\Temp\\thegraph\\x.152.findings.md')
+    expect(findingsPathIn(report('report at C:/Users/Jane Doe/AppData/x.findings.md, open in your viewer'))).toBe('C:/Users/Jane Doe/AppData/x.findings.md')
+    expect(findingsPathIn(report('Findings: `/home/jane doe/tmp/x.findings.md`'))).toBe('/home/jane doe/tmp/x.findings.md')
+    expect(findingsPathIn('no sections at all: C:\\Temp\\x.findings.md')).toBe(null)
+  })
+
+  test("a worker's brief names its report file", () => {
+    expect(parseBrief('b.md', 'Issue: o/r#152 — t\nReport file: C:/Temp/thegraph/x.152.report.md\n').report).toBe('C:/Temp/thegraph/x.152.report.md')
+    expect(parseBrief('b.md', 'Issue: o/r#152 — t\n').report).toBe(null)
+  })
+
+  test('a findings report with a bold headline per finding parses into its four groups, a line each', () => {
+    const fs = parseFindings(FINDINGS_BOLD)
+    expect(fs.map(f => [f.n, f.group])).toEqual([[1, 'fix'], [4, 'passed'], [8, 'unproven'], [9, 'dropped']])
+    expect(fs[0]).toEqual({
+      n: 1,
+      group: 'fix',
+      review: 'security (7)',
+      title: '\`open\` hands any file to ShellExecute, so a \`.vbs\` is run, not opened.',
+      where: '\`check-it/scripts/assemble.mjs\` \`openReport\` (~line 660)',
+      introduced: 'yes (no \`open\` at HEAD)',
+      evidence: 'a harmless \`probe.findings.vbs\`; \`node check-it.mjs open probe.findings.vbs\` printed exit 0 and the marker file then held \`probe ran\`.',
+      rest: expect.stringContaining('The fix: \`open\` refuses'),
+    })
+    expect(fs[1]).toMatchObject({ review: 'refactoring (4) and lens (8)', where: "\`assemble.mjs\` \`case 'open'\`, \`assemble.test.mjs\` (~line 883)", introduced: 'yes', evidence: null })
+    expect(fs[1]?.title).toBe('with no argument the message ends empty (\`open takes 1 argument, given: \`).')
+    expect(fs[2]).toMatchObject({ review: 'bug (6) and lens (8)', introduced: null, evidence: null })
+    expect(fs[2]?.rest).toContain('What would show it:')
+    expect(fs[3]?.rest).not.toContain('Spec and rules')
+    const multi = parseFindings(['## 1. To fix, pre-ticked', '', '**1. bug (6) — `a.ts:3`: wrong.**', '- Evidence: `node x.js`', '  printed: 42', '  required: 43', '- Introduced: yes.'].join('\n'))
+    expect(multi[0]?.evidence).toBe('`node x.js`\nprinted: 42\nrequired: 43')
+    expect(multi[0]?.introduced).toBe('yes')
+  })
+
+  test("each of check-it's group headings is told by one pattern alone, so no order decides it", () => {
+    const headings = ['## 1. To fix, pre-ticked', '## 2. Passed, not pre-ticked (a decision)', '## 3. Unproven', '## 4. Dropped']
+    expect(headings.map(h => GROUPS.filter(g => g.heading.test(h)).map(g => g.group))).toEqual([['fix'], ['passed'], ['unproven'], ['dropped']])
+  })
+
+  test('a findings report with one numbered line per finding parses the same', () => {
+    const fs = parseFindings(FINDINGS_LINES)
+    expect(fs.map(f => [f.n, f.group])).toEqual([[1, 'fix'], [6, 'passed'], [12, 'dropped']])
+    expect(fs[0]).toMatchObject({
+      review: 'lens (L2)',
+      where: '\`src/blockHost/lib/attachBesideParent.authInput.test.ts:7\`',
+      title: 'the test header names \`planChildSplit\`, which this change deleted.',
+      evidence: '\`rg planChildSplit src\` finds only that line.',
+      introduced: 'yes (the function went in this diff)',
+    })
+    expect(fs[1]).toMatchObject({ review: 'lens (L1)', where: '\`GLOSSARY.md\`' })
+    expect(fs[2]).toMatchObject({ review: 'lens (L4)', title: 'Minimized parent on the attach path.', where: '\`splitTree.ts:219-234\`' })
+  })
+
   test('labelOf takes what follows /thegraph, and nothing else', () => {
     expect(labelOf('/thegraph #42 x')).toBe('#42 x')
     expect(labelOf('/thegraph')).toBe('')
@@ -1465,7 +1619,10 @@ describe('a herdr worker', () => {
     'Repo: D:\\github\\skills',
     'Issue: kihyun1998/skills#52 — panel follows herdr',
     'Route: code',
+    'Report file: C:\\Temp\\thegraph\\skills-20261116-0925-e5cec753.52.report.md',
   ].join('\n')
+  const REPORT = 'C:\\Temp\\thegraph\\skills-20261116-0925-e5cec753.52.report.md'
+  const FINDINGS = 'C:\\Temp\\thegraph\\skills-20261116-0925-e5cec753.52.findings.md'
   const SELF = { address: 't33', name: 'tg-e5cec753-52', parent: 't2x', state: 'live', status: { app: 'claude-code', msg: '', state: 'working' } }
 
   const asWorker = async ($: Engine, on: On, opts: { isListed?: boolean } = {}) => {
@@ -1480,24 +1637,57 @@ describe('a herdr worker', () => {
     return { h, fs, clock, folder }
   }
 
-  test('is told from its terminal name with no prompt, names its issue from the brief, and walks make-it and check-it', async ($, on) => {
+  test("is told from its terminal name with no prompt, names its issue from the brief, and walks make-it and check-it's stages", async ($, on) => {
     const { clock } = await asWorker($, on)
     const ui = await band($)
-    expect(flat(await ui.drawn())).toContain('[ worker #52 make-it ] [ ↩ t2x ]  make-it › check-it')
+    expect(flat(await ui.drawn())).toContain('[ worker #52 make-it ] [ ↩ t2x ]  make-it › review › confirm › fix › recheck')
     expect(await issueChip($)).toBe('#52')
     await say($, `Read ${BRIEF} and do what it says.`)
     await skill($, 'make-it')
     await clock.advance(3 * MIN)
     expect(flat(await ui.drawn())).toContain('[ worker #52 make-it ◐ 3m ]')
     await skill($, 'check-it')
+    await clock.advance(MIN)
     await skill($, 'make-it')
-    expect(flat(await ui.drawn())).toContain('make-it×2 ◐ › check-it')
+    expect(flat(await ui.drawn())).toContain('make-it×2 ◐ › review › confirm')
+  })
+
+  test('as real workers do, the fix is made with no skill called: the answer begins it, and a question sent from it marks the confirm again', async ($, on) => {
+    const { fs } = await asWorker($, on)
+    const ui = await band($)
+    await skill($, 'make-it')
+    await skill($, 'check-it')
+    await bash($, 'hc send t2x "question C:\\Temp\\x.report.md"')
+    await endTurn($)
+    await say($, 'fix 1-3')
+    expect(flat(await ui.drawn())).toContain('confirm ✓ › fix ◐ › recheck')
+    await write($, fs, 'D:\\github\\skills\\a.ts', 'x')
+    await bash($, 'hc send t2x "question C:\\Temp\\x.report.md"')
+    expect(flat(await ui.drawn())).toContain('confirm×2 ◆ › fix › recheck')
+  })
+
+  test("check-it's question sent up marks the confirm as the person's turn; the fix and the recheck follow", async ($, on) => {
+    await asWorker($, on)
+    const ui = await band($)
+    await skill($, 'make-it')
+    await bash($, 'hc send t2x "question C:\\Temp\\x.report.md"')
+    expect(flat(await ui.drawn())).toContain('make-it ◐ › review › confirm › fix')
+    await skill($, 'check-it')
+    await bash($, 'hc send t2x "question C:\\Temp\\x.report.md"')
+    await endTurn($)
+    expect(flat(await ui.drawn())).toContain('[ worker #52 confirm ◆')
+    expect(flat(await ui.drawn())).toContain('review ✓ › confirm ◆ › fix › recheck')
+    await say($, '미리 고른 대로 고치기')
+    await skill($, 'make-it')
+    expect(flat(await ui.drawn())).toContain('confirm ✓ › fix ◐ › recheck')
+    await skill($, 'check-it')
+    expect(flat(await ui.drawn())).toContain('fix ✓ › recheck ◐')
   })
 
   test('a brief written after the session began is found within a short tick', async ($, on) => {
     const { clock, folder } = await asWorker($, on, { isListed: false })
     const ui = await band($)
-    expect(flat(await ui.drawn())).toContain('[ worker make-it ] [ ↩ t2x ]  make-it › check-it')
+    expect(flat(await ui.drawn())).toContain('[ worker make-it ] [ ↩ t2x ]  make-it › review › confirm › fix › recheck')
     folder.files = [folder.brief]
     await clock.advance(5_000)
     expect(flat(await ui.drawn())).toContain('[ worker #52 make-it ]')
@@ -1534,6 +1724,76 @@ describe('a herdr worker', () => {
     await say($, 'the commit touches files left alone')
     expect(flat(await ui.drawn())).toContain('[ worker #52 ')
     expect(flat(await ui.drawn())).not.toContain('  done')
+  })
+
+  const atQuestion = async ($: Engine, on: On) => {
+    const w = await asWorker($, on)
+    await skill($, 'make-it')
+    await skill($, 'check-it')
+    w.fs.write(FINDINGS, FINDINGS_BOLD)
+    w.fs.write(REPORT, ['# #52 worker report', '', '## Carried', '', '## Question', '', `리뷰 결과 보고서: ${FINDINGS}`, '', '어떻게 할까요?'].join('\n'))
+    await bash($, `hc send t2x "question ${REPORT}"`)
+    await endTurn($)
+    const pane = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS })
+    return { ...w, pane }
+  }
+
+  test("the pane shows check-it's stages, the confirm the person's turn, and the findings its question names, by group, a line each", async ($, on) => {
+    const { pane } = await atQuestion($, on)
+    const text = flat(await pane.drawn())
+    expect(text).toContain('make-it ✓ → ① review ✓ → ② confirm ◆ (you) → ③ fix → ④ recheck')
+    expect(text).toContain('findings skills-20261116-0925-e5cec753.52.findings.md')
+    expect(text).toContain('to fix, pre-ticked (1)')
+    expect(text).toContain('1: ▸ `open` hands any file to ShellExecute, so a `.vbs` is run, not opened.  security (7)')
+    expect(text).toContain('4: ▸ with no argument the message ends empty (`open takes 1 argument, given: `).  refactoring (4) and lens (8)')
+    const at = ['to fix, pre-ticked (1)', 'passed, a decision (1)', 'unproven (1)', 'dropped (1)'].map(g => text.indexOf(g))
+    expect(at.every(i => i >= 0)).toBe(true)
+    expect([...at].sort((a, b) => a - b)).toEqual(at)
+    expect(text).not.toContain('probe ran')
+  })
+
+  test("pressing a finding's line unfolds its review, file and line, whether this change introduced it and its evidence; pressing again folds it", async ($, on) => {
+    const { pane } = await atQuestion($, on)
+    await pane.press({ key: 'finding-1' })
+    let text = flat(await pane.drawn())
+    expect(text).toContain('1: ▾ `open` hands any file')
+    expect(text).toContain('review      security (7)')
+    expect(text).toContain('where       `check-it/scripts/assemble.mjs` `openReport` (~line 660)')
+    expect(text).toContain('introduced  yes (no `open` at HEAD)')
+    expect(text).toContain('evidence    a harmless `probe.findings.vbs`')
+    expect(text).not.toContain('extra(n)')
+    await pane.press({ key: 'finding-8' })
+    text = flat(await pane.drawn())
+    expect(text).toContain('What would show it:')
+    expect(text).toContain('introduced  not said')
+    await pane.press({ key: 'finding-1' })
+    text = flat(await pane.drawn())
+    expect(text).toContain('1: ▸ `open` hands any file')
+    expect(text).not.toContain('probe ran')
+    expect(text).toContain('What would show it:')
+  })
+
+  test('a findings report not readable yet when the question names it is read once it is there', async ($, on) => {
+    const { fs, clock } = await asWorker($, on)
+    await skill($, 'make-it')
+    await skill($, 'check-it')
+    fs.write(REPORT, ['# #52 worker report', '', '## Question', '', `리뷰 결과 보고서: ${FINDINGS}`].join('\n'))
+    await bash($, `hc send t2x "question ${REPORT}"`)
+    const pane = await $.ui.mount({ plugin: 'thegraph-panel', surface: 'terminal', component: 'Pane', requestId: 'thegraph', props: PANE_PROPS })
+    expect(flat(await pane.drawn())).not.toContain('to fix, pre-ticked')
+    fs.write(FINDINGS, FINDINGS_BOLD)
+    await clock.advance(5_000)
+    expect(flat(await pane.drawn())).toContain('to fix, pre-ticked (1)')
+  })
+
+  test('a findings report rewritten after the recheck is read again; a question that no longer names it keeps the last', async ($, on) => {
+    const { fs, pane, clock } = await atQuestion($, on)
+    fs.write(FINDINGS, FINDINGS_LINES)
+    fs.write(REPORT, '# #52 worker report\n\n## Question\n\n(none open)\n')
+    await clock.advance(5_000)
+    const text = flat(await pane.drawn())
+    expect(text).toContain('the test header names `planChildSplit`')
+    expect(text).not.toContain('ShellExecute')
   })
 
   test('a session whose terminal is no worker has no chip, and hc failing breaks nothing', async ($, on) => {

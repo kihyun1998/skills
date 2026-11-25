@@ -9,7 +9,7 @@ and branch chips, folded into one chip:
 ```
 [ skills/mods ] [ main ] [ thegraph #52 make-it ◐ 4m ]g
 [ skills/mods ] [ main ] [ herdr #38 workers ◐ 12m ]g #37 ✓ [ #38 ◐ ]a #39 ·
-[ skills/mods ] [ main ] [ worker #38 check-it ◐ 2m ]g [ ↩ conductor ]c
+[ skills/mods ] [ main ] [ worker #38 review ◐ 2m ]g [ ↩ conductor ]c
 ```
 
 `thegraph-panel` no longer draws a line of its own. The chip names the run's kind,

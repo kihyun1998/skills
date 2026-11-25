@@ -27,6 +27,27 @@ export type Sheet = {
   carried: string[]
   /** A herdr conductor's `## Children`: each line's issue address, and the prose after ` — `. */
   children: { address: string; text: string }[]
+  /** A herdr worker's report file, as its brief names it; null on a run sheet. Absent on a sheet kept from before. */
+  report?: string | null
+}
+
+/** A group of check-it's findings report: to fix pre-ticked, passed (a decision), unproven, dropped. */
+export type FindingGroup = 'fix' | 'passed' | 'unproven' | 'dropped'
+
+/**
+ * One finding of check-it's findings report, read from its prose: its number and group, the
+ * review it came from, its one-line finding, its file and line, whether this change introduced
+ * it and its evidence where the report says so, and the rest of what it says.
+ */
+export type Finding = {
+  n: number
+  group: FindingGroup
+  review: string | null
+  title: string
+  where: string | null
+  introduced: string | null
+  evidence: string | null
+  rest: string
 }
 
 /**
@@ -156,6 +177,10 @@ declare module 'claude-code' {
       chip: Chip | null
       /** The calls whose results are not applied yet, by tool_use id; one is taken out as its result is applied. */
       calls: Record<string, Call>
+      /** A worker's check-it findings report, as last read: its path and its findings; null before one is named. */
+      findings: { path: string; items: Finding[] } | null
+      /** The findings whose lines the person pressed open in the pane, by number. */
+      unfolded: number[]
     }
   }
 }

@@ -15,6 +15,7 @@ import {
   onEdit,
   onReply,
   onSkill,
+  onQuestion,
   onTurnEnd,
   parseSheet,
   STEP_COLOR,
@@ -48,8 +49,16 @@ import {
   usesIn,
   resultsIn,
   recordIn,
+  findingsPathIn,
+  parseFindings,
+  stepName,
+  toggled,
+  GROUPS,
+  FINDING_KEY,
+  CONFIRM,
+  STEP_MARK,
 } from './run'
-import type { Call, Kind, Run } from '../types'
+import type { Call, Finding, Kind, Run } from '../types'
 
 const run = atom({ plugin: 'thegraph-panel', key: 'run' } as const, null)
 const isPaneOpen = atom({ plugin: 'thegraph-panel', key: 'isPaneOpen' } as const, false)
@@ -58,6 +67,8 @@ const turnLines = atom({ plugin: 'thegraph-panel', key: 'turnLines' } as const, 
 const workers = atom({ plugin: 'thegraph-panel', key: 'workers' } as const, [])
 const chip = atom({ plugin: 'thegraph-panel', key: 'chip' } as const, null)
 const calls = atom({ plugin: 'thegraph-panel', key: 'calls' } as const, {})
+const findings = atom({ plugin: 'thegraph-panel', key: 'findings' } as const, null)
+const unfolded = atom({ plugin: 'thegraph-panel', key: 'unfolded' } as const, [])
 
 const PANE = 'thegraph'
 /** A running step's minutes redraw this often while nothing else happens. */
@@ -127,10 +138,19 @@ const setNow = async ($: EngineInterface, t: number) => {
   await syncChip($)
 }
 
+let reportSeen = -1
+let findingsSeen = -1
+let namedFindings: string | null = null
+
 // A run started afresh: no workers and no calls from the one before. The calls go in their
 // turn, after any result being applied, so none of the old run's lands in the new one's log.
 const beginRun = async ($: EngineInterface, next: Run) => {
   await update($, workers, () => [])
+  await update($, findings, () => null)
+  await update($, unfolded, () => [])
+  reportSeen = -1
+  findingsSeen = -1
+  namedFindings = null
   await inOrder(async () => {
     await update($, calls, () => ({}))
   })
@@ -311,10 +331,39 @@ const checkSheet = async ($: EngineInterface) => {
   await readSheet($, path)
 }
 
+const checkFindings = async ($: EngineInterface) => {
+  const r = await read($, run)
+  const reportPath = r?.kind === 'worker' ? (r.sheet?.report ?? null) : null
+  if (reportPath === null) return
+  const kept = await read($, findings)
+  try {
+    const mtime = (await $.fs.stat(reportPath)).mtimeMs
+    if (mtime !== reportSeen) {
+      namedFindings = findingsPathIn(await $.fs.read(reportPath)) ?? namedFindings
+      reportSeen = mtime
+    }
+  } catch {}
+  const path = namedFindings ?? kept?.path ?? null
+  if (path === null) return
+  let mtime: number
+  let text: string
+  try {
+    mtime = (await $.fs.stat(path)).mtimeMs
+    if (mtime === findingsSeen && path === kept?.path) return
+    text = await $.fs.read(path)
+  } catch {
+    return
+  }
+  findingsSeen = mtime
+  const items = parseFindings(text)
+  await update($, findings, () => ({ path, items }))
+}
+
 // What a tool call, or another process, can have changed: the sheet, the issue file, the
 // workers, and the brief a worker has not found yet.
 const lookAgain = async ($: EngineInterface) => {
   await checkSheet($)
+  await checkFindings($)
   await checkIssueFile($)
   await refreshWorkers($)
   const r = await read($, run)
@@ -445,6 +494,7 @@ const onUse = async ($: EngineInterface, use: { id: string; tool: string; input:
     const issue = issueOf(r.sheet?.source, cwd)
     const isClose = issue?.kind === 'github' && closesIssue(command, issue.number)
     const report = r.kind === 'worker' ? reportOf(command) : null
+    if (report === 'question') await setRun($, r2 => (r2 === null ? r2 : onQuestion(r2, t)))
     const ends = report === 'done' || report === 'stuck' ? report : null
     if (runner !== null || isClose || ends !== null) await keepCall($, use.id, { kind: 'shell', runner, isClose, report: ends, back: null })
   }
@@ -551,6 +601,71 @@ const readSheet = async ($: EngineInterface, path: string) => {
 const dismiss = async ($: EngineInterface) => {
   await shutPane($)
   await setRun($, () => null)
+}
+
+type Ui = ReturnType<EngineInterface['ui']['resolve']>
+
+const stages = (r: Run, Text: Ui['Text']) => (
+  <Text wrap="wrap">
+    {stepsOf(r).map((s, i) => (
+      <Text>
+        {i > 0 && <Text dimColor> → </Text>}
+        <Text bold={s.state === 'run' || s.state === 'wait'} dimColor={s.state === 'todo'} color={s.key === CONFIRM ? 'warning' : undefined}>
+          {`${stepName(r.kind, s.key)}${STEP_MARK[s.state]}`}
+        </Text>
+        {s.key === CONFIRM && <Text color="warning"> (you)</Text>}
+      </Text>
+    ))}
+  </Text>
+)
+
+const FIELD_CELLS = 12
+
+const findingList = ($: EngineInterface, found: { path: string; items: Finding[] }, open: readonly number[], Box: Ui['Box'], Button: Ui['Button'], Text: Ui['Text']) => {
+  const field = (name: string, value: string) => (
+    <Text wrap="wrap">
+      <Text dimColor>{`    ${name.padEnd(FIELD_CELLS)}`}</Text>
+      <Text>{value}</Text>
+    </Text>
+  )
+  const line = (f: Finding) => {
+    const isOpen = open.includes(f.n)
+    return (
+      <Box flexDirection="column">
+        <Button key={`${FINDING_KEY}${f.n}`} plain hotkey={f.n <= 9 ? String(f.n) : undefined} label={`${f.n} ${f.title}`} onPress={() => update($, unfolded, o => toggled(o, f.n))}>
+          <Text wrap="truncate-end">
+            {f.n > 9 && <Text>{`${f.n}: `}</Text>}
+            <Text>{`${isOpen ? '▾' : '▸'} ${f.title}`}</Text>
+            {f.review !== null && <Text dimColor>{`  ${f.review}`}</Text>}
+          </Text>
+        </Button>
+        {isOpen && field('review', f.review ?? 'not said')}
+        {isOpen && field('where', f.where ?? 'not said')}
+        {isOpen && field('introduced', f.introduced ?? 'not said')}
+        {isOpen && field('evidence', f.evidence ?? f.rest)}
+      </Box>
+    )
+  }
+  return (
+    <Box flexDirection="column">
+      <Text> </Text>
+      <Text wrap="truncate-end">
+        <Text bold>findings</Text>
+        <Text dimColor>{` ${baseName(found.path)}`}</Text>
+      </Text>
+      {found.items.length === 0 && <Text dimColor>No finding read from it.</Text>}
+      {GROUPS.map(g => {
+        const items = found.items.filter(f => f.group === g.group)
+        if (items.length === 0) return null
+        return (
+          <Box flexDirection="column">
+            <Text color={g.color ?? undefined} dimColor={g.color === null}>{`${g.name} (${items.length})`}</Text>
+            {items.map(line)}
+          </Box>
+        )
+      })}
+    </Box>
+  )
 }
 
 export const register: Register = on => {
@@ -740,13 +855,15 @@ export const register: Register = on => {
       )
     }
     const t = Math.max(await read($, now), r.startedAt)
+    const found = await read($, findings)
+    const open = await read($, unfolded)
     const route = r.sheet?.route ?? (r.route === null ? null : routeName(r.route))
     const name = runName(r)
     // The gantt: a row per step, the run's time across, filled wherever that step ran.
     const end = Math.max(t, r.doneAt ?? 0)
     const bars = gantt(r, end, Math.max(8, Math.min(48, e.props.bodyColumns - STEP_CELLS - 5))).map(g => (
       <Text wrap="truncate-end">
-        <Text bold={g.state === 'run' || g.state === 'wait'} dimColor={g.state === 'todo'}>{g.key.padEnd(STEP_CELLS)}</Text>
+        <Text bold={g.state === 'run' || g.state === 'wait'} dimColor={g.state === 'todo'}>{stepName(r.kind, g.key).padEnd(STEP_CELLS)}</Text>
         {g.cells.map(c => (c ? <Text color={STEP_COLOR[g.key] ?? 'white'}>█</Text> : <Text dimColor>·</Text>))}
         <Text dimColor>{` ${g.ms === null ? '–' : minutes(g.ms)}`.padStart(5)}</Text>
       </Text>
@@ -801,6 +918,7 @@ export const register: Register = on => {
         </Box>
         {r.sheet?.source != null && <Text dimColor wrap="wrap">{r.sheet.source}</Text>}
         <Text dimColor>{'─'.repeat(Math.max(8, Math.min(40, e.props.bodyColumns)))}</Text>
+        {r.kind === 'worker' && stages(r, Text)}
         {bars}
         {/* Gives the run up: the pane closes and the chip goes. */}
         <Box flexDirection="row">
@@ -809,6 +927,7 @@ export const register: Register = on => {
           </Button>
           {e.viewport?.isFullscreen === false && <Text dimColor>x</Text>}
         </Box>
+        {r.kind === 'worker' && found !== null && findingList($, found, open, Box, Button, Text)}
         <Text> </Text>
         <Text dimColor>{`time ${'step'.padEnd(STEP_CELLS + 1)}what`}</Text>
         {lines.length === 0 ? <Text dimColor>Nothing logged yet.</Text> : lines}

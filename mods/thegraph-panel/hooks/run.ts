@@ -1,6 +1,6 @@
-import type { Child, Chip, Kind,LogEntry, Route, Run, Seg, Sheet, SheetStep, StepRec, Terminal } from '../types'
+import type { Child, Chip, Finding, FindingGroup, Kind, LogEntry, Route, Run, Seg, Sheet, SheetStep, StepRec, Terminal } from '../types'
 
-/** The stops where a person answers: after read-it, and after lens. */
+/** The stops where a person answers: after read-it (in a herdr worker, at check-it's question), and after lens. */
 export const CONFIRM = 'confirm'
 export const DECIDE = 'decide'
 
@@ -9,6 +9,11 @@ const STEP_SKILLS = ['read-it', 'lens', 'make-it', 'check-it', 'ask-it']
 
 /** Skills that interrupt the order whenever their moment comes. */
 export const SIGNAL_SKILLS = ['firsthand']
+
+/** check-it's stages in a herdr worker, after make-it: its reviews, the person's confirm, the fix, the recheck. */
+export const REVIEW = 'review'
+export const FIX = 'fix'
+export const RECHECK = 'recheck'
 
 /** The step a /thegraph-herdr conductor takes while its workers make and check. */
 export const WORKERS = 'workers'
@@ -20,7 +25,7 @@ export const WORKERS = 'workers'
 export const plan = (kind: Kind, route: Route | null): string[] => {
   if (route === 'decision') return ['read-it', CONFIRM, 'lens', DECIDE]
   if (kind === 'herdr') return ['read-it', CONFIRM, WORKERS, 'ask-it']
-  if (kind === 'worker') return ['make-it', 'check-it']
+  if (kind === 'worker') return ['make-it', REVIEW, CONFIRM, FIX, RECHECK]
   return ['read-it', CONFIRM, 'make-it', 'check-it', 'ask-it']
 }
 
@@ -89,8 +94,30 @@ export const onSkill = (run: Run, skill: string, now: number): Run => {
     return run
   }
   const route: Route | null = skill === 'read-it' ? run.route : (run.route ?? 'build')
+  const key = run.kind === 'worker' ? workerStage(run, skill) : skill
+  if (run.kind === 'worker' && key === openStep(run)?.key) return run.reported === null && !run.isWaiting ? run : { ...run, reported: null, isWaiting: false }
   // A worker that takes up a step after reporting has not finished.
-  return logged({ ...run, route, isWaiting: false, reported: null, steps: begin(run, skill, now) }, now, 'step', skill)
+  return logged({ ...run, route, isWaiting: false, reported: null, steps: begin(run, key, now) }, now, 'step', key)
+}
+
+const workerStage = (run: Run, skill: string): string => {
+  if (skill === 'make-it') return run.steps.some(s => s.key === CONFIRM) ? FIX : skill
+  if (skill === 'check-it') return run.steps.findLast(s => s.key === 'make-it' || s.key === FIX)?.key === FIX ? RECHECK : REVIEW
+  return skill
+}
+
+const stopAt = (run: Run, key: string, now: number): Run => logged({ ...run, isWaiting: true, steps: begin(run, key, now) }, now, 'step', key)
+
+const beginFix = (run: Run, now: number): Run => logged({ ...run, isWaiting: false, steps: begin(run, FIX, now) }, now, 'step', FIX)
+
+/**
+ * A worker sent its conductor a question. Sent while check-it reviews, fixes or rechecks, it is
+ * check-it's question: the confirm, the person's turn. Any other question leaves the stage.
+ */
+export const onQuestion = (run: Run, now: number): Run => {
+  const open = openStep(run)
+  if (run.kind !== 'worker' || run.doneAt !== null || ![REVIEW, FIX, RECHECK].includes(open?.key ?? '')) return run
+  return stopAt(run, CONFIRM, now)
 }
 
 /**
@@ -104,8 +131,8 @@ export const onTurnEnd = (run: Run, now: number): Run => {
     return logged({ ...run, isWaiting: false, steps: closeAll(run.steps, now), doneAt: now }, now, 'end', run.reported)
   }
   const open = openStep(run)
-  if (open?.key === 'read-it') return logged({ ...run, isWaiting: true, steps: begin(run, CONFIRM, now) }, now, 'step', CONFIRM)
-  if (open?.key === 'lens') return logged({ ...run, isWaiting: true, steps: begin(run, DECIDE, now) }, now, 'step', DECIDE)
+  if (open?.key === 'read-it') return stopAt(run, CONFIRM, now)
+  if (open?.key === 'lens') return stopAt(run, DECIDE, now)
   // Anything else, a trivial end after the confirm included, is the person's to say: the run waits, and the pane's `clear run ×` ends it.
   return { ...run, isWaiting: true }
 }
@@ -122,6 +149,7 @@ export const onAnswer = (run: Run, now: number): Run | null => {
   if (run.isDismissed) return { ...run, isWaiting: false, isDismissed: false }
   if (!run.isWaiting) return run
   const open = openStep(run)
+  if (open?.key === CONFIRM && run.kind === 'worker') return beginFix(run, now)
   if (open?.key === CONFIRM) return { ...run, isWaiting: false, steps: closeAll(run.steps, now) }
   if (open?.key === DECIDE || open?.key === 'ask-it') {
     return logged({ ...run, isWaiting: false, steps: closeAll(run.steps, now), doneAt: now }, now, 'end', 'done')
@@ -154,12 +182,20 @@ export const onReply = (run: Run, questions: readonly string[], isDismissed: boo
 /**
  * A main-thread file edit. Right after the confirm, with nothing begun, it is
  * make-it's work started without its skill being expanded: an inference, so it
- * only ever opens make-it there, and never on the decision route.
+ * only ever opens make-it there, and never on the decision route. In a herdr
+ * worker, right after check-it's question, it is the fix begun.
  */
 export const onEdit = (run: Run, now: number): Run =>
-  run.kind === 'thegraph' && run.doneAt === null && run.route !== 'decision' && isAtRoute(run) ? onSkill(run, 'make-it', now) : run
+  run.kind === 'worker'
+    ? run.doneAt === null && run.steps.at(-1)?.key === CONFIRM ? beginFix(run, now) : run
+    : run.kind === 'thegraph' && run.doneAt === null && run.route !== 'decision' && isAtRoute(run) ? onSkill(run, 'make-it', now) : run
 
 export type StepState = 'done' | 'run' | 'wait' | 'todo'
+
+const STAGE_NAME: Record<string, string> = { [REVIEW]: '① review', [CONFIRM]: '② confirm', [FIX]: '③ fix', [RECHECK]: '④ recheck' }
+
+/** A step's name in the pane: a worker's check-it stages numbered, any other step its key. */
+export const stepName = (kind: Kind, key: string): string => (kind === 'worker' ? (STAGE_NAME[key] ?? key) : key)
 
 /**
  * Where one planned step stands: its latest record decides, unless a step before
@@ -321,7 +357,126 @@ export const parseBrief = (path: string, text: string): Sheet => {
   const route = /^Route:\s*(.*\S)\s*$/m.exec(text)?.[1] ?? null
   const at = issue?.indexOf(' — ') ?? -1
   const source = issue === null ? null : at < 0 ? issue : issue.slice(0, at).trim()
-  return { path, issue, source, route, steps: [], carried: [], children: [] }
+  const report = /^Report file:\s*(.*\S)\s*$/m.exec(text)?.[1] ?? null
+  return { path, issue, source, route, steps: [], carried: [], children: [], report }
+}
+
+/** The groups in the report's order, as the pane heads them. */
+export const GROUPS: readonly { group: FindingGroup; name: string; color: string | null; heading: RegExp }[] = [
+  { group: 'fix', name: 'to fix, pre-ticked', color: 'claude', heading: /\bto fix\b/i },
+  { group: 'passed', name: 'passed, a decision', color: 'warning', heading: /\bpassed\b/i },
+  { group: 'unproven', name: 'unproven', color: 'cyan', heading: /\bunproven\b/i },
+  { group: 'dropped', name: 'dropped', color: null, heading: /\bdropped\b/i },
+]
+
+/** A finding's line in the pane is a Button keyed by its number. */
+export const FINDING_KEY = 'finding-'
+
+/** The findings unfolded after a press on finding `n`'s line: unfolded once, folded on the next. */
+export const toggled = (unfolded: readonly number[], n: number): number[] =>
+  unfolded.includes(n) ? unfolded.filter(m => m !== n) : [...unfolded, n]
+
+/** The findings report a worker's report names under `## Question`, as check-it has it written there; null with none. */
+export const findingsPathIn = (report: string): string | null => {
+  const at = report.search(/^##\s+Question\b/m)
+  if (at < 0) return null
+  const rest = report.slice(at).replace(/^.*\n?/, '')
+  const end = rest.search(/^##\s/m)
+  const section = end < 0 ? rest : rest.slice(0, end)
+  return (
+    /`([^`\n]*findings\.md)`/.exec(section)?.[1] ??
+    /[A-Za-z]:[\\/][^\n`'"<>|*?]*?findings\.md/.exec(section)?.[0] ??
+    /[\\/][^\s`'"<>|*?()]*findings\.md/.exec(section)?.[0] ??
+    null
+  )
+}
+
+const groupOf = (heading: string): FindingGroup | null => GROUPS.find(g => g.heading.test(heading))?.group ?? null
+
+const indexOutsideCode = (text: string, needle: string): number => {
+  let isCode = false
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === '`') isCode = !isCode
+    else if (!isCode && text.startsWith(needle, i)) return i
+  }
+  return -1
+}
+
+const firstSentence = (text: string): number => {
+  const at = indexOutsideCode(text, '. ')
+  return at < 0 ? text.length : at + 1
+}
+
+const PATH_SPAN = /`([^`]*[\\/][^`]*|[^`\s]+\.\w+(?::[\d-]+)?)`/
+
+const findingHead = (line: string): Omit<Finding, 'n' | 'group' | 'introduced' | 'evidence' | 'rest'> & { after: string } => {
+  const whole = /^\*\*\d+\.\s+(.*?)\*\*\s*(.*)$/.exec(line)
+  let head = whole ? (whole[1] ?? '') : line.replace(/^\d+\.\s+/, '')
+  let after = whole ? (whole[2] ?? '') : ''
+  let review: string | null = null
+  const bold = /^\*\*(.+?)\*\*\s*(?:—|,|:)?\s*(.*)$/.exec(head)
+  if (bold) {
+    review = bold[1] ?? null
+    head = bold[2] ?? ''
+  } else {
+    const at = indexOutsideCode(head, ' — ')
+    if (at >= 0) {
+      review = head.slice(0, at).trim()
+      head = head.slice(at + 3)
+    }
+  }
+  let where: string | null = null
+  const dash = indexOutsideCode(head, ' — ')
+  const colon = indexOutsideCode(head, ': ')
+  const cut = [dash, colon].filter(i => i > 0).sort((a, b) => a - b)[0]
+  const lead = cut === undefined ? '' : head.slice(0, cut)
+  if (head.startsWith('`') && cut !== undefined && lead.replace(/`[^`]*`|\([^)]*\)|,|\band\b/g, '').trim() === '') {
+    where = lead.trim()
+    head = head.slice(cut + (cut === dash ? 3 : 2))
+  }
+  const end = firstSentence(head)
+  const title = head.slice(0, end).trim()
+  after = [head.slice(end).trim(), after].filter(s => s !== '').join(' ')
+  where ??= PATH_SPAN.exec(line + ' ' + after)?.[0] ?? null
+  return { review, where, title, after }
+}
+
+/**
+ * Reads check-it's findings report (its *One report, one question*), which a model writes as
+ * prose: the four groups by their headings, each finding from a line opening with its number to
+ * the blank line its prose ends at. Lines it does not know are skipped.
+ */
+export const parseFindings = (text: string): Finding[] => {
+  const out: Finding[] = []
+  let group: FindingGroup | null = null
+  let open: { n: number; group: FindingGroup; lines: string[] } | null = null
+  const close = () => {
+    if (open === null) return
+    const [first = '', ...more] = open.lines
+    const head = findingHead(first.replace(/^\s+/, ''))
+    const rest = [head.after, ...more.map(l => l.trim())].filter(s => s !== '').join('\n')
+    const evidence = /Evidence:\s*([\s\S]*?)(?=\s+Introduced\b|\n- |$)/i.exec(rest)?.[1]?.trim() || null
+    const introduced = /Introduced[^:\n]*:\s*(.+?)(?=\.\s|\.?\n|\.?$)/i.exec(rest)?.[1]?.trim() ?? null
+    out.push({ n: open.n, group: open.group, review: head.review, title: head.title, where: head.where, introduced, evidence, rest })
+    open = null
+  }
+  const lines = text.split(/\r?\n/)
+  lines.forEach((line, i) => {
+    const heading = /^#{1,4}\s+(.*)$/.exec(line)
+    const start = /^(?:\*\*)?(\d+)\.\s/.exec(line)
+    if (heading) {
+      close()
+      group = groupOf(heading[1] ?? '')
+    } else if (start && group !== null) {
+      close()
+      open = { n: Number(start[1]), group, lines: [line] }
+    } else if (open !== null) {
+      if (line.trim() === '' && !/^(?:\s+\S|- )/.test(lines[i + 1] ?? '')) close()
+      else if (line.trim() !== '') open.lines.push(line)
+    }
+  })
+  close()
+  return out
 }
 
 /** The live, named terminals in `hc ls --json`'s answer; null for an answer that is not one. */
@@ -375,7 +530,7 @@ export const CHIP_KEY = 'thegraph'
 export const WORKER_KEY = 'thegraph-worker-'
 export const CONDUCTOR_KEY = 'thegraph-conductor'
 
-const STEP_MARK: Record<StepState, string> = { done: ' ✓', run: ' ◐', wait: ' ◆', todo: '' }
+export const STEP_MARK: Record<StepState, string> = { done: ' ✓', run: ' ◐', wait: ' ◆', todo: '' }
 
 /**
  * The run as path-band's chip draws it: the issue the branch's commits are for now (a
@@ -482,7 +637,7 @@ export const recordIn = (messages: readonly { toolUses: readonly { tool_use_id: 
 
 /** Each step's colour: its bar on the gantt, its name in a turn's closing line. */
 export const STEP_COLOR: Record<string, string> = {
-  'read-it': 'cyan', [CONFIRM]: 'warning', [WORKERS]: 'blue', 'make-it': 'claude', 'check-it': 'success', 'ask-it': 'magenta', lens: 'blue', [DECIDE]: 'warning',
+  'read-it': 'cyan', [CONFIRM]: 'warning', [WORKERS]: 'blue', 'make-it': 'claude', 'check-it': 'success', [REVIEW]: 'success', [FIX]: 'claude', [RECHECK]: 'success', 'ask-it': 'magenta', lens: 'blue', [DECIDE]: 'warning',
 }
 
 /**

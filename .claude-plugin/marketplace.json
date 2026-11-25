@@ -13,7 +13,7 @@
     {
       "name": "thegraph-panel",
       "source": "./mods/thegraph-panel",
-      "description": "While /thegraph or /thegraph-herdr runs: a chip on path-band's line with the run's issue, step and time, which opens a pane with a gantt of the steps over the whole log as a table; the spinner and each turn's closing line carry the step and what the turn did. Inside Herdr a conductor's chip carries its workers, each a button that brings its tab to the front, and a worker's a button back to the conductor. Install path-band with it: the chip is drawn there."
+      "description": "While /thegraph or /thegraph-herdr runs: a chip on path-band's line with the run's issue, step and time, which opens a pane with a gantt of the steps over the whole log as a table; the spinner and each turn's closing line carry the step and what the turn did. Inside Herdr a conductor's chip carries its workers, each a button that brings its tab to the front, and a worker's a button back to the conductor; a worker's pane shows check-it's stages (review, the person's confirm, fix, recheck) and its findings by group, each line pressed open to its evidence. Install path-band with it: the chip is drawn there."
     },
     {
       "name": "usage-band",
