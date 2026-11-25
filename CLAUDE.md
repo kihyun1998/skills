@@ -35,6 +35,11 @@ real trade-off goes to `docs/adr/`, short (`docs/agents/domain.md`); any other
 decision and its reason live in the issue's decision comment and the commit
 message, and history goes to the commit message.
 
+## Refactoring standard
+
+The refactoring standard is `docs/agents/refactoring.md`; `check-it`'s
+refactoring reviewer reads it.
+
 ## Agent skills
 
 ### Issue tracker

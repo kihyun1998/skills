@@ -223,15 +223,23 @@ gap as one item. The groups are four:
 
 1. **To fix, pre-ticked**: reproduced here and introduced by this change. A
    finding of 4, 6, 7 or 8, or of 5 or 9 run on Codex, the proving agent passed as introduced by this change
-   and asking for no decision, where a refactoring proposal (4) that changes
-   behaviour or edits a file outside the diff asks for one; a finding of 5 graded *violation* whose command,
+   and asking for no decision; a refactoring proposal (4) asks for none only
+   where the change **re-made something that already existed** (a duplicated
+   copy of existing code, or a rule written a second time in a second place)
+   and its fix changes no behaviour, even where that fix edits a file outside
+   the diff; a finding of 5 graded *violation* whose command,
    re-run here, printed what it carries, on what this change wrote; a finding
    of 9 on a comment or suppression the diff adds or changes. This group is what
-   *Going back, and stopping* sends to `make-it` (ADR-0102, amended for #105).
+   *Going back, and stopping* sends to `make-it` (ADR-0102, amended for #105
+   and #149).
 2. **Passed, not pre-ticked**: reproduced, but this change did not introduce it,
    or it asks for a decision; a finding of 5 graded *judgement*, or graded
    *violation* and marked *not run*; a report of 9 on contributor mode or a
-   missing rule.
+   missing rule. Every refactoring proposal group 1 does not take is here.
+   **A proposal the repository's refactoring standard
+   (`docs/agents/refactoring.md`) settles against is never pre-ticked and
+   never hidden**: it is here, marked *against the standard, line N*, as a
+   recommendation the person can take, and can change the standard over.
 3. **Unproven**: with what would show it.
 4. **Dropped**: each with its ground, as `ask-it` treats a drop: the proving
    agent's drops with why, the reviewer's *already decided* with the record,
@@ -252,7 +260,8 @@ how that was measured.
   dropped finding picked is reopened and fixed.
 
 The question names the report's path and lists group 1's numbers, each with its
-one-line finding, so the person can answer from the question. **An unproven
+one-line finding and, for a refactoring fix that edits a file outside the diff,
+each such file, so the person can answer from the question. **An unproven
 finding only model runs can show is listed there too**, with what would show it:
 *N runs on model X, estimated cost* in tokens, as the review gave it. Picked by
 number, this session, the run's own, makes those runs, never a review, and fixes
@@ -294,7 +303,9 @@ only: that call starts no decision model, and a review runs again only where a
 fix opened a surface it did not walk (*Going back, and stopping*). The two
 calls are what the thegraph-panel mod reads as the fix and the recheck (#152). **A passed finding the person left
 unfixed is carried to `ask-it`**, with its number and evidence, marked as the
-person's choice not to fix it here. An unproven finding left unfixed is carried
+person's choice not to fix it here; a refactoring finding (4), fixed or not, is
+carried with the reason the person gave, if any, as a draft line for the
+refactoring standard (`ask-it`). An unproven finding left unfixed is carried
 as *unproven*, with what would show it. A drop left unpicked is recorded in the
 report with its ground, and is not carried.
 

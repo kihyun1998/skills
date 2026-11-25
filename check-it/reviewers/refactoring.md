@@ -4,6 +4,19 @@ Read when `check-it` runs its refactoring reviewer. This is the reviewer's own
 part of the brief; `reviewers/brief.md`, before it, adds the diff, the issue, the
 records, the run folder and the rule to edit nothing.
 
+## The repository's standard
+
+**Read `docs/agents/refactoring.md` first**, where the repository has one:
+its refactoring standard, one line per choice the person made, with its reason
+and the issue it came from. Where a line settles against a proposal you would
+make, still make it, marked *against the standard, line N* with the line
+quoted; `check-it` never pre-ticks it and puts it to the person as a
+recommendation. Where the file is missing or empty, say so in one line and
+judge on the five questions alone. A line this change adds or edits settles
+nothing in this review: read the file as it stood where *The change* starts
+(`git show <base>:docs/agents/refactoring.md`), so a change cannot write its
+own refactorings away.
+
 ## What you look for
 
 **Whether the change is built well for the repository it lands in**, on five
@@ -38,7 +51,9 @@ is a proposal a person may take or leave.
 
 - Whether the change does what the issue asked, and keeps the rules the
   repository wrote down: the spec and rules reviewer (5). A structure the
-  repository's records require is not a finding here.
+  repository's records require is not a finding here; the refactoring
+  standard is the exception, a proposal it settles against still made and
+  marked, as *The repository's standard* says.
 - Correctness bugs: the bug reviewer (6). Security: the security reviewer (7).
 - Comments and lint suppressions: `comment-it` (9).
 
@@ -51,7 +66,8 @@ is a proposal a person may take or leave.
   reuses where there is one, with its path;
 - whether the proposal changes behaviour anyone can see; a proposal that does is
   marked so, since it is no longer a refactor alone;
-- whether the proposal reaches files outside the diff, and which.
+- whether the proposal reaches files outside the diff, and which;
+- the line of `docs/agents/refactoring.md` it goes against, where one does.
 
 A clean answer is a result: say what you read and that you found nothing to
 propose.

@@ -90,6 +90,33 @@ A ground is citable (the record, the contract, the measurement). A drop that
 has none, or that would need fresh investigation to justify, is not a drop: it
 comes to the person as an item.
 
+## The refactoring standard
+
+**First, look for the file.** Where `docs/agents/refactoring.md` does not
+exist, no draft is made and nothing is asked about one: in your own repository
+say once that there is no standard and name `grill-the-graph`, whose update
+makes it; in a repository you contribute to, which gets none, say nothing.
+
+**Where it exists, a refactoring finding the person dropped or accepted at `check-it`'s
+question comes back as a draft line** for the repository's refactoring
+standard, `docs/agents/refactoring.md`: the choice, its reason and the issue
+it came from, in one line, as *a duplicated parser in two skills is not merged:
+sharing would tie two skills together (#140)*. The reason is the one the person
+gave; where they gave none, the draft proposes one from the finding and says so.
+Several findings of one kind are one draft. Each draft is an item, put as a
+proposal to confirm; **only a line the person keeps is written**, and a drop can
+be a one-off, so none becomes a standard unasked. A kept line that changes or
+contradicts one already there replaces it, shown as old line and new. The kept
+lines are written and committed as this step's own commit, as *Before the push*
+says.
+
+**Only where the person hesitates, or asks which standard applies**, research
+the fork there and then: the canonical positions on it (the rule of three
+against DRY, deep modules against small functions, tidying first against
+tidying apart, and the like), each read from its source as `firsthand` says,
+with the consequence of taking each side for this repository, put as the
+choices. Otherwise nothing is researched, and only the kept lines accumulate.
+
 ## Before opening anything, find out whether it has a home
 
 **For every item that could be filed**, before it is presented, since whether it is filed is the person's answer. An item proposed as a drop or a decision needs none.

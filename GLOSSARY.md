@@ -288,8 +288,17 @@ cost. Its brief is
 edits nothing, and the **Proving agent** reproduces its findings. It runs where
 the **Decision model** picks it
 ([ADR-0102](docs/adr/0102-check-it-reviews-are-a-catalog-chosen-per-change.md), #105, #112).
+It reads the **Refactoring standard** and marks a proposal the standard settles
+against rather than leaving it out (#150).
 _Avoid_: design reviewer (read as a review of a screen); `/simplify` (the
 bundled command `check-it` ran before #105, which applied its own fixes)
+
+**Refactoring standard** (thegraph):
+A repository's `docs/agents/refactoring.md`: one line per refactoring choice the
+person made, with its reason and the issue it came from. `grill-the-graph` makes
+it empty, `ask-it` adds only the lines the person keeps from what they dropped or
+accepted at `check-it`'s question, and the **Refactoring reviewer** reads it
+(#149, #150).
 
 **Proving agent** (thegraph):
 The fresh agent [`check-it`](check-it/) starts last of its reviews. It reproduces

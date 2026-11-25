@@ -45,8 +45,9 @@ update and run init.
 record **which real sources this project is built against**. That is this skill,
 and it is very nearly the whole of it.
 
-It writes that file, one rule in `CLAUDE.md`, and — where the repo has no map —
-the map's folder and a one-line hub (§3). In a repository you contribute to
+It writes that file, one rule in `CLAUDE.md`, an empty refactoring standard with
+a pointer line beside the rule, and — where the repo has no map — the map's
+folder and a one-line hub (§3). In a repository you contribute to
 rather than own, it writes the same file and a rule locally, plus an attribution
 check, and commits nothing (*Contributor mode*). In your own repository it asks
 whether Claude attribution stays, and installs the same check where it does not.
@@ -167,7 +168,8 @@ person already answered.
   off means all three — the ones missing are written now.
 - **Every piece setup writes is compared with this skill's current text** — the
   comment rule against §3's allow-list and table and the destinations on disk now, the map hub,
-  the exclude lines, the `CLAUDE.local.md` rule. Where attribution is off, the
+  the refactoring standard's presence (§3 keeps a file already there) and its
+  pointer line, the exclude lines, the `CLAUDE.local.md` rule. Where attribution is off, the
   settings and the `pre-push` hook are compared by running `install --preview`
   ([attribution.md](attribution.md)): each piece it marks `changed` is shown as
   its file now beside the preview, and `unchanged` needs no line.
@@ -195,7 +197,8 @@ recognises as setup's own ([attribution.md](attribution.md)). Then *Repoint what
 
 Update and init over an existing setup both end here, because a file elsewhere
 in the repo may still point at what setup wrote before. Search for the paths
-setup writes — `docs/agents/thegraph.md`, the map hub, `no-attribution.mjs` —
+setup writes — `docs/agents/thegraph.md`, the map hub, `docs/agents/refactoring.md`,
+`no-attribution.mjs` —
 with `git grep -n`, plus the ignored files setup itself writes
 (`CLAUDE.local.md`, `.claude/settings.local.json`), and read each hit. A line
 that names a path no longer there, a section the build no longer has, or a
@@ -243,10 +246,10 @@ A `docs/agents/theflow.md` is the older bindings file. Some repositories still
 cite it or run checks against it, so it does not stop the run: say once that it
 is there and that `salvage` clears it when run.
 
-### 3. The map, and the comment rule
+### 3. The map, the comment rule and the refactoring standard
 
 In contributor mode this step is [contributor.md](contributor.md)'s table instead: no map
-folder, nothing in `CLAUDE.md`.
+folder, nothing in `CLAUDE.md`, no refactoring standard.
 
 A comment is written on every edit, most of them made outside `thegraph`, so
 the rule has to sit where every session reads it: the repo's `CLAUDE.md`. This
@@ -305,6 +308,30 @@ measurements behind the rule stay out of it; they are on
 [#75](https://github.com/kihyun1998/skills/issues/75), and a copy in every repo
 would drift from them.
 
+**Then the refactoring standard**: `docs/agents/refactoring.md`, which
+`check-it`'s refactoring reviewer reads, so a refactoring the person has
+declined for a reason comes back marked against the standard and is never
+pre-ticked. Setup makes it empty and asks
+nothing for it: a fork asked cold is chosen in the abstract, which condition 2
+exists to prevent. Its lines come later, one at a time, from what the person
+drops or accepts at `check-it`'s question, kept at `ask-it`. The file holds
+one line of its own:
+
+> The refactoring standard: one line per choice, its reason and the issue it
+> came from. `check-it`'s refactoring reviewer reads it; `ask-it` adds a line
+> only where the person keeps it.
+
+and `CLAUDE.md` (or `AGENTS.md`, as for the rule) gets one pointer line beside
+the comment rule:
+
+> The refactoring standard is `docs/agents/refactoring.md`; `check-it`'s
+> refactoring reviewer reads it.
+
+It is not in `CLAUDE.md` itself because every session reads that file and only
+the reviewer needs this one. On update, a repository set up before this gets
+the file and the pointer now; a file already there is kept as it is, its lines
+being the person's.
+
 Nothing about the map goes in `docs/agents/thegraph.md`. The check is a
 directory listing, so it is re-derived on every run and cannot go stale — which
 is also why it would fail the three conditions if it were written down.
@@ -337,7 +364,8 @@ accept no *"use judgement"*: a source nobody named is a source nobody reads, but
 ### 5. Show it, then write it
 
 Show the mode and what chose it — the argument, or the answer to the first
-question — and which run this is, init or init over an existing setup; then the file, the `CLAUDE.md` rule, and — where §3
+question — and which run this is, init or init over an existing setup; then the file, the `CLAUDE.md` rule, the refactoring standard and its
+pointer line, and — where §3
 makes one — the map folder's path and hub stub. In contributor mode show instead
 the `CLAUDE.local.md` rule and the two `.git/info/exclude` lines. In contributor
 mode, and in your own repository with attribution turned off, show as well what
@@ -359,7 +387,8 @@ node <skill>/scripts/grill-the-graph.mjs check --mode contributor
 
 `--map` names the folder §3 made, and `--attribution` is for your own repository
 with attribution turned off. It prints a line per check, `ok` or `FAIL` with what
-failed, and exits 1 on any `FAIL`: the build exists; the map hub exists; in
+failed, and exits 1 on any `FAIL`: the build exists; in your own repository, the
+refactoring standard exists; the map hub exists; in
 contributor mode, `CLAUDE.local.md` holds the rule as [contributor.md](contributor.md)
 words it, `.git/info/exclude` lists both files, and `git status --short` prints
 nothing; where attribution is off, the settings file is what `install` would
@@ -367,7 +396,8 @@ leave, and `pre-push` is setup's and executable, or the reason none was written.
 Two lines are read and judged, not run:
 
 - [ ] `CLAUDE.md` (or `AGENTS.md`) holds the comment rule, its allow-list and row
-      matching §3 and its destination on disk (own repository)
+      matching §3 and its destination on disk, and the refactoring standard's
+      pointer line (own repository)
 - [ ] the *Release* lines read as [release.md](release.md) says (own repository,
       a publishable Dart package)
 

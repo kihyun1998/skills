@@ -2,7 +2,7 @@
 
 **Status:** accepted. Implements #91; amended for #86, #95, #97, #102, #105,
 #112 and #114, folded for #125 on 2026-11-23 into this one current record, and
-amended since for #140, #141, #146 and #138.
+amended since for #140, #141, #146, #138, #149 and #150.
 The amendment history is in git:
 `git log -p -- docs/adr/0102-check-it-reviews-are-a-catalog-chosen-per-change.md`
 shows the record before the fold.
@@ -92,8 +92,11 @@ was decided, on what, and what would reopen it.
 - **One report, one question** (#105): after the proving agent, every finding
   goes into one numbered report, and one question offers *fix as pre-ticked*,
   *fix nothing* or *pick by number*; no answer fixes nothing. A refactoring
-  proposal that changes behaviour or edits a file outside the diff is not
-  pre-ticked. `thegraph-herdr`'s `done` check accepts a file outside what the
+  proposal is pre-ticked only where the change re-made something that already
+  existed and the fix changes no behaviour, even where the fix edits a file
+  outside the diff, the question naming each such file; any other refactoring
+  proposal, and one the repository's `docs/agents/refactoring.md` settles
+  against, is not (#149, #150). `thegraph-herdr`'s `done` check accepts a file outside what the
   confirm stop left alone where a fix the person picked touched it, listed with
   its finding's number.
 - **The verify check is part of check (1), not a review** (#102, #105): where a

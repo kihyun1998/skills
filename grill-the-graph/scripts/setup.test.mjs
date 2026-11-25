@@ -214,16 +214,18 @@ test("an earlier setup's pre-push, its only line running the script, is rewritte
 
 const ownDone = (extra = {}) => ({
   [at('docs', 'agents', 'thegraph.md')]: '# x\n',
+  [at('docs', 'agents', 'refactoring.md')]: '# Refactoring standard\n',
   [at('docs', 'map', 'README.md')]: 'hub\n',
   ...extra,
 });
 
-test('check, own repository: the build and the map hub', () => {
+test('check, own repository: the build, the refactoring standard and the map hub', () => {
   const repo = fakeRepo({ files: ownDone() });
   const { out, code } = run(['check', '--mode', 'own', '--map', 'docs/map'], repo.deps);
   assert.equal(code, 0, out);
   assert.match(out, /^ok {3}docs\/agents\/thegraph\.md exists$/m);
   assert.match(out, /^ok {3}docs\/map\/README\.md exists$/m);
+  assert.match(out, /^ok {3}docs\/agents\/refactoring\.md exists$/m);
   assert.doesNotMatch(out, /settings|pre-push|CLAUDE\.local|exclude|git status/);
 });
 
@@ -231,6 +233,15 @@ test('check fails a missing build and names it', () => {
   const { out, code } = run(['check', '--mode', 'own'], fakeRepo().deps);
   assert.equal(code, 1);
   assert.match(out, /^FAIL docs\/agents\/thegraph\.md exists/m);
+});
+
+test('check, own repository: a setup made before the refactoring standard fails on it alone', () => {
+  const repo = fakeRepo({ files: ownDone() });
+  repo.disk.delete(at('docs', 'agents', 'refactoring.md'));
+  const { out, code } = run(['check', '--mode', 'own', '--map', 'docs/map'], repo.deps);
+  assert.equal(code, 1);
+  assert.match(out, /^FAIL docs\/agents\/refactoring\.md exists$/m);
+  assert.equal(out.match(/^FAIL/gm).length, 1, out);
 });
 
 function contributorDone(over = {}) {
@@ -262,7 +273,7 @@ test('check, contributor mode: every mechanical line passes on a finished setup'
     'git status --short prints nothing',
   ]) assert.ok(out.includes(`ok   ${line}`), `${line}\n${out}`);
   assert.deepEqual(repo.written, [], 'check writes nothing');
-  assert.doesNotMatch(out, /map/);
+  assert.doesNotMatch(out, /map|refactoring/);
 });
 
 test('check reads the contributor rule from contributor.md, whitespace and quote marks aside', () => {

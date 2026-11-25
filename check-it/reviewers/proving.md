@@ -16,7 +16,9 @@ as a citation or a missing case, re-open the source and quote it. Each finding
 comes back as one of three:
 
 - **passed**: reproduced, with that evidence;
-- **dropped**: shown not to hold, or to need no action, with why;
+- **dropped**: shown not to hold, or to need no action, with why; a line of
+  the repository's refactoring standard is not a ground to drop a finding, since
+  `check-it` shows a proposal it settles against, marked;
 - **unproven**: no run here can show it, because it needs a live screen,
   another machine, a person to drive it, or model runs, which no review starts.
   It says what would show it, and it goes to a person. It is never passed and

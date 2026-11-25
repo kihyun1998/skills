@@ -14,6 +14,7 @@ export const HOOK_TEXT = '#!/bin/sh\nexec node "$HOME/.claude/skills/grill-the-g
 
 const SETTINGS = ['.claude', 'settings.local.json'];
 const BUILD = 'docs/agents/thegraph.md';
+const REFACTORING = 'docs/agents/refactoring.md';
 const LOCAL_RULE = 'CLAUDE.local.md';
 const SCRIPT_NAME = 'no-attribution.mjs';
 
@@ -174,6 +175,7 @@ function check({ mode, map, attribution }, deps) {
   const present = (rel) => line(deps.readFile(resolve(deps.top, rel)) !== null, `${rel} exists`);
 
   present(BUILD);
+  if (mode === 'own') present(REFACTORING);
   if (mode === 'own' && map) present(`${map.replace(/\\/g, '/').replace(/\/+$/, '')}/README.md`);
 
   if (mode === 'contributor') {
