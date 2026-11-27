@@ -41,11 +41,17 @@ prompt is all you get.
   prompt or an instruction) is reported unproven, with how many runs, on which
   model, and their estimated cost in tokens; whether to spend them is the
   person's, at `check-it`'s question.
-- **A review's report opens with one line saying whether `Agent` or `Skill`
-  is in its tool list**, under Code Mode what `tools.list()` returns, not the
-  declarations its REPL describes. One there means the review was started on an older
-  definition of `check-it-reviewer` or as the default agent; the decision model
-  leaves this line out of its answer.
+- **A review's report opens with two lines**, which the decision model leaves
+  out of its answer:
+  - whether `Agent` or `Skill` is in its tool list, under Code Mode what
+    `tools.list()` returns, not the declarations its REPL describes. One there
+    means the review was started on an older definition of `check-it-reviewer`
+    or as the default agent;
+  - whether any shell call was refused because a hook could not run: its
+    message names a program that is missing (`node: command not found`) or a
+    script that failed, rather than one of the hook's rules above. Where one
+    was, the line says which calls and what you therefore could not run or
+    probe (#173). A refusal by one of the rules is not this line's.
 
 - The repository: `{{repo}}`
 - The issue: {{issue}}

@@ -191,8 +191,18 @@ For each issue:
 3. **Start it** with no label, which runs it without a pane, with the flag of the
    permission mode step 2 confirmed:
    ```sh
-   hc run --bg --json --name tg-<run id>-<slug> --cwd <the run's tree> claude --model <alias> --effort <level> <flag> --settings <hooks path> "Read <brief path> and do what it says."
+   hc run --bg --json --name tg-<run id>-<slug> --cwd <the run's tree> env "PATH=$PATH" claude --model <alias> --effort <level> <flag> --settings <hooks path> "Read <brief path> and do what it says."
    ```
+   `env "PATH=$PATH"` hands the worker this session's `PATH`, expanded by this
+   session's shell, since a process `hc run` starts gets the `herdr-core`
+   daemon's environment and `hc run` has no option to set one. Without it, a
+   `node` that reaches `PATH` only through the interactive shell's startup file
+   (nvm through `~/.zshrc`) is missing in the worker, so the run's hooks, set
+   to block when they fail, refuse every call, as `check-it-reviewer`'s does
+   (`check-it`, *Briefing the fresh agents*), and the brief's own `node`
+   commands fail
+   ([#173](https://github.com/kihyun1998/skills/issues/173)). On Windows,
+   where this is not measured, the line is started without `env "PATH=$PATH"`.
    Tell the person the worker's address from the reply, which `terminal.peek`
    opens.
    Read `first_message.sent` in the reply. Where it is false, `hc read` the worker: a

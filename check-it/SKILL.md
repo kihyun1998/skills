@@ -470,7 +470,13 @@ kinds of call:
   this rule and the kill rule, and no other.
 
 The hook is set to block the call when it fails or times out, so a missing or
-broken script refuses rather than lets through. **A limit** (#147): where
+broken script refuses rather than lets through, and so does a missing `node`
+where `node` is not on the hook shell's `PATH` (#173). A review whose shell
+calls were refused that way still writes a report that reads as a full one, so
+its report says so (*How you work* in [reviewers/brief.md](reviewers/brief.md)),
+and the result names each review whose report says so as run without a shell:
+its findings that needed a probe are unproven, and it is never a full pass.
+**A limit** (#147): where
 `CLAUDE_PROJECT_DIR` does not reach the hook, the repository is found from the
 call's working directory, so a reviewer whose shell stays in a copy holding its
 own `.git` gets that copy read-only. The error is a refusal, and Claude Code
