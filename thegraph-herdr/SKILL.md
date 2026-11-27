@@ -206,7 +206,7 @@ For each issue:
    Windows worker's environment is not measured.
    Tell the person the worker's address from the reply, which `terminal.peek`
    opens.
-   Read `first_message.sent` in the reply. Where it is false, `hc read` the worker: a
+   A few seconds after the start, `hc read` the worker: a
    dialog on its screen, the folder trust prompt included, goes to the person, who
    answers it in the peeked worker or tells you which keys to send with `hc keys`.
    Once the screen is clear and the read shows the task did not arrive, `hc send`
