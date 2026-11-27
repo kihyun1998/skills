@@ -62,7 +62,7 @@ was shown), and what would reopen it. Measurements, trial runs and costs go in
 the issue or `docs/research/`, linked from the record.
 
 **A record is read as grounds, not as a rule.** The live rule is in a skill,
-`CLAUDE.md` or a check. Where a record settled a question and nothing outside what
+`AGENTS.md` or a check. Where a record settled a question and nothing outside what
 it was decided on has come up, follow it; a fact outside that goes to the
 maintainer to reopen, neither followed nor overridden.
 
