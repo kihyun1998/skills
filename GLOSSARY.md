@@ -167,7 +167,8 @@ carried for a person until `ask-it` puts it in front of them. It names the issue
 it belongs to, so a later run on the same issue can find one left behind and ask
 whether to pick it up — twice over: as **issue**, the issue and its title as a
 person reads them, and as **source**, the issue's address in a form a program can
-follow (the tracker's number, or the issue file's path). Before its run folder is
+follow (the tracker's number, or the issue file's path). Its **stand-ins** line
+carries `read-it`'s **Stand-in** list for the steps after it. Before its run folder is
 made, the run reads the repository's other sheets for another live run and asks
 on one (the start check). Its **commits** line lists, as they land, the commits the
 run makes that no `## Children` line names, which `ask-it` holds the push
@@ -180,6 +181,16 @@ out the run's chip, the children and the issue from it, and draws the pane; and
 through the panel `path-band`, which draws that chip (ADR-0099).
 _Avoid_: run state (the retired sixteen-slot ledger, ADR-0071), todo, progress
 file
+
+**Stand-in** (thegraph):
+What a repository already holds to measure something in place of a person — a
+demo world, a capture mode, fakes, recorded fixtures — as it names them in
+`CLAUDE.md` and `docs/agents/*.md`, and nowhere else: not guessed from code,
+not remembered. `read-it` returns them as one `stand-ins` line (name, what it
+measures, what it cannot reach, its command, whether it opens a window);
+`check-it` and `ask-it` match an item that would reach a person unmeasured
+against it, and a match runs only on the person's yes (#153).
+_Avoid_: fake (one kind of stand-in), test double (make-it's sense, a seam in a test)
 
 **Cluster run** (thegraph):
 A `/thegraph` run over an **Anchor**'s open sub-issues, decided by the tracker

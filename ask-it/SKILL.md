@@ -44,7 +44,7 @@ a drop, with that as its ground.
 
 | | What it holds | Where there is no answer |
 |---|---|---|
-| **Measured** | what you reproduced, with the number. A subagent's probe, a `lens` report or your own inference is not this until you have reproduced it | *"not reproduced; settling it would cost X"*, with the cheapest thing that would. The item is then a question you are asking, said in words |
+| **Measured** | what you reproduced, with the number. A subagent's probe, a `lens` report or your own inference is not this until you have reproduced it | *"not reproduced; settling it would cost X"*, with the cheapest thing that would, a stand-in on the run sheet first (*Before an item goes out unmeasured*). The item is then a question you are asking, said in words |
 | **From** | which child and which step it came from | *"unprompted, while reading X"*. Never blank |
 | **Tracker** | which tracker was searched, for what, and what came back | *"not searched: proposed as a drop"* or *"…as a decision"*. Every item that could be filed is searched before it is presented (see below) |
 | **Done already** | what you changed, ran or committed on its account | *"nothing yet"*, written out, since silence reads as *a fix is already in the tree* |
@@ -55,6 +55,28 @@ a drop, with that as its ground.
 recommendation.** That includes deferring: where deferring is recommended, say
 what deferring costs. An option listed without its consequences is not ready to
 present.
+
+## Before an item goes out unmeasured
+
+**Match each item whose Measured is empty against the run sheet's `stand-ins`
+line**, the one `read-it` returned. Only the match is automatic; nothing runs
+without the person.
+
+- **A stand-in reaches it**: ask first, every time, whether it opens a window
+  or not, in the usual batch: *measure this with X? (opens a window, or
+  headless; about N min, an estimate)*, with the exact command it would run,
+  since that command comes from a repository document another contributor may
+  have written. It runs only on a yes, and what it shows fills **Measured**
+  before the item is filed or dropped. On a no, Measured says the person
+  declined it.
+- **None reaches it**: **Measured** names, in one line, a stand-in that would,
+  as a recommendation only (*a fake state that shows this dialog with the real
+  fonts would measure it headless*). Nothing is proposed for filing on its
+  account unless the person asks, and no list of declined recommendations is
+  kept.
+
+Asking before every run is for now: once it proves unnecessary in use, the
+person may make a matched run automatic.
 
 ## Asking
 

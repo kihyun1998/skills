@@ -12,12 +12,12 @@ diff. **A wrong reading of the issue passes everything**, because a run that
 solves the wrong problem well is still a run that solved something well.
 
 What comes back is two things: **what you understand**, and **which route this
-change takes**.
+change takes**, with one line beside them: the repository's **stand-ins**.
 
 ## What to read
 
-Four reads. **Three are conditional, and every condition is something you check
-rather than weigh** — a run that does all four and a run that does one are both
+Five reads. **Three are conditional, and every condition is something you check
+rather than weigh** — a run that does all five and a run that does two are both
 ordinary. What is not ordinary is skipping one and being unable to say why.
 
 | Read | When | Call |
@@ -26,6 +26,7 @@ ordinary. What is not ordinary is skipping one and being unable to say why.
 | **the cluster** | the issue has a parent or siblings | — |
 | **the territory** | the repo keeps a dependency or territory map | — |
 | **the real sources, and the hidden state** | always | `firsthand` |
+| **the stand-ins** | always | — |
 
 ### The build
 
@@ -94,6 +95,23 @@ Two things carry forward, and both matter later:
 - **Unconfirmed is a gap, not an absence.** What survives that guard goes into
   the understanding; what does not becomes a candidate or an explicit question,
   never a premise.
+
+### The stand-ins
+
+A repository's **stand-ins** are what it already holds to measure something in
+place of a person: a demo world, a capture mode, fakes, recorded fixtures. Read
+`CLAUDE.md` and every `docs/agents/*.md` for the ones it names, and take only
+those: a stand-in guessed from the code, or remembered from an earlier run, is
+not one. Return them as one line, which the run sheet carries:
+
+```
+stand-ins: <name> — measures <what>; cannot reach <what>; `<command>`; <opens a window | headless> | <the next one> …
+```
+
+Where the repository writes none, the line says so: `stand-ins: none written in
+CLAUDE.md or docs/agents/`. `check-it` and `ask-it` match an item that would
+go to a person unmeasured against this line; a rule that names a stand-in is
+read here, before the moment it applies.
 
 ## What the issue is supposed to supply
 

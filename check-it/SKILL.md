@@ -266,8 +266,17 @@ finding only model runs can show is listed there too**, with what would show it:
 *N runs on model X, estimated cost* in tokens, as the review gave it. Picked by
 number, this session, the run's own, makes those runs, never a review, and fixes
 the finding where they show it; the result gives the runs, what they showed and
-what they cost. In a
-`thegraph-herdr` worker it goes through the conductor (the brief's
+what they cost. **An unproven finding a stand-in reaches is listed there the
+same way**: this session matches each unproven finding against the `stand-ins`
+line `read-it` returned, on the run sheet or, in a `thegraph-herdr` worker, in
+its brief, and lists a match as *measure with X*, put as `ask-it`'s *Before an
+item goes out unmeasured* says; so is a stand-in [code.md](code.md)'s *Proving
+it works* sends here. Where there is no such line, nothing is matched. Picked
+by number, this session runs that command, never a review, and fixes the
+finding where it shows it; the result gives the command and what it showed.
+The proving agent and the scripts do not change: the match is this session's.
+In a
+`thegraph-herdr` worker the question goes through the conductor (the brief's
 `## Question` and its `hc send` line); anywhere else, in a `thegraph` session or
 a direct `/check-it`, it is asked directly with the question tool. A report
 with no finding in it asks nothing, and the result says the reviews found
@@ -306,7 +315,7 @@ unfixed is carried to `ask-it`**, with its number and evidence, marked as the
 person's choice not to fix it here; a refactoring finding (4), fixed or not, is
 carried with the reason the person gave, if any, as a draft line for the
 refactoring standard (`ask-it`). An unproven finding left unfixed is carried
-as *unproven*, with what would show it. A drop left unpicked is recorded in the
+as *unproven*, with what would show it and the stand-in it matched, if any. A drop left unpicked is recorded in the
 report with its ground, and is not carried.
 
 ### Where the files landed

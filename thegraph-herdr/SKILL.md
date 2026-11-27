@@ -90,7 +90,7 @@ are.
 ### 1. Call `read-it`
 
 Over the issue, or over every open child and the anchor of a cluster. It returns
-what it understands and a route. Make the run sheet once it has resolved the
+what it understands and a route, with its `stand-ins` line. Make the run sheet once it has resolved the
 issue (below).
 
 ### 2. Stop, and have the reading confirmed
@@ -270,6 +270,7 @@ Repo: <the run's tree, as an absolute path: the main tree, or the run's worktree
 Claims: <"no: the run works in its own worktree", or, in the main tree, "yes: before writing a file, claim it with node <check-it>/scripts/check-it.mjs claim --run-folder <run folder> <path>, and once your commit lands release its paths with release --run-folder <run folder> <path> ...; a refused claim is a question for the person, with the choices its message names">
 Issue: <address> — <title>
 Route: <prose or code>
+Stand-ins: <the value of the run sheet's stand-ins line>
 What this issue is, as confirmed: <①>
 What this change does and leaves alone, as confirmed: <②>
 What the earlier workers changed that bears on this: <or "nothing">
@@ -344,6 +345,7 @@ source: <owner/repo#number, or the issue file's absolute path>
 repo: <the main working tree's absolute path>
 tree: <only for a run alongside another: its worktree's absolute path, or "shared">
 route: <read-it's label>
+stand-ins: <the value of read-it's stand-ins line>
 conductor: <this session's model and effort>
 commits: <the short hash of each commit no `## Children` line names, as it lands>
 

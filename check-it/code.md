@@ -24,7 +24,14 @@ mode or of a missing rule is passed on as it came.
 
 ## Proving it works
 
-**Start from the way to the real thing the repository already records.** The
+**First, the run's `stand-ins` line**, `read-it`'s, on the run sheet or in a
+`thegraph-herdr` worker's brief. A stand-in there that reaches the real thing
+this change touched, as its *measures* and *cannot reach* say, goes into
+`check-it`'s one question as an option, headless or not, put as `ask-it`'s
+*Before an item goes out unmeasured* says, and runs only when picked; it is
+not reported as chosen and not run.
+
+**Then start from the way to the real thing the repository already records.** The
 build's references (`docs/agents/thegraph.md`) and the territory map can name
 one: a real machine and a procedure for comparing against another client, a
 black-box judge, a harness note. Use what reaches what this change touched,

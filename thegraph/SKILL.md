@@ -33,6 +33,7 @@ source: <owner/repo#number for a GitHub issue, or the issue file's absolute path
 repo: <the main working tree's absolute path>
 tree: <only for a run alongside another: its worktree's absolute path, or "shared">
 route: <read-it's label, once it names one>
+stand-ins: <the value of read-it's stand-ins line>
 commits: <the short hash of each commit no `## Children` line names, as it lands>
 
 - [x] read-it
@@ -47,7 +48,7 @@ commits: <the short hash of each commit no `## Children` line names, as it lands
 ```
 
 `[ ]` to do, `[~]` under way, `[x]` done. The steps listed are the route's: an
-open decision lists `read-it`, `confirm`, `lens`, `decide`. `tree` is written only for a run alongside another (below). `source` is the issue's
+open decision lists `read-it`, `confirm`, `lens`, `decide`. `tree` is written only for a run alongside another (below). `stand-ins` is `read-it`'s line (its *The stand-ins*). `source` is the issue's
 address in a form a program can follow: a watcher takes the issue closed there
 (`gh issue close`, a `Status: done`, the file archived away) as the run's end.
 `commits` lists every commit the run makes that no `## Children` line names: a
@@ -332,7 +333,8 @@ belongs to where the tracker has one, the map where the repo keeps one, and alwa
 the real sources plus the hidden state a first-principles model misses. Each of
 those is conditional on something it can check rather than weigh.
 
-It comes back with two things: **what it understands**, and **which route**.
+It comes back with two things: **what it understands**, and **which route**,
+with its `stand-ins` line beside them.
 
 ### 2. Stop, and have the reading confirmed
 
@@ -418,7 +420,7 @@ than to note them for later.
 | a test, fixture, golden or guard just written or changed | **Watch it fail first** (`make-it`'s test bar): name the assertion, turn the change off, see it go red, restore |
 | about to write a version, a *"supported since"*, or how a library, API, platform or tool behaves **from memory rather than from a read**, to carry over somebody else's claim, or to rely on a summary of a source (another project's approach and a published spec count too) | **Read the source first**: the local copy where there is one (the package cache, `node_modules`, the installed SDK), the web where there is not. `firsthand` holds how, raw and not summarized. **Read what is reachable; mark only what is not**: unconfirmed is a gap, not an absence, and it becomes a question, never a premise |
 | a call that is the person's (the list under *What holds everywhere*) | **Ask.** Present the options with their consequences, and stop. A pure technical mechanism is *not* one of these — deciding it is yours, and asking hands the work back |
-| the person corrects the run: sets its direction or a result right (an answer that only supplies information the run lacked, a preference given, or a correction to the reading at the confirm stop, which `read-it` already handles, is not one; an answer that sets the direction or a result right is one) | **Look for the same correction written down already**: a rule in `CLAUDE.md` or `AGENTS.md`, `docs/agents/thegraph.md` or a map note's trap or invariant, a closed issue carrying it, or once already in this run. **Found, it is a repeat**: fix it and carry a **check candidate** with where it was written and what a check would hold, since a written rule that did not hold needs a check (`encode-it` builds it once kept). **Not found**: fix it and carry ***record this as a rule*** with where the rule would go and a draft line, since what an instruction file says is the person's, and the next run can only see a repeat that was written down. In a repository you contribute to (ADR-0079), raise neither |
+| the person corrects the run: sets its direction or a result right (an answer that only supplies information the run lacked, a preference given, or a correction to the reading at the confirm stop, which `read-it` already handles, is not one; an answer that sets the direction or a result right is one) | **Look for the same correction written down already**: a rule in `CLAUDE.md` or `AGENTS.md`, `docs/agents/thegraph.md` or a map note's trap or invariant, a closed issue carrying it, or once already in this run. **Found, it is a repeat**: fix it and carry a **check candidate** with where it was written and what a check would hold, since a written rule that did not hold needs a check (`encode-it` builds it once kept). **Not found**: fix it and carry ***record this as a rule*** with where the rule would go and a draft line, since what an instruction file says is the person's, and the next run can only see a repeat that was written down. Where the correction names a stand-in (*measure it with X*), the draft line is proposed for that repository's `CLAUDE.md` routing table, where `read-it` looks for stand-ins. In a repository you contribute to (ADR-0079), raise neither |
 | anything worth a person's attention that you are not acting on | **Carry it** — under `## Carried` on the run sheet, not in mind. It goes out at the end, in one batch |
 
 ## What holds everywhere
