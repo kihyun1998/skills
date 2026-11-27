@@ -60,13 +60,21 @@ To sync the skills and the mods in one go — `--dry-run` previews both, and
 Each script below also runs on its own, and takes the flags only it knows.
 
 Link every skill in this repo into both `~/.claude/skills` and
-`~/.codex/skills` (or `$CODEX_HOME/skills` when `CODEX_HOME` is set):
+`~/.agents/skills`, the user skills folder Codex reads:
 
 ```sh
 ./scripts/install-skills.sh        # macOS / Linux / WSL / Git Bash on Windows
 ```
 
 To sync only one agent, add `--claude` or `--codex`.
+
+Codex keeps `$CODEX_HOME/skills` (by default `~/.codex/skills`) only as a
+deprecated location, and a skill in both folders is listed twice. A Codex sync
+removes this repo's own links from there, except one whose skill it could not
+link in `~/.agents/skills`, which it keeps and reports. A link to anywhere else or
+a real folder there is reported and left alone, even with `--replace-copies`; a
+real folder named after one of this repo's skills is counted as shadowed in the
+summary line. Codex's own `.system` folder is not touched.
 
 The script scans the repo for every top-level folder containing a `SKILL.md`,
 and every such folder inside `ki-skills/`, so new skills are picked up
@@ -100,9 +108,10 @@ themselves after a rename. The run says whether the shadow's `SKILL.md` differs
 from this repo's and carries the count into its summary line, so a run that
 skipped skills cannot read as a clean one. Nothing is removed by default; add
 `--replace-copies` and the folder is **moved** to
-`~/.claude/skills-replaced/<name>-<timestamp>`, never deleted — the script
-cannot tell an old copy from one somebody edited in place, and moving is the action
-that does not need that judgement.
+`~/.claude/skills-replaced/<name>-<timestamp>` (for Codex,
+`$CODEX_HOME/skills-replaced/`), never deleted — the script cannot tell an old
+copy from one somebody edited in place, and moving is the action that does not
+need that judgement.
 
 Re-running is a **sync**, not just an add: a skill that was deleted, renamed,
 or merged into another bundle leaves a stale link behind, and the script
@@ -126,8 +135,8 @@ copied at, every change since and how to read upstream's changes. They are the
 skills this catalog calls; the upstream skills are no longer installed, and
 mattpocock/skills is kept as a reference only
 ([ADR-0105](docs/adr/0105-the-catalog-calls-the-ki-copies-and-upstream-is-reference-only.md)).
-`./scripts/install-skills.sh` links each one into `~/.claude/skills` and the
-Codex skills folder like any other skill.
+`./scripts/install-skills.sh` links each one into `~/.claude/skills` and
+`~/.agents/skills` like any other skill.
 
 ## Mods
 
