@@ -48,10 +48,12 @@ prompt is all you get.
     means the review was started on an older definition of `check-it-reviewer`
     or as the default agent;
   - whether any shell call was refused because a hook could not run: its
-    message names a program that is missing (`node: command not found`) or a
-    script that failed, rather than one of the hook's rules above. Where one
-    was, the line says which calls and what you therefore could not run or
-    probe (#173). A refusal by one of the rules is not this line's.
+    message is the shell's error, naming a program that is missing
+    (`/bin/sh: node: command not found`) or a script that failed, where a
+    refusal by one of the hook's rules above starts `check-it-reviewer:` (on
+    Codex, `check-it on Codex:`). Where one was, the line says which calls and
+    what you therefore could not run or probe (#173). A refusal by one of the
+    rules is not this line's.
 
 - The repository: `{{repo}}`
 - The issue: {{issue}}
