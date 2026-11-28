@@ -1,7 +1,7 @@
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
-import { RUNNERS } from './runners.mjs';
+import { CALLERS, RUNNERS, route } from './runners.mjs';
 
 export class CheckItError extends Error {}
 
@@ -26,7 +26,7 @@ export const REVIEWS = {
   security: { file: 'reviewers/security.md' },
   lens: { skill: 'lens', file: 'reviewers/lens.md', drop: 'A second reader' },
   comments: { skill: 'comment-it', file: 'reviewers/comment-it.md' },
-  proving: { file: 'reviewers/proving.md', findings: true },
+  proving: { file: 'reviewers/proving.md', findings: true, copy: 'reviewers/proving-copy.md' },
   pick: { file: 'reviewers/decision-model.md', confirm: false },
   'pick-confirm': { file: 'reviewers/decision-model.md', confirm: true },
 };
@@ -36,6 +36,8 @@ const CONFIRM_SECTION = 'At the confirm stop';
 export const REPORTS = [...Object.keys(REVIEWS), 'verify', 'findings', 'change', 'issue'];
 const PER_CHILD = new Set(['pick-confirm', 'change', 'issue']);
 
+const PROMPT_OPTIONS = ['repo', 'issue', 'issue-file', 'run-folder', 'ledger', 'findings', 'change'];
+
 const ALLOWED = {
   record: ['repo', 'run-folder', 'from'],
   claim: ['repo', 'run-folder', 'take'],
@@ -43,12 +45,10 @@ const ALLOWED = {
   range: ['repo', 'run-folder', 'paths'],
   name: ['repo', 'sheet', 'run-folder', 'child'],
   verify: ['repo', 'covered', 'run-folder'],
-  prompt: ['repo', 'issue', 'issue-file', 'run-folder', 'ledger', 'findings', 'change'],
-  run: ['repo', 'issue', 'issue-file', 'run-folder', 'ledger', 'sheet', 'runner', 'model'],
+  prompt: PROMPT_OPTIONS,
+  run: [...PROMPT_OPTIONS, 'sheet', 'child', 'caller', 'runner', 'model', 'effort'],
   open: ['sheet', 'run-folder'],
 };
-
-const CLAUDE_ONLY = new Set(['proving', 'pick', 'pick-confirm']);
 
 export const RECORD = 'check-it.untracked.json';
 export const CLAIMS = 'check-it.claimed.json';
@@ -91,12 +91,16 @@ export const USAGE = `Usage: node check-it.mjs <command> [options]
                                 and the issue's text from --issue-file at its end where given;
                                 <review> is one of
                                 ${Object.keys(REVIEWS).join(', ')}
-  run <review> --runner <runner> --model <model> --issue <issue> [--issue-file <file>] --run-folder <dir> --ledger <file> [--sheet <run sheet>]
-                                runs the review on another CLI from the same prompt, saves its report
-                                where name puts it (beside --sheet where given) and prints its path and
-                                cost line; <runner> is one of ${Object.keys(RUNNERS).join(', ')}, and <review> any but
-                                ${[...CLAUDE_ONLY].join(', ')}. Exit 3: the runner is out of usage; exit 4:
-                                it failed otherwise; either way the review runs again on its Claude model
+  run <review> --caller <product> --runner <runner> --model <model> [--effort <effort>] --issue <issue> [--issue-file <file>] --run-folder <dir> --ledger <file> [--findings <report> ...] [--change <file>] [--sheet <run sheet> [--child <issue>]]
+                                runs the review as a headless process from the same prompt, saves its
+                                report where name puts it (beside --sheet where given) and prints its
+                                path and cost line; <product> is the one running check-it, one of
+                                ${Object.keys(CALLERS).join(', ')}, and <runner> one of ${Object.keys(RUNNERS).join(', ')}. A model or effort the
+                                runner's own listing does not name is refused before anything starts.
+                                proving reproduces in a copy the script makes in <dir>/proving and
+                                deletes after. Exit 3: the runner is out of usage; exit 4: it failed
+                                otherwise; either way the review falls back where its row names
+                                another product, and is not run where it names none
   open (--sheet <run sheet> | --run-folder <dir>)
                                 opens the findings report, where name findings puts it, in the person's
                                 default viewer for a Markdown file and returns once the viewer is started:
@@ -539,7 +543,7 @@ export function fill(template, values, what) {
 const changeLine = (files) =>
   `\`git diff HEAD\` in the repository, plus every untracked file${leftOutAny(files) ? ' not left out below' : ''}, so a new file is in it. The files it touches:\n\n${listing(files)}`;
 
-export function assemblePrompt(review, opts, deps) {
+export function assemblePrompt(review, opts, deps, copy) {
   const spec = REVIEWS[review];
   if (!spec) fail(`no review named ${review ?? '(none)'}; one of ${Object.keys(REVIEWS).join(', ')}`);
   for (const key of ['issue', 'run-folder', 'ledger']) if (!opts[key]) fail(`prompt ${review} needs --${key}`);
@@ -566,6 +570,7 @@ export function assemblePrompt(review, opts, deps) {
     ledger: resolve(deps.cwd, opts.ledger),
     change,
     ...(skillDir && { skill_dir: skillDir }),
+    ...(copy && { copy_folder: copy.folder, copy_tree: copy.tree }),
   };
   const part = (rel) => {
     const path = join(checkIt, rel);
@@ -585,6 +590,7 @@ export function assemblePrompt(review, opts, deps) {
     parts.push(`# Your method: the body of ${path}, below its frontmatter${spec.drop ? `, without the step a review cannot run (${spec.drop})` : ''}\n\n${body}`);
   }
   parts.push(part(spec.file));
+  if (copy) parts.push(part(spec.copy));
   if (spec.findings) {
     const path = join(checkIt, 'SKILL.md');
     parts.push(piece(section(read(deps, path, path), 'Whose is it', path), `*Whose is it* in ${path}`));
@@ -604,28 +610,73 @@ export function assemblePrompt(review, opts, deps) {
 
 const count = (n) => n.toLocaleString('en-US');
 
+function checkModel(runner, located, review, opts, repo, deps, failed) {
+  const { args, read: readList, timeoutMs } = runner.models;
+  const r = deps.spawn(located.command, [...located.args, ...args], { cwd: repo, input: '', timeout: timeoutMs });
+  const models = r.error || r.status !== 0 ? undefined : readList(r.stdout ?? '');
+  if (!models) {
+    const why = r.error?.message ?? (r.status !== 0 ? `exit ${r.status}: ${(r.stderr ?? '').trim().slice(-500) || 'it said nothing'}` : 'what it printed is not a model catalog');
+    failed(`${runner.name} could not list its models with ${args.join(' ')} (${why}), so ${review} did not run on ${runner.name}`);
+  }
+  const efforts = models.get(opts.model);
+  const notPut = `so ${review} was not started, and no other is put in its place`;
+  if (!efforts) fail(`${runner.name} lists no model named ${opts.model}, ${notPut}; it lists ${[...models.keys()].join(', ')}`);
+  if (opts.effort !== undefined && !efforts.includes(opts.effort)) fail(`${runner.name}'s ${opts.model} takes no effort ${opts.effort}, ${notPut}; it takes ${efforts.join(', ') || 'none'}`);
+}
+
+const sizeText = (bytes) => (bytes < 1024 ? `${bytes} B` : bytes < 1024 ** 2 ? `${(bytes / 1024).toFixed(1)}K` : `${(bytes / 1024 ** 2).toFixed(1)}M`);
+
+function fillCopy(repo, { folder, tree }, ledger, deps) {
+  deps.appendFile(ledger, `${folder} | check-it run proving | copy | step end\n`);
+  deps.makeDir(tree);
+  for (const p of zsplit(deps.git(repo, ['ls-files', '-co', '--exclude-standard', '-z']))) deps.copyEntry(join(repo, p), join(tree, p));
+}
+
+function removeCopy(folder, ledger, deps) {
+  try {
+    const bytes = deps.removeTree(folder);
+    deps.appendFile(ledger, `${folder} | deleted, ${sizeText(bytes)}\n`);
+    return '';
+  } catch (err) {
+    return ` Its copy ${folder} could not be deleted (${err.message}), so delete it as its line in the ledger says.`;
+  }
+}
+
 export function runReview(review, opts, deps) {
-  if (CLAUDE_ONLY.has(review)) fail(`${review} runs only on Claude, with Agent: it reproduces findings or picks reviews, which a read-only run on another CLI cannot`);
   if (!opts.runner) fail(`run ${review ?? ''} needs --runner <runner>, one of ${Object.keys(RUNNERS).join(', ')}`);
-  const runner = RUNNERS[opts.runner];
-  if (!runner) fail(`no runner named ${opts.runner}; one of ${Object.keys(RUNNERS).join(', ')}`);
   if (!opts.model) fail(`run ${review ?? ''} needs --model <model>, the runner's model from check-it's table`);
-  const prompt = assemblePrompt(review, opts, deps);
+  if (!opts.caller) fail(`run ${review ?? ''} needs --caller <product>, the product running check-it, one of ${Object.keys(CALLERS).join(', ')}`);
+  const { runner, fallBack, refused } = route(review, opts.caller, opts.runner);
+  if (refused) fail(refused);
+  const spec = REVIEWS[review];
   const repo = repoRoot(opts, deps);
-  const report = reportPath(review, opts.sheet ? { sheet: opts.sheet } : { 'run-folder': opts['run-folder'] }, deps);
+  const copy = spec?.copy && { folder: join(runFolderOf(opts, deps), 'proving') };
+  if (copy) copy.tree = join(copy.folder, 'tree');
+  const prompt = assemblePrompt(review, opts, deps, copy);
+  const ledger = resolve(deps.cwd, opts.ledger);
+  const where = opts.sheet ? { sheet: opts.sheet } : { 'run-folder': opts['run-folder'] };
+  const report = reportPath(review, opts.child === undefined ? where : { ...where, child: opts.child }, deps);
   const part = `${report}.part`;
-  const fallBack = `Run ${review} again with Agent as check-it-reviewer on its Claude model in check-it's table, and say in the result that it fell back`;
+  let left = '';
   const failed = (why) => {
     deps.removeFile(part);
-    throw new RunnerFailed(`${why}. ${fallBack}`);
+    throw new RunnerFailed(`${why}. ${fallBack}${left && `.${left}`}`);
   };
   const located = deps.locate(opts.runner);
   if (!located) failed(`${opts.runner} is not on PATH, so ${review} did not run on ${runner.name}`);
+  checkModel(runner, located, review, opts, repo, deps, failed);
   deps.removeFile(part);
-  const start = deps.now();
   const hook = runner.hook?.({ node: deps.node, skills: deps.skills });
   if (runner.hook && hook === undefined) failed(`${runner.name} runs its hook command through a shell that a quoted path breaks, and the path of ${deps.node} or of the skills folder ${deps.skills} would need quotes, so ${review} did not run on ${runner.name}`);
-  const r = deps.spawn(located.command, [...located.args, ...runner.args({ model: opts.model, tree: repo, report: part, hook })], { cwd: repo, input: prompt, timeout: runner.timeoutMs });
+  if (copy && !deps.makeFolder(copy.folder)) fail(`${copy.folder} is already there, made by another proving run or left by one that did not end; run proving again once that run has ended, or delete the folder as its line in the ledger says`);
+  const start = deps.now();
+  let r;
+  try {
+    if (copy) fillCopy(repo, copy, ledger, deps);
+    r = deps.spawn(located.command, [...located.args, ...runner.args({ model: opts.model, effort: opts.effort, tree: repo, report: part, hook, writable: copy?.folder })], { cwd: repo, input: prompt, timeout: runner.timeoutMs });
+  } finally {
+    if (copy) left = removeCopy(copy.folder, ledger, deps);
+  }
   const seconds = Math.round((deps.now() - start) / 1000);
   if (r.error?.code === 'ETIMEDOUT') failed(`${runner.name} did not finish ${review} in ${runner.timeoutMs / 60000} min, so it was stopped`);
   if (r.error) failed(`${runner.name} could not be started as ${located.command}: ${r.error.message}`);
@@ -636,7 +687,7 @@ export function runReview(review, opts, deps) {
     const spent = said.find((s) => runner.outOfUsage(s));
     if (spent !== undefined) {
       deps.removeFile(part);
-      throw new OutOfUsage(`${runner.name} is out of usage: ${spent}. ${fallBack}`);
+      throw new OutOfUsage(`${runner.name} is out of usage: ${spent}. ${fallBack}${left && `.${left}`}`);
     }
     const last = errors.at(-1) ?? (r.stderr ?? '').trim().slice(-2000);
     if (r.status !== 0) failed(`${runner.name} failed on ${review}, exit ${r.status}: ${last || 'it said nothing'}`);
@@ -644,7 +695,7 @@ export function runReview(review, opts, deps) {
   }
   if (!usage) failed(`${runner.name} printed no turn.completed event on ${review}, so its cost is unknown and the run did not finish`);
   deps.moveFile(part, report);
-  return `report: ${report}\ncost: ${review} on ${runner.name} ${opts.model}: ${seconds} s, ${count(usage.input)} input tokens (${count(usage.cached)} cached), ${count(usage.output)} output tokens\n`;
+  return `report: ${report}\ncost: ${review} on ${runner.name} ${opts.model}${opts.effort === undefined ? '' : ` ${opts.effort}`}: ${seconds} s, ${count(usage.input)} input tokens (${count(usage.cached)} cached), ${count(usage.output)} output tokens\n${left && `left: ${left.trim()}\n`}`;
 }
 
 const SHELL_OPEN = [

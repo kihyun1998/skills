@@ -2,10 +2,10 @@
 // It runs main() unconditionally: it is reached through the ~/.claude/skills
 // link, where argv[1] and import.meta.url name different paths.
 
-import { closeSync, lstatSync, openSync, readFileSync, readSync, readdirSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { appendFileSync, chmodSync, closeSync, copyFileSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { delimiter } from 'node:path';
+import { delimiter, dirname, join } from 'node:path';
 import { CheckItError, SKILLS, run } from './assemble.mjs';
 import { RUNNERS, spawnRunner } from './runners.mjs';
 
@@ -31,6 +31,50 @@ function hash(path) {
 }
 
 const isFile = (path) => statSync(path, { throwIfNoEntry: false })?.isFile() ?? false;
+
+function copyEntry(from, to) {
+  try {
+    const st = lstatSync(from, { throwIfNoEntry: false });
+    if (!st?.isFile() && !st?.isSymbolicLink()) return;
+    mkdirSync(dirname(to), { recursive: true });
+    if (st.isSymbolicLink()) symlinkSync(readlinkSync(from), to);
+    else copyFileSync(from, to);
+  } catch (err) {
+    throw new CheckItError(`could not copy ${from} to ${to}: ${err.message}`);
+  }
+}
+
+function unlock(path) {
+  const st = lstatSync(path, { throwIfNoEntry: false });
+  if (!st?.isDirectory()) return;
+  chmodSync(path, 0o700);
+  for (const name of readdirSync(path)) unlock(join(path, name));
+}
+
+function sizeOf(path) {
+  const st = lstatSync(path, { throwIfNoEntry: false });
+  if (!st) return 0;
+  const own = process.platform === 'win32' ? st.size : st.blocks * 512;
+  if (!st.isDirectory()) return own;
+  return readdirSync(path).reduce((sum, name) => sum + sizeOf(join(path, name)), own);
+}
+
+function removeTree(path) {
+  unlock(path);
+  const bytes = sizeOf(path);
+  rmSync(path, { recursive: true, force: true });
+  return bytes;
+}
+
+function makeFolder(path) {
+  try {
+    mkdirSync(path);
+    return true;
+  } catch (err) {
+    if (err.code === 'EEXIST') return false;
+    throw new CheckItError(`could not make ${path}: ${err.message}`);
+  }
+}
 
 const realDeps = {
   cwd: process.cwd(),
@@ -75,6 +119,11 @@ const realDeps = {
   now: () => Date.now(),
   moveFile: (from, to) => renameSync(from, to),
   removeFile: (path) => rmSync(path, { force: true }),
+  makeDir: (path) => mkdirSync(path, { recursive: true }),
+  appendFile: (path, text) => appendFileSync(path, text),
+  copyEntry,
+  makeFolder,
+  removeTree,
   git: (dir, args) => {
     try {
       return execFileSync('git', args, {

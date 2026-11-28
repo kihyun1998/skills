@@ -320,7 +320,8 @@ show it. Its brief is
 _Avoid_: finding vote (the name before it was decided to reproduce rather than vote)
 
 **Decision model** (thegraph):
-The fresh Haiku 5.5 agent [`check-it`](check-it/) starts to pick its reviews. It
+The fresh agent [`check-it`](check-it/) starts to pick its reviews, on Haiku 5.5 from
+Claude Code and on Codex from Codex (#158). It
 answers six fixed questions about the change, each with the lines that ground the
 answer and yes where it cannot tell, then picks the reviews with one line of
 reason each, from

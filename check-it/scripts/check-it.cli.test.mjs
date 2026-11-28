@@ -369,7 +369,8 @@ function fakeCodex(name, script) {
   const bin = join(scratch, `codex-${name}`);
   const entryDir = join(bin, 'node_modules', '@openai', 'codex', 'bin');
   mkdirSync(entryDir, { recursive: true });
-  const body = `#!/usr/bin/env node\n${script}\n`;
+  const listing = `if (process.argv[2] === 'debug' && process.argv[3] === 'models') { console.log(JSON.stringify({ models: [{ slug: 'gpt-x', supported_reasoning_levels: [{ effort: 'high' }] }] })); process.exit(0); }`;
+  const body = `#!/usr/bin/env node\n${listing}\n${script}\n`;
   writeFileSync(join(entryDir, 'codex.js'), body);
   writeFileSync(join(bin, 'codex.cmd'), '@echo off\r\nexit /b 9\r\n');
   writeFileSync(join(bin, 'codex'), body);
@@ -377,7 +378,7 @@ function fakeCodex(name, script) {
   return { ...process.env, PATH: `${bin}${delimiter}${process.env.PATH}` };
 }
 
-const runBug = (env) => call(here, ['run', 'bug', '--runner', 'codex', '--model', 'gpt-x', ...brief], repo, env);
+const runBug = (env) => call(here, ['run', 'bug', '--caller', 'claude', '--runner', 'codex', '--model', 'gpt-x', ...brief], repo, env);
 const bugReport = join(runFolder, 'check-it.bug.md');
 
 test('run, through the real script, hands a codex found on PATH the prompt on stdin and saves its report', (t) => {
@@ -403,6 +404,45 @@ process.exit(1);`);
   assert.match(r.stderr, /^check-it: Codex is out of usage: You've hit your usage limit\./);
   assert.ok(!existsSync(bugReport));
   assert.ok(!existsSync(`${bugReport}.part`));
+});
+
+test('run proving from Codex, through the real script, copies the tree into the one folder Codex may write, and deletes it with its ledger lines (test double for codex)', (t) => {
+  const report = join(runFolder, 'check-it.proving.md');
+  const ledger = join(scratch, 'run.made.md');
+  t.after(() => rmSync(report, { force: true }));
+  const copy = join(runFolder, 'proving');
+  const env = fakeCodex('prove', `
+const fs = require('node:fs');
+const path = require('node:path');
+const args = process.argv.slice(2);
+const folder = ${JSON.stringify(copy)};
+const tree = path.join(folder, 'tree');
+const seen = ['src/kept.c', 'src/renamed.c', 'src/new file.c'].map((p) => fs.readFileSync(path.join(tree, p), 'utf8').trim());
+fs.writeFileSync(path.join(folder, 'probe.txt'), 'x');
+fs.mkdirSync(path.join(folder, 'locked', 'inner'), { recursive: true });
+fs.writeFileSync(path.join(folder, 'locked', 'inner', 'f.txt'), 'y'.repeat(5000));
+const du = process.platform === 'win32' ? null : parseInt(require('node:child_process').execFileSync('du', ['-sk', folder], { encoding: 'utf8' }), 10);
+fs.chmodSync(path.join(folder, 'locked', 'inner'), 0);
+fs.chmodSync(path.join(folder, 'locked'), 0);
+const writable = args.filter((a) => a.includes('="write"'));
+fs.writeFileSync(args[args.indexOf('-o') + 1], JSON.stringify({ seen, git: fs.existsSync(path.join(tree, '.git')), moved: fs.existsSync(path.join(tree, 'src/moved.c')), writable, effort: args[args.indexOf('-m') + 3], du }));
+console.log(JSON.stringify({ type: 'turn.completed', usage: { input_tokens: 9, cached_input_tokens: 0, output_tokens: 1 } }));`);
+  const before = existsSync(ledger) ? readFileSync(ledger, 'utf8') : '';
+  const r = call(here, ['run', 'proving', '--caller', 'codex', '--runner', 'codex', '--model', 'gpt-x', '--effort', 'high', ...brief, '--findings', join(scratch, 'run.bug.md')], repo, env);
+  assert.equal(r.status, 0, r.stderr);
+  const { du, ...seen } = JSON.parse(readFileSync(report, 'utf8'));
+  assert.deepEqual(seen, {
+    seen: ['int kept = 1;', 'int moved;', 'int fresh;'], git: false, moved: false,
+    writable: [`permissions.check-it-review.filesystem={${JSON.stringify(copy)}="write"}`], effort: 'model_reasoning_effort="high"',
+  });
+  assert.doesNotMatch(r.stdout, /^left:/m);
+  assert.ok(!existsSync(copy));
+  const added = readFileSync(ledger, 'utf8').slice(before.length).split('\n').filter((l) => l !== '');
+  assert.equal(added.length, 2);
+  assert.equal(added[0], `${copy} | check-it run proving | copy | step end`);
+  assert.match(added[1], new RegExp(`^${copy.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')} \\| deleted, \\d+(\\.\\d)? ?[BKM]$`));
+  if (process.platform !== 'win32') assert.ok(Number.isInteger(du) && du > 0, `du -sk gave ${du}`);
+  if (du !== null) assert.equal(added[1].slice(added[1].lastIndexOf(' ') + 1), `${du}.0K`);
 });
 
 test('open, through the real script, stops on a findings report that is not there without starting a viewer', () => {

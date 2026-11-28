@@ -50,8 +50,8 @@ picks are fixed, and `sweep` (12) runs on the change as it then stands.
 
 **What each review cost goes in the result**, one line per review that ran,
 and one per call of the decision model: its wall-clock time and its tokens.
-A review on Claude and every pick is an `Agent` call, whose completion reports
-`subagent_tokens` and `duration_ms`; a review on Codex has the cost line its
+A review or a pick on Claude is an `Agent` call, whose completion reports
+`subagent_tokens` and `duration_ms`; one on Codex has the cost line its
 script prints (*A review on Codex*). A person weighs the pick against these
 numbers, so a line left out is a call whose cost nobody can weigh.
 
@@ -140,30 +140,44 @@ and none is pre-ticked.
 
 ### Each review's runner and model
 
-**Each review runs on a runner and a model fixed for its role, whatever model
-the session calling this runs on** (ADR-0102, amended for #86 and #141): a
-session on a smaller model would otherwise hand its reviews that model too.
-The runner is the CLI the review runs in: Claude, through `Agent`, or Codex,
-through this skill's script.
+**Each review runs on a runner and a model fixed for its role and for the
+product calling this skill, whatever model the session runs on** (ADR-0102,
+amended for #86, #141 and #158): a session on a smaller model would otherwise
+hand its reviews that model too. The calling product is the CLI this skill
+runs in, Claude Code or Codex, and it picks the column; the runner is the CLI
+a review runs in: Claude, through `Agent`, or Codex, through this skill's
+script. Each product completes the check with only its own CLI installed, so
+from Codex every row is Codex.
 
-| Review | Runner, model | Claude model, effort |
+| Review | From Claude Code: runner, model, effort | From Codex: runner, model, effort (proposed) |
 |---|---|---|
-| the refactoring reviewer (4) | Claude | Opus 5.5, `medium` |
-| the spec and rules reviewer (5) | Codex, `gpt-6.1-sol` | Opus 5.5, `high` |
-| the bug reviewer (6) | Codex, `gpt-6.1-sol` | Opus 5.5, `high` |
-| the security reviewer (7) | Claude | Opus 5.5, `high` |
-| `lens` (8) | Claude | Opus 5.5, `high` |
-| `comment-it` (9) | Codex, `gpt-6-luna` | Sonnet 5.5, `medium` |
-| the proving agent (11) | Claude | Opus 5.5, `medium` |
-| the decision model (*Choosing the reviews*) | Claude | Haiku 5.5, `medium` |
+| the refactoring reviewer (4) | Claude, Opus 5.5, `medium` | Codex, `gpt-6.1-sol`, `medium` |
+| the spec and rules reviewer (5) | Codex, `gpt-6.1-sol`; falls back to Claude, Opus 5.5, `high` | Codex, `gpt-6.1-sol`, `high` |
+| the bug reviewer (6) | Codex, `gpt-6.1-sol`; falls back to Claude, Opus 5.5, `high` | Codex, `gpt-6.1-sol`, `high` |
+| the security reviewer (7) | Claude, Opus 5.5, `high` | Codex, `gpt-6.1-sol`, `high` |
+| `lens` (8) | Claude, Opus 5.5, `high` | Codex, `gpt-6.1-sol`, `high` |
+| `comment-it` (9) | Codex, `gpt-6-luna`; falls back to Claude, Sonnet 5.5, `medium` | Codex, `gpt-6-luna`, `medium` |
+| the proving agent (11) | Claude, Opus 5.5, `medium` | Codex, `gpt-6.1-sol`, `medium` |
+| the decision model (*Choosing the reviews*) | Claude, Haiku 5.5, `medium` | Codex, `gpt-6-luna`, `medium` |
+
+**The Codex column is a proposal, to be confirmed** from the real Codex runs
+(#169): each model is one `codex debug models` listed on 2026-11-28
+(codex-cli 0.172.0) with that effort among its levels, the Opus rows on
+`gpt-6.1-sol` and the Sonnet and Haiku rows on `gpt-6-luna` as the Claude Code
+column's Codex rows already run, and each effort the Claude Code column's.
+Those Codex rows name no effort, so Codex runs them at the model's own
+default.
 
 **A Claude row is set on its `Agent` call**, as `model` and `effort`: `model:
 "opus"`, `model: "sonnet"` or `model: "haiku"`, and the effort as the row says. `lens`'s and
 `comment-it`'s frontmatter also names a model, for a caller that runs them with
-`Skill`; here the `Agent` call sets it. **A Codex row's Claude model is the one
-its review falls back to** (*A review on Codex*). The proving agent and the
-decision model run only on Claude: one reproduces in a copy, which a read-only
-run cannot make, and the other picks reviews, not models (#141). The verify check has no row: it is part
+`Skill`; here the `Agent` call sets it. **A Codex row from Claude Code falls
+back to the Claude model it names** (*A review on Codex*); a row from Codex has
+no other product to fall back to, so a failed run is reported as not run. From
+Claude Code, the proving agent and the decision model run only on Claude: one
+reproduces in a copy, and the other picks reviews, not models (#141). From
+Codex they run on Codex, the proving agent in a copy the script makes
+([codex.md](codex.md)). The verify check has no row: it is part
 of (1), runs the project's own command in this session, and its reading follows
 that project's skill.
 
@@ -177,16 +191,19 @@ started it says so. The changed row reaches this step the way the pick does. A
 changed row takes effect for that run, except
 that an `Agent` call takes only a model alias (`sonnet`, `opus`, `haiku`,
 `fable`), so a Claude model with none cannot go on a row, and a session on another
-Opus version runs the Opus rows on its own version. A Codex model is any name
-`codex exec -m` takes. The confirm stop says so
+Opus version runs the Opus rows on its own version. A Codex model and effort
+are what `codex debug models` lists for that model: the script refuses any
+other before Codex starts and puts no other in its place, so that review is
+not run. The confirm stop says so
 when it shows the table, and a change asked anyway that cannot apply is
 reported as not applied, with the reason.
 
 ### A review on Codex
 
-**Read [codex.md](codex.md) where a review's row names Codex as its runner**:
-how that review is started, held, reported and costed, and when it falls back
-to its row's Claude model.
+**Read [codex.md](codex.md) where a review's row names Codex as its runner**,
+which from Codex is every row: how that review is started, held, reported and
+costed, when it falls back to its row's Claude model, and what a Codex caller
+does where this file says `Agent` or `Skill`.
 
 ### Each review's own brief
 
@@ -307,8 +324,8 @@ is an answer: the run goes on to `sweep` (12) with nothing
 fixed.
 
 **After the answer**, each picked finding is fixed through `make-it`, called
-again with `Skill`, then `check-it` is called again with `Skill` for 1 to 3
-only: that call starts no decision model, and a review runs again only where a
+again with `Skill` (from Codex, as [codex.md](codex.md) says), then `check-it`
+is called again the same way for 1 to 3 only: that call starts no decision model, and a review runs again only where a
 fix opened a surface it did not walk (*Going back, and stopping*). The two
 calls are what the thegraph-panel mod reads as the fix and the recheck (#152). **A passed finding the person left
 unfixed is carried to `ask-it`**, with its number and evidence, marked as the
@@ -503,8 +520,8 @@ report opens by saying whether `Agent` or `Skill` is in its tool list, and the
 result names each review that had one as run on an older definition or the
 default agent.
 
-**The prompt is what this skill's script prints, handed to `Agent` as it is**
-(ADR-0102, amended for #114). Run it in the repository, `<check-it>` being this
+**The prompt is what this skill's script prints, handed to `Agent` as it is**,
+or on a Codex row to Codex by the script itself (ADR-0102, amended for #114). Run it in the repository, `<check-it>` being this
 skill's folder:
 
 ```

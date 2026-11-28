@@ -2,7 +2,7 @@
 
 **Status:** accepted. Implements #91; amended for #86, #95, #97, #102, #105,
 #112 and #114, folded for #125 on 2026-11-23 into this one current record, and
-amended since for #140, #141, #146, #138, #149 and #150.
+amended since for #140, #141, #146, #138, #149, #150 and #158.
 The amendment history is in git:
 `git log -p -- docs/adr/0102-check-it-reviews-are-a-catalog-chosen-per-change.md`
 shows the record before the fold.
@@ -34,7 +34,7 @@ was decided, on what, and what would reopen it.
   this change introduced it. The spec and rules reviewer's and `comment-it`'s
   findings carry their own evidence and do not go through it, except where they
   ran on Codex, read-only, which cannot make the copy a reproduction needs
-  (#141).
+  (#141); the proving agent on Codex gets one (#158, below).
 - **A decision model picks the reviews** (#112). No review is asked per change.
   A Haiku 5.5 agent at `medium` answers six fixed questions about the change,
   each with the lines that ground the answer or the search that found nothing,
@@ -48,10 +48,12 @@ was decided, on what, and what would reopen it.
   rules reviewer and `comment-it` on Codex. A person may remove any
   review in words, the floor included, and `check-it`'s start adds back nothing
   the person removed.
-- **Each review's model** (#86, #105): fixed for its role whatever the calling
-  session runs on, set on the `Agent` call or, for a Codex row, passed to
-  `codex exec`, shown at the confirm stop, and
-  changed only where the person asks. The table is `check-it`'s.
+- **Each review's model** (#86, #105, #158): fixed for its role and the
+  calling product whatever model the calling session runs on, set on the
+  `Agent` call or, for a Codex row, passed to `codex exec`, shown at the
+  confirm stop, and changed only where the person asks. The table is
+  `check-it`'s. A Codex model or effort that `codex debug models` does not list
+  is refused before Codex starts and never replaced by another (#158).
 - **Each review's runner** (#141): the table also names the CLI each review
   runs in, changed at the confirm stop as a model is. The spec and rules
   reviewer and the bug reviewer default to Codex `gpt-6.1-sol` and
@@ -63,6 +65,16 @@ was decided, on what, and what would reopen it.
   dollar figure, is stopped after 30 minutes, and falls back unasked to its
   row's Claude model when Codex is out of usage or fails otherwise, the result
   saying so. Another CLI is one more runner entry.
+- **The runner is keyed to the calling product** (#158, amending the fixed
+  runner per role above). Each product completes the check with only its own
+  CLI installed, so the table has a column per product, and the row above is
+  Claude Code's. From Codex every role runs on Codex through `check-it.mjs run`,
+  the decision model and the proving agent included, and a failed run has no
+  other product to fall back to, so it is reported as not run, never as
+  passed. The proving agent there reproduces in a copy the script makes of the
+  files git lists, the one folder the sandbox lets it write, deleted when the
+  run ends; the repository stays read-only and the hook unchanged. The Codex
+  column's models are proposals until the real runs confirm them (#169).
 - **How a Codex review is held** (#146): read-only files in Codex's
   `unelevated` Windows sandbox, with command network on, so a reviewer reads
   its tracker with the person's own login; only the core environment, so no
@@ -193,6 +205,19 @@ maintainer was shown:
   is read, so that layer stays disabled (0.171.0 source), and a run with the
   runner's arguments in a temporary repository listed as trusted showed it:
   its `.codex/hooks.json` SessionStart and PreToolUse hooks wrote nothing. Not measured: macOS and Linux.
+- **For the calling product** (#158): #154's grilling (2026-11-27) decided
+  that each product completes alone, that independent reviews and the decision
+  model run as headless processes behind `check-it.mjs`, since a fresh process
+  cannot share the author's context and in-session sub-agents inherit the
+  parent's write permissions, and that each product gets a model column
+  proposed from its CLI's own listing. At #158's confirm stop the maintainer
+  chose the proving agent on Codex reproducing in a copy the script makes over
+  a static proving agent whose findings would all stay unproven. Measured at
+  build (2026-11-28, codex-cli 0.172.0, macOS, no model run): `codex debug
+  models` lists each model with its efforts in 0.19 s, and under `codex
+  sandbox` the profile with that copy as its one `write` path let a write and
+  `git init` run there and refused one in the repository, the run folder and
+  `/tmp`. Not measured: a real review run from Codex, and Windows.
 - **For the script** (#114): `check-it` had grown to 673 body lines against the
   repository's 500-line guidance, an agent not following the prose had twice
   been answered with more prose (#87, #92), and #87 measured a quarter of
@@ -224,6 +249,8 @@ The runs, times, tokens and costs behind each are in
   ground for leaving the security reviewer off the floor.
 - #96's measurements showing a review missing what the bundled reviews caught,
   or a pick costing more than the reviews it saves.
+- The real Codex runs (#169) refusing a proposed model, or the proving agent's
+  copy failing on a platform's sandbox.
 - #96's measurements, or a later trial, showing a Codex review missing what a
   Claude review of the same change caught, or Codex out of usage printing what
   the script does not read as out of usage.
