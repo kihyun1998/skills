@@ -436,7 +436,9 @@ reported with what it was decided on.
 
 **Nothing reaches a tracker unasked.** Not through a pull-request body, not
 through a code comment — both are buried on merge. One door, at the end, and a
-person decides what goes through it.
+person decides what goes through it. An issue the person asks for before the
+end is searched for first, by its artifact, as `ask-it`'s *Before opening
+anything* says.
 
 **What a step makes outside the change, it deletes.** A copy, a build, tool
 state, an install, a worktree or a process gets a line in the run's ledger when
