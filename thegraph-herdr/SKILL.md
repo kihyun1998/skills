@@ -191,19 +191,8 @@ For each issue:
 3. **Start it** with no label, which runs it without a pane, with the flag of the
    permission mode step 2 confirmed:
    ```sh
-   hc run --bg --json --name tg-<run id>-<slug> --cwd <the run's tree> env "PATH=$PATH" claude --model <alias> --effort <level> <flag> --settings <hooks path> "Read <brief path> and do what it says."
+   hc run --bg --json --name tg-<run id>-<slug> --cwd <the run's tree> claude --model <alias> --effort <level> <flag> --settings <hooks path> "Read <brief path> and do what it says."
    ```
-   `env "PATH=$PATH"` hands the worker this session's `PATH`, expanded by this
-   session's shell, since a process `hc run` starts gets the `herdr-core`
-   daemon's environment and `hc run` has no option to set one. Without it, a
-   `node` or `codex` that reaches `PATH` only through the interactive shell's
-   startup file (nvm through `~/.zshrc`) is missing in the worker, so the run's
-   hooks, set to block when they fail, refuse every call, as
-   `check-it-reviewer`'s does (`check-it`, *Briefing the fresh agents*), the
-   brief's own `node` commands fail, and a review on Codex falls back to Claude
-   (#173). On Windows the line is started without `env "PATH=$PATH"`: in
-   PowerShell `$PATH` is not the environment variable (`$env:PATH` is), and a
-   Windows worker's environment is not measured.
    Tell the person the worker's address from the reply, which `terminal.peek`
    opens.
    A few seconds after the start, `hc read` the worker: a
