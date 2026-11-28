@@ -104,6 +104,8 @@ Single-context: one `GLOSSARY.md` + `docs/adr/` at the repo root. See `docs/agen
 `docs/environment/` records global Claude Code setup that lives outside any repo
 (`~/.claude/settings.json` and friends), with the measurements behind each choice.
 Currently: `usage-band.md`, `windows.md` (what a script or check run on this
-Windows machine has to allow for), and `CLAUDE.md`, the user-level instructions
+Windows machine has to allow for), `herdr-path.md` (what a process `hc run`
+starts finds on `PATH`, and the links that give a worker nvm's `node` and
+`codex`), and `CLAUDE.md`, the user-level instructions
 `scripts/install-skills.sh` links into `~/.claude` and `$CODEX_HOME`, with where
 each line came from in `user-instructions.md`.
