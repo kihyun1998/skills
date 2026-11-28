@@ -29,14 +29,6 @@ Each group is measured with `du -sh` on the paths it names, in parallel.
   offered.
 - **Run folders**: `<OS temp>/thegraph/*.made/`, `<OS temp>/made-*/` and
   `<scratchpad root>/*/*/scratchpad/made/`, each read through its ledger.
-
-The **scratchpad root** is read from the scratchpad directory the harness gives
-this session, `<scratchpad root>/<project>/<session>/scratchpad`, with those last
-three parts taken off. It is not a fixed folder under the OS temp folder: on
-macOS a session's scratchpad was under `/private/tmp/claude-<uid>/` while the OS
-temp folder (`$TMPDIR`) was under `/var/folders/`. Where the harness gives this
-session no scratchpad, the Claude Code places are not looked in, and the report
-says so.
 - **Folders with an owner marker**: `<OS temp>/*/.made`, the marker's line read
   for who made it.
 - **Stale worktrees**, in every repository a ledger names and in the working
@@ -46,6 +38,14 @@ says so.
   is read too, since `remove` refuses one with changes.
 - **Processes**, listed, from the ledgers' open process lines whose pid is still
   alive with the same command line.
+
+The **scratchpad root** is read from the scratchpad directory the harness gives
+this session, `<scratchpad root>/<project>/<session>/scratchpad`, with those last
+three parts taken off. It is not a fixed folder under the OS temp folder: on
+macOS a session's scratchpad was under `/private/tmp/claude-<uid>/` while the OS
+temp folder (`$TMPDIR`) was under `/var/folders/`. Where the harness gives this
+session no scratchpad, the Claude Code places are not looked in, and the report
+says so.
 
 **A run that may still be live is marked, and left out of *all of it***: its
 run sheet still exists (a `thegraph` run deletes it at its end), a process of
