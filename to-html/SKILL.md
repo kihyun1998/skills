@@ -43,15 +43,21 @@ Out of scope — stop and say so instead of converting:
 1. **Get the source.** A file path → Read it. Otherwise gather the in-context content the user pointed at.
 2. **Pick the mode** — Standard or Report (see Modes above).
 3. **Read the reference for that mode — always, do not reconstruct markup from memory:**
-   - Standard → `assets/style.css` (the canonical stylesheet) **and** `REFERENCE.md` (skeleton + component markup).
+   - Standard → `REFERENCE.md` (skeleton + component markup). Every class it shows is defined in `assets/style.css`, so the stylesheet is not read: step 10 joins it into the page as it is.
    - Report → `REPORT.md` (scaffold + component markup). Report mode does not use `assets/style.css`.
 4. **Strip non-document noise.** Drop conversational scaffolding that is not part of the document — e.g. a "Sure, here's the doc…" preamble, a trailing "want me to also…?". Convert the document, not the chat around it.
 5. **Detect language** and set `<html lang="…">` (e.g. `ko`, `en`). Both modes' font stacks cover Korean and Latin — no web fonts needed.
 6. **Convert the standard markdown** — see Conversion rules.
 7. **Decide on premium / report components** — this is judgment, not a mechanical mapping. See Premium elements (Standard) or the component list in `REPORT.md`.
 8. **Build the TOC** from the h2/h3 headings, nested.
-9. **Assemble** from the mode's reference. Standard → inline the entire stylesheet into one `<style>` block. Report → the Tailwind + Mermaid scaffold from `REPORT.md`.
-10. **Write** the `.html` file (next to the source file, or where the user asks) and tell the user the path. In Report mode, add one line reminding the user the file needs internet to render.
+9. **Assemble** from the mode's reference. Standard → the skeleton's `<style>` block holds only `REFERENCE.md`'s placeholder line, as it is and alone on its line. Report → the Tailwind + Mermaid scaffold from `REPORT.md`.
+10. **Write** the `.html` file (next to the source file, or where the user asks). In Standard mode, then put the stylesheet in place of the placeholder line with a shell step, so the page carries the file byte for byte and the stylesheet never passes through the model:
+
+    ```sh
+    awk -v css="<skill dir>/assets/style.css" '{l=$0; sub(/\r$/, "", l)} l == "/* to-html: assets/style.css */" {while ((getline l < css) > 0) print l; next} {print}' <page>.html > <page>.html.tmp && mv <page>.html.tmp <page>.html
+    ```
+
+    `<skill dir>` is this skill's base directory, written with forward slashes (`awk -v` reads a backslash as an escape). A page saved with CRLF line ends is matched too. Afterwards the placeholder is gone from the page (`grep -c` counts 0) and `:root {` follows `<style>`. Tell the user the path. In Report mode, add one line reminding the user the file needs internet to render.
 
 ## Conversion rules
 

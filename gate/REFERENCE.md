@@ -105,18 +105,27 @@ comments whose verdict is `Rework`.
 # loop counter (step 4).
 gh issue view <N> --json number,title,body,comments
 
-# Resolve issue N -> the PR that closes it. A PR whose body carries a
-# closing keyword ("Closes #N") leaves a cross-reference on the issue
-# timeline; the source of that event is the PR.
-gh api "repos/{owner}/{repo}/issues/<N>/timeline" --paginate \
-  --jq 'last(.[] | select(.event == "cross-referenced"
-        and .source.issue.pull_request) | .source.issue.number)'
+# Resolve issue N -> the PR that closes it: the PRs GitHub links as
+# closing the issue. A PR that only mentions #N is not in this list.
+gh issue view <N> --json closedByPullRequestsReferences \
+  --jq '.closedByPullRequestsReferences[].number'
 
-# From that PR number: its base + head, then the merge-base — the
-# fixed point passed to `ki-code-review`.
-gh pr view <PR> --json number,headRefName,baseRefName,headRefOid
-git merge-base <baseRef> <headRef>
+# From that PR number: its base branch and head commit.
+gh pr view <PR> --json number,baseRefName,headRefOid
+
+# ki-code-review diffs against HEAD: it must be the PR's head. Where
+# this prints something else, stop and ask the maintainer to check the
+# PR head out and run gate again.
+git rev-parse HEAD
+
+# The base branch from the PR's repository (the remote gh resolved it
+# from, usually origin); the local branch is not used, since it is often
+# stale or not there.
+git fetch origin <baseRefName>
+
+# The fixed point passed to `ki-code-review`.
+git merge-base origin/<baseRefName> <headRefOid>
 ```
 
-The merge-base is the **fixed point** passed to `ki-code-review`. If the timeline
-shows no cross-referencing PR, stop — the gate has nothing to judge.
+The merge-base is the **fixed point** passed to `ki-code-review`. If the issue
+lists no closing PR, stop — the gate has nothing to judge.

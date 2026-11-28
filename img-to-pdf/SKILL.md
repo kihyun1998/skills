@@ -33,7 +33,11 @@ bash scripts/img2pdf.sh a.jpg b.png c.heic -o out.pdf
 1. **Identify the input.** A directory → all images inside it, natural-sorted. A list of files → kept in the user's given order.
 2. **Pick the mode.** Default = searchable (OCR). Add `--image-only` only when the user explicitly wants a picture-only PDF or is not on macOS.
 3. **Run the script** (see Quick start). It prints the output path and page count (and OCR line count in searchable mode).
-4. **Verify.** Open it: `open <out.pdf>` (Preview) — in searchable mode, Cmd+F finds Korean text and dragging selects it.
+4. **Verify** from what the script printed and what the PDF holds, without opening it:
+   - the page count it printed matches the number of images given;
+   - in searchable mode, the OCR line count is above 0 for pages that carry text, and the PDF's text layer holds the text, Korean included. Read the layer with a tool the machine has: `pdftotext <out.pdf> -` where poppler is installed, or else PDFKit through the Swift that OCR mode already needs, `swift -e 'import PDFKit; let d = PDFDocument(url: URL(fileURLWithPath: CommandLine.arguments[1]))!; print(d.pageCount); print(d.string ?? "")' <out.pdf>`.
+
+   Opening the PDF in Preview takes the person's screen, so offer it and run `open <out.pdf>` only when they say yes.
 
 ## What the script handles
 

@@ -23,12 +23,20 @@ Each group is measured with `du -sh` on the paths it names, in parallel.
 
 - **Ledger leftovers.** Every ledger, at the places [RULES.md](RULES.md) puts
   one: `<OS temp>/thegraph/*.made.md`, `<OS temp>/made-*/made.md`, and for Claude
-  Code `<OS temp>/claude/*/*/scratchpad/made/made.md`, its lines read together
+  Code `<scratchpad root>/*/*/scratchpad/made/made.md`, its lines read together
   by path as RULES.md says. Each item still open in it: its path, what it is,
   who made it and when (the file's date). A kept item is listed apart and never
   offered.
 - **Run folders**: `<OS temp>/thegraph/*.made/`, `<OS temp>/made-*/` and
-  `<OS temp>/claude/*/*/scratchpad/made/`, each read through its ledger.
+  `<scratchpad root>/*/*/scratchpad/made/`, each read through its ledger.
+
+The **scratchpad root** is read from the scratchpad directory the harness gives
+this session, `<scratchpad root>/<project>/<session>/scratchpad`, with those last
+three parts taken off. It is not a fixed folder under the OS temp folder: on
+macOS a session's scratchpad was under `/private/tmp/claude-<uid>/` while the OS
+temp folder (`$TMPDIR`) was under `/var/folders/`. Where the harness gives this
+session no scratchpad, the Claude Code places are not looked in, and the report
+says so.
 - **Folders with an owner marker**: `<OS temp>/*/.made`, the marker's line read
   for who made it.
 - **Stale worktrees**, in every repository a ledger names and in the working

@@ -18,12 +18,28 @@ document that already exists.
 
 ## 1. Measure
 
-Record lines and bytes, whole and per section, before anything moves:
+Record lines and bytes, whole and per section, before anything moves. Every
+line is counted once: the part before the first `## ` (frontmatter, title,
+introduction) is a section of its own, a `## ` inside a code fence is not a
+heading, a fence closes only on a line of the same character at least as long
+as the one that opened it (so a ```` ``` ```` block shown inside a ```` ```` ````
+fence stays inside it), and the sections add up to the whole count. This holds
+all of that:
 
 ```sh
 wc -lc <doc>
-awk '/^## /{if(h)printf "%5d %s\n", n, h; h=$0; n=0} {n++} END{printf "%5d %s\n", n, h}' <doc>
+awk 'BEGIN{h="(before the first ## )"} match($0, /^ *(```+|~~~+)/){m=substr($0, RSTART, RLENGTH); sub(/^ */, "", m); if (!f) {f=1; c=substr(m, 1, 1); k=length(m)} else if (substr(m, 1, 1) == c && length(m) >= k && $0 ~ /^ *[`~]+ *$/) f=0} !f && /^## /{printf "%5d %s\n", n, h; h=$0; n=0} {n++} END{printf "%5d %s\n", n, h}' <doc>
 ```
+
+Where the doc's last line has no newline, `wc -l` counts one line fewer than
+the sections add up to.
+
+Fix where the original will be read from in step 5. Where the doc is tracked
+and has no uncommitted change now, that is version control
+(`git show HEAD:<path>`, the path relative to the repository's root). Otherwise,
+a doc not committed yet, one with changes, or one outside a repository such as
+`~/.claude/CLAUDE.md`, is copied at the start of step 4, before the first edit
+(*Write*, below).
 
 Find where detail could go: list the repository's existing agent-reference
 directory (`docs/agents/` or its equivalent) and grep the repo for references to
@@ -99,6 +115,10 @@ applied to the bins first.
 
 ## 4. Write
 
+Where step 1 found that the original cannot be read from version control, copy
+the doc first, into the session's scratchpad or else the OS temp folder; the
+copy is deleted at the end of step 5.
+
 - **The document** keeps `RULE`, `NUMBER` and `ROSTER` commands, and one pointer
   per destination. A pointer names its trigger: *"Run X when you touched Y"*,
   *"Before committing, read Z"*. A pointer without a trigger is a file nobody
@@ -113,7 +133,8 @@ applied to the bins first.
 
 ## 5. Prove nothing was lost
 
-Read the original from version control (`git show HEAD:<doc>`), not from memory.
+Read the original from where step 1 fixed it, version control or the copy, not
+from memory.
 List every `RULE`, `DETAIL` and `NUMBER` part as one line. Find each in the new
 document or its destination and mark it `found: <file>`. A part with no home is
 a defect in the cut: restore it before going on.

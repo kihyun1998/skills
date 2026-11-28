@@ -1,5 +1,13 @@
 # The peer comparison is a method, so it leaves as `plat`
 
+> **Amended 2026-11-28 (#179).** The homes in *The outputs already have homes*
+> are gone: there is no `place` node, and `gate` matches no tree rule. The tree
+> rule is read once it is written as a layout rule in `CLAUDE.md`, `GLOSSARY.md`
+> or a decision record, by `make-it` to place a new file and by `check-it` to
+> match the diff; the deliberate-divergence list, kept in a decision record, is
+> what `lens` grades a finding against. `plat/SKILL.md` *Where the output goes*
+> holds this now. The decision to make the comparison a method stands.
+
 [ADR-0037](0037-placement-is-a-node-because-the-alternative-was-four-files.md)
 gave placement a node and, in the same act, scoped the comparison out of it:
 

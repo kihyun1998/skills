@@ -476,8 +476,9 @@ property a script can check against a diff. Ownership — which module a file
 belongs to — is one such property; **visibility** (does the barrel export it) and
 **element-tree dependence** (does the test drive the public widget) are others of
 equal standing, and a repo may keep several axes at once, each yielding its own
-check. A build value: `place` routes a change by it and `gate` matches the
-produced diff against it, which is why a rule stated as a layer name is not one —
+check. Written as a layout rule in `CLAUDE.md`, `GLOSSARY.md` or a decision
+record, it is what `make-it` places a new file by and what `check-it` matches the
+diff's added and moved files against, which is why a rule stated as a layer name is not one —
 it cannot be matched against a diff, and a directory nobody named is a directory
 nobody owns.
 _Avoid_: Layout (the thing the rule describes, not the rule), Structure (the

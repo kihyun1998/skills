@@ -141,11 +141,15 @@ told you arrives later as rework — the imports, the module wiring, the history
 
 ## Where the output goes
 
-The two artifacts are already slots a `thegraph` build supplies: the **tree
-rule** is what `place` reads to route a change and what `gate` matches the diff
-against, and the **deliberate-divergence list** is what the restatement test is
-checked against. Nothing invokes this skill; a person runs it. Run
-standalone, the same two artifacts are the report.
+Nothing invokes this skill; a person runs it, and the two artifacts are the
+report. The **tree rule** is read once the person has it written as a layout rule
+in `CLAUDE.md`, `GLOSSARY.md` or a decision record: `make-it` reads it there to
+place a new file, and `check-it` matches the diff's added and moved files against
+it. Where it is written is the person's call. The **deliberate-divergence list**,
+written with the rule in a decision record, is what `lens` grades a finding
+against: `check-it` has it read the project's deliberate divergences from the
+decision records, so a layout difference the list settles comes back as
+deliberate rather than as a defect.
 
 ## Verification
 

@@ -35,7 +35,7 @@ Exact markup for the house style. Read this file every time you convert — do n
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>DOCUMENT TITLE</title>
 <style>
-/* Inline the FULL contents of assets/style.css here, verbatim. */
+/* to-html: assets/style.css */
 </style>
 </head>
 <body>

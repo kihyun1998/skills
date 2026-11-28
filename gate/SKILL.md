@@ -30,10 +30,16 @@ do not extract it into executable code.
 
 From the issue number, using `gh` + `jq` (see `docs/agents/issue-tracker.md`):
 
-- **Linked PR** — the PR that closes this issue (its body has `Closes #N`, or
-  GitHub's issue/PR linkage). If no PR is linked, stop and report it.
-- **Fixed point** — the merge-base of the PR branch against its base branch.
-  This is the commit `ki-code-review` will diff from.
+- **Linked PR** — a PR that closes this issue, as GitHub links it
+  (`closedByPullRequestsReferences`); a PR that only mentions `#N` is not one.
+  If none is linked, stop and report it; if more than one is, name them and ask
+  the maintainer which to judge.
+- **PR head** — the PR's head commit (`headRefOid`). `ki-code-review` diffs
+  against `HEAD`, so gate checks that `git rev-parse HEAD` equals it. Where it
+  does not, stop: tell the maintainer to check the PR head out and run gate
+  again. Gate does not check anything out itself.
+- **Fixed point** — the merge-base of the base branch, fetched, and that head
+  commit. This is the commit `ki-code-review` will diff from.
 - **Spec** — the issue body.
 - **Rework history** — the issue comments (used by the loop counter, step 4).
 
