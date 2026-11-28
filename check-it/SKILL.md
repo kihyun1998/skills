@@ -174,8 +174,9 @@ default.
 `Skill`; here the `Agent` call sets it. **A Codex row from Claude Code falls
 back to the Claude model it names** (*A review on Codex*); a row from Codex has
 no other product to fall back to, so a failed run is reported as not run. From
-Claude Code, the proving agent and the decision model run only on Claude: one
-reproduces in a copy, and the other picks reviews, not models (#141). From
+Claude Code, the proving agent and the decision model run only on Claude: #158
+left the Claude Code route as it was, and whether Claude Code may run them on
+Codex is #164's to decide. From
 Codex they run on Codex, the proving agent in a copy the script makes
 ([codex.md](codex.md)). The verify check has no row: it is part
 of (1), runs the project's own command in this session, and its reading follows
